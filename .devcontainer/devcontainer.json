@@ -1,0 +1,72 @@
+// Devcontainer for NovaTrail's api: all development happens here.
+// Tool versions are pinned directly in this file and in .devcontainer/Dockerfile.
+{
+    "name": "novatrail-api",
+    "build": {
+        "dockerfile": "Dockerfile",
+        // The full environment, not the toolchain stage on its own.
+        "target": "devcontainer",
+        // The image copies nothing from the repository, so it is built from this folder alone.
+        "context": "."
+    },
+    "remoteUser": "vscode",
+    // Runs on the host before the container starts: gives it a network whose MTU is the
+    // host's own, so a tunnel on the host does not silently truncate large downloads here.
+    "initializeCommand": "bash .devcontainer/host-network.sh",
+    "runArgs": [
+        "--network=novatrail-api"
+    ],
+    "mounts": [
+        // The sign-ins live in volumes shared by the containers of every NovaTrail repository:
+        // they survive rebuilds, and one sign-in serves them all.
+        // Claude Code login and settings. It keeps a memory directory per git repository,
+        // under projects/ here, so one volume does not mix the repositories' memories.
+        "source=novatrail-claude,target=/home/vscode/.claude,type=volume",
+        // Codex's ChatGPT sign-in, settings and chat history: its default home, kept the same way.
+        "source=novatrail-codex,target=/home/vscode/.codex,type=volume",
+        // And the GitHub one, so that `gh auth login` is answered once rather than once
+        // per rebuild.
+        "source=novatrail-gh,target=/home/vscode/.config/gh,type=volume",
+        // The VS Code extensions, in a volume of this container's own: ${devcontainerId} stays
+        // the same across rebuilds and differs between repositories. Without it a rebuild
+        // downloads every extension again, and an install cut short by a reload is never
+        // finished: extensions are installed only when the container is created. With it the
+        // next rebuild finds them in place and installs only what is missing.
+        "source=novatrail-vscode-extensions-${devcontainerId},target=/home/vscode/.vscode-server/extensions,type=volume"
+    ],
+    "containerEnv": {
+        // Tells an agent's session, Claude's or Codex's, that it runs in here, the one place
+        // it may work.
+        "NOVATRAIL_DEVCONTAINER": "1",
+        "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+        "DISABLE_AUTOUPDATER": "1"
+    },
+    // spec is a submodule: a clone made without --recurse-submodules gets it here.
+    "postStartCommand": "test -e spec/RULES.md || git submodule update --init spec",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "files.eol": "\n",
+                "files.insertFinalNewline": true,
+                // spec is a read-only submodule of every other NovaTrail repository: Source
+                // Control does not offer it as one more repository to commit in.
+                "git.detectSubmodules": false
+            },
+            // Exact versions; the Claude Code extension matches CLAUDE_CODE_VERSION.
+            "extensions": [
+                "anthropic.claude-code@2.1.280",
+                // OpenAI's coding agent, signed in with a ChatGPT plan. The extension brings
+                // its own CLI and sandbox, so the image installs nothing for it.
+                "openai.chatgpt@26.1007.21434",
+                "redhat.vscode-yaml@1.24.0",
+                // Starts just-lsp, which the image installs at JUST_LSP_VERSION.
+                "nefrob.vscode-just-syntax@0.10.2",
+                // Mermaid in the Markdown preview: the prerequisite DAG and the data flows.
+                "bierner.markdown-mermaid@1.32.1",
+                "eamodio.gitlens@19.2.0",
+                // The extensions of this repository's kind.
+                "golang.go@0.56.1"
+            ]
+        }
+    }
+}
