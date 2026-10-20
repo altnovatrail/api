@@ -1,0 +1,22 @@
+# OpenSSF Scorecard (R09 .github), pinned to a release of .github. Like the shared file, it has no
+# env or defaults and only read permission at the top, as the Scorecard server asks of a workflow
+# that publishes.
+name: Scorecard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  scorecard:
+    name: Scorecard
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
+    uses: altnovatrail/.github/.github/workflows/scorecard.yml@ff2a3597769ca85e59e476b1a41bdcbc1f50e3ed # v0.1.0
