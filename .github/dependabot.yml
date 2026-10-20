@@ -1,0 +1,17 @@
+version: 2
+
+updates:
+  # The actions of the workflows, and the references to .github's shared workflows with them.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+
+  - package-ecosystem: docker
+    directory: /.devcontainer
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
