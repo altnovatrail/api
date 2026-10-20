@@ -48,6 +48,9 @@
             "settings": {
                 "files.eol": "\n",
                 "files.insertFinalNewline": true,
+                // Every commit made from Source Control carries Signed-off-by, as the DCO asks
+                // of every contribution. From a terminal it is `git commit -s`.
+                "git.alwaysSignOff": true,
                 // spec is a read-only submodule of every other NovaTrail repository: Source
                 // Control does not offer it as one more repository to commit in.
                 "git.detectSubmodules": false
