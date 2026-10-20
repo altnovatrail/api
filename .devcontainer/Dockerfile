@@ -10,7 +10,7 @@
 
 # -- toolchain: checks the schemas and documents -----------------------------
 
-FROM mcr.microsoft.com/devcontainers/base:3.0.8-noble@sha256:d7c468679f45a52ad3673d06656b5bf16e488990b17216a1fa295d9e1f89d724 AS toolchain
+FROM mcr.microsoft.com/devcontainers/base:3.0.10-noble@sha256:21e9e3275736cb3bc33a2904b279a2ab292c51fedd53c2963463627d4586c3e6 AS toolchain
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
@@ -103,14 +103,17 @@ RUN arch="$(dpkg --print-architecture)"; \
 
 # Claude Code comes from the registry at an exact version, rather than from an installer
 # script run off the network: what arrives is the package that version names, and npm checks
-# the archive against the hash the registry publishes for it. That package's own install step
-# is allowed by name — it is what puts the native binary in place of the stub the package
-# ships with, and without it the CLI starts through a Node wrapper on every invocation. npm's
-# download cache under root's home is cleared in the same layer, since the container runs as
-# vscode.
+# the archive against the hash the registry publishes for it. No package's install script runs.
+# The one step the package needs — install.cjs, which puts the native binary from its platform
+# package in place of the stub it ships with — is run by name, after the install; without it
+# the CLI starts through a Node wrapper on every invocation. install.cjs exits 0 even when the
+# platform's binary is missing, and leaves a stub that exits 1: claude --version stops the build
+# on it. npm's download cache under root's home is cleared in the same layer, since the
+# container runs as vscode.
 RUN echo "claude code ${CLAUDE_CODE_VERSION}" \
-    && npm install -g --allow-scripts=@anthropic-ai/claude-code \
-        "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && npm install -g --ignore-scripts "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && node "$(npm root -g)/@anthropic-ai/claude-code/install.cjs" \
+    && claude --version \
     && npm cache clean --force
 
 # The dirs the named volumes are mounted over are created here so the volumes inherit vscode
