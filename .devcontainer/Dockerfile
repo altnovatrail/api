@@ -4,34 +4,47 @@
 # detected at RUN time via dpkg instead. A host that has Docker can build this, and that is the
 # whole requirement.
 #
-# Two stages. `toolchain` holds what it takes to check the schemas and documents and spec's Go
-# module, and is the stage the automated checks run inside. `devcontainer` adds what a person
-# needs on top of that and is the default stage, so building this file with no target gives the
-# full environment.
+# Two stages. `toolchain` holds what it takes to check the repository — its documents, and its
+# code where it has any — and is the stage the automated checks run inside. `devcontainer` adds
+# what a person needs on top of that and is the default stage, so building this file with no
+# target gives the full environment.
 
-# -- toolchain: checks the schemas and documents -----------------------------
+# -- toolchain: checks the repository ----------------------------------------
 
 FROM mcr.microsoft.com/devcontainers/base:3.0.10-noble@sha256:21e9e3275736cb3bc33a2904b279a2ab292c51fedd53c2963463627d4586c3e6 AS toolchain
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-# Node.js LTS: the JSON Schema validators and the document linters are npm packages.
+# Node.js LTS: the checks of spec's justfile — of the documents, of the licenses, of the files of
+# a release and, in spec, of the schemas — are npm packages, and a repository's TypeScript runs
+# on it too.
 ARG NODE_VERSION=24.21.0
 ARG JUST_VERSION=1.58.0
-# Go: spec's Go module, which code of the platform takes from a release, is vetted and tested
-# here, and its zip built as the Go module proxy will build it (R64 spec). It lives in /usr/local/go,
-# where the shared CodeQL workflow of .github looks for it in this stage.
+# Go: a repository's Go code is built, vetted and tested with it, and CodeQL reads that code from
+# a build with it, in /usr/local/go, where the shared CodeQL workflow of .github looks for Go in
+# this stage. In spec that code is its Go module, which code of the platform takes from a
+# release, and the Go tools in tools/, and spec's checks build the module's zip as the Go module
+# proxy will (R64 spec). Go comes with this file into the copy of every NovaTrail repository, whatever
+# its kind, and stays unused in one without Go code (R64 spec).
 ARG GO_VERSION=1.27.3
+# buf: the API contracts are protobuf files that buf formats, lints, compares with the previous
+# release and generates code from, and spec's checks run it on its contracts/ (R83 spec). It comes
+# with this file into the copy of every NovaTrail repository, as Go does, and stays unused in one
+# without contracts: the other repositories take the generated code from a release of spec.
+ARG BUF_VERSION=1.75.0
 # The sha256 of every archive, per architecture, as its publisher lists it: SHASUMS256.txt of
-# the Node release, SHA256SUMS of the just release, the sha256 go.dev/dl lists for Go. A sum
-# written here keeps an archive from being swapped once it has been read (R34 spec), and is raised
-# together with its version.
+# the Node release, SHA256SUMS of the just release, the sha256 go.dev/dl lists for Go,
+# sha256.txt of the buf release, whose binary comes as it is, with no archive. A sum written here
+# keeps a download from being swapped once it has been read (R34 spec), and is raised together with
+# its version.
 ARG NODE_SHA256_AMD64=6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff
 ARG NODE_SHA256_ARM64=724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5
 ARG JUST_SHA256_AMD64=4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d
 ARG JUST_SHA256_ARM64=748237128c4c40cbdabc65e841d05ceba13cc23a91eaba395495894c1d9764df
 ARG GO_SHA256_AMD64=65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40
 ARG GO_SHA256_ARM64=a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49
+ARG BUF_SHA256_AMD64=fad1e38d6909bbb583a4da81d8c02a01046e2cd663bde7e337dd24277393764b
+ARG BUF_SHA256_ARM64=00eb190aa82df17f393e05b04889cc60a0b13b3259d336e21a87d5f23ab4fd26
 
 # Every archive comes through one helper, so that every download is retried the same way and
 # checked against its sum before anything unpacks it. --retry-all-errors is the point of it: a
@@ -40,9 +53,11 @@ ARG GO_SHA256_ARM64=a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f119326958716
 RUN arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
         amd64) node_arch=x64; gnu_arch=x86_64; \
-            node_sha256="$NODE_SHA256_AMD64"; just_sha256="$JUST_SHA256_AMD64"; go_sha256="$GO_SHA256_AMD64" ;; \
+            node_sha256="$NODE_SHA256_AMD64"; just_sha256="$JUST_SHA256_AMD64"; go_sha256="$GO_SHA256_AMD64"; \
+            buf_sha256="$BUF_SHA256_AMD64" ;; \
         arm64) node_arch=arm64; gnu_arch=aarch64; \
-            node_sha256="$NODE_SHA256_ARM64"; just_sha256="$JUST_SHA256_ARM64"; go_sha256="$GO_SHA256_ARM64" ;; \
+            node_sha256="$NODE_SHA256_ARM64"; just_sha256="$JUST_SHA256_ARM64"; go_sha256="$GO_SHA256_ARM64"; \
+            buf_sha256="$BUF_SHA256_ARM64" ;; \
         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
     esac; \
     workdir="$(mktemp -d)"; \
@@ -70,6 +85,12 @@ RUN arch="$(dpkg --print-architecture)"; \
         "$workdir/go-${GO_VERSION}-${arch}.tar.gz" "$go_sha256"; \
     tar -C /usr/local -xzf "$workdir/go-${GO_VERSION}-${arch}.tar.gz"; \
     /usr/local/go/bin/go version; \
+    \
+    echo "buf ${BUF_VERSION}"; \
+    fetch "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-Linux-${gnu_arch}" \
+        "$workdir/buf-${BUF_VERSION}-${gnu_arch}" "$buf_sha256"; \
+    install -m 0755 "$workdir/buf-${BUF_VERSION}-${gnu_arch}" /usr/local/bin/buf; \
+    buf --version; \
     \
     rm -rf "$workdir"
 
