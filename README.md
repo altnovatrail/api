@@ -17,13 +17,13 @@ A component of [NovaTrail](https://github.com/altnovatrail/spec/tree/v0.6.6), a 
 
 ## Status
 
-Detailing. The documents come first: the first epic of [RUN.md](RUN.md) decides what the component's card left open, and the code follows in the order RUN.md sets. There is no code here yet: it comes after the module format's code and content, the learner model, engine and tutor's first code, and spec's contract between app and api, and its first build with app is the first app, which the author alone runs locally. No child learns here before verifiable parental consent and the contracts with AI providers are in place.
+Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md, table 2. There is no code here yet. Its first build with app, the first app, which the author alone runs locally, comes after the module format's code and content, the learner model, engine and tutor's first code, and spec's contract between app and api. The skeleton, database, sign-in and deletion need none of these, and starting them earlier is a proposal that waits for the author (RUN.md, table 3). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
 
 ## Documents
 
 The documents are in Russian.
 
-- [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links, and what is still to decide.
+- [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links, what was decided and how the service is built.
 - [docs/decisions.md](docs/decisions.md) — the decision log: what was decided, why, and what was rejected.
 - [RUN.md](RUN.md) — the work plan, in epics.
 
