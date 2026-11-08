@@ -253,6 +253,16 @@
   - `after_n_builds: 2` у `spec` — потому что загрузок две; у `api` она одна;
   - шаблон `.sonarcloud.properties` — только `sonar.exclusions=spec/**`, а тесты Go тестами считает вид `spec`: `sonar.tests` и `sonar.test.inclusions`, и `spec/**` — ещё и в `sonar.test.exclusions`;
   - открыты pull request Dependabot #5–#9 на v0.1.10 — их перекроет T18. Группу `shared-workflows` в Dependabot вносит сессия `spec` (поправка 2026-11-08 к R04 .github).
+- **Сделано (2026-11-08):**
+  - вызовы `.github` — секреты, DCO, документы, CodeQL и Scorecard — на v0.1.21; job «Go» — общий `go.yml` v0.1.21 с `contents: read` и `id-token: write`; CodeQL — `languages: go`;
+  - `ci-lint` сверяет модули `spec` и контрактов с коммитом подмодуля по `Origin.Hash` прокси Go;
+  - Dependabot `gomod` с `ignore` обоих модулей `spec`; `.github/codecov.yml` — по шаблону `.github`; `.sonarcloud.properties` — тесты Go как тесты, без `spec/`;
+  - README — значки версии Go и покрытия; R27 в журнале решений; [docs/architecture.md](docs/architecture.md), разделы 1 и 3.11, — без Д46 и с решённой сверкой `spec`; Д19 — в таблице 4.
+
+  Проверено: в devcontainer `just ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses` и `docs-check-repo` — зелёные; в клоне с `spec` v0.9.10 `ci-lint` падает и называет все три коммита. На pull request #27 — зелёные «Go / lint», «test», «vuln», «licenses», «coverage» и «CodeQL / analyze (go)», а Codecov с первой загрузки включил репозиторий (`active: true`) и прислал `codecov/patch` на том же pull request. `/code-review high` не шёл: правка — вызовы workflow и рецепт, перенесённый из module-kit и проверенный контрольным прогоном.
+- **Открыто:**
+  - ruleset `main` — «Go / lint», «Go / test», «Go / vuln», «Go / licenses», «CodeQL / analyze (go)» (`integration_id` 15368) и `codecov/patch` (254): правку через `gh api` отклонил классификатор прав сессии, и её ставлю я — или разрешаю исполнителю;
+  - считает ли SonarCloud тесты тестами, видно на анализе `main`: анализ pull request показывает только изменённые файлы, а тестов T18 не меняет.
 
 #### T19. Релиз: подписанный бинарник и `Dockerfile`
 
