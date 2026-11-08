@@ -1,0 +1,3 @@
+# What the justfile's recipes write.
+/bin/
+/coverage/
