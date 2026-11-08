@@ -17,7 +17,34 @@ A component of [NovaTrail](https://github.com/altnovatrail/spec/tree/v0.9.11), a
 
 ## Status
 
-Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md, table 2. There is no code here yet. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. The skeleton, database, sign-in and deletion need none of these, and spec's cross-repository plan lets them start now (RUN.md, table 2). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
+Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — has begun: the service's skeleton is here, and serves nothing of the contract yet. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
+
+## Build and run
+
+Inside the devcontainer, which pins Go and just:
+
+```sh
+just build              # a static binary, bin/api
+./bin/api version       # its version, commit, build date and Go
+just run                # serve on PORT, 8080 by default
+```
+
+`just ci-lint`, `just ci-test`, `just ci-vuln` and `just ci-licenses` are the checks CI runs: gofmt and `go vet`, the tests with the race detector and their coverage in `coverage/go.out`, govulncheck and go-licenses.
+
+The binary reads its configuration from the environment, and only these variables:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `8080` | the port to listen on |
+| `API_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `API_HTTP_READ_HEADER_TIMEOUT` | `5s` | how long a client may take to send its headers |
+| `API_HTTP_READ_TIMEOUT` | `30s` | how long a client may take to send its whole request |
+| `API_HTTP_WRITE_TIMEOUT` | `60s` | how long the server may take to answer |
+| `API_HTTP_IDLE_TIMEOUT` | `120s` | how long an idle connection is kept |
+| `API_SHUTDOWN_TIMEOUT` | `9s` | the whole way out after a stop is asked for; under `10s` when deployed |
+| `K_SERVICE` | — | set by Cloud Run; a deployment is known by it |
+
+A secret — a key, a token, a connection string — comes from its variable or from a file outside the repository whose absolute path the variable with the suffix `_FILE` names; a file inside a git working tree is refused. The log is JSON on stdout, and writes only the events and fields of its table, `internal/logging/events.go`: no identifier, address or content of a learner's work.
 
 ## Documents
 
