@@ -35,6 +35,9 @@ const (
 	EventFailure = "failure"
 	// EventPanic is a panic a handler raised and the server recovered.
 	EventPanic = "panic"
+	// EventMigrated is the line that says the migrations ran: how many it applied,
+	// and the version the schema is at.
+	EventMigrated = "migrated"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -43,16 +46,18 @@ const unregisteredEvent = "unregistered_event"
 
 // The fields.
 const (
-	FieldVersion   = "version"
-	FieldCommit    = "commit"
-	FieldDate      = "date"
-	FieldPort      = "port"
-	FieldDeployed  = "deployed"
-	FieldStarted   = "started"
-	FieldCutShort  = "cut_short"
-	FieldMoment    = "moment"
-	FieldErrorKind = "error_kind"
-	FieldPanicKind = "panic_kind"
+	FieldVersion       = "version"
+	FieldCommit        = "commit"
+	FieldDate          = "date"
+	FieldPort          = "port"
+	FieldDeployed      = "deployed"
+	FieldStarted       = "started"
+	FieldCutShort      = "cut_short"
+	FieldMoment        = "moment"
+	FieldErrorKind     = "error_kind"
+	FieldPanicKind     = "panic_kind"
+	FieldApplied       = "applied"
+	FieldSchemaVersion = "schema_version"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -64,6 +69,7 @@ const (
 	MomentStartup  = "startup"
 	MomentServe    = "serve"
 	MomentShutdown = "shutdown"
+	MomentMigrate  = "migrate"
 )
 
 // events is every event and the fields it may carry.
@@ -74,6 +80,7 @@ var events = map[string][]string{
 	EventShutdown: {FieldStarted},
 	EventFailure:  {FieldMoment, FieldErrorKind},
 	EventPanic:    {FieldPanicKind},
+	EventMigrated: {FieldApplied, FieldSchemaVersion},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -89,16 +96,18 @@ type rule struct {
 
 // fields is every field and its rule.
 var fields = map[string]rule{
-	FieldVersion:   {kind: slog.KindString, shape: matches(versionShape)},
-	FieldCommit:    {kind: slog.KindString, shape: matches(commitShape)},
-	FieldDate:      {kind: slog.KindString, shape: isBuildDate},
-	FieldPort:      {kind: slog.KindInt64},
-	FieldDeployed:  {kind: slog.KindBool},
-	FieldStarted:   {kind: slog.KindBool},
-	FieldCutShort:  {kind: slog.KindBool},
-	FieldMoment:    {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown}},
-	FieldErrorKind: {kind: slog.KindLogValuer},
-	FieldPanicKind: {kind: slog.KindLogValuer},
+	FieldVersion:       {kind: slog.KindString, shape: matches(versionShape)},
+	FieldCommit:        {kind: slog.KindString, shape: matches(commitShape)},
+	FieldDate:          {kind: slog.KindString, shape: isBuildDate},
+	FieldPort:          {kind: slog.KindInt64},
+	FieldDeployed:      {kind: slog.KindBool},
+	FieldStarted:       {kind: slog.KindBool},
+	FieldCutShort:      {kind: slog.KindBool},
+	FieldMoment:        {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate}},
+	FieldErrorKind:     {kind: slog.KindLogValuer},
+	FieldPanicKind:     {kind: slog.KindLogValuer},
+	FieldApplied:       {kind: slog.KindInt64},
+	FieldSchemaVersion: {kind: slog.KindInt64},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a

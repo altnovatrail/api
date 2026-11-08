@@ -89,7 +89,7 @@ func TestTheCommandLine(t *testing.T) {
 		{"no command", nil, exitUsage, "", "Usage: api <command>"},
 		{"help", []string{"help"}, exitOK, "Usage: api <command>", ""},
 		{"-h", []string{"-h"}, exitOK, "Usage: api <command>", ""},
-		{"unknown command", []string{"migrate"}, exitUsage, "", `unknown command "migrate"`},
+		{"unknown command", []string{"seed"}, exitUsage, "", `unknown command "seed"`},
 		{"version", []string{"version"}, exitOK, "api dev unknown unknown " + runtime.Version() + "\n", ""},
 		{"version with an argument", []string{"version", "now"}, exitUsage, "", "takes no arguments"},
 		{"version with an unknown flag", []string{"version", "-json"}, exitUsage, "", "flag provided but not defined"},

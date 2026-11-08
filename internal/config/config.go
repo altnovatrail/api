@@ -30,6 +30,11 @@ const (
 	VarIdleTimeout       = "API_HTTP_IDLE_TIMEOUT"
 	VarShutdownTimeout   = "API_SHUTDOWN_TIMEOUT"
 	VarService           = "K_SERVICE"
+
+	// VarMigrateDatabaseURL is the direct connection string of the database api,
+	// which migrate takes: a secret, read from the variable or from the file its
+	// twin with the suffix _FILE names (R29).
+	VarMigrateDatabaseURL = "API_MIGRATE_DATABASE_URL"
 )
 
 // declared is every variable the service reads. Nothing else the process
@@ -44,6 +49,9 @@ var declared = map[string]struct{}{
 	VarIdleTimeout:       {},
 	VarShutdownTimeout:   {},
 	VarService:           {},
+
+	VarMigrateDatabaseURL:              {},
+	VarMigrateDatabaseURL + fileSuffix: {},
 }
 
 // Defaults for every optional variable. They are named constants rather than

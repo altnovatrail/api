@@ -29,6 +29,7 @@ const usage = `Usage: api <command>
 
 Commands:
   serve     serve the API until a stop is asked for
+  migrate   apply the migrations of the database api
   version   print the build of this binary
 `
 
@@ -58,6 +59,7 @@ func signalled() (context.Context, context.CancelFunc) {
 // its name and the process's environment and streams.
 var commands = map[string]func(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error{
 	"serve":   serve,
+	"migrate": migrate,
 	"version": printVersion,
 }
 
