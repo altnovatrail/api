@@ -1,0 +1,16 @@
+model
+  schema 1.1
+
+type user
+
+type classroom
+  relations
+    define teacher: [user]
+
+type learner
+  relations
+    define owner: [user]
+    define classroom: [classroom]
+    define can_manage: owner
+    define can_learn: owner
+    define can_view: owner or teacher from classroom

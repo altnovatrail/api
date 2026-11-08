@@ -35,6 +35,9 @@ const (
 	// which migrate takes: a secret, read from the variable or from the file its
 	// twin with the suffix _FILE names (R29).
 	VarMigrateDatabaseURL = "API_MIGRATE_DATABASE_URL"
+	// VarMigrateOpenFGADatabaseURL is the direct connection string of the database
+	// openfga, the store of the rights, which migrate takes the same way (R31).
+	VarMigrateOpenFGADatabaseURL = "API_MIGRATE_OPENFGA_DATABASE_URL"
 )
 
 // declared is every variable the service reads. Nothing else the process
@@ -50,8 +53,10 @@ var declared = map[string]struct{}{
 	VarShutdownTimeout:   {},
 	VarService:           {},
 
-	VarMigrateDatabaseURL:              {},
-	VarMigrateDatabaseURL + fileSuffix: {},
+	VarMigrateDatabaseURL:                     {},
+	VarMigrateDatabaseURL + fileSuffix:        {},
+	VarMigrateOpenFGADatabaseURL:              {},
+	VarMigrateOpenFGADatabaseURL + fileSuffix: {},
 }
 
 // Defaults for every optional variable. They are named constants rather than

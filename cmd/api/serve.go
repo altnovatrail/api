@@ -84,9 +84,10 @@ func boundPort(addr string) (int, error) {
 }
 
 // logged writes a failure to the log at the moment it happened, by its kind
-// alone, and marks it as written.
-func logged(log *slog.Logger, moment string, err error) error {
-	log.Error(logging.EventFailure, logging.FieldMoment, moment, logging.FieldErrorKind, logging.ErrorKind(err))
+// alone, with what else the table lets the line say — the database of a failed
+// migration — and marks it as written.
+func logged(log *slog.Logger, moment string, err error, fields ...any) error {
+	log.Error(logging.EventFailure, append([]any{logging.FieldMoment, moment, logging.FieldErrorKind, logging.ErrorKind(err)}, fields...)...)
 	return fmt.Errorf("%w: %s: %w", errLogged, moment, err)
 }
 

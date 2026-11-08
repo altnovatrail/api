@@ -10,8 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Migrate is the configuration of the command migrate: the level of its log
-// and the direct connection string of the database it migrates (R29).
+// Migrate is the configuration of the command migrate: the level of its log and
+// the direct connection strings of the databases it migrates, api and openfga
+// (R29, R31).
 type Migrate struct {
 	// LogLevel is the lowest level the log writes.
 	LogLevel slog.Level
@@ -19,6 +20,9 @@ type Migrate struct {
 	// keeps no session, and goose locks the migration by an advisory lock of
 	// the session, so migrate never goes through the pooler.
 	DatabaseURL Secret
+	// OpenFGADatabaseURL is the direct connection string of the database openfga,
+	// which migrate brings the store of the rights in, by the same lock (R31).
+	OpenFGADatabaseURL Secret
 }
 
 // MigrateFrom reads the configuration of migrate from a set of KEY=VALUE
@@ -32,10 +36,19 @@ func MigrateFrom(environ []string) (*Migrate, error) {
 	if cfg.LogLevel, err = level(env.or(VarLogLevel, DefaultLogLevel)); err != nil {
 		problems = append(problems, err)
 	}
-	if cfg.DatabaseURL, err = env.secret(VarMigrateDatabaseURL); err != nil {
-		problems = append(problems, err)
-	} else if err := checkDatabaseURL(VarMigrateDatabaseURL, cfg.DatabaseURL); err != nil {
-		problems = append(problems, err)
+	// In this order, so that the refusals of both read the same on every run.
+	for _, secret := range []struct {
+		name string
+		into *Secret
+	}{
+		{VarMigrateDatabaseURL, &cfg.DatabaseURL},
+		{VarMigrateOpenFGADatabaseURL, &cfg.OpenFGADatabaseURL},
+	} {
+		if *secret.into, err = env.secret(secret.name); err != nil {
+			problems = append(problems, err)
+		} else if err := checkDatabaseURL(secret.name, *secret.into); err != nil {
+			problems = append(problems, err)
+		}
 	}
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)

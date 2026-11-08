@@ -50,7 +50,7 @@ The binary reads its configuration from the environment, and only these variable
 | `API_SHUTDOWN_TIMEOUT` | `9s` | the whole way out after a stop is asked for; under `10s` when deployed |
 | `K_SERVICE` | — | set by Cloud Run; a deployment is known by it |
 
-`api migrate` applies the migrations of the database `api` and exits. It reads `API_LOG_LEVEL` and `API_MIGRATE_DATABASE_URL`, the direct connection string — not the pooler's — with `sslmode=verify-full`; `just migrate` runs it. The tests run on a real PostgreSQL that `embedded-postgres` downloads on their first run, with no Docker.
+`api migrate` applies the migrations of the database `api` and of `openfga`, the store of the rights, makes that store and writes its model when it must, and exits. It reads `API_LOG_LEVEL`, `API_MIGRATE_DATABASE_URL` and `API_MIGRATE_OPENFGA_DATABASE_URL`, the direct connection strings — not the pooler's — with `sslmode=verify-full`; `just migrate` runs it. The tests run on a real PostgreSQL that `embedded-postgres` downloads on their first run, with no Docker.
 
 A secret — a key, a token, a connection string — comes from its variable or from a file outside the repository whose absolute path the variable with the suffix `_FILE` names; a file inside a git working tree is refused. The log is JSON on stdout, and writes only the events and fields of its table, `internal/logging/events.go`: no identifier, address or content of a learner's work.
 
