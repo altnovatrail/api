@@ -42,7 +42,14 @@ run:
 # "Go / vuln" and "Go / licenses" (R30 spec). The job checks out no submodule,
 # so none of them reads spec/.
 
-# Fail on Go code gofmt would rewrite, and on what go vet reports.
+# The code takes spec's files from its Go modules, and the documents from the submodule spec/,
+# and the two move together, to one tag (R64 spec; R27): the commit the index records for the
+# submodule is the one the Go module proxy names as the origin of each module's version, and the
+# contracts carry the number of spec's tag. The versions are the ones the build selects, so a
+# library that requires a newer spec fails here too, and the fix is the move to that tag. The
+# index is the commit's tree in CI, which checks out no submodule.
+# Fail on Go code gofmt would rewrite, on what go vet reports, and on a version of spec's Go
+# modules that is not the tag of the spec submodule.
 ci-lint:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -53,6 +60,25 @@ ci-lint:
         exit 1
     fi
     go vet ./...
+    submodule="$(git ls-files --stage -- spec | awk '$1 == "160000" { print $2 }')"
+    spec_version="$(go list -m -f '{{{{.Version}}' github.com/altnovatrail/spec)"
+    contracts_version="$(go list -m -f '{{{{.Version}}' github.com/altnovatrail/spec/contracts)"
+    # The origin of a version is what the Go module proxy gives with it; a proxy that gives none
+    # fails the check, by name.
+    origin() {
+        go mod download -json "$1" | sed -n 's/^[[:space:]]*"Hash": "\([0-9a-f]\{40\}\)",\{0,1\}$/\1/p'
+    }
+    spec_origin="$(origin "github.com/altnovatrail/spec@${spec_version}")"
+    contracts_origin="$(origin "github.com/altnovatrail/spec/contracts@${contracts_version}")"
+    if [ -z "$submodule" ] || [ "$spec_origin" != "$submodule" ] || [ "$contracts_origin" != "$submodule" ] \
+        || [ "$contracts_version" != "$spec_version" ]; then
+        echo "ci-lint: the submodule spec/ is at ${submodule:-no commit}, while the build takes" \
+            "github.com/altnovatrail/spec ${spec_version}, from ${spec_origin:-a commit the Go module proxy does not give}," \
+            "and github.com/altnovatrail/spec/contracts ${contracts_version}, from" \
+            "${contracts_origin:-a commit the Go module proxy does not give}; move them to one tag together" \
+            "(R64 spec; R27)" >&2
+        exit 1
+    fi
 
 # The profile goes to coverage/go.out, one profile with one mode line, which
 # the job coverage of go.yml sends to Codecov (R48 spec). A package that no test

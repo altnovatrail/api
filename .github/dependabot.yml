@@ -15,3 +15,20 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
+
+  # The Go modules the code is built from. The tools the recipes run by go run at an exact
+  # version, and Go itself in the Dockerfile, Dependabot does not see: they are raised by hand.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    # spec's Go modules move together with the spec submodule, to its tag, in a task of its own,
+    # and ci-lint holds them to it (R64 in spec; R27 in docs/decisions.md): a tag of spec comes out
+    # with every change to its documents, so Dependabot does not raise them. A library whose
+    # release requires spec at its own tag joins them here when it joins go.mod: a newer one may
+    # require a newer spec.
+    ignore:
+      - dependency-name: github.com/altnovatrail/spec
+      - dependency-name: github.com/altnovatrail/spec/contracts

@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/altnovatrail/api/actions/workflows/ci.yml/badge.svg)](https://github.com/altnovatrail/api/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/altnovatrail/api/actions/workflows/codeql.yml/badge.svg)](https://github.com/altnovatrail/api/actions/workflows/codeql.yml)
+[![Go version](https://img.shields.io/github/go-mod/go-version/altnovatrail/api)](go.mod)
+[![Coverage](https://codecov.io/gh/altnovatrail/api/branch/main/graph/badge.svg)](https://codecov.io/gh/altnovatrail/api)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/altnovatrail/api/badge)](https://scorecard.dev/viewer/?uri=github.com/altnovatrail/api)
 [![License](https://img.shields.io/github/license/altnovatrail/api)](LICENSE)
 

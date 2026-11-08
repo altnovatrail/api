@@ -1,0 +1,24 @@
+# What Codecov does with the coverage of the tests, which the coverage job of .github's shared
+# go.yml uploads (R48 in spec; R16 .github; R27 in docs/decisions.md): the Go profile ci-test
+# writes in coverage/go.out. A Go profile names a file by its import path, which Codecov cuts down
+# to the path in the repository by a default rule of its own.
+
+coverage:
+  status:
+    # New and changed lines are covered at 90 % at least (R48 in spec). The ruleset of main
+    # requires this check once a pull request has shown that it comes (R30 in spec). A pull
+    # request that changes no line of the report, the documents alone, passes as "Coverage not
+    # affected".
+    patch:
+      default:
+        target: 90%
+    # On the plan Codecov gives a public repository, it sets no project status (R48 in spec).
+    # Should it ever set one, it only informs: the badge shows the coverage of the whole.
+    project:
+      default:
+        informational: true
+
+# As spec's: a comment only when the coverage changes, with the diff and the files.
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: true
