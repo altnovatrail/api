@@ -61,7 +61,7 @@ check() {
 
     local user
     user="$(docker image inspect --format '{{.Config.User}}' "$image")"
-    [ "$user" = 65532 ] || fail "${image} runs as ${user:-root}, not nonroot, 65532"
+    [[ "$user" == 65532 ]] || fail "${image} runs as ${user:-root}, not nonroot, 65532"
 
     local container port
     container="$(docker run --detach --publish 127.0.0.1::8080 "$image")"
@@ -74,12 +74,12 @@ check() {
         fi
         sleep 0.2
     done
-    [ "$body" = '{"status":"ok"}' ] || fail "${image} answers /health with ${body:-nothing}; its log: $(docker logs "$container" 2>&1)"
+    [[ "$body" == '{"status":"ok"}' ]] || fail "${image} answers /health with ${body:-nothing}; its log: $(docker logs "$container" 2>&1)"
 
     docker stop --time 10 "$container" > /dev/null
     local code
     code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
-    [ "$code" = 0 ] || fail "${image} exits ${code} after SIGTERM; its log: $(docker logs "$container" 2>&1)"
+    [[ "$code" == 0 ]] || fail "${image} exits ${code} after SIGTERM; its log: $(docker logs "$container" 2>&1)"
     # The log is read once and matched as a whole: grep -q on a pipe would close it at the first
     # match, and docker logs, cut off mid-write, would fail the pipeline.
     local log
