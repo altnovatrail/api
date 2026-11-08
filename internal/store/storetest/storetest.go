@@ -16,7 +16,10 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -81,13 +84,16 @@ func boot(ctx context.Context) error {
 		return err
 	}
 
-	// The supervisor is built for this machine, whatever the tests' own GOOS, GOARCH
-	// and GOFLAGS say: it runs here, beside PostgreSQL.
+	// The supervisor is built by the Go that built the tests, for this machine, whatever
+	// the tests' own GOOS, GOARCH and GOFLAGS say: it runs here, beside PostgreSQL.
 	supervisor := filepath.Join(work, "embedded-postgres")
-	build := exec.CommandContext(ctx, "go", "build", "-o", supervisor, supervisorPackage)
+	build := exec.CommandContext(ctx, filepath.Join(runtime.GOROOT(), "bin", "go"), "build", "-o", supervisor, supervisorPackage)
 	build.Env = append(os.Environ(), "GOOS=", "GOARCH=", "GOFLAGS=")
 	if out, err := build.CombinedOutput(); err != nil {
 		return fmt.Errorf("build the supervisor: %w\n%s", err, out)
+	}
+	if err := identity(work); err != nil {
+		return err
 	}
 
 	postgres = embeddedpostgres.NewDatabase(embeddedpostgres.DefaultConfig().
@@ -109,6 +115,40 @@ func boot(ctx context.Context) error {
 	}
 	if _, _, err := store.Migrate(ctx, at(template)); err != nil {
 		return fmt.Errorf("migrate the template: %w", err)
+	}
+	return nil
+}
+
+// identity gives PostgreSQL a name to run under when the tests run as a uid the
+// system does not know, as CI runs them: .github's go.yml starts the toolchain
+// container as the runner's uid, and initdb stops on a uid it cannot look up.
+// nss_wrapper, which the toolchain stage installs, answers the lookup from a passwd
+// and a group file of its own, written here; PostgreSQL's processes take it from
+// the environment (R30). A uid the system knows needs none of it.
+func identity(work string) error {
+	uid, gid := strconv.Itoa(os.Getuid()), strconv.Itoa(os.Getgid())
+	if _, err := user.LookupId(uid); err == nil {
+		return nil
+	}
+	libraries, _ := filepath.Glob("/usr/lib/*-linux-gnu/libnss_wrapper.so")
+	if len(libraries) == 0 {
+		return fmt.Errorf("uid %s has no entry in /etc/passwd, and libnss_wrapper, which would give it one, is not installed (.devcontainer/Dockerfile)", uid)
+	}
+	passwd, group := filepath.Join(work, "passwd"), filepath.Join(work, "group")
+	if err := os.WriteFile(passwd, []byte("storetest:x:"+uid+":"+gid+":storetest:"+work+":/usr/sbin/nologin\n"), 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(group, []byte("storetest:x:"+gid+":\n"), 0o600); err != nil {
+		return err
+	}
+	for name, value := range map[string]string{
+		"LD_PRELOAD":         libraries[0],
+		"NSS_WRAPPER_PASSWD": passwd,
+		"NSS_WRAPPER_GROUP":  group,
+	} {
+		if err := os.Setenv(name, value); err != nil {
+			return err
+		}
 	}
 	return nil
 }

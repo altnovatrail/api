@@ -340,7 +340,7 @@
 - **Сделано (2026-11-08):**
   - pgx v5.12.0, goose v3.29.0 и, для тестов, `embedded-postgres` v2.0.1 — в `go.mod`; десять модулей бинарника — в `THIRD_PARTY`, а `release-licenses` берёт и `LICENSE.txt`;
   - `internal/config` — `MigrateFrom` и секрет `API_MIGRATE_DATABASE_URL`, проверенный по тому, что из строки делает pgx;
-  - `internal/store` — миграция `0001_accounts.sql` со схемой E2, `Migrate`, `Open`, `WriteUnderAccount` и `MarkDeleting`; `internal/store/storetest` — Postgres 17 на пакет при первом тесте с базой и база на тест;
+  - `internal/store` — миграция `0001_accounts.sql` со схемой E2, `Migrate`, `Open`, `WriteUnderAccount` и `MarkDeleting`; `internal/store/storetest` — Postgres 17 на пакет при первом тесте с базой и база на тест, а для uid, которого не знает образ, — имя через nss_wrapper (R30);
   - команда `api migrate`, событие `migrated` и момент `migrate` в таблице журнала, рецепт `just migrate`; `internal/store/storetest` — вне счёта Codecov, с причиной;
   - R29; Д6 — только dev-проект; разделы 3.2, 3.11 и 4 [docs/architecture.md](docs/architecture.md); README.
 

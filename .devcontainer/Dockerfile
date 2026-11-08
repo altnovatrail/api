@@ -94,6 +94,19 @@ RUN arch="$(dpkg --print-architecture)"; \
     \
     rm -rf "$workdir"
 
+# nss_wrapper, for the tests of the database (R30 in docs/decisions.md): the Go checks of .github's
+# go.yml run this stage as the runner's uid, which /etc/passwd here does not know, and initdb
+# stops on a uid it cannot look up. The tests' helper then preloads the library with a passwd
+# file of its own; nothing else uses it. apt pins no versions by itself, so it comes from the
+# Ubuntu archive as it was at one moment: a snapshot, whose ID is raised by hand like a version
+# (R40 spec). apt checks the archive's signatures as it does on any update.
+ARG UBUNTU_SNAPSHOT=20261101T000000Z
+RUN apt-get update --snapshot "$UBUNTU_SNAPSHOT"; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        --snapshot "$UBUNTU_SNAPSHOT" \
+        libnss-wrapper; \
+    rm -rf /var/lib/apt/lists/*
+
 # GOTOOLCHAIN=local: the Go above runs every go command, and none downloads another Go because a
 # go.mod asks for a newer one: a go.mod that does fails, which is the signal to raise GO_VERSION.
 ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}" \
