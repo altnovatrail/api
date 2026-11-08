@@ -38,6 +38,12 @@ build:
 run:
     go run ./cmd/api serve
 
+# The connection string is API_MIGRATE_DATABASE_URL, or the file API_MIGRATE_DATABASE_URL_FILE
+# names, outside the repository: the direct one, not the pooler's (R29).
+# Apply the migrations of the database api.
+migrate:
+    go run ./cmd/api migrate
+
 # What .github's shared release.yml runs to build a release, in the toolchain stage of the commit
 # it releases, from that commit's tree with no git in it, and then signs every file (R28; R18
 # .github). dist/ is made afresh and holds plain files alone: the binary for each platform below,
@@ -85,10 +91,11 @@ release-files version:
 
 # The modules besides the standard library that the binary is built from, each with the name its
 # license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
-# NOTICE, as module-kit names them (R38 module-kit). None yet: spec's modules are the tests'
-# alone (R26), and the first module the binary takes fails release-licenses, and ci-lint with it,
-# until it is named here with its license. Each entry is <module path>=<name>.
-THIRD_PARTY := ""
+# NOTICE, as module-kit names them (R38 module-kit): pgx and goose and the modules they take
+# (R29). spec's modules are the tests' alone (R26), and a module the binary takes beyond these
+# fails release-licenses, and ci-lint with it, until it is named here. Each entry is
+# <module path>=<name>.
+THIRD_PARTY := "github.com/jackc/pgx/v5=pgx github.com/jackc/pgpassfile=pgpassfile github.com/jackc/pgservicefile=pgservicefile github.com/jackc/puddle/v2=puddle github.com/pressly/goose/v3=goose github.com/mfridman/interpolate=interpolate github.com/sethvargo/go-retry=go-retry go.uber.org/multierr=multierr golang.org/x/sync=x-sync golang.org/x/text=x-text"
 
 # It fails when the modules are not those THIRD_PARTY names.
 # Copy the licenses of the modules the binary is built from into a folder.
@@ -113,7 +120,19 @@ release-licenses folder:
     mkdir -p "$folder"
     for entry in {{ THIRD_PARTY }}; do
         dir="$(go list -m -f '{{{{.Dir}}' "${entry%%=*}")"
-        cp "$dir/LICENSE" "$folder/LICENSE-${entry#*=}"
+        # The license is LICENSE, or LICENSE.txt or LICENSE.md as some modules name it.
+        license=""
+        for name in LICENSE LICENSE.txt LICENSE.md; do
+            if [ -f "$dir/$name" ]; then
+                license="$dir/$name"
+                break
+            fi
+        done
+        if [ -z "$license" ]; then
+            echo "release-licenses: ${entry%%=*} has no LICENSE, LICENSE.txt or LICENSE.md" >&2
+            exit 1
+        fi
+        cp "$license" "$folder/LICENSE-${entry#*=}"
         if [ -f "$dir/NOTICE" ]; then
             cp "$dir/NOTICE" "$folder/NOTICE-${entry#*=}"
         fi
