@@ -100,7 +100,7 @@
 |---|---|---|---|---|---|
 | [x] | T17 | Каркас сервиса Go | Claude | да | — |
 | [x] | T18 | CI Go и покрытие | я + Claude | да | T17 |
-| [ ] | T19 | Релиз: подписанный бинарник и `Dockerfile` | я + Claude | да | T18 |
+| [x] | T19 | Релиз: подписанный бинарник и `Dockerfile` | я + Claude | да | T18 |
 | [ ] | T20 | База `api`: миграции и тесты на `embedded-postgres` | Claude | да | T17 |
 | [ ] | T21 | OpenFGA в процессе | Claude | да | T20 |
 | [ ] | T22 | Порт сервиса входа | Claude | да | T17 |
@@ -295,6 +295,14 @@
   - образец релиза — module-kit (R07, R38 module-kit): бинарники без архива, `LICENSE`, `LICENSE-go`, лицензии модулей по `THIRD_PARTY` и `SHA256SUMS`. Сторонних модулей в бинарнике `api` нет: список пуст;
   - у `infra` кода нет, а формат списка выкладки решает T02 `infra` — как выкладка собирает образ `api`, никто ещё не записал: В40 в таблице 3;
   - корневого `Dockerfile` нет ни у одного репозитория NovaTrail; образец — canvas-api, коммит 0901af0, со стадией `release` и контекстом `binary`.
+- **Сделано (2026-11-08):**
+  - `.github/workflows/release.yml` — общий релиз `.github` v0.1.21, линия `0.1`; рецепты `release-files` и `release-licenses`; `internal/version/archive.txt` с `export-subst`; корневые `Dockerfile` и `.dockerignore`; job «Image» и `.github/image.sh`; Dependabot `docker` для `/`; значки Release и Latest release; R28, Д8, В40 и разделы 1, 3.3 и 3.11 [docs/architecture.md](docs/architecture.md);
+  - настройки GitHub — через `gh api`, по моему слову: неизменяемые релизы включены, ruleset тегов «v-tags» — 26814634, «Image» — обязательная проверка ruleset `main`.
+
+  Проверено: в devcontainer `ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses`, `go mod tidy -diff` и `docs-check-repo` — зелёные; `release-files` из `git archive` дважды дал одни суммы. На pull request #28 «Image» собрал оба образа и проверил каждый. После мержа вышел v0.1.0 — неизменяемый, на коммите 5a02ff4: два бинарника, `Dockerfile`, `LICENSE`, `LICENSE-go` и `SHA256SUMS`, у каждого `.sigstore.json`. `just -f spec/justfile release-verify api v0.1.0 <файл>` принял все шесть — «signed by the shared release.yml of .github v0.1.21», — а `api_v0.1.0_linux_amd64 version` назвал коммит 5a02ff4. `/code-review high`, один круг: десять находок, шесть исправлены — гонка SIGPIPE в `image.sh`, два комментария `Dockerfile`, комментарий Dependabot, двойное чтение в тесте и текст R28 о настройках, — а четыре оставлены с причиной в pull request: охрану вызова держит общий релиз, кэша стадии `toolchain` нет и у общих workflow, лицензии — по образцу module-kit, а digest distroless поднимает Dependabot, как велит R105 spec.
+- **Открыто:**
+  - В40 в таблице 3 — «в реестр spec»: как выкладка `infra` собирает образ `api`;
+  - Д19 — проект OpenSSF Best Practices теперь может начаться: релиз есть.
 
 #### T20. База `api`: миграции и тесты на `embedded-postgres`
 
