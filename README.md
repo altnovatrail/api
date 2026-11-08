@@ -1,7 +1,9 @@
 # api
 
 [![CI](https://github.com/altnovatrail/api/actions/workflows/ci.yml/badge.svg)](https://github.com/altnovatrail/api/actions/workflows/ci.yml)
+[![Release](https://github.com/altnovatrail/api/actions/workflows/release.yml/badge.svg)](https://github.com/altnovatrail/api/actions/workflows/release.yml)
 [![CodeQL](https://github.com/altnovatrail/api/actions/workflows/codeql.yml/badge.svg)](https://github.com/altnovatrail/api/actions/workflows/codeql.yml)
+[![Latest release](https://img.shields.io/github/v/release/altnovatrail/api)](https://github.com/altnovatrail/api/releases/latest)
 [![Go version](https://img.shields.io/github/go-mod/go-version/altnovatrail/api)](go.mod)
 [![Coverage](https://codecov.io/gh/altnovatrail/api/branch/main/graph/badge.svg)](https://codecov.io/gh/altnovatrail/api)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/altnovatrail/api/badge)](https://scorecard.dev/viewer/?uri=github.com/altnovatrail/api)
@@ -32,6 +34,8 @@ just run                # serve on PORT, 8080 by default
 ```
 
 `just ci-lint`, `just ci-test`, `just ci-vuln` and `just ci-licenses` are the checks CI runs: gofmt and `go vet`, the tests with the race detector and their coverage in `coverage/go.out`, govulncheck and go-licenses.
+
+A release comes out by itself once CI passes on `main`, from `just release-files`: static binaries for `linux/amd64` and `linux/arm64`, the `Dockerfile`, the licenses the binaries come with and `SHA256SUMS`, each file signed. NovaTrail publishes no image. Whoever deploys checks the files with `just -f spec/justfile release-verify api <tag> <file>` and builds the image around the binary: `docker build --target release --build-context binary=<a folder holding the binary as api> .`, with the release's `Dockerfile`.
 
 The binary reads its configuration from the environment, and only these variables:
 

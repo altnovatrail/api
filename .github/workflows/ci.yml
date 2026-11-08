@@ -40,3 +40,17 @@ jobs:
       contents: read
       id-token: write
     uses: altnovatrail/.github/.github/workflows/go.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+
+  # api's image, as a deployment builds it from a release and as it builds from the source, on the
+  # runner, which has Docker where the devcontainer has none (R28). The script is the whole check.
+  image:
+    name: Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and check the images
+        run: .github/image.sh
