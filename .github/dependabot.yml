@@ -16,8 +16,22 @@ updates:
     cooldown:
       default-days: 3
 
+  # The images of the Dockerfile of a release (R28 in docs/decisions.md): Dependabot raises their
+  # digests. The Go of the builder is the one go.mod and the devcontainer name, and moves with them
+  # by hand, so its version is not raised here, only the digest of the tag it names.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    ignore:
+      - dependency-name: golang
+        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
+
   # The Go modules the code is built from. The tools the recipes run by go run at an exact
-  # version, and Go itself in the Dockerfile, Dependabot does not see: they are raised by hand.
+  # version, and Go itself, an ARG of .devcontainer/Dockerfile, Dependabot does not see: they are
+  # raised by hand.
   - package-ecosystem: gomod
     directory: /
     schedule:

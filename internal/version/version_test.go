@@ -36,23 +36,46 @@ func TestTheLinkerSetsEveryValue(t *testing.T) {
 	}
 }
 
-// Every build of the service hands the linker this same path. The justfile is
-// the one build so far; the release's Dockerfile joins it here when it comes.
+// Every build of the service hands the linker this same path: the justfile's
+// build and release-files, and the Dockerfile's build stage. A build that spelled
+// it another way would ship a binary reporting "dev", with nothing to say so.
 func TestEveryBuildHandsTheLinkerThisPath(t *testing.T) {
 	t.Parallel()
 
 	module := strings.TrimSuffix(symbols, "/internal/version")
-	written, err := os.ReadFile("../../justfile")
-	if err != nil {
-		t.Fatalf("read the justfile: %v", err)
-	}
-	for _, want := range []string{
-		`MODULE := "` + module + `"`,
-		`SYMBOLS := MODULE + "/internal/version"`,
-		"-X {{SYMBOLS}}.Version=", "-X {{SYMBOLS}}.Commit=", "-X {{SYMBOLS}}.Date=",
+	for _, tc := range []struct {
+		file  string
+		wants []string
+		times int
+	}{
+		{
+			file: "../../justfile",
+			wants: []string{
+				`MODULE := "` + module + `"`,
+				`SYMBOLS := MODULE + "/internal/version"`,
+				"-X {{SYMBOLS}}.Version=", "-X {{SYMBOLS}}.Commit=", "-X {{SYMBOLS}}.Date=",
+			},
+			// build, on this machine, and release-files, for a release.
+			times: 2,
+		},
+		{
+			file:  "../../Dockerfile",
+			wants: []string{"-X " + symbols + ".Version=", "-X " + symbols + ".Commit=", "-X " + symbols + ".Date="},
+			times: 1,
+		},
 	} {
-		if !strings.Contains(string(written), want) {
-			t.Errorf("the justfile does not hand the linker %q", want)
+		written, err := os.ReadFile(tc.file)
+		if err != nil {
+			t.Fatalf("read %s: %v", tc.file, err)
+		}
+		for _, want := range tc.wants {
+			if !strings.Contains(string(written), want) {
+				t.Errorf("%s does not hand the linker %q", filepath.Base(tc.file), want)
+			}
+		}
+		// Every build of the file hands it the version.
+		if got := strings.Count(string(written), tc.wants[len(tc.wants)-3]); got != tc.times {
+			t.Errorf("%s hands the linker the version %d times, want %d", filepath.Base(tc.file), got, tc.times)
 		}
 	}
 }

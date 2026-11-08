@@ -1,0 +1,45 @@
+# NovaTrail's shared release (R18 .github), pinned to a release of .github by SHA with its version
+# beside it. RELEASE_LINE is the line the releases are numbered in; paths, what they are built from.
+# A release of api is its binaries and the Dockerfile a deployment builds the image by, each
+# signed (R105, R106 in spec; R28 in docs/decisions.md). Nobody tags by hand: the shared workflow
+# tags the commit it releases.
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_LINE: "0.1"
+
+jobs:
+  release:
+    name: Release
+    permissions:
+      contents: write
+      id-token: write
+      actions: read
+    uses: altnovatrail/.github/.github/workflows/release.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+    # The go kind's list, and what api's release takes beyond it: the Dockerfile it carries, and
+    # the file git archive writes the commit into, with the attributes that make it do so. The
+    # programs the tests build, under testdata/, are no part of it.
+    with:
+      paths: |
+        *.go
+        :(exclude)*_test.go
+        :(exclude)*/testdata/*
+        go.mod
+        go.sum
+        justfile
+        LICENSE
+        Dockerfile
+        .gitattributes
+        internal/version/archive.txt
+        .devcontainer/Dockerfile
+        .github/workflows/release.yml

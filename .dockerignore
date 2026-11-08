@@ -1,0 +1,10 @@
+# What the image built from the source does not need: the build copies the whole context.
+.git
+spec
+bin
+coverage
+dist
+docs
+.github
+.devcontainer
+**/*.md

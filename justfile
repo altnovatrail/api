@@ -21,8 +21,9 @@ default:
 
 # The build's identity: a build between tags says how far past one it is, a
 # tree with changes says so, and a repository with no tag yet names the commit.
-# Build the binary into bin/api: static, without cgo and without the paths of
-# this machine, as a production image needs it (RULES.md, Production images).
+# The binary is static, without cgo and without the paths of this machine, as a production image
+# needs it (RULES.md, Production images).
+# Build the binary into bin/api.
 build:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -37,6 +38,87 @@ build:
 run:
     go run ./cmd/api serve
 
+# What .github's shared release.yml runs to build a release, in the toolchain stage of the commit
+# it releases, from that commit's tree with no git in it, and then signs every file (R28; R18
+# .github). dist/ is made afresh and holds plain files alone: the binary for each platform below,
+# static and named api_<version>_<os>_<arch>; the Dockerfile a deployment builds the image by
+# (R105, R106 spec); the licenses a binary has to come with; and SHA256SUMS over the rest. The
+# commit and its time come from internal/version/archive.txt, which git archive writes, so a build
+# of the same commit gives the same bytes wherever it runs.
+# Build a release's files into dist/, for a version such as v0.1.0.
+release-files version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(version) }}
+    if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+        echo "release-files: the version is v<major>.<minor>.<patch>, as v0.1.0, not ${version}" >&2
+        exit 1
+    fi
+    read -r commit time < internal/version/archive.txt || true
+    if ! [[ "${commit:-}" =~ ^[0-9a-f]{40}$ && "${time:-}" =~ ^[0-9]+$ ]]; then
+        echo "release-files: internal/version/archive.txt names no commit and time: build from git archive of a commit, as the release does" >&2
+        exit 1
+    fi
+    date="$(date -u -d "@${time}" +%Y-%m-%dT%H:%M:%SZ)"
+    # Nothing of the caller's Go environment reaches the build: the binaries are the same wherever
+    # the recipe runs, and a release can be built again here and compared with its SHA256SUMS.
+    export GOENV=off GOFLAGS= GOEXPERIMENT=
+    unset GOAMD64 GOARM64 GOOS GOARCH
+    rm -rf dist
+    mkdir dist
+    for platform in linux/amd64 linux/arm64; do
+        os="${platform%/*}"
+        arch="${platform#*/}"
+        # No VCS stamp, so that a build from a checkout matches one from the release's tree.
+        CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -buildvcs=false \
+            -ldflags "-s -w -X {{SYMBOLS}}.Version=${version} -X {{SYMBOLS}}.Commit=${commit} -X {{SYMBOLS}}.Date=${date}" \
+            -o "dist/api_${version}_${os}_${arch}" ./cmd/api
+    done
+    cp Dockerfile dist/Dockerfile
+    # Apache-2.0 asks a copy of itself to go with the work, and Go's BSD license asks a binary
+    # that holds its standard library to reproduce its notice; so do the licenses of the modules
+    # the binaries are built from, which release-licenses names.
+    cp LICENSE dist/LICENSE
+    cp "$(go env GOROOT)/LICENSE" dist/LICENSE-go
+    {{ quote(just_executable()) }} release-licenses dist
+    (cd dist && sha256sum -- api_* Dockerfile LICENSE* $(ls NOTICE-* 2> /dev/null || true) > SHA256SUMS)
+
+# The modules besides the standard library that the binary is built from, each with the name its
+# license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
+# NOTICE, as module-kit names them (R38 module-kit). None yet: spec's modules are the tests'
+# alone (R26), and the first module the binary takes fails release-licenses, and ci-lint with it,
+# until it is named here with its license. Each entry is <module path>=<name>.
+THIRD_PARTY := ""
+
+# It fails when the modules are not those THIRD_PARTY names.
+# Copy the licenses of the modules the binary is built from into a folder.
+release-licenses folder:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    folder={{ quote(folder) }}
+    export GOENV=off GOFLAGS= GOEXPERIMENT= CGO_ENABLED=0
+    unset GOAMD64 GOARM64
+    built="$(for platform in linux/amd64 linux/arm64; do
+        GOOS="${platform%/*}" GOARCH="${platform#*/}" go list -deps -f '{{{{with .Module}}{{{{.Path}}{{{{end}}' ./cmd/api
+    done | sort -u | grep -v -x -F {{ quote(MODULE) }} || true)"
+    named="$(for entry in {{ THIRD_PARTY }}; do echo "${entry%%=*}"; done | sort -u)"
+    if [ "$built" != "$named" ]; then
+        echo "release-licenses: the binary is built from these modules besides the standard library:" >&2
+        echo "${built:-none}" >&2
+        echo "and the justfile names these, whose licenses go with a release:" >&2
+        echo "${named:-none}" >&2
+        echo "Name each module the binary is built from in THIRD_PARTY, with its license (R28)." >&2
+        exit 1
+    fi
+    mkdir -p "$folder"
+    for entry in {{ THIRD_PARTY }}; do
+        dir="$(go list -m -f '{{{{.Dir}}' "${entry%%=*}")"
+        cp "$dir/LICENSE" "$folder/LICENSE-${entry#*=}"
+        if [ -f "$dir/NOTICE" ]; then
+            cp "$dir/NOTICE" "$folder/NOTICE-${entry#*=}"
+        fi
+    done
+
 # The ci- recipes are what .github's shared go.yml runs, one job each, in the
 # toolchain stage of .devcontainer/Dockerfile: "Go / lint", "Go / test",
 # "Go / vuln" and "Go / licenses" (R30 spec). The job checks out no submodule,
@@ -48,8 +130,10 @@ run:
 # contracts carry the number of spec's tag. The versions are the ones the build selects, so a
 # library that requires a newer spec fails here too, and the fix is the move to that tag. The
 # index is the commit's tree in CI, which checks out no submodule.
-# Fail on Go code gofmt would rewrite, on what go vet reports, and on a version of spec's Go
-# modules that is not the tag of the spec submodule.
+# It fails on Go code gofmt would rewrite, on what go vet reports, on a module of the binary whose
+# license a release would not carry, and on a version of spec's Go modules that is not the tag of
+# the spec submodule.
+# Check the format of the Go code, go vet, the licenses of a release and spec's modules.
 ci-lint:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -60,6 +144,10 @@ ci-lint:
         exit 1
     fi
     go vet ./...
+    # The modules the binary is built from are the ones whose licenses a release carries (R28).
+    licenses="$(mktemp -d)"
+    trap 'rm -rf "$licenses"' EXIT
+    {{ quote(just_executable()) }} release-licenses "$licenses"
     submodule="$(git ls-files --stage -- spec | awk '$1 == "160000" { print $2 }')"
     spec_version="$(go list -m -f '{{{{.Version}}' github.com/altnovatrail/spec)"
     contracts_version="$(go list -m -f '{{{{.Version}}' github.com/altnovatrail/spec/contracts)"
@@ -89,8 +177,9 @@ ci-test:
     mkdir -p coverage
     go test -race -count=1 -covermode=atomic -coverprofile=coverage/go.out ./...
 
-# Fail on a known vulnerability in code the module reaches, in the standard
-# library of its Go too.
+# It fails on a known vulnerability in code the module reaches, in the standard library of its Go
+# too.
+# Look for known vulnerabilities with govulncheck.
 ci-vuln:
     go run {{GOVULNCHECK}} ./...
 
