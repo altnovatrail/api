@@ -99,7 +99,7 @@
 | Статус | ID | Задача | Кто | План | Зависит от |
 |---|---|---|---|---|---|
 | [x] | T17 | Каркас сервиса Go | Claude | да | — |
-| [ ] | T18 | CI Go и покрытие | я + Claude | да | T17 |
+| [x] | T18 | CI Go и покрытие | я + Claude | да | T17 |
 | [ ] | T19 | Релиз: подписанный бинарник и `Dockerfile` | я + Claude | да | T18 |
 | [ ] | T20 | База `api`: миграции и тесты на `embedded-postgres` | Claude | да | T17 |
 | [ ] | T21 | OpenFGA в процессе | Claude | да | T20 |
@@ -260,8 +260,9 @@
   - README — значки версии Go и покрытия; R27 в журнале решений; [docs/architecture.md](docs/architecture.md), разделы 1 и 3.11, — без Д46 и с решённой сверкой `spec`; Д19 — в таблице 4.
 
   Проверено: в devcontainer `just ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses` и `docs-check-repo` — зелёные; в клоне с `spec` v0.9.10 `ci-lint` падает и называет все три коммита. На pull request #27 — зелёные «Go / lint», «test», «vuln», «licenses», «coverage» и «CodeQL / analyze (go)», а Codecov с первой загрузки включил репозиторий (`active: true`) и прислал `codecov/patch` на том же pull request. `/code-review high` не шёл: правка — вызовы workflow и рецепт, перенесённый из module-kit и проверенный контрольным прогоном.
+
+  Ruleset `main` (25506238) теперь требует ещё «Go / lint», «Go / test», «Go / vuln», «Go / licenses» и «CodeQL / analyze (go)» с `integration_id` 15368 и `codecov/patch` с 254 — правку через `gh api` сделал исполнитель по моему слову.
 - **Открыто:**
-  - ruleset `main` — «Go / lint», «Go / test», «Go / vuln», «Go / licenses», «CodeQL / analyze (go)» (`integration_id` 15368) и `codecov/patch` (254): правку через `gh api` отклонил классификатор прав сессии, и её ставлю я — или разрешаю исполнителю;
   - считает ли SonarCloud тесты тестами, видно на анализе `main`: анализ pull request показывает только изменённые файлы, а тестов T18 не меняет.
 
 #### T19. Релиз: подписанный бинарник и `Dockerfile`
