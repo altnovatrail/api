@@ -124,12 +124,16 @@ func TestServeStartsServesAndStops(t *testing.T) {
 
 	// Port 0: the kernel picks a free one, which the startup line names, so that no
 	// test beside this one — nor PostgreSQL — can take it in between.
+	// The databases are made before the clock starts: the first test of the binary
+	// starts PostgreSQL, which takes seconds. Opening them is the start's, and
+	// waking a database may take long on a busy machine.
+	environ := serveEnviron(t, "PORT=0")
 	ctx, stop := context.WithCancel(t.Context())
 	var stdout, stderr syncBuffer
 	exited := make(chan int, 1)
-	go func() { exited <- run(ctx, []string{"serve"}, serveEnviron(t, "PORT=0"), &stdout, &stderr) }()
+	go func() { exited <- run(ctx, []string{"serve"}, environ, &stdout, &stderr) }()
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	port := ""
 	for port == "" {
 		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
