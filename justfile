@@ -342,3 +342,16 @@ ci-licenses:
         exit 1
     fi
     go run {{GO_LICENSES}} check ./... --allowed_licenses="$allowed"
+
+# The configuration is a file outside any git working tree, API_DEV_CONFIG, by default
+# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39); README.md shows
+# its lines. Nothing of it is printed.
+# Run a command of api on the dev projects, as `just dev migrate` or `just dev serve`.
+[positional-arguments]
+dev *args:
+    bash scripts/dev.sh run "$@"
+
+# The account of the dev project is a test one, dev-author, signed in by a custom token (R39).
+# Go the whole way on the dev projects and check the answers and the log.
+dev-check:
+    bash scripts/dev.sh check
