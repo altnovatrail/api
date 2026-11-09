@@ -25,6 +25,7 @@ func TestDefaults(t *testing.T) {
 		WriteTimeout:      config.DefaultWriteTimeout,
 		IdleTimeout:       config.DefaultIdleTimeout,
 		ShutdownTimeout:   config.DefaultShutdownTimeout,
+		RequestTimeout:    config.DefaultRequestTimeout,
 	}
 	if *cfg != want {
 		t.Errorf("LoadFrom(nil) = %+v, want %+v", *cfg, want)
@@ -45,6 +46,7 @@ func TestValuesAreRead(t *testing.T) {
 		"API_HTTP_WRITE_TIMEOUT=3s",
 		"API_HTTP_IDLE_TIMEOUT=4s",
 		"API_SHUTDOWN_TIMEOUT=8s",
+		"API_REQUEST_TIMEOUT=2500ms",
 		"K_SERVICE=api",
 	})
 	if err != nil {
@@ -58,6 +60,7 @@ func TestValuesAreRead(t *testing.T) {
 		WriteTimeout:      3 * time.Second,
 		IdleTimeout:       4 * time.Second,
 		ShutdownTimeout:   8 * time.Second,
+		RequestTimeout:    2500 * time.Millisecond,
 		Service:           "api",
 	}
 	if *cfg != want {
@@ -161,6 +164,8 @@ func TestRefusals(t *testing.T) {
 		{"zero shutdown timeout", []string{"API_SHUTDOWN_TIMEOUT=0s"}, "API_SHUTDOWN_TIMEOUT"},
 		{"shutdown under a second", []string{"API_SHUTDOWN_TIMEOUT=999ms"}, "API_SHUTDOWN_TIMEOUT"},
 		{"deployed shutdown at the grace", []string{"K_SERVICE=api", "API_SHUTDOWN_TIMEOUT=10s"}, "API_SHUTDOWN_TIMEOUT"},
+		{"zero request timeout", []string{"API_REQUEST_TIMEOUT=0s"}, "API_REQUEST_TIMEOUT"},
+		{"a request as long as the write", []string{"API_REQUEST_TIMEOUT=60s"}, "API_REQUEST_TIMEOUT"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

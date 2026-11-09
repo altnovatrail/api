@@ -19,6 +19,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/server"
+	"github.com/altnovatrail/api/internal/store/storetest"
 )
 
 // syncBuffer is a stream the command and the test may share.
@@ -126,7 +127,7 @@ func TestServeStartsServesAndStops(t *testing.T) {
 	ctx, stop := context.WithCancel(t.Context())
 	var stdout, stderr syncBuffer
 	exited := make(chan int, 1)
-	go func() { exited <- run(ctx, []string{"serve"}, []string{"PORT=0"}, &stdout, &stderr) }()
+	go func() { exited <- run(ctx, []string{"serve"}, serveEnviron(t, "PORT=0"), &stdout, &stderr) }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	port := ""
@@ -154,6 +155,17 @@ func TestServeStartsServesAndStops(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	// A method of the contract is served, and its checks run: with no token,
+	// unauthenticated.
+	answer, err := http.Post("http://127.0.0.1:"+port+"/novatrail.api.v1.AccountService/GetAccount",
+		"application/proto", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = answer.Body.Close()
+	if answer.StatusCode != http.StatusUnauthorized {
+		t.Errorf("GetAccount with no token = %d, want 401", answer.StatusCode)
+	}
 
 	stop()
 	if code := <-exited; code != exitOK {
@@ -171,7 +183,7 @@ func TestServeStartsServesAndStops(t *testing.T) {
 			t.Errorf("a line of the service lost fields to the guard: %v", line)
 		}
 	}
-	if got, want := events, []any{"startup", "stopping", "stopped", "shutdown"}; !equal(got, want) {
+	if got, want := events, []any{"startup", "request", "stopping", "stopped", "shutdown"}; !equal(got, want) {
 		t.Errorf("events = %v, want %v", got, want)
 	}
 	startup := lines[0]
@@ -197,7 +209,7 @@ func TestATakenPortIsAFailedStartLoggedOnce(t *testing.T) {
 	_, port, _ := net.SplitHostPort(taken.Addr().String())
 
 	var stdout, stderr syncBuffer
-	code := run(t.Context(), []string{"serve"}, []string{"PORT=" + port}, &stdout, &stderr)
+	code := run(t.Context(), []string{"serve"}, serveEnviron(t, "PORT="+port), &stdout, &stderr)
 	if code != exitFailure {
 		t.Errorf("exit code = %d, want %d", code, exitFailure)
 	}
@@ -223,7 +235,7 @@ func TestAStopBeforeTheStartIsNoFailure(t *testing.T) {
 	ctx, stop := context.WithCancel(t.Context())
 	stop()
 	var stdout, stderr syncBuffer
-	if code := run(ctx, []string{"serve"}, []string{"PORT=0"}, &stdout, &stderr); code != exitOK {
+	if code := run(ctx, []string{"serve"}, serveEnviron(t, "PORT=0"), &stdout, &stderr); code != exitOK {
 		t.Errorf("exit code = %d, want 0; log %s", code, stdout.String())
 	}
 	lines := stdout.lines(t)
@@ -310,5 +322,77 @@ func TestAFailureIsPlacedAtItsMoment(t *testing.T) {
 	}
 	if got := momentOf(net.ErrClosed); got != logging.MomentServe {
 		t.Errorf("a server that stopped serving is at %q, want %q", got, logging.MomentServe)
+	}
+}
+
+// serveEnviron is serve's environment on databases of the test's own, migrated,
+// and the fake sign-in service TestMain sets up, with more variables after it.
+func serveEnviron(t *testing.T, more ...string) []string {
+	t.Helper()
+
+	return append([]string{
+		"API_DATABASE_URL=" + storetest.URL(t, true),
+		"API_OPENFGA_DATABASE_URL=" + storetest.OpenFGAURL(t, true),
+		"API_FIREBASE_PROJECT_ID=novatrail-test",
+		`API_FIREBASE_CREDENTIALS={"type":"service_account"}`,
+	}, more...)
+}
+
+// What serve opens and cannot is a failed start, logged once with the database
+// it is of; the port is not taken.
+func TestWhatDoesNotOpenIsAFailedStart(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		environ  []string
+		database any
+	}{
+		{"the database api", []string{"API_DATABASE_URL=" + strings.Replace(storetest.URL(t, false), "/test_", "/missing_", 1)}, "api"},
+		{"the rights, with no store", []string{"API_OPENFGA_DATABASE_URL=" + storetest.OpenFGAURL(t, false)}, "openfga"},
+		{"the sign-in service", []string{"API_FIREBASE_PROJECT_ID=broken"}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout, stderr syncBuffer
+			code := run(t.Context(), []string{"serve"}, serveEnviron(t, append([]string{"PORT=0"}, tc.environ...)...), &stdout, &stderr)
+			if code != exitFailure || stderr.String() != "" {
+				t.Errorf("exit code = %d, stderr %q; want %d and nothing", code, stderr.String(), exitFailure)
+			}
+			lines := stdout.lines(t)
+			if len(lines) != 1 || lines[0]["message"] != "failure" || lines[0]["moment"] != "startup" ||
+				lines[0]["database"] != tc.database {
+				t.Errorf("the log is %v, want one failure at startup of database %v", lines, tc.database)
+			}
+		})
+	}
+}
+
+// serve refuses what it would open wrongly before it writes a line.
+func TestServeRefusesWhatItCannotOpenBeforeTheLog(t *testing.T) {
+	t.Parallel()
+
+	code, stdout, stderr := runCommand(t.Context(), []string{"PORT=0"}, "serve")
+	if code != exitFailure || stdout != "" || !strings.Contains(stderr, "API_DATABASE_URL") {
+		t.Errorf("serve with no databases = %d, %q, %q; want a refusal naming API_DATABASE_URL", code, stdout, stderr)
+	}
+}
+
+// What closes in time is waited for; what does not is left to the exit.
+func TestTheCloseIsWaitedForNoLongerThanItsShare(t *testing.T) {
+	t.Parallel()
+
+	closed := false
+	closeWithin(time.Second, func() { closed = true })
+	if !closed {
+		t.Error("a quick close was not waited for")
+	}
+	stuck := make(chan struct{})
+	defer close(stuck)
+	start := time.Now()
+	closeWithin(20*time.Millisecond, func() { <-stuck })
+	if waited := time.Since(start); waited > time.Second {
+		t.Errorf("a stuck close was waited for %v", waited)
 	}
 }

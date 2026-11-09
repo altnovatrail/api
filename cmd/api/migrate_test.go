@@ -1,14 +1,28 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/altnovatrail/api/internal/authn"
+	"github.com/altnovatrail/api/internal/authn/authntest"
 	"github.com/altnovatrail/api/internal/store/storetest"
 )
 
-func TestMain(m *testing.M) { os.Exit(storetest.Main(m)) }
+func TestMain(m *testing.M) {
+	// serve's tests have no Firebase project: the sign-in service is a fake, and
+	// the project "broken" one that does not open.
+	newSignin = func(_ context.Context, o authn.Options) (authn.Port, error) {
+		if o.ProjectID == "broken" {
+			return nil, errors.New("the test's sign-in service does not open")
+		}
+		return &authntest.Fake{}, nil
+	}
+	os.Exit(storetest.Main(m))
+}
 
 // migrateEnviron is migrate's environment on two empty databases of the test's
 // own, api and openfga.
