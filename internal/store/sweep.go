@@ -160,23 +160,38 @@ func ProfilesThere(ctx context.Context, db Lister, ids []string) (map[string]str
 	return there, nil
 }
 
-// keysBatch is how many records of keys one DELETE takes, so that no statement
+// dropBatch is how many rows one DELETE of a term takes, so that no statement
 // holds the table long.
-const keysBatch = 1000
+const dropBatch = 1000
 
 // DropKeys deletes the records of idempotency keys made before before, a batch at
 // a time, and says how many went: a key is kept for a day (R17). A stop between
 // batches keeps what went.
 func DropKeys(ctx context.Context, db Querier, before time.Time) (int64, error) {
+	return drop(ctx, db, `DELETE FROM idempotency_keys WHERE ctid IN (
+		SELECT ctid FROM idempotency_keys WHERE created_at < $1 LIMIT $2)`, before, "the keys' records")
+}
+
+// DropConsentRecords deletes the minimal records of consents for children whose
+// account or profile was deleted before before, a batch at a time, and says how
+// many went: a record is kept 5 years after the deletion and then erased (R117
+// spec; R21). A stop between batches keeps what went.
+func DropConsentRecords(ctx context.Context, db Querier, before time.Time) (int64, error) {
+	return drop(ctx, db, `DELETE FROM child_consent_records WHERE id IN (
+		SELECT id FROM child_consent_records WHERE deleted_at < $1 LIMIT $2)`, before, "the consents' minimal records")
+}
+
+// drop runs sql, a DELETE of the rows older than its $1, a batch of $2 at a time,
+// until a batch is short.
+func drop(ctx context.Context, db Querier, sql string, before time.Time, what string) (int64, error) {
 	var dropped int64
 	for {
-		tag, err := db.Exec(ctx, `DELETE FROM idempotency_keys WHERE ctid IN (
-			SELECT ctid FROM idempotency_keys WHERE created_at < $1 LIMIT $2)`, before, keysBatch)
+		tag, err := db.Exec(ctx, sql, before, dropBatch)
 		if err != nil {
-			return dropped, fmt.Errorf("store: delete the keys' records: %w", err)
+			return dropped, fmt.Errorf("store: delete %s: %w", what, err)
 		}
 		dropped += tag.RowsAffected()
-		if tag.RowsAffected() < keysBatch {
+		if tag.RowsAffected() < dropBatch {
 			return dropped, nil
 		}
 	}

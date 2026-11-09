@@ -19,7 +19,7 @@ var (
 )
 
 // The ways a consent was given (R36). The owner's own is the statement that
-// they are 18 or older, dated with the account (П-6).
+// they are 18 or older, dated with the account (R118 spec).
 const ConsentByOwnerStatement = "owner_statement"
 
 // profileColumns are the columns of a Profile, in scanProfile's order.

@@ -1,8 +1,9 @@
 // Package sweep is the daily job of the terms of keeping (R05, R21, R38): it
 // finishes the deletions the requests left unfinished and deletes what E2 keeps
 // past its term — accounts and profiles idle for 12 months, users of the sign-in
-// service with no account for 30 days, dangling tuples, and the records of keys
-// and OpenFGA's changelog after a day. A pass keeps no state for the next: each
+// service with no account for 30 days, dangling tuples, the minimal records of
+// consents for children 5 years after the deletion, and the records of keys and
+// OpenFGA's changelog after a day. A pass keeps no state for the next: each
 // step chooses its work again by a query, so a pass cut short is taken up by the
 // next one. Its log is counts alone.
 package sweep
@@ -21,15 +22,17 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// The terms (R05, R17, R21; П-9). An account and a profile are deleted after 12
-// months without a request or activity, by the date of their row; a user with no
-// account after 30 days with no sign-in, refresh of a token or creation; the
-// records of keys and the changelog after a day, so that neither is kept for more
-// than two.
+// The terms (R05, R17, R21; П-9; R117 spec). An account and a profile are
+// deleted after 12 months without a request or activity, by the date of their
+// row; a user with no account after 30 days with no sign-in, refresh of a token
+// or creation; the minimal record of a consent for a child 5 years after the
+// deletion of its account or profile; the records of keys and the changelog after
+// a day, so that neither is kept for more than two.
 const (
-	usersTerm     = 30 * 24 * time.Hour
-	keysTerm      = 24 * time.Hour
-	changelogTerm = 24 * time.Hour
+	usersTerm          = 30 * 24 * time.Hour
+	consentRecordYears = 5
+	keysTerm           = 24 * time.Hour
+	changelogTerm      = 24 * time.Hour
 )
 
 // batch is how many accounts, profiles and tuples a step takes at a time (R38).
@@ -112,6 +115,7 @@ func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 		{logging.StepIdleProfiles, s.idleProfiles},
 		{logging.StepUsers, s.users},
 		{logging.StepTuples, s.tuples},
+		{logging.StepConsentRecords, s.consentRecords},
 		{logging.StepKeys, s.keys},
 		{logging.StepChangelog, s.changelog},
 	}
@@ -326,6 +330,21 @@ func (s *Sweeper) tuples(ctx context.Context, now time.Time, step *Step) {
 		}
 	}
 	step.Finished = drop()
+}
+
+// consentRecords erases the minimal records of consents for children 5 years
+// after their account or profile was deleted, by the calendar of UTC, in which
+// the date of deletion is written: a record of exactly 5 years is kept (R117
+// spec; R21). The record holds no ID of the account
+// or the profile, so the term runs from its own date of deletion.
+func (s *Sweeper) consentRecords(ctx context.Context, now time.Time, step *Step) {
+	dropped, err := store.DropConsentRecords(ctx, s.db, now.UTC().AddDate(-consentRecordYears, 0, 0))
+	step.Done = dropped
+	if err != nil {
+		s.failed(ctx, step, err)
+		return
+	}
+	step.Finished = true
 }
 
 // keys deletes the records of idempotency keys older than a day (R17).

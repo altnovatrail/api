@@ -5,8 +5,8 @@ go 1.27.3
 require (
 	connectrpc.com/connect/v2 v2.0.2
 	firebase.google.com/go/v4 v4.22.0
-	github.com/altnovatrail/spec v0.9.11
-	github.com/altnovatrail/spec/contracts v0.9.11
+	github.com/altnovatrail/spec v0.12.0
+	github.com/altnovatrail/spec/contracts v0.12.0
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.12.0

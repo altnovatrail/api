@@ -22,7 +22,7 @@ Kingdom is never allowed before the DPIA.
 `
 
 // listCountries keeps the operator's list of the countries a deployment takes
-// learners from (П-2, П-6; R36): it lists them, allows one, or removes one. A
+// learners from (R118, R119 spec; R36): it lists them, allows one, or removes one. A
 // country removed takes no new profile; the profiles of it stay.
 func listCountries(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	set := flag.NewFlagSet("api countries", flag.ContinueOnError)
@@ -87,7 +87,7 @@ func countriesAction(args []string) (action, country string, err error) {
 	case !countries.Valid(args[1]):
 		return "", "", fmt.Errorf("%q is no country of ISO 3166-1 alpha-2, two capital letters", args[1])
 	case args[0] == "allow" && countries.IsClosed(args[1]):
-		return "", "", fmt.Errorf("%s is of the EU, the EEA or the United Kingdom, which no learner comes from before the DPIA (П-2)", args[1])
+		return "", "", fmt.Errorf("%s is of the EU, the EEA or the United Kingdom, which no learner comes from before the DPIA (R119 spec)", args[1])
 	}
 	return args[0], args[1], nil
 }

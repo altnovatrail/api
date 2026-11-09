@@ -100,17 +100,18 @@ const (
 
 // The steps of the daily job: the value set of FieldStep.
 const (
-	StepMarks        = "marks"
-	StepIdleAccounts = "idle_accounts"
-	StepIdleProfiles = "idle_profiles"
-	StepUsers        = "users"
-	StepTuples       = "tuples"
-	StepKeys         = "keys"
-	StepChangelog    = "changelog"
+	StepMarks          = "marks"
+	StepIdleAccounts   = "idle_accounts"
+	StepIdleProfiles   = "idle_profiles"
+	StepUsers          = "users"
+	StepTuples         = "tuples"
+	StepConsentRecords = "consent_records"
+	StepKeys           = "keys"
+	StepChangelog      = "changelog"
 )
 
 // Steps is every step of the daily job, in the order it takes them.
-var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepUsers, StepTuples, StepKeys, StepChangelog}
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepUsers, StepTuples, StepConsentRecords, StepKeys, StepChangelog}
 
 // The databases api migrates: the value set of FieldDatabase.
 const (

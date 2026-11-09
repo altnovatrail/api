@@ -103,7 +103,7 @@ func ownerProfileAbsent(ctx context.Context, tx pgx.Tx, accountID string) error 
 	return nil
 }
 
-// accepted refuses a country the deployment does not take (П-2, П-6).
+// accepted refuses a country the deployment does not take (R118, R119 spec).
 func accepted(ctx context.Context, tx pgx.Tx, country string) error {
 	ok, err := store.CountryAccepted(ctx, tx, country)
 	switch {

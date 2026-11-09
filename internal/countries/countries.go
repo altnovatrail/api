@@ -1,5 +1,5 @@
 // Package countries is what api knows of a learner's country before the DPIA
-// (П-2; R36): its form, and the countries no deployment may take learners from
+// (R119 spec; R36): its form, and the countries no deployment may take learners from
 // until the DPIA is done — those of the GDPR and of the UK GDPR. Which countries
 // a deployment takes is the operator's list in the database, closed by default.
 package countries
@@ -20,8 +20,8 @@ import "slices"
 //     read 2026-11-09);
 //   - "the three EEA EFTA States – Iceland, Liechtenstein and Norway"
 //     (https://www.efta.int/eea/eea-agreement, read 2026-11-09);
-//   - the United Kingdom, under the UK GDPR (П-2);
-//   - closed by caution, until the lawyer answers П-2: the Åland Islands, a part
+//   - the United Kingdom, under the UK GDPR (R119 spec);
+//   - closed by caution, until the DPIA (R119 spec): the Åland Islands, a part
 //     of Finland with a code of its own, and the codes that name one of these
 //     countries otherwise — UK for GB, EL for GR, IC for the Canary Islands, EA
 //     for Ceuta and Melilla.

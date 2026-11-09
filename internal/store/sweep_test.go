@@ -253,6 +253,27 @@ func TestTheOldKeysAreDropped(t *testing.T) {
 	}
 }
 
+// The minimal records of consents deleted before the term go, a batch at a time;
+// later ones stay.
+func TestTheOldConsentRecordsAreDropped(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO child_consent_records (id, consented_at, method, deleted_at)
+		SELECT gen_random_uuid(), now() - interval '6 years', 'signed_form', now() - interval '5 years 1 day'
+		FROM generate_series(1, 1500)
+		UNION ALL SELECT gen_random_uuid(), now() - interval '6 years', 'signed_form', now() - interval '4 years'`); err != nil {
+		t.Fatal(err)
+	}
+	dropped, err := store.DropConsentRecords(t.Context(), pool, time.Now().AddDate(-5, 0, 0))
+	if err != nil || dropped != 1500 {
+		t.Fatalf("DropConsentRecords = %d, %v; want the 1500 old", dropped, err)
+	}
+	if n := count(t, pool, "child_consent_records"); n != 1 {
+		t.Errorf("%d records left, want the later one", n)
+	}
+}
+
 // Every query of the job on a database that is down is a failure of the store.
 func TestTheJobsQueriesFailOnADatabaseDown(t *testing.T) {
 	t.Parallel()
@@ -271,6 +292,10 @@ func TestTheJobsQueriesFailOnADatabaseDown(t *testing.T) {
 		"HaveAccounts":  func() error { _, err := store.HaveAccounts(t.Context(), down, []string{"u"}); return err },
 		"ProfilesThere": func() error { _, err := store.ProfilesThere(t.Context(), down, []string{"p"}); return err },
 		"DropKeys":      func() error { _, err := store.DropKeys(t.Context(), down, today); return err },
+		"DropConsentRecords": func() error {
+			_, err := store.DropConsentRecords(t.Context(), down, today)
+			return err
+		},
 		"MarkIdle": func() error {
 			return pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: "FOR UPDATE"}, func(tx pgx.Tx) error {
 				_, err := store.MarkIdle(t.Context(), tx, id, today)

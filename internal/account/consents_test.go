@@ -2,13 +2,16 @@ package account_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/authz"
 )
 
@@ -219,5 +222,84 @@ func TestAChildsTupleNotWrittenLeavesNoProfile(t *testing.T) {
 	var bound bool
 	if err := w.pool.QueryRow(t.Context(), `SELECT profile_id IS NOT NULL FROM consents`).Scan(&bound); err != nil || bound || w.count(t, "profiles") != 0 {
 		t.Errorf("bound %v, %v, profiles %d; want the transaction rolled back", bound, err, w.count(t, "profiles"))
+	}
+}
+
+// consentsLimit is the consents for a child that may wait under an account
+// (the 2026-11-09 amendment to R98 spec; R36): 10, the author's number.
+const consentsLimit = account.WaitingConsentsMax
+
+// Consents wait up to the limit: one more is refused as a form, with no Refusal
+// until spec's epic E4 gives the contract its cause, and a repeat at the limit
+// is still the same consent. A confirmed consent and another account's do not
+// count.
+func TestConsentsWaitUpToTheLimit(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	var last *v1.ChildConsent
+	for i := range consentsLimit + 1 {
+		consent, err := w.askConsent(t, ctx, fmt.Sprintf("key-%d", i), 8, "US")
+		if err != nil {
+			t.Fatalf("consent %d: %v", i, err)
+		}
+		if i == 0 {
+			w.confirm(t, consent.GetConsentId())
+		}
+		last = consent
+	}
+	_, err := w.askConsent(t, ctx, "key-over", 8, "US")
+	if refusal := refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED); refusal != nil {
+		t.Errorf("the refusal over the limit carries %v, want none", refusal)
+	}
+	again, err := w.askConsent(t, ctx, fmt.Sprintf("key-%d", consentsLimit), 8, "US")
+	if err != nil || !proto.Equal(again, last) {
+		t.Errorf("the repeat at the limit = %v, %v; want the same consent, %v", again, err, last)
+	}
+	other := w.owner(t, "uid-other")
+	if _, err := w.askConsent(t, other, "key-0", 8, "US"); err != nil {
+		t.Errorf("another account's consent: %v", err)
+	}
+	if n := w.count(t, "consents WHERE state = 'waiting'"); n != consentsLimit+1 {
+		t.Errorf("consents waiting = %d, want %d", n, consentsLimit+1)
+	}
+}
+
+// Requests beside each other at the limit go one after the other on the
+// account's row: one of them takes the last place, and the rest are refused.
+func TestConsentsAskedTogetherKeepToTheLimit(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	for i := range consentsLimit - 1 {
+		if _, err := w.askConsent(t, ctx, fmt.Sprintf("key-%d", i), 8, "US"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const together = 5
+	errs := make(chan error, together)
+	var wg sync.WaitGroup
+	for i := range together {
+		wg.Go(func() {
+			_, err := w.askConsent(t, as(t, "uid-owner"), fmt.Sprintf("key-together-%d", i), 8, "US")
+			errs <- err
+		})
+	}
+	wg.Wait()
+	close(errs)
+	taken := 0
+	for err := range errs {
+		if err == nil {
+			taken++
+			continue
+		}
+		refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+	}
+	if n := w.count(t, "consents"); taken != 1 || n != consentsLimit {
+		t.Errorf("%d took a place and %d consents wait, want 1 and %d", taken, n, consentsLimit)
 	}
 }

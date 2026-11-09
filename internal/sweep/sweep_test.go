@@ -208,6 +208,16 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 		WHERE object_id = $1`, profileID(2)); err != nil {
 		t.Fatal(err)
 	}
+	// Minimal records of consents for children: deleted a day more than 5 years
+	// ago by the calendar, a day short of 5 years, and now. A day on either side
+	// keeps the test off the time the pass itself is run at.
+	for i, deleted := range []time.Time{now.AddDate(-5, 0, -1), now.AddDate(-5, 0, 1), now} {
+		if _, err := w.pool.Exec(t.Context(), `INSERT INTO child_consent_records (id, consented_at, method, deleted_at)
+			VALUES ($1, $2, 'signed_form', $2)`, profileID(10+i), deleted); err != nil {
+			t.Fatal(err)
+		}
+		w.ids = append(w.ids, profileID(10+i))
+	}
 
 	report := w.run(t)
 	if !report.Clean() {
@@ -215,7 +225,7 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	}
 	for name, want := range map[string]int64{
 		logging.StepMarks: 1, logging.StepIdleAccounts: 1, logging.StepIdleProfiles: 1, logging.StepUsers: 2,
-		logging.StepTuples: 2, logging.StepKeys: 1, logging.StepChangelog: 1,
+		logging.StepTuples: 2, logging.StepConsentRecords: 1, logging.StepKeys: 1, logging.StepChangelog: 1,
 	} {
 		if got := step(t, report, name).Done; got != want {
 			t.Errorf("%s did %d, want %d", name, got, want)
@@ -254,6 +264,9 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	}
 	if w.count(t, "idempotency_keys") != 1 {
 		t.Error("the keys' records did not go as they should")
+	}
+	if w.count(t, "child_consent_records WHERE id = $1", profileID(10)) != 0 || w.count(t, "child_consent_records") != 2 {
+		t.Error("the minimal records did not go as they should: the one past 5 years, not the others")
 	}
 	var old int
 	if err := w.fga.QueryRow(t.Context(), `SELECT count(*) FROM changelog WHERE inserted_at < now() - interval '1 day'`).Scan(&old); err != nil || old != 0 {

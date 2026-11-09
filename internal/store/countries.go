@@ -13,7 +13,7 @@ type Lister interface {
 }
 
 // CountryAccepted says whether the deployment takes learners from country
-// (П-2, П-6; R36). None is taken until the operator adds it.
+// (R118, R119 spec; R36). None is taken until the operator adds it.
 func CountryAccepted(ctx context.Context, db Querier, country string) (bool, error) {
 	var accepted bool
 	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accepted_countries WHERE country = $1)`, country).Scan(&accepted)

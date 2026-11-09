@@ -6,7 +6,8 @@
         "dockerfile": "Dockerfile",
         // The full environment, not the toolchain stage on its own.
         "target": "devcontainer",
-        // The image copies nothing from the repository, so it is built from this folder alone.
+        // The image copies nothing from the repository but what its kind puts in this folder,
+        // gopls/, so it is built from this folder alone.
         "context": "."
     },
     "remoteUser": "vscode",
@@ -57,7 +58,11 @@
                 "git.alwaysSignOff": true,
                 // spec is a read-only submodule of every other NovaTrail repository: Source
                 // Control does not offer it as one more repository to commit in.
-                "git.detectSubmodules": false
+                "git.detectSubmodules": false,
+                // The settings of this repository's kind.
+                "go.toolsManagement.autoUpdate": false,
+                "go.toolsManagement.checkForUpdates": "off",
+                "go.lintOnSave": "off"
             },
             // Exact versions; the Claude Code extension matches CLAUDE_CODE_VERSION.
             "extensions": [

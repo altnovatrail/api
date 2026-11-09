@@ -230,7 +230,7 @@ func (s *checked) Receive(msg any) error {
 
 // RequireConsent is step 5 of architecture 3.1, for the handlers of the learning
 // requests (E3): the profile's consent is confirmed, or the request is refused
-// "no consent" (П-1). It runs after the checks, on the profile they let through.
+// "no consent" (R116 spec). It runs after the checks, on the profile they let through.
 func RequireConsent(ctx context.Context, db store.Querier, profileID string) error {
 	given, err := store.ConsentGiven(ctx, db, profileID)
 	if err != nil {
