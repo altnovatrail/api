@@ -7,11 +7,17 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/altnovatrail/api/internal/authn"
+	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
+	"github.com/altnovatrail/api/internal/store"
 	"github.com/altnovatrail/api/internal/version"
 )
 
@@ -29,12 +35,35 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return err
 	}
+	opens, err := config.ServeFrom(environ, cfg)
+	if err != nil {
+		return err
+	}
 	log := logging.New(stdout, cfg.LogLevel)
+
+	// What the requests run on is opened first: a database that does not answer
+	// is a failed start, not a failed first request.
+	deps, closeDeps, err := open(ctx, opens)
+	if err != nil {
+		var fields []any
+		if failed := (*openFailed)(nil); errors.As(err, &failed) {
+			fields = failed.fields()
+		}
+		return startupFailed(ctx, log, err, fields...)
+	}
+	// Closed in the part of the way out kept for it: a request the drain cut short
+	// may still hold a connection, and the pool's Close waits for it, past the
+	// platform's grace if nothing bounded it.
+	defer closeWithin(cfg.CloseTimeout(), closeDeps)
+	deps.Log, deps.RequestTimeout = log, cfg.RequestTimeout
+	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
+		rpc.Mount(mux, rpc.NewServer(deps, rpc.Handlers{}))
+	})
 
 	// The port is taken before the service says it has started, so that a port
 	// already in use is the failed start it is, and the startup line never
 	// names a port the process does not hold.
-	srv := server.New(cfg, log, server.Routes(log))
+	srv := server.New(cfg, log, routes)
 	if err := srv.Listen(ctx); err != nil {
 		return startupFailed(ctx, log, err)
 	}
@@ -93,11 +122,85 @@ func logged(log *slog.Logger, moment string, err error, fields ...any) error {
 
 // startupFailed is what serve returns when the service could not start. A
 // start cut short by the stop that was asked for is that stop, not a failure:
-// a platform may take an instance away while it is still starting.
-func startupFailed(ctx context.Context, log *slog.Logger, err error) error {
+// a platform may take an instance away while it is still starting. fields are
+// what else the line says: the database that did not open.
+func startupFailed(ctx context.Context, log *slog.Logger, err error, fields ...any) error {
 	if ctx.Err() != nil && errors.Is(err, context.Canceled) {
 		log.Info(logging.EventShutdown, logging.FieldStarted, false)
 		return nil
 	}
-	return logged(log, logging.MomentStartup, err)
+	return logged(log, logging.MomentStartup, err, fields...)
+}
+
+// newSignin builds the port to the sign-in service; a test of serve puts a fake
+// of its own here, for want of a Firebase project.
+var newSignin = func(ctx context.Context, o authn.Options) (authn.Port, error) { return authn.New(ctx, o) }
+
+// openFailed is what did not open, with the database it is of; none for the
+// sign-in service.
+type openFailed struct {
+	database string
+	err      error
+}
+
+func (o *openFailed) Error() string { return "serve: open " + o.database + ": " + o.err.Error() }
+
+func (o *openFailed) Unwrap() error { return o.err }
+
+// fields is what the line of the failure says beside its kind: the database.
+func (o *openFailed) fields() []any {
+	if o.database == "" {
+		return nil
+	}
+	return []any{logging.FieldDatabase, o.database}
+}
+
+// open opens what the requests run on (R29, R31, R32): the database api through
+// the pooler, checked by a ping so that a wrong string fails the start and not
+// the first request; the rights, which find their store and model or refuse;
+// and the port to the sign-in service. What opened before a failure is closed;
+// close closes the rest.
+func open(ctx context.Context, opens *config.Serve) (rpc.Deps, func(), error) {
+	pool, err := store.Open(ctx, opens.DatabaseURL.Reveal())
+	if err == nil {
+		if err = pool.Ping(ctx); err != nil {
+			pool.Close()
+		}
+	}
+	if err != nil {
+		return rpc.Deps{}, nil, &openFailed{database: logging.DatabaseAPI, err: err}
+	}
+	rights, err := authz.Open(ctx, opens.OpenFGADatabaseURL.Reveal())
+	if err != nil {
+		pool.Close()
+		return rpc.Deps{}, nil, &openFailed{database: logging.DatabaseOpenFGA, err: err}
+	}
+	signin, err := newSignin(ctx, authn.Options{
+		ProjectID:   opens.FirebaseProjectID,
+		Credentials: []byte(opens.FirebaseCredentials.Reveal()),
+	})
+	if err != nil {
+		rights.Close()
+		pool.Close()
+		return rpc.Deps{}, nil, &openFailed{err: err}
+	}
+	closeAll := func() {
+		rights.Close()
+		pool.Close()
+	}
+	return rpc.Deps{Signin: signin, DB: pool, Rights: rights}, closeAll, nil
+}
+
+// closeWithin runs closeAll, and waits for it no longer than timeout: a process on
+// its way out leaves what is still closing to the exit.
+func closeWithin(timeout time.Duration, closeAll func()) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		closeAll()
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+	}
 }

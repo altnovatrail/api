@@ -14,21 +14,25 @@ import (
 // give to those who need it.
 const healthBody = `{"status":"ok"}`
 
-// Routes is the service's handler: the health check, and nothing else yet.
-// The contract's methods join it with the Connect server. A panic in any of
-// them is answered here.
+// Routes is the service's handler: the health check, and whatever mount puts on
+// the mux — the methods of the contract, by the Connect server (R33). A panic
+// in any of them is answered here, and CORS is answered to appOrigin, when it
+// is set, on every path and every answer.
 //
 // The router is the standard library's: a Connect handler is an http.Handler,
 // and a pattern with a method is all the routes need.
-func Routes(log *slog.Logger) http.Handler {
+func Routes(log *slog.Logger, appOrigin string, mount func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 	// GET /health answers HEAD too. The path does not end in z: Cloud Run's
 	// front end keeps paths that do for itself (R30 canvas-api).
 	mux.HandleFunc("GET /health", health)
+	if mount != nil {
+		mount(mux)
+	}
 	// Whatever else is asked for is not here. The answer has no body, so it
 	// repeats nothing of the path, which may carry anything a client put in it.
 	mux.HandleFunc("/", notFound)
-	return recovered(log, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return cors(appOrigin, recovered(log, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// A path the mux would redirect to its clean form — //health, /a/../b —
 		// is not found either: the redirect would repeat the path in its
 		// Location and its body.
@@ -37,7 +41,7 @@ func Routes(log *slog.Logger) http.Handler {
 			return
 		}
 		mux.ServeHTTP(w, r)
-	}))
+	})))
 }
 
 // cleanPath is the path as the mux cleans it before routing: rooted, without
