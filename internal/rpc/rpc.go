@@ -15,12 +15,11 @@ import (
 	"connectrpc.com/connect/v2/connecthttp"
 	"connectrpc.com/connect/v2/connectproto"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
-	"github.com/jackc/pgx/v5"
 
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/logging"
-	"github.com/altnovatrail/api/internal/store"
 )
 
 // Deps is what the server runs on.
@@ -52,7 +51,8 @@ type Handlers struct {
 // every interceptor in its order: the log's line outermost, so that it sees
 // every refusal, then the time limit, then the checks.
 func NewServer(d Deps, h Handlers) *connect.Server {
-	c := &checks{signin: d.Signin, db: d.DB, rights: d.Rights, userGone: markDeleting(d.DB), now: time.Now}
+	gone := deletion.New(d.DB, d.Rights, d.Signin)
+	c := &checks{signin: d.Signin, db: d.DB, rights: d.Rights, userGone: gone.Account, now: time.Now}
 	server := connect.NewServer(logged(d.Log), limited(d.RequestTimeout), c.intercept)
 	register(server, h)
 	return server
@@ -83,14 +83,6 @@ func Mount(mux *http.ServeMux, server *connect.Server) {
 	json := connectproto.NewJSONCodec()
 	json.MarshalOptions.UseProtoNames = true
 	connecthttp.Mount(mux, server, connecthttp.WithCodecs(connectproto.NewBinaryCodec(), json))
-}
-
-// markDeleting marks the account "deleting" for a user the sign-in service no
-// longer has: what the deletion of an account (T27) then does in full.
-func markDeleting(db DB) func(ctx context.Context, accountID string) error {
-	return func(ctx context.Context, accountID string) error {
-		return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error { return store.MarkDeleting(ctx, tx, accountID) })
-	}
 }
 
 // limited cuts a request short at its time limit; a shorter Connect-Timeout-Ms
