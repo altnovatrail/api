@@ -293,18 +293,29 @@ func TestEachClassOfATokenIsItsAnswer(t *testing.T) {
 	}
 }
 
-// A user deleted past api — in the project's console — takes the account with
-// it: the request marks it, and answers that it is gone (R20).
-func TestAUserGonePastAPIMarksTheAccount(t *testing.T) {
+// A user deleted past api takes its account with it, by the path of
+// DeleteAccount, in the request that finds it gone (R20, R21).
+func TestAUserGonePastAPIDeletesTheAccount(t *testing.T) {
 	w := newWorld(t, time.Second)
 	p := w.person(t, "uid-gone")
 	w.signin.Refuse(p.token, authn.NoUser, p.uid)
 
 	_, err := w.client.GetAccount(as(t, p.token), &v1.GetAccountRequest{})
 	refusedAs(t, err, connect.CodeUnauthenticated, v1.Cause_CAUSE_ACCOUNT_GONE)
-	if !w.deleting(t, p.accountID) {
-		t.Error("the account of a user who is gone is not marked")
+	var accounts, profiles int
+	if err := w.pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM accounts), (SELECT count(*) FROM profiles)`).
+		Scan(&accounts, &profiles); err != nil {
+		t.Fatal(err)
 	}
+	if accounts != 0 || profiles != 0 {
+		t.Errorf("accounts %d, profiles %d after the user went; want none", accounts, profiles)
+	}
+	if can, err := w.rights.Can(t.Context(), p.accountID, authz.CanManage, p.profileID); err != nil || can {
+		t.Errorf("the tuple after the user went: %v, %v; want it deleted", can, err)
+	}
+	// A repeat with the token still alive is told the same.
+	_, err = w.client.GetAccount(as(t, p.token), &v1.GetAccountRequest{})
+	refusedAs(t, err, connect.CodeUnauthenticated, v1.Cause_CAUSE_ACCOUNT_GONE)
 }
 
 // A marked account gets "the account is gone" on every request, creating the
@@ -621,5 +632,40 @@ func TestARequestOnAProfileTouchesIt(t *testing.T) {
 	}
 	if version() != before {
 		t.Error("a second request of the day wrote the profile's date again")
+	}
+}
+
+// The repeat of a deletion whose tuple was left deletes the tuple, and is told
+// "no profile"; another request on a dangling tuple leaves it to the job.
+func TestADeletionsRepeatDropsTheDanglingTuple(t *testing.T) {
+	w := newWorld(t, time.Second)
+	p := w.person(t, "uid-dangling")
+	if _, err := w.pool.Exec(t.Context(), `DELETE FROM profiles WHERE id = $1`, p.profileID); err != nil {
+		t.Fatal(err)
+	}
+	_, err := w.client.UpdateProfile(as(t, p.token), &v1.UpdateProfileRequest{ProfileId: p.profileID})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+	if can, err := w.rights.Can(t.Context(), p.accountID, authz.CanManage, p.profileID); err != nil || !can {
+		t.Fatalf("the tuple after a change = %v, %v; want it left", can, err)
+	}
+	_, err = w.client.DeleteProfile(as(t, p.token), &v1.DeleteProfileRequest{ProfileId: p.profileID})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+	if can, err := w.rights.Can(t.Context(), p.accountID, authz.CanManage, p.profileID); err != nil || can {
+		t.Errorf("the tuple after the deletion's repeat = %v, %v; want it deleted", can, err)
+	}
+}
+
+// A dangling tuple is the deletion's to drop only with its fresh sign-in.
+func TestADanglingTupleIsNotDroppedWithoutAFreshSignIn(t *testing.T) {
+	w := newWorld(t, time.Second)
+	p := w.person(t, "uid-dangling-stale")
+	if _, err := w.pool.Exec(t.Context(), `DELETE FROM profiles WHERE id = $1`, p.profileID); err != nil {
+		t.Fatal(err)
+	}
+	w.signin.Accept(p.token, authn.Token{UID: p.uid, AuthTime: time.Now().Add(-time.Hour)})
+	_, err := w.client.DeleteProfile(as(t, p.token), &v1.DeleteProfileRequest{ProfileId: p.profileID})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+	if can, err := w.rights.Can(t.Context(), p.accountID, authz.CanManage, p.profileID); err != nil || !can {
+		t.Errorf("the tuple = %v, %v; want it left for a fresh sign-in or the job", can, err)
 	}
 }

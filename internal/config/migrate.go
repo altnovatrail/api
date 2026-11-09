@@ -36,20 +36,11 @@ func MigrateFrom(environ []string) (*Migrate, error) {
 	if cfg.LogLevel, err = level(env.or(VarLogLevel, DefaultLogLevel)); err != nil {
 		problems = append(problems, err)
 	}
-	// In this order, so that the refusals of both read the same on every run.
-	for _, secret := range []struct {
-		name string
-		into *Secret
-	}{
+	// In this order, so that the refusals read the same on every run.
+	problems = append(problems, databaseURLs(env, []namedSecret{
 		{VarMigrateDatabaseURL, &cfg.DatabaseURL},
 		{VarMigrateOpenFGADatabaseURL, &cfg.OpenFGADatabaseURL},
-	} {
-		if *secret.into, err = env.secret(secret.name); err != nil {
-			problems = append(problems, err)
-		} else if err := checkDatabaseURL(secret.name, *secret.into); err != nil {
-			problems = append(problems, err)
-		}
-	}
+	})...)
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)
 	}
@@ -89,4 +80,25 @@ func local(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// namedSecret is a connection string to read, by its variable.
+type namedSecret struct {
+	name string
+	into *Secret
+}
+
+// databaseURLs reads each connection string into its place and checks it,
+// and names every one that could not be read or is refused.
+func databaseURLs(env environment, urls []namedSecret) []error {
+	var problems []error
+	for _, url := range urls {
+		var err error
+		if *url.into, err = env.secret(url.name); err != nil {
+			problems = append(problems, err)
+		} else if err := checkDatabaseURL(url.name, *url.into); err != nil {
+			problems = append(problems, err)
+		}
+	}
+	return problems
 }

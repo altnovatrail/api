@@ -31,7 +31,7 @@ const (
 	// EventShutdown is the last line of a process that stopped as asked.
 	EventShutdown = "shutdown"
 	// EventFailure is a failure nobody asked for, at a moment of the closed set
-	// the field moment names.
+	// the field moment names, and in the daily job, at which of its steps.
 	EventFailure = "failure"
 	// EventPanic is a panic a handler raised and the server recovered.
 	EventPanic = "panic"
@@ -45,6 +45,10 @@ const (
 	// or an ID (R18, R33). The path of a Connect GET holds the message, so the
 	// method is written, not the path.
 	EventRequest = "request"
+	// EventSwept is the line of a step of the daily job (R21): which step, how many
+	// it did and failed, and whether it went to its end — counts alone, never an
+	// ID of what it did them to.
+	EventSwept = "swept"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -73,6 +77,10 @@ const (
 	FieldCause         = "cause"
 	FieldTokenClass    = "token_class"
 	FieldDurationMS    = "duration_ms"
+	FieldStep          = "step"
+	FieldDone          = "done"
+	FieldFailed        = "failed"
+	FieldFinished      = "finished"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -87,7 +95,22 @@ const (
 	MomentMigrate   = "migrate"
 	MomentInvite    = "invite"
 	MomentCountries = "countries"
+	MomentSweep     = "sweep"
 )
+
+// The steps of the daily job: the value set of FieldStep.
+const (
+	StepMarks        = "marks"
+	StepIdleAccounts = "idle_accounts"
+	StepIdleProfiles = "idle_profiles"
+	StepUsers        = "users"
+	StepTuples       = "tuples"
+	StepKeys         = "keys"
+	StepChangelog    = "changelog"
+)
+
+// Steps is every step of the daily job, in the order it takes them.
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepUsers, StepTuples, StepKeys, StepChangelog}
 
 // The databases api migrates: the value set of FieldDatabase.
 const (
@@ -101,10 +124,11 @@ var events = map[string][]string{
 	EventStopping: {},
 	EventStopped:  {FieldCutShort},
 	EventShutdown: {FieldStarted},
-	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase},
+	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
 	EventPanic:    {FieldPanicKind},
 	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
 	EventRequest:  {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind},
+	EventSwept:    {FieldStep, FieldDone, FieldFailed, FieldFinished},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -127,7 +151,7 @@ var fields = map[string]rule{
 	FieldDeployed:      {kind: slog.KindBool},
 	FieldStarted:       {kind: slog.KindBool},
 	FieldCutShort:      {kind: slog.KindBool},
-	FieldMoment:        {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries}},
+	FieldMoment:        {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep}},
 	FieldErrorKind:     {kind: slog.KindLogValuer},
 	FieldPanicKind:     {kind: slog.KindLogValuer},
 	FieldApplied:       {kind: slog.KindInt64},
@@ -140,6 +164,10 @@ var fields = map[string]rule{
 	FieldCause:         {kind: slog.KindString, shape: matches(causeShape)},
 	FieldTokenClass:    {kind: slog.KindString, values: TokenClasses},
 	FieldDurationMS:    {kind: slog.KindInt64},
+	FieldStep:          {kind: slog.KindString, values: Steps},
+	FieldDone:          {kind: slog.KindInt64},
+	FieldFailed:        {kind: slog.KindInt64},
+	FieldFinished:      {kind: slog.KindBool},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a

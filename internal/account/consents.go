@@ -84,7 +84,7 @@ func (s *Service) CreateChildProfile(ctx context.Context, req *v1.CreateChildPro
 		if p, err = store.CreateChildProfile(ctx, tx, caller.AccountID, c, p); err != nil {
 			return err
 		}
-		return s.owners.WriteOwner(ctx, caller.AccountID, p.ID)
+		return s.rights.WriteOwner(ctx, caller.AccountID, p.ID)
 	})
 	if err != nil {
 		return nil, refusedProfile(ctx, err)

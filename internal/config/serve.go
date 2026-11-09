@@ -64,34 +64,15 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 	var problems []error
 	serve := &Serve{FirebaseProjectID: env[VarFirebaseProjectID], AppOrigin: env[VarAppOrigin]}
 	// In this order, so that the refusals read the same on every run.
-	for _, secret := range []struct {
-		name string
-		into *Secret
-	}{
+	problems = append(problems, databaseURLs(env, []namedSecret{
 		{VarDatabaseURL, &serve.DatabaseURL},
 		{VarOpenFGADatabaseURL, &serve.OpenFGADatabaseURL},
-	} {
-		var err error
-		if *secret.into, err = env.secret(secret.name); err != nil {
-			problems = append(problems, err)
-		} else if err := checkDatabaseURL(secret.name, *secret.into); err != nil {
-			problems = append(problems, err)
-		}
-	}
+	})...)
 	if serve.FirebaseProjectID == "" {
 		problems = append(problems, fmt.Errorf("%w: %s must be set", ErrInvalid, VarFirebaseProjectID))
 	}
-	_, inline := env[VarFirebaseCredentials]
-	_, fromFile := env[VarFirebaseCredentials+fileSuffix]
-	switch {
-	case cfg.Deployed() && (inline || fromFile):
-		problems = append(problems, fmt.Errorf("%w: %s and %s%s must not be set when %s is: a deployment takes its service's own account, with no key",
-			ErrInvalid, VarFirebaseCredentials, VarFirebaseCredentials, fileSuffix, VarService))
-	case !cfg.Deployed():
-		var err error
-		if serve.FirebaseCredentials, err = env.secret(VarFirebaseCredentials); err != nil {
-			problems = append(problems, err)
-		}
+	if err := firebaseCredentials(env, cfg.Deployed(), VarService, &serve.FirebaseCredentials); err != nil {
+		problems = append(problems, err)
 	}
 	if err := checkOrigin(serve.AppOrigin, cfg.Deployed()); err != nil {
 		problems = append(problems, err)
@@ -126,6 +107,26 @@ func checkOrigin(origin string, deployed bool) error {
 		parsed.Port() == defaultPort || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" ||
 		parsed.ForceQuery || parsed.Fragment != "" || parsed.String() != origin {
 		return refused
+	}
+	return nil
+}
+
+// firebaseCredentials reads the key of the service account into into by R32's
+// rule: deployed — deployedBy, the variable the platform sets, is — a key is
+// refused, since a deployment takes its own account's token with no key; off a
+// deployment it is required, since the machine's default credentials might be
+// gcloud's, which are never taken.
+func firebaseCredentials(env environment, deployed bool, deployedBy string, into *Secret) error {
+	_, inline := env[VarFirebaseCredentials]
+	_, fromFile := env[VarFirebaseCredentials+fileSuffix]
+	switch {
+	case deployed && (inline || fromFile):
+		return fmt.Errorf("%w: %s and %s%s must not be set when %s is: a deployment takes its service's own account, with no key",
+			ErrInvalid, VarFirebaseCredentials, VarFirebaseCredentials, fileSuffix, deployedBy)
+	case !deployed:
+		var err error
+		*into, err = env.secret(VarFirebaseCredentials)
+		return err
 	}
 	return nil
 }

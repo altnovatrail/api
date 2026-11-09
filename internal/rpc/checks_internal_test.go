@@ -9,6 +9,10 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+
+	"github.com/altnovatrail/api/internal/authn"
+	"github.com/altnovatrail/api/internal/store"
+	"github.com/altnovatrail/api/internal/store/storetest"
 )
 
 // stream is a ServerStream whose message is received at once, or fails.
@@ -82,5 +86,30 @@ func TestNoTimeLimitIsTheDefault(t *testing.T) {
 	})(t.Context(), connect.Spec{}, &stream{})
 	if left < 29*time.Second || left > 30*time.Second {
 		t.Errorf("the time left under no limit given = %v, want the default 30s", left)
+	}
+}
+
+// A failure the answer does not show is the note's, for the line of the log.
+func TestAFailureNotedIsTheLinesToName(t *testing.T) {
+	n := &note{}
+	ctx := context.WithValue(t.Context(), noteKey{}, n)
+	failure := errors.New("the tuple stayed")
+	NoteFailure(ctx, failure)
+	if n.failure != failure {
+		t.Errorf("the note's failure = %v, want %v", n.failure, failure)
+	}
+}
+
+// A user gone whose account a request beside this one deleted first is the
+// account gone, not a failure.
+func TestAUserGoneDeletedBesideIsGone(t *testing.T) {
+	pool := storetest.DB(t)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO accounts (auth_uid) VALUES ('uid-beside')`); err != nil {
+		t.Fatal(err)
+	}
+	c := &checks{db: pool, userGone: func(context.Context, string, string) error { return store.ErrNoAccount }}
+	err := c.refused(t.Context(), &authn.Refusal{Class: authn.NoUser, UID: "uid-beside"})
+	if connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Errorf("refused = %v, want the account gone", err)
 	}
 }
