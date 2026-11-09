@@ -11,12 +11,15 @@ import (
 
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// Rights is what the checks ask of the rights: authz.Rights.
+// Rights is what the checks ask of the rights, and what the deletion of an
+// account a user gone needs: authz.Rights.
 type Rights interface {
 	Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error)
+	deletion.Rights
 }
 
 // DB is what the checks read and write the accounts on: the pool of the
@@ -57,7 +60,7 @@ type checks struct {
 	rights Rights
 	// userGone is called for a user the sign-in service no longer has, whose
 	// account is not marked: deleted past api, in the project's console (R20).
-	userGone func(ctx context.Context, accountID string) error
+	userGone func(ctx context.Context, accountID, uid string) error
 	now      func() time.Time
 }
 
@@ -138,10 +141,19 @@ func (c *checks) refused(ctx context.Context, err error) error {
 		case err != nil:
 			return Failed(ctx, err)
 		case !account.Deleting:
-			// The user was deleted past api: the account goes too, with no fresh
-			// sign-in, in this request (R20). What does not finish, a repeat
-			// does: the account is still unmarked.
-			if err := c.userGone(ctx, account.ID); err != nil {
+			// The user was deleted past api: the account goes too, by the same
+			// path as DeleteAccount, with no fresh sign-in, in this request (R20,
+			// R21). Its user is gone already; what else does not finish after the
+			// mark, the daily job does (T28). A mark that did not go is a failure,
+			// and a repeat marks it.
+			err := c.userGone(ctx, account.ID, refusal.UID)
+			var unfinished *deletion.Unfinished
+			switch {
+			case errors.As(err, &unfinished):
+				NoteFailure(ctx, unfinished)
+			case errors.Is(err, store.ErrNoAccount):
+				// A request beside this one deleted it first.
+			case err != nil:
 				return Failed(ctx, err)
 			}
 		}
@@ -195,6 +207,12 @@ func (s *checked) Receive(msg any) error {
 		return Failed(s.ctx, err)
 	}
 	if !there {
+		// Only by the deletion's own rule: with its fresh sign-in.
+		if s.rule.dropsDangling && authn.Fresh(s.caller.AuthTime, s.checks.now()) {
+			if err := s.checks.rights.DeleteOwner(s.ctx, s.caller.AccountID, profileID); err != nil {
+				return Failed(s.ctx, err)
+			}
+		}
 		return noProfile(s.ctx)
 	}
 	if s.rule.fresh && !authn.Fresh(s.caller.AuthTime, s.checks.now()) {

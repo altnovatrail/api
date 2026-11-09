@@ -55,6 +55,12 @@ func (f *flaky) Begin(ctx context.Context) (pgx.Tx, error) {
 // downRights is a store of rights that does not answer.
 type downRights struct{}
 
+func (downRights) DeleteOwner(context.Context, string, string) error { return errDown }
+
+func (downRights) DeleteOwned(context.Context, string, []string) error { return errDown }
+
+func (downRights) OwnedProfiles(context.Context, string) ([]string, error) { return nil, errDown }
+
 func (downRights) Can(context.Context, string, authz.Right, string) (bool, error) {
 	return false, errDown
 }
@@ -131,5 +137,44 @@ func TestAHandlersBareErrorIsLoggedByItsKind(t *testing.T) {
 	refusedAs(t, err, connect.CodeUnknown, v1.Cause_CAUSE_UNSPECIFIED)
 	if log := w.log.String(); !strings.Contains(log, `"error_kind":"`) || !strings.Contains(log, `"code":"unknown"`) {
 		t.Errorf("the line of a bare error:\n%s", log)
+	}
+}
+
+// stuckRights is a store of rights that answers the checks and deletes nothing.
+type stuckRights struct{ *authz.Rights }
+
+func (stuckRights) DeleteOwner(context.Context, string, string) error { return errDown }
+
+func (stuckRights) DeleteOwned(context.Context, string, []string) error { return errDown }
+
+// A tuple the deletion's repeat cannot delete is a failure: the repeat after it
+// deletes it.
+func TestADanglingTupleThatDoesNotGoIsUnavailable(t *testing.T) {
+	w := newWorld(t, time.Second, func(d *rpc.Deps) { d.Rights = stuckRights{d.Rights.(*authz.Rights)} })
+	p := w.person(t, "uid-stuck")
+	if _, err := w.pool.Exec(t.Context(), `DELETE FROM profiles WHERE id = $1`, p.profileID); err != nil {
+		t.Fatal(err)
+	}
+	_, err := w.client.DeleteProfile(as(t, p.token), &v1.DeleteProfileRequest{ProfileId: p.profileID})
+	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
+}
+
+// A user gone whose account's tuples do not go is the account gone all the
+// same: the mark stays, and the daily job finishes it.
+func TestAUserGoneWhoseDeletionDoesNotFinishLeavesTheMark(t *testing.T) {
+	w := newWorld(t, time.Second, func(d *rpc.Deps) { d.Rights = stuckRights{d.Rights.(*authz.Rights)} })
+	p := w.person(t, "uid-gone-stuck")
+	w.signin.Refuse(p.token, authn.NoUser, p.uid)
+	_, err := w.client.GetAccount(as(t, p.token), &v1.GetAccountRequest{})
+	refusedAs(t, err, connect.CodeUnauthenticated, v1.Cause_CAUSE_ACCOUNT_GONE)
+	if !w.deleting(t, p.accountID) {
+		t.Error("the account is not marked")
+	}
+	if log := w.log.String(); !strings.Contains(log, `"error_kind"`) || !strings.Contains(log, `"cause":"CAUSE_ACCOUNT_GONE"`) {
+		t.Errorf("the line does not name what is left to finish:\n%s", log)
+	}
+	var profiles int
+	if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM profiles`).Scan(&profiles); err != nil || profiles != 0 {
+		t.Errorf("profiles = %d, %v; want the data gone with the mark", profiles, err)
 	}
 }

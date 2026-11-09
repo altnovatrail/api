@@ -190,7 +190,7 @@ func open(ctx context.Context, opens *config.Serve) (rpc.Deps, rpc.Handlers, fun
 		pool.Close()
 	}
 	// The handlers write the tuples of the profiles they make (R31).
-	handlers := rpc.Handlers{Account: account.New(pool, rights)}
+	handlers := rpc.Handlers{Account: account.New(pool, rights, signin)}
 	return rpc.Deps{Signin: signin, DB: pool, Rights: rights}, handlers, closeAll, nil
 }
 

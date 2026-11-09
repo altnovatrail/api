@@ -14,6 +14,7 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 
+	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/invite"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -22,14 +23,17 @@ import (
 // Service is the AccountService on the database api.
 type Service struct {
 	apiv1connect.UnimplementedAccountServiceHandler
-	db     rpc.DB
-	owners Owners
-	now    func() time.Time
+	db      rpc.DB
+	rights  Rights
+	deleter *deletion.Deleter
+	now     func() time.Time
 }
 
-// Owners is what writes the tuple of a profile it makes: authz.Rights.
-type Owners interface {
+// Rights is what writes the tuple of a profile it makes, and deletes the tuples
+// of what it deletes: authz.Rights.
+type Rights interface {
 	WriteOwner(ctx context.Context, accountID, profileID string) error
+	deletion.Rights
 }
 
 // Option is a choice of New's that a test makes.
@@ -38,10 +42,10 @@ type Option func(*Service)
 // WithClock is the clock the PIN's count goes by, the system's by default.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
-// New is the AccountService on db, writing the tuples of the profiles it makes
-// to owners.
-func New(db rpc.DB, owners Owners, options ...Option) *Service {
-	s := &Service{db: db, owners: owners, now: time.Now}
+// New is the AccountService on db, with the tuples of the profiles in rights
+// and the users at signin.
+func New(db rpc.DB, rights Rights, signin deletion.Signin, options ...Option) *Service {
+	s := &Service{db: db, rights: rights, deleter: deletion.New(db, rights, signin), now: time.Now}
 	for _, option := range options {
 		option(s)
 	}

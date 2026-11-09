@@ -45,8 +45,8 @@ type world struct {
 	client apiv1connect.AccountServiceClient
 	clock  *clock
 	log    *syncBuffer
-	// ownerFails makes the writing of a tuple fail.
-	ownerFails atomic.Bool
+	// ownerFails makes the writing of a tuple fail, and deleteFails its deletion.
+	ownerFails, deleteFails atomic.Bool
 }
 
 // owners is the rights the handlers write the tuples to, which fail when the
@@ -63,6 +63,20 @@ func (o owners) WriteOwner(ctx context.Context, accountID, profileID string) err
 		return errOwner
 	}
 	return o.Rights.WriteOwner(ctx, accountID, profileID)
+}
+
+func (o owners) DeleteOwner(ctx context.Context, accountID, profileID string) error {
+	if o.w.deleteFails.Load() {
+		return errOwner
+	}
+	return o.Rights.DeleteOwner(ctx, accountID, profileID)
+}
+
+func (o owners) DeleteOwned(ctx context.Context, accountID string, profileIDs []string) error {
+	if o.w.deleteFails.Load() {
+		return errOwner
+	}
+	return o.Rights.DeleteOwned(ctx, accountID, profileIDs)
 }
 
 func (w *world) owners(rights *authz.Rights) owners {
@@ -123,7 +137,7 @@ func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	}
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(db, w.owners(rights), account.WithClock(w.clock.Now))})
+		rpc.Handlers{Account: account.New(db, w.owners(rights), w.signin, account.WithClock(w.clock.Now))})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	w.client = apiv1connect.NewAccountServiceClient(connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL)))
