@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -113,15 +114,9 @@ func Lay(ctx context.Context, src Source, cfg Config, dir string) (Laid, error) 
 		return Laid{}, err
 	}
 
-	work, err := os.MkdirTemp(filepath.Dir(dir), "."+filepath.Base(dir)+"-")
+	work, err := workFolder(dir)
 	if err != nil {
-		return Laid{}, fmt.Errorf("packages: make the folder: %w", err)
-	}
-	// MkdirTemp makes the folder for its owner alone, and the image copies it owned
-	// by root for serve, which is nonroot, to read (R41).
-	if err := os.Chmod(work, 0o755); err != nil {
-		_ = os.RemoveAll(work)
-		return Laid{}, fmt.Errorf("packages: make the folder: %w", err)
+		return Laid{}, err
 	}
 	done := false
 	defer func() {
@@ -163,6 +158,22 @@ func Lay(ctx context.Context, src Source, cfg Config, dir string) (Laid, error) 
 	}
 	done = true
 	return laid, nil
+}
+
+// workFolder makes the folder Lay lays into beside dir, under a name of its own
+// that no other run takes, readable by all: the image copies it owned by root
+// for serve, which is nonroot, to read (R41). MkdirTemp would make it for its
+// owner alone.
+func workFolder(dir string) (string, error) {
+	random := make([]byte, 8)
+	if _, err := rand.Read(random); err != nil {
+		return "", fmt.Errorf("packages: make the folder: %w", err)
+	}
+	work := filepath.Join(filepath.Dir(dir), "."+filepath.Base(dir)+"-"+hex.EncodeToString(random))
+	if err := os.Mkdir(work, 0o755); err != nil {
+		return "", fmt.Errorf("packages: make the folder: %w", err)
+	}
+	return work, nil
 }
 
 // checkIndex is the index of data, whose bytes have digest.
