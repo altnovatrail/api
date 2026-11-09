@@ -53,6 +53,11 @@ const (
 	// pinned release of modules into a folder (R07, R41): the release, and how many
 	// packages and files of their device parts it laid.
 	EventPackagesLaid = "packages_laid"
+	// EventPackageFile is the line of a request for a file of a device part, which
+	// is no method of Connect (R18, R42): its HTTP status, how long it ran and, when
+	// it failed, the kind of the failure — never its path, which names the package
+	// and the file.
+	EventPackageFile = "package_file"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -89,6 +94,8 @@ const (
 	FieldModulesRelease = "modules_release"
 	FieldPackages       = "packages"
 	FieldFiles          = "files"
+	// FieldStatus is the HTTP status of an answer.
+	FieldStatus = "status"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -140,6 +147,7 @@ var events = map[string][]string{
 	EventRequest:      {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind},
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
+	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -182,6 +190,7 @@ var fields = map[string]rule{
 	FieldModulesRelease: {kind: slog.KindString, shape: matches(releaseShape)},
 	FieldPackages:       {kind: slog.KindInt64},
 	FieldFiles:          {kind: slog.KindInt64},
+	FieldStatus:         {kind: slog.KindInt64},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a

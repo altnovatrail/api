@@ -23,8 +23,10 @@ comment:
   layout: "condensed_header, diff, files"
   require_changes: true
 
-# The test helper of the database (R29) runs the tests' environment: the branches it does not
-# cover are failures of that environment — no go to build the supervisor with, a PostgreSQL that
-# does not start — which no test can cause. What it does is covered by the tests that use it.
+# The test helpers of the database (R29) and of the packages (R42) run the tests' environment: the
+# branches they do not cover are failures of that environment — no go to build the supervisor
+# with, a PostgreSQL that does not start, a vector of spec that does not build — which no test can
+# cause. What they do is covered by the tests that use them.
 ignore:
   - "internal/store/storetest/**"
+  - "internal/packages/packagestest/**"

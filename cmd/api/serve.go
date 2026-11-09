@@ -16,6 +16,7 @@ import (
 	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/packages"
@@ -52,10 +53,15 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
+	// Their open views are built once, here (R42).
+	cat, err := catalog.New(set)
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
 
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
-	deps, handlers, closeDeps, err := open(ctx, opens)
+	deps, handlers, closeDeps, err := open(ctx, opens, cat)
 	if err != nil {
 		var fields []any
 		if failed := (*openFailed)(nil); errors.As(err, &failed) {
@@ -67,9 +73,10 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// may still hold a connection, and the pool's Close waits for it, past the
 	// platform's grace if nothing bounded it.
 	defer closeWithin(cfg.CloseTimeout(), closeDeps)
-	deps.Log, deps.RequestTimeout, deps.Packages = log, cfg.RequestTimeout, set
+	deps.Log, deps.RequestTimeout = log, cfg.RequestTimeout
 	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
 		rpc.Mount(mux, rpc.NewServer(deps, handlers))
+		mux.Handle(catalog.FilesPattern, cat.Files(log))
 	})
 
 	// The port is taken before the service says it has started, so that a port
@@ -221,14 +228,19 @@ func openPorts(ctx context.Context, database, openfga config.Secret, projectID s
 	return ports{pool: pool, rights: rights, signin: signin}, nil
 }
 
-// open opens what the requests run on, with the handlers on it; close closes it.
-func open(ctx context.Context, opens *config.Serve) (rpc.Deps, rpc.Handlers, func(), error) {
+// open opens what the requests run on, with the handlers on it and on the
+// catalog of the packages; close closes it.
+func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog) (rpc.Deps, rpc.Handlers, func(), error) {
 	p, err := openPorts(ctx, opens.DatabaseURL, opens.OpenFGADatabaseURL, opens.FirebaseProjectID, opens.FirebaseCredentials)
 	if err != nil {
 		return rpc.Deps{}, rpc.Handlers{}, nil, err
 	}
 	// The handlers write the tuples of the profiles they make (R31).
-	handlers := rpc.Handlers{Account: account.New(p.pool, p.rights, p.signin)}
+	handlers := rpc.Handlers{
+		Account: account.New(p.pool, p.rights, p.signin),
+		Module:  cat.Modules(p.pool),
+		Package: cat.Packages(),
+	}
 	return rpc.Deps{Signin: p.signin, DB: p.pool, Rights: p.rights}, handlers, p.close, nil
 }
 

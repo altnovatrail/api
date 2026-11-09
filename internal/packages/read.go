@@ -16,7 +16,7 @@ import (
 // pinned index and each package of it in api's window, by its digest. A package
 // holds its three texts, read by module-kit by the chain of digests from the
 // index; the files of its device part stay in the folder, each under its own
-// digest, for the requests to serve from there (T32).
+// digest, which package catalog serves (R42).
 type Set struct {
 	// Release is the release of modules that modules.json pins.
 	Release string
@@ -27,11 +27,17 @@ type Set struct {
 	Packages map[formatv0.Digest]*modulepackage.Package
 	// Dir is the folder.
 	Dir string
+
+	// statuses is the status of each digest the index names.
+	statuses map[formatv0.Digest]Status
+	// files is each file of the device part of each package, by its path in
+	// device/.
+	files map[formatv0.Digest]map[string]formatv0.Descriptor
 }
 
 // File is the path in the folder of the file of a device part of digest.
 func (s *Set) File(digest formatv0.Digest) string {
-	return filepath.Join(s.Dir, filesDir, folderName(digest))
+	return filepath.Join(s.Dir, filesDir, Name(digest))
 }
 
 // Read reads the folder dir that Lay laid for cfg: its index must have the digest
@@ -51,7 +57,8 @@ func Read(dir string, cfg Config) (*Set, error) {
 	if err != nil {
 		return nil, err
 	}
-	set := &Set{Release: cfg.Release, Index: index, Packages: map[formatv0.Digest]*modulepackage.Package{}, Dir: dir}
+	set := &Set{Release: cfg.Release, Index: index, Packages: map[formatv0.Digest]*modulepackage.Package{}, Dir: dir,
+		statuses: statusesOf(index), files: map[formatv0.Digest]map[string]formatv0.Descriptor{}}
 	for _, entry := range inWindow(index) {
 		texts, err := laidTexts(dir, entry.PackageDigest)
 		if err != nil {
@@ -61,7 +68,9 @@ func Read(dir string, cfg Config) (*Set, error) {
 		if err != nil {
 			return nil, fmt.Errorf("packages: %s: %w", entry.PackageDigest, err)
 		}
+		files := map[string]formatv0.Descriptor{}
 		for _, d := range deviceFiles(pkg.Listing) {
+			files[d.path] = d.Descriptor
 			info, err := os.Stat(set.File(d.Digest))
 			if err != nil || !info.Mode().IsRegular() || info.Size() != d.Size {
 				return nil, fmt.Errorf("packages: %s: %s is not the file of %s and %d bytes: %w",
@@ -69,6 +78,7 @@ func Read(dir string, cfg Config) (*Set, error) {
 			}
 		}
 		set.Packages[entry.PackageDigest] = pkg
+		set.files[entry.PackageDigest] = files
 	}
 	return set, nil
 }
@@ -77,7 +87,7 @@ func Read(dir string, cfg Config) (*Set, error) {
 // as the files of a package's folder; a text that is not there is left out, and
 // module-kit refuses the package for it.
 func laidTexts(dir string, digest formatv0.Digest) (fstest.MapFS, error) {
-	own := filepath.Join(dir, packagesDir, folderName(digest))
+	own := filepath.Join(dir, packagesDir, Name(digest))
 	files := fstest.MapFS{}
 	for _, name := range []string{modulepackage.InventoryFile, modulepackage.ServerFile, modulepackage.DeviceFile} {
 		data, err := os.ReadFile(filepath.Join(own, name))
