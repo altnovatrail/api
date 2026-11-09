@@ -4,7 +4,10 @@
 # archive of the commit in the toolchain stage, twice, and holds the two builds to the same bytes.
 # Then it builds the image a deployment builds, the release's Dockerfile by --target release around
 # the release's binary, and the image built from the source, and checks each: the version and
-# commit it says, the user it runs as, its health check, and a stop on SIGTERM that it ends well.
+# commit it says, the user it runs as, its migrations, its health check, and a stop on SIGTERM
+# that it ends well. serve opens its databases and the sign-in service before it starts (R33): the
+# databases are a PostgreSQL of the runner's, 17.11 as the tests' is, pinned by its digest, and
+# the sign-in service takes a key made here for the run, which no call ever uses.
 set -euo pipefail
 
 version=v0.0.0-ci
@@ -52,6 +55,33 @@ docker build --target release --build-context "binary=${work}/binary" --tag api:
 docker build --build-arg "VERSION=${version}" --build-arg "COMMIT=${commit}" --build-arg "DATE=${date}" \
     --tag api:source "$tree"
 
+# PostgreSQL on the runner's network, on a port of its own, with the databases api and openfga.
+# A string to the loopback needs no TLS (R29).
+postgres_image=postgres:17.11-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
+pg_port=55432
+postgres="$(docker run --detach --network host --env POSTGRES_PASSWORD=ci-only "$postgres_image" -p "$pg_port")"
+containers+=("$postgres")
+for _ in $(seq 100); do
+    docker exec "$postgres" pg_isready --quiet --host 127.0.0.1 --port "$pg_port" && break
+    sleep 0.3
+done
+for database in api openfga; do
+    docker exec --env PGPASSWORD=ci-only "$postgres" createdb --host 127.0.0.1 --port "$pg_port" --username postgres "$database"
+done
+database_url() { echo "postgres://postgres:ci-only@127.0.0.1:${pg_port}/$1?sslmode=disable"; }
+
+# A service account's key of no project, made for this run: serve takes it, and calls nothing.
+key="$(jq --null-input --arg key "$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2> /dev/null)" '{
+    type: "service_account", project_id: "novatrail-ci", private_key_id: "ci", private_key: $key,
+    client_email: "api@novatrail-ci.iam.gserviceaccount.com", client_id: "1",
+    token_uri: "https://oauth2.googleapis.com/token"}')"
+
+# The release's migrate brings both databases up, the store of the rights with its model.
+docker run --rm --network host \
+    --env "API_MIGRATE_DATABASE_URL=$(database_url api)" --env "API_MIGRATE_OPENFGA_DATABASE_URL=$(database_url openfga)" \
+    api:release migrate > "${work}/migrate.log" 2>&1 || fail "api:release migrate fails: $(cat "${work}/migrate.log")"
+
+serve_port=18080
 check() {
     local image=$1
     echo "== ${image}"
@@ -63,12 +93,14 @@ check() {
     user="$(docker image inspect --format '{{.Config.User}}' "$image")"
     [[ "$user" == 65532 ]] || fail "${image} runs as ${user:-root}, not nonroot, 65532"
 
-    local container port
-    container="$(docker run --detach --publish 127.0.0.1::8080 "$image")"
+    local container port=$serve_port
+    serve_port=$((serve_port + 1))
+    container="$(docker run --detach --network host --env "PORT=${port}" \
+        --env "API_DATABASE_URL=$(database_url api)" --env "API_OPENFGA_DATABASE_URL=$(database_url openfga)" \
+        --env API_FIREBASE_PROJECT_ID=novatrail-ci --env "API_FIREBASE_CREDENTIALS=${key}" "$image")"
     containers+=("$container")
-    port="$(docker port "$container" 8080/tcp | head -n 1 | sed 's/.*://')"
     local body=""
-    for _ in $(seq 50); do
+    for _ in $(seq 150); do
         if body="$(curl --silent --fail "http://127.0.0.1:${port}/health")"; then
             break
         fi

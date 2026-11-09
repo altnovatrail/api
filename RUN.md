@@ -480,6 +480,7 @@
   - `internal/logging` — событие `request` с полями `method`, `code`, `cause`, `token_class` и `duration_ms`;
   - `serve` открывает базу `api`, права и порт входа до порта и не стартует без них;
   - `THIRD_PARTY` — 108 модулей; имена лицензий `cloud.google.com/go` и `google.golang.org/api` — с хостом, а `release-licenses` отказывает повтору имени и именам `go` и `api`;
+  - job «Image» поднимает PostgreSQL 17.11 с дайджестом, мигрирует обе базы образом релиза и запускает `serve` с ключом, сделанным на прогон;
   - `go-jose` поднят до v4.1.6: три уязвимости v4.1.4, которые назвал Scorecard (правило 12);
   - R33, разделы 3.1, 3.2, 3.9, 3.10, 3.11 и 4 [docs/architecture.md](docs/architecture.md), README.
 
