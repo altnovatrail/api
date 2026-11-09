@@ -32,7 +32,11 @@
         // downloads every extension again, and an install cut short by a reload is never
         // finished: extensions are installed only when the container is created. With it the
         // next rebuild finds them in place and installs only what is missing.
-        "source=novatrail-vscode-extensions-${devcontainerId},target=/home/vscode/.vscode-server/extensions,type=volume"
+        "source=novatrail-vscode-extensions-${devcontainerId},target=/home/vscode/.vscode-server/extensions,type=volume",
+        // api's own: the configuration of the dev projects — a service account's key and the
+        // connection strings — outside the repository and any git working tree, kept across
+        // rebuilds; just dev reads it (R39). The author puts the files in it.
+        "source=novatrail-api-dev,target=/home/vscode/.novatrail-dev,type=volume"
     ],
     "containerEnv": {
         // Tells an agent's session, Claude's or Codex's, that it runs in here, the one place

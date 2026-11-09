@@ -42,7 +42,7 @@ func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerPro
 			return err
 		}
 		p = created
-		return s.owners.WriteOwner(ctx, caller.AccountID, created.ID)
+		return s.rights.WriteOwner(ctx, caller.AccountID, created.ID)
 	})
 	if err != nil {
 		return nil, refusedProfile(ctx, err)

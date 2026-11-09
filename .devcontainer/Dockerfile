@@ -185,4 +185,5 @@ RUN echo "claude code ${CLAUDE_CODE_VERSION}" \
 # to its own home — and the image is left as that user: nothing in it needs root once it is built.
 USER vscode
 RUN mkdir -p /home/vscode/.claude /home/vscode/.codex /home/vscode/.config/gh \
-        /home/vscode/.vscode-server/extensions
+        /home/vscode/.vscode-server/extensions /home/vscode/.novatrail-dev \
+    && chmod 700 /home/vscode/.novatrail-dev

@@ -73,6 +73,8 @@ type fakeUser struct {
 	// lastLoginAt is in milliseconds; lastRefreshAt is RFC 3339, as Google has them.
 	lastLoginAt   int64
 	lastRefreshAt string
+	// createdAt is in milliseconds, as Google has it.
+	createdAt int64
 	// broken makes a lookup of the user fail.
 	broken bool
 }
@@ -265,6 +267,9 @@ func (g *fakeGoogle) record(uid string, u *fakeUser) map[string]any {
 	}
 	if u.lastRefreshAt != "" {
 		record["lastRefreshAt"] = u.lastRefreshAt
+	}
+	if u.createdAt != 0 {
+		record["createdAt"] = strconv.FormatInt(u.createdAt, 10)
 	}
 	return record
 }

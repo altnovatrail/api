@@ -253,7 +253,8 @@ func TestAFailedDeletionIsAnError(t *testing.T) {
 func TestUsersListsEveryPage(t *testing.T) {
 	g := at(t)
 	login := time.Date(2026, 11, 1, 10, 0, 0, 123_000_000, time.UTC)
-	g.addUser("a", fakeUser{lastLoginAt: login.UnixMilli(), lastRefreshAt: "2026-11-02T10:00:00Z"})
+	created := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	g.addUser("a", fakeUser{lastLoginAt: login.UnixMilli(), lastRefreshAt: "2026-11-02T10:00:00Z", createdAt: created.UnixMilli()})
 	for _, uid := range []string{"b", "c", "d", "e"} {
 		g.addUser(uid, fakeUser{})
 	}
@@ -268,10 +269,11 @@ func TestUsersListsEveryPage(t *testing.T) {
 	if len(got) != 5 || got[0].UID != "a" || got[4].UID != "e" {
 		t.Fatalf("Users = %+v, want a to e", got)
 	}
-	if !got[0].LastSignIn.Equal(login) || !got[0].LastRefresh.Equal(time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)) {
+	if !got[0].LastSignIn.Equal(login) || !got[0].LastRefresh.Equal(time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)) ||
+		!got[0].Created.Equal(created) {
 		t.Errorf("a = %+v, want its times to the millisecond", got[0])
 	}
-	if !got[1].LastSignIn.IsZero() || !got[1].LastRefresh.IsZero() {
+	if !got[1].LastSignIn.IsZero() || !got[1].LastRefresh.IsZero() || !got[1].Created.IsZero() {
 		t.Errorf("b = %+v, want no times: it never signed in", got[1])
 	}
 	if pages := g.callsMade(); !slices.Equal(pages, []string{"list:", "list:2", "list:4"}) {

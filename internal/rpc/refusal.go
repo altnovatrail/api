@@ -52,6 +52,11 @@ func freshSignInNeeded(ctx context.Context) error {
 // refreshes it, or signs out by itself (R20).
 func signInAgain() error { return connect.NewError(connect.CodeUnauthenticated, "") }
 
+// NoteFailure names, in the request's line of the log, a failure that its
+// answer does not show: a deletion done in the database whose rest the job
+// finishes (R21). The line is an error, with the failure's kind.
+func NoteFailure(ctx context.Context, err error) { noteOf(ctx).failure = err }
+
 // Failed is a check or a handler that did not finish — the sign-in service, the
 // database, the rights. The client sees the code alone; the log names the
 // failure by its kind.

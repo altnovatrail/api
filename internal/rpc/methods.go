@@ -19,18 +19,22 @@ type rule struct {
 	right authz.Right
 	// fresh is an irreversible action, which waits for a fresh sign-in (R20).
 	fresh bool
+	// dropsDangling is the deletion of a profile: a tuple whose profile is gone —
+	// a deletion before it that left the tuple — is deleted by its repeat, which
+	// is told "no profile" all the same (R21; architecture 3.10).
+	dropsDangling bool
 }
 
 // The rules' shapes, as the table of architecture 3.9 gives them.
 var (
-	openView   = rule{open: true}
-	ofAccount  = rule{}
-	toLearn    = rule{right: authz.CanLearn}
-	toManage   = rule{right: authz.CanManage}
-	toView     = rule{right: authz.CanView}
-	freshly    = rule{fresh: true}
-	makeAnew   = rule{noAccount: true}
-	manageAnew = rule{right: authz.CanManage, fresh: true}
+	openView  = rule{open: true}
+	ofAccount = rule{}
+	toLearn   = rule{right: authz.CanLearn}
+	toManage  = rule{right: authz.CanManage}
+	toView    = rule{right: authz.CanView}
+	freshly   = rule{fresh: true}
+	makeAnew  = rule{noAccount: true}
+	deleting  = rule{right: authz.CanManage, fresh: true, dropsDangling: true}
 )
 
 // methods is every method of the contract and its rule. A method the server
@@ -54,7 +58,7 @@ var methods = map[string]rule{
 	apiv1connect.AccountServiceCreateChildProfileProcedure:  ofAccount,
 	apiv1connect.AccountServiceUpdateProfileProcedure:       toManage,
 	apiv1connect.AccountServiceSetVoicingProcedure:          toLearn,
-	apiv1connect.AccountServiceDeleteProfileProcedure:       manageAnew,
+	apiv1connect.AccountServiceDeleteProfileProcedure:       deleting,
 	apiv1connect.AccountServiceDeleteAccountProcedure:       freshly,
 	apiv1connect.AccountServiceExportProfileProcedure:       toManage,
 	apiv1connect.AccountServiceExportAccountProcedure:       ofAccount,
