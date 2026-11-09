@@ -15,7 +15,7 @@ require (
 	github.com/openfga/openfga v1.22.1
 	github.com/pressly/goose/v3 v3.29.0
 	golang.org/x/crypto v0.58.0
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.43.0
 	google.golang.org/api v0.279.0
 	google.golang.org/protobuf v1.36.12
