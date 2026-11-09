@@ -8,7 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
+	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/logger"
 	"github.com/openfga/openfga/pkg/server"
@@ -51,6 +55,7 @@ const pageSize = 100
 // Rights is the port of api's rights, on the store api with its model.
 type Rights struct {
 	srv   *server.Server
+	pool  *pgxpool.Pool
 	store string
 	model string
 }
@@ -62,7 +67,7 @@ type Rights struct {
 // only as the latest, so that a revision still serving while a newer one rolls out
 // — or one rolled back to — starts on its own model.
 func Open(ctx context.Context, url string) (*Rights, error) {
-	srv, err := newServer(ctx, url)
+	srv, pool, err := newServer(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +76,7 @@ func Open(ctx context.Context, url string) (*Rights, error) {
 		srv.Close()
 		return nil, err
 	}
+	rights.pool = pool
 	return rights, nil
 }
 
@@ -97,20 +103,21 @@ func (r *Rights) Close() { r.srv.Close() }
 // is not waited out; the datastore closes it. Its logger is a noop: OpenFGA logs by
 // zap, with the IDs of stores, models and requests in its fields, which api's log
 // would drop (R26). Its caches stay off, as they are by default, so a check sees
-// the write before it.
-func newServer(ctx context.Context, url string) (*server.Server, error) {
+// the write before it. The pool comes back too, for what OpenFGA does not do
+// itself: clearing its changelog.
+func newServer(ctx context.Context, url string) (*server.Server, *pgxpool.Pool, error) {
 	pool, err := store.Open(ctx, url)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("authz: reach the database: %w", err)
+		return nil, nil, fmt.Errorf("authz: reach the database: %w", err)
 	}
 	datastore, err := postgres.NewWithDB(pool, nil, sqlcommon.NewConfig(sqlcommon.WithLogger(logger.NewNoopLogger())))
 	if err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("authz: open the datastore: %w", err)
+		return nil, nil, fmt.Errorf("authz: open the datastore: %w", err)
 	}
 	srv, err := server.NewServerWithOpts(
 		server.WithDatastore(datastore),
@@ -119,9 +126,9 @@ func newServer(ctx context.Context, url string) (*server.Server, error) {
 	)
 	if err != nil {
 		datastore.Close()
-		return nil, fmt.Errorf("authz: start OpenFGA: %w", err)
+		return nil, nil, fmt.Errorf("authz: start OpenFGA: %w", err)
 	}
-	return srv, nil
+	return srv, pool, nil
 }
 
 // findStore is the ID of the one store api.
@@ -257,6 +264,74 @@ func (r *Rights) OwnedProfiles(ctx context.Context, accountID string) ([]string,
 		}
 		if token = read.GetContinuationToken(); token == "" {
 			return profiles, nil
+		}
+	}
+}
+
+// Owned is a tuple of the store: the account owns the profile, since Written.
+type Owned struct {
+	AccountID string
+	ProfileID string
+	Written   time.Time
+}
+
+// Tuples is every tuple of the store by which an account owns a profile, a page
+// at a time, for the daily job that finds those left dangling (R21). A tuple of
+// any other kind, which the model has none of yet, is not given. An error ends
+// the list.
+func (r *Rights) Tuples(ctx context.Context) iter.Seq2[Owned, error] {
+	return func(yield func(Owned, error) bool) {
+		token := ""
+		for {
+			read, err := r.srv.Read(ctx, &openfgav1.ReadRequest{
+				StoreId:           r.store,
+				PageSize:          wrapperspb.Int32(pageSize),
+				ContinuationToken: token,
+				Consistency:       openfgav1.ConsistencyPreference_HIGHER_CONSISTENCY,
+			})
+			if err != nil {
+				yield(Owned{}, fmt.Errorf("authz: read the tuples: %w", err))
+				return
+			}
+			for _, tuple := range read.GetTuples() {
+				key := tuple.GetKey()
+				accountID, isUser := strings.CutPrefix(key.GetUser(), "user:")
+				profileID, isLearner := strings.CutPrefix(key.GetObject(), "learner:")
+				if !isUser || !isLearner || key.GetRelation() != "owner" {
+					continue
+				}
+				owned := Owned{AccountID: accountID, ProfileID: profileID, Written: tuple.GetTimestamp().AsTime()}
+				if !yield(owned, nil) {
+					return
+				}
+			}
+			if token = read.GetContinuationToken(); token == "" {
+				return
+			}
+		}
+	}
+}
+
+// changelogBatch is how many rows of the changelog one DELETE takes, so that no
+// statement holds the table long.
+const changelogBatch = 1000
+
+// DropChangelog deletes the store's changelog written before before, a batch at
+// a time, and says how many rows went. OpenFGA keeps it for ever and does not
+// clear it; it holds who owned which profile, so the daily job keeps it no longer
+// than two days (R05; R27 canvas-api). A stop between batches keeps what went.
+func (r *Rights) DropChangelog(ctx context.Context, before time.Time) (int64, error) {
+	var dropped int64
+	for {
+		tag, err := r.pool.Exec(ctx, `DELETE FROM changelog WHERE ctid IN (
+			SELECT ctid FROM changelog WHERE store = $1 AND inserted_at < $2 LIMIT $3)`,
+			r.store, before, changelogBatch)
+		if err != nil {
+			return dropped, fmt.Errorf("authz: clear the changelog: %w", err)
+		}
+		dropped += tag.RowsAffected()
+		if tag.RowsAffected() < changelogBatch {
+			return dropped, nil
 		}
 	}
 }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -242,6 +244,13 @@ func TestEveryCallOnAClosedServerFails(t *testing.T) {
 		"WriteOwner":    func() error { return r.WriteOwner(t.Context(), owner, profile) },
 		"DeleteOwner":   func() error { return r.DeleteOwner(t.Context(), owner, profile) },
 		"OwnedProfiles": func() error { _, err := r.OwnedProfiles(t.Context(), owner); return err },
+		"Tuples": func() error {
+			for _, err := range r.Tuples(t.Context()) {
+				return err
+			}
+			return nil
+		},
+		"DropChangelog": func() error { _, err := r.DropChangelog(t.Context(), time.Now()); return err },
 	} {
 		if err := call(); err == nil || !strings.HasPrefix(err.Error(), "authz: ") {
 			t.Errorf("%s on a closed server: error = %v, want a failure of authz", name, err)
@@ -256,5 +265,102 @@ func TestOpenRefusesAStringItCannotRead(t *testing.T) {
 	_, err := authz.Open(t.Context(), "postgres://u:not-a-password@host:notaport/openfga")
 	if err == nil || strings.Contains(err.Error(), "not-a-password") {
 		t.Errorf("Open error = %v, want a refusal that holds no password", err)
+	}
+}
+
+// The daily job reads every tuple of the store, past a page, with when it was
+// written, to find those left dangling (R21).
+func TestEveryTupleIsReadWithItsTime(t *testing.T) {
+	t.Parallel()
+
+	r := rights(t)
+	before := time.Now().Add(-time.Minute)
+	want := map[string]string{profile: other}
+	// Tuples of other kinds are not an owner's, and are not given.
+	for _, tuple := range [][3]string{
+		{"user:" + owner, "teacher", "classroom:c1"},
+		{"classroom:c1", "classroom", "learner:" + profile},
+	} {
+		if err := r.WriteTuple(t.Context(), tuple[0], tuple[1], tuple[2]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.WriteOwner(t.Context(), other, profile); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 120 {
+		id := fmt.Sprintf("0190f0a0-0000-7000-8000-%012d", i)
+		want[id] = owner
+		if err := r.WriteOwner(t.Context(), owner, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := map[string]string{}
+	for tuple, err := range r.Tuples(t.Context()) {
+		if err != nil {
+			t.Fatalf("Tuples error = %v", err)
+		}
+		if tuple.Written.Before(before) || tuple.Written.After(time.Now().Add(time.Minute)) {
+			t.Errorf("tuple %s written at %v, want about now", tuple.ProfileID, tuple.Written)
+		}
+		got[tuple.ProfileID] = tuple.AccountID
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("Tuples = %d tuples, want the %d written", len(got), len(want))
+	}
+
+	// A stop the caller asks for ends the list.
+	for range r.Tuples(t.Context()) {
+		break
+	}
+}
+
+// The changelog keeps who owned which profile: the daily job deletes what is
+// older than a day, and nothing younger, in batches (R05; R27 canvas-api).
+func TestTheChangelogIsClearedOfWhatIsOld(t *testing.T) {
+	t.Parallel()
+
+	url := storetest.OpenFGAURL(t, true)
+	r, err := authz.Open(t.Context(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	if err := r.WriteOwner(t.Context(), owner, profile); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.DeleteOwner(t.Context(), owner, profile); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(t.Context(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
+	// Past a batch of old rows, as a store of many deletions would have them.
+	if _, err := conn.Exec(t.Context(), `INSERT INTO changelog
+		(store, object_type, object_id, relation, _user, operation, ulid, inserted_at)
+		SELECT store, object_type, object_id || g, relation, _user, operation, ulid || g, now() - interval '2 days'
+		FROM changelog, generate_series(1, 1200) AS g LIMIT 1200`); err != nil {
+		t.Fatal(err)
+	}
+	count := func() int {
+		var n int
+		if err := conn.QueryRow(t.Context(), `SELECT count(*) FROM changelog`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := count(); n != 1202 {
+		t.Fatalf("the changelog holds %d rows, want 1202", n)
+	}
+
+	dropped, err := r.DropChangelog(t.Context(), time.Now().Add(-24*time.Hour))
+	if err != nil || dropped != 1200 {
+		t.Fatalf("DropChangelog = %d, %v; want the 1200 old rows", dropped, err)
+	}
+	if n := count(); n != 2 {
+		t.Errorf("the changelog holds %d rows, want the 2 of today", n)
 	}
 }

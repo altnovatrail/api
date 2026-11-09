@@ -58,7 +58,7 @@ func Migrate(ctx context.Context, url string) (Migrated, error) {
 	}
 	defer func() { _, _ = conn.Exec(context.WithoutCancel(ctx), "SELECT pg_advisory_unlock($1)", storeLock) }()
 
-	srv, err := newServer(ctx, url)
+	srv, _, err := newServer(ctx, url)
 	if err != nil {
 		return migrated, err
 	}

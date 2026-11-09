@@ -214,6 +214,7 @@ func userOf(record *auth.ExportedUserRecord) User {
 		UID:         record.UID,
 		LastSignIn:  millis(record.UserMetadata.LastLogInTimestamp),
 		LastRefresh: millis(record.UserMetadata.LastRefreshTimestamp),
+		Created:     millis(record.UserMetadata.CreationTimestamp),
 	}
 }
 
