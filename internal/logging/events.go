@@ -39,6 +39,12 @@ const (
 	// it applied, the version the schema is at, and, for the rights', whether it
 	// made the store and wrote the model.
 	EventMigrated = "migrated"
+	// EventRequest is the line of a request of the protocol: its method, its code,
+	// the cause of a refusal, the class of a refused token, how long it ran and,
+	// when it failed, the kind of the failure — never its body, headers, address
+	// or an ID (R18, R33). The path of a Connect GET holds the message, so the
+	// method is written, not the path.
+	EventRequest = "request"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -62,6 +68,11 @@ const (
 	FieldDatabase      = "database"
 	FieldStoreCreated  = "store_created"
 	FieldModelWritten  = "model_written"
+	FieldMethod        = "method"
+	FieldCode          = "code"
+	FieldCause         = "cause"
+	FieldTokenClass    = "token_class"
+	FieldDurationMS    = "duration_ms"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -91,6 +102,7 @@ var events = map[string][]string{
 	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase},
 	EventPanic:    {FieldPanicKind},
 	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
+	EventRequest:  {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -121,6 +133,11 @@ var fields = map[string]rule{
 	FieldDatabase:      {kind: slog.KindString, values: []string{DatabaseAPI, DatabaseOpenFGA}},
 	FieldStoreCreated:  {kind: slog.KindBool},
 	FieldModelWritten:  {kind: slog.KindBool},
+	FieldMethod:        {kind: slog.KindString, shape: matches(methodShape)},
+	FieldCode:          {kind: slog.KindString, values: Codes},
+	FieldCause:         {kind: slog.KindString, shape: matches(causeShape)},
+	FieldTokenClass:    {kind: slog.KindString, values: TokenClasses},
+	FieldDurationMS:    {kind: slog.KindInt64},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -142,3 +159,25 @@ func isBuildDate(value string) bool {
 	_, err := time.Parse(time.RFC3339, value)
 	return err == nil
 }
+
+// The values of a request's line (R33). A method is one of the contract's,
+// /novatrail.api.v1.<Service>/<Method>, and a cause one of its enum Cause; both
+// are names of the contract, never a value of a request. rpc's tests hold these
+// sets to the contract, to Connect's codes and to authn's classes.
+var (
+	methodShape = regexp.MustCompile(`^/novatrail\.api\.v1\.[A-Z][A-Za-z]*Service/[A-Z][A-Za-z]*$`)
+	causeShape  = regexp.MustCompile(`^CAUSE_[A-Z_]+$`)
+)
+
+// Codes is the value set of FieldCode: Connect's codes in Connect's words, and
+// ok for a request that was not refused.
+var Codes = []string{
+	"ok", "canceled", "unknown", "invalid_argument", "deadline_exceeded", "not_found",
+	"already_exists", "permission_denied", "resource_exhausted", "failed_precondition",
+	"aborted", "out_of_range", "unimplemented", "internal", "unavailable", "data_loss",
+	"unauthenticated",
+}
+
+// TokenClasses is the value set of FieldTokenClass: the classes of a refused
+// token, in authn's words (R20, R32).
+var TokenClasses = []string{"expired", "invalid", "revoked", "no_user", "disabled", "failed"}

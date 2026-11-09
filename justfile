@@ -92,27 +92,54 @@ release-files version:
 # The modules besides the standard library that the binary is built from, each with the name its
 # license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
 # NOTICE, as module-kit names them (R38 module-kit): pgx and goose (R29), OpenFGA and the modules
-# they take (R31). spec's modules are the tests' alone (R26), and a module the binary takes beyond
+# they take (R31), the Admin SDK for Go and the modules it takes (R32), Connect and spec's module
+# of contracts (R33); spec's own module is the tests' alone (R26). A module the binary takes beyond
 # these fails release-licenses, and ci-lint with it, until it is named here. Each entry is
-# <module path>=<name>, one a line, the name the path without its host, its slashes dashes.
+# <module path>=<name>, one a line, the name the path without its host, its slashes dashes; where
+# that name would read as a license the release has of its own — go, Go's, and api, api's — the
+# host stays in front of it, and release-licenses refuses a name twice or either of those.
 THIRD_PARTY := """
     cel.dev/expr=expr
+    cloud.google.com/go=cloud.google.com-go
+    cloud.google.com/go/auth=go-auth
+    cloud.google.com/go/auth/oauth2adapt=go-auth-oauth2adapt
+    cloud.google.com/go/compute/metadata=go-compute-metadata
+    cloud.google.com/go/firestore=go-firestore
+    cloud.google.com/go/iam=go-iam
+    cloud.google.com/go/longrunning=go-longrunning
+    cloud.google.com/go/monitoring=go-monitoring
+    cloud.google.com/go/storage=go-storage
+    connectrpc.com/connect/v2=connect-v2
+    firebase.google.com/go/v4=go-v4
+    github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp=GoogleCloudPlatform-opentelemetry-operations-go-detectors-gcp
+    github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric=GoogleCloudPlatform-opentelemetry-operations-go-exporter-metric
+    github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping=GoogleCloudPlatform-opentelemetry-operations-go-internal-resourcemapping
     github.com/IBM/pgxpoolprometheus=IBM-pgxpoolprometheus
     github.com/Masterminds/squirrel=Masterminds-squirrel
+    github.com/MicahParks/keyfunc=MicahParks-keyfunc
     github.com/Yiling-J/theine-go=Yiling-J-theine-go
+    github.com/altnovatrail/spec/contracts=altnovatrail-spec-contracts
     github.com/antlr4-go/antlr/v4=antlr4-go-antlr-v4
     github.com/beorn7/perks=beorn7-perks
     github.com/cenkalti/backoff/v4=cenkalti-backoff-v4
     github.com/cenkalti/backoff/v5=cenkalti-backoff-v5
     github.com/cespare/xxhash/v2=cespare-xxhash-v2
+    github.com/cncf/xds/go=cncf-xds-go
     github.com/emirpasic/gods=emirpasic-gods
+    github.com/envoyproxy/go-control-plane/envoy=envoyproxy-go-control-plane-envoy
     github.com/envoyproxy/protoc-gen-validate=envoyproxy-protoc-gen-validate
+    github.com/felixge/httpsnoop=felixge-httpsnoop
     github.com/fsnotify/fsnotify=fsnotify-fsnotify
+    github.com/go-jose/go-jose/v4=go-jose-go-jose-v4
     github.com/go-logr/logr=go-logr-logr
     github.com/go-logr/stdr=go-logr-stdr
     github.com/go-viper/mapstructure/v2=go-viper-mapstructure-v2
+    github.com/golang-jwt/jwt/v4=golang-jwt-jwt-v4
     github.com/google/cel-go=google-cel-go
+    github.com/google/s2a-go=google-s2a-go
     github.com/google/uuid=google-uuid
+    github.com/googleapis/enterprise-certificate-proxy=googleapis-enterprise-certificate-proxy
+    github.com/googleapis/gax-go/v2=googleapis-gax-go-v2
     github.com/grpc-ecosystem/go-grpc-middleware=grpc-ecosystem-go-grpc-middleware
     github.com/grpc-ecosystem/go-grpc-middleware/v2=grpc-ecosystem-go-grpc-middleware-v2
     github.com/grpc-ecosystem/grpc-gateway/v2=grpc-ecosystem-grpc-gateway-v2
@@ -143,28 +170,38 @@ THIRD_PARTY := """
     github.com/spf13/cast=spf13-cast
     github.com/spf13/pflag=spf13-pflag
     github.com/spf13/viper=spf13-viper
+    github.com/spiffe/go-spiffe/v2=spiffe-go-spiffe-v2
     github.com/stretchr/testify=stretchr-testify
     github.com/subosito/gotenv=subosito-gotenv
     github.com/zeebo/xxh3=zeebo-xxh3
     go.opentelemetry.io/auto/sdk=auto-sdk
+    go.opentelemetry.io/contrib/detectors/gcp=contrib-detectors-gcp
+    go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc=contrib-instrumentation-google.golang.org-grpc-otelgrpc
+    go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp=contrib-instrumentation-net-http-otelhttp
     go.opentelemetry.io/otel=otel
     go.opentelemetry.io/otel/exporters/otlp/otlptrace=otel-exporters-otlp-otlptrace
     go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc=otel-exporters-otlp-otlptrace-otlptracegrpc
     go.opentelemetry.io/otel/log=otel-log
     go.opentelemetry.io/otel/metric=otel-metric
     go.opentelemetry.io/otel/sdk=otel-sdk
+    go.opentelemetry.io/otel/sdk/metric=otel-sdk-metric
     go.opentelemetry.io/otel/trace=otel-trace
     go.opentelemetry.io/proto/otlp=proto-otlp
     go.uber.org/mock=mock
     go.uber.org/multierr=multierr
     go.uber.org/zap=zap
     go.yaml.in/yaml/v3=yaml-v3
+    golang.org/x/crypto=x-crypto
     golang.org/x/exp=x-exp
     golang.org/x/net=x-net
+    golang.org/x/oauth2=x-oauth2
     golang.org/x/sync=x-sync
     golang.org/x/sys=x-sys
     golang.org/x/text=x-text
+    golang.org/x/time=x-time
     gonum.org/v1/gonum=v1-gonum
+    google.golang.org/api=google.golang.org-api
+    google.golang.org/genproto=genproto
     google.golang.org/genproto/googleapis/api=genproto-googleapis-api
     google.golang.org/genproto/googleapis/rpc=genproto-googleapis-rpc
     google.golang.org/grpc=grpc
@@ -185,6 +222,13 @@ release-licenses folder:
     done | sort -u | grep -v -x -F {{ quote(MODULE) }} || true)"
     entries={{ quote(THIRD_PARTY) }}
     named="$(for entry in $entries; do echo "${entry%%=*}"; done | sort -u)"
+    names="$(for entry in $entries; do echo "${entry#*=}"; done | sort)"
+    taken="$( (echo "$names" | uniq -d; echo "$names" | grep -x -E 'go|api') || true)"
+    if [ -n "$taken" ]; then
+        echo "release-licenses: these names are taken twice, or by a license the release has of its own:" >&2
+        echo "$taken" >&2
+        exit 1
+    fi
     if [ "$built" != "$named" ]; then
         echo "release-licenses: the binary is built from these modules besides the standard library:" >&2
         echo "${built:-none}" >&2

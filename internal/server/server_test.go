@@ -62,7 +62,7 @@ func testConfig(shutdown time.Duration) *config.Config {
 func TestTheHealthCheckAnswers(t *testing.T) {
 	t.Parallel()
 
-	routes := server.Routes(slog.New(slog.DiscardHandler))
+	routes := server.Routes(slog.New(slog.DiscardHandler), "", nil)
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		answer := httptest.NewRecorder()
 		routes.ServeHTTP(answer, httptest.NewRequest(method, "/health", nil))
@@ -90,7 +90,7 @@ func TestTheHealthCheckAnswers(t *testing.T) {
 func TestAPathThatIsNotARouteIsNotFound(t *testing.T) {
 	t.Parallel()
 
-	routes := server.Routes(slog.New(slog.DiscardHandler))
+	routes := server.Routes(slog.New(slog.DiscardHandler), "", nil)
 	for _, request := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/profiles/learner@example.com", nil),
 		httptest.NewRequest(http.MethodPost, "/health", nil),
@@ -115,7 +115,7 @@ func TestTheServerServesAndStops(t *testing.T) {
 
 	var log syncBuffer
 	logger := logging.New(&log, slog.LevelInfo)
-	srv := server.New(testConfig(time.Second), logger, server.Routes(logger))
+	srv := server.New(testConfig(time.Second), logger, server.Routes(logger, "", nil))
 	if srv.Addr() != "" {
 		t.Fatalf("Addr() = %q before Listen, want empty", srv.Addr())
 	}
