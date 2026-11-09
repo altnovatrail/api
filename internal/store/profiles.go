@@ -36,14 +36,15 @@ func scanProfile(row pgx.Row) (Profile, error) {
 // CreateOwnerProfile makes the owner's profile in tx, of the category adult by
 // the owner's statement, with its consent: confirmed now, given by that
 // statement (R36; architecture 3.1). The date the age was given is the date of
-// the statement. The account has one owner's profile: a second is
+// the statement, and every date is by UTC, as TouchProfile writes it. The account has one owner's profile: a second is
 // ErrProfileExists.
 func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Profile) (Profile, error) {
 	p.Owner, p.AgeCategory = true, "adult"
 	created, err := scanProfile(tx.QueryRow(ctx, `INSERT INTO profiles (account_id, owner, pseudonym, avatar,
 			age_category, country, age_stated_on, voicing_enabled, voicing_speed, default_mode, interface_language,
-			grade, ask_before_showing)
-		SELECT $1, true, $2, $3, 'adult', $4, adult_stated_at::date, $5, $6, $7, $8, $9, false
+			grade, ask_before_showing, active_on)
+		SELECT $1, true, $2, $3, 'adult', $4, (adult_stated_at AT TIME ZONE 'UTC')::date, $5, $6, $7, $8, $9, false,
+			(now() AT TIME ZONE 'UTC')::date
 		FROM accounts WHERE id = $1
 		RETURNING `+profileColumns,
 		accountID, p.Pseudonym, p.Avatar, p.Country, p.VoicingEnabled, p.VoicingSpeed, p.DefaultMode,

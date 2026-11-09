@@ -157,3 +157,60 @@ func TestTheDateOfAProfilesActivityIsWrittenOnceADay(t *testing.T) {
 		t.Error("a second touch of the day wrote the profile again")
 	}
 }
+
+func TestAChildsProfileIsMadeOfItsConsent(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	id, other := account(t, pool), account(t, pool)
+	ctx := t.Context()
+	var waiting store.ChildConsent
+	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		var err error
+		waiting, err = store.CreateChildConsent(ctx, tx, id, "under_13", "US")
+		return err
+	})
+	if err != nil || waiting.ID == "" || waiting.State != store.ConsentWaiting {
+		t.Fatalf("CreateChildConsent = %+v, %v; want one that waits", waiting, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE consents SET state = 'confirmed', confirmed_at = now(), method = 'synthetic'`); err != nil {
+		t.Fatal(err)
+	}
+	var created store.Profile
+	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		c, err := store.ConsentFor(ctx, tx, id, waiting.ID)
+		if err != nil || c.State != store.ConsentConfirmed || c.ProfileID != "" {
+			t.Errorf("ConsentFor = %+v, %v; want it confirmed and with no profile", c, err)
+		}
+		p := store.Profile{Pseudonym: "Fox", VoicingEnabled: true, VoicingSpeed: "normal", DefaultMode: "by_steps", AskBeforeShowing: true}
+		created, err = store.CreateChildProfile(ctx, tx, id, c, p)
+		return err
+	})
+	if err != nil || created.AgeCategory != "under_13" || created.Country != "US" || created.Owner {
+		t.Fatalf("CreateChildProfile = %+v, %v; want the consent's category and country", created, err)
+	}
+	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		if c, err := store.ConsentFor(ctx, tx, id, waiting.ID); err != nil || c.ProfileID != created.ID {
+			t.Errorf("ConsentFor after = %+v, %v; want it bound to %s", c, err, created.ID)
+		}
+		_, err := store.ConsentFor(ctx, tx, other, waiting.ID)
+		return err
+	})
+	if !errors.Is(err, store.ErrNoConsent) {
+		t.Errorf("ConsentFor of another account = %v, want ErrNoConsent", err)
+	}
+}
+
+func TestAnIDIsTheDatabasesOnlyAsItWritesIt(t *testing.T) {
+	t.Parallel()
+
+	if !store.CanonicalID("0b5f3a2e-1c4d-4e8f-9a7b-6c5d4e3f2a1b") {
+		t.Error("a lowercase UUID with its dashes is not canonical")
+	}
+	for _, id := range []string{"", "not-a-uuid", "0B5F3A2E-1C4D-4E8F-9A7B-6C5D4E3F2A1B",
+		"urn:uuid:0b5f3a2e-1c4d-4e8f-9a7b-6c5d4e3f2a1b", "0b5f3a2e1c4d4e8f9a7b6c5d4e3f2a1b"} {
+		if store.CanonicalID(id) {
+			t.Errorf("CanonicalID(%q) = true", id)
+		}
+	}
+}

@@ -7,18 +7,31 @@ package countries
 import "slices"
 
 // Closed is the countries of the European Union, of the European Economic Area
-// and the United Kingdom, by ISO 3166-1 alpha-2:
+// and the United Kingdom, by ISO 3166-1 alpha-2, with the parts of them that
+// have codes of their own:
 //   - the 27 of the EU, as "EU countries" names them
 //     (https://european-union.europa.eu/principles-countries-history/eu-countries_en,
 //     read 2026-11-09);
+//   - the outermost regions of the EU with codes of their own: "five French
+//     overseas departments – Martinique, Mayotte, Guadeloupe, French Guiana and
+//     Réunion; one French overseas community – Saint-Martin"; Madeira, the Azores
+//     and the Canary Islands have none (European Parliament, "Outermost regions
+//     (ORs)", https://www.europarl.europa.eu/factsheets/en/sheet/100/outermost-regions-ors-,
+//     read 2026-11-09);
 //   - "the three EEA EFTA States – Iceland, Liechtenstein and Norway"
 //     (https://www.efta.int/eea/eea-agreement, read 2026-11-09);
-//   - the United Kingdom, under the UK GDPR (П-2).
+//   - the United Kingdom, under the UK GDPR (П-2);
+//   - closed by caution, until the lawyer answers П-2: the Åland Islands, a part
+//     of Finland with a code of its own, and the codes that name one of these
+//     countries otherwise — UK for GB, EL for GR, IC for the Canary Islands, EA
+//     for Ceuta and Melilla.
 var Closed = []string{
 	"AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU",
 	"IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+	"MQ", "YT", "GP", "GF", "RE", "MF",
 	"IS", "LI", "NO",
 	"GB",
+	"AX", "UK", "EL", "IC", "EA",
 }
 
 // IsClosed says whether country may not be opened before the DPIA.

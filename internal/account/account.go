@@ -129,12 +129,7 @@ func account(view store.View) *v1.Account {
 		out.Profiles = append(out.Profiles, profile(p))
 	}
 	for _, c := range view.ChildConsents {
-		out.ChildConsents = append(out.ChildConsents, &v1.ChildConsent{
-			ConsentId:   c.ID,
-			AgeCategory: c.AgeCategory,
-			Country:     c.Country,
-			State:       consentStates[c.State],
-		})
+		out.ChildConsents = append(out.ChildConsents, childConsent(c))
 	}
 	return out
 }

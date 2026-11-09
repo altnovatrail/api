@@ -9,8 +9,8 @@ import (
 func TestTheEUTheEEAAndTheUKAreClosed(t *testing.T) {
 	t.Parallel()
 
-	if len(countries.Closed) != 27+3+1 {
-		t.Errorf("Closed holds %d countries, want 31: the EU's 27, the EEA's 3 and GB", len(countries.Closed))
+	if len(countries.Closed) != 27+6+3+1+5 {
+		t.Errorf("Closed holds %d codes, want 42: the EU's 27 and its 6 regions of their own codes, the EEA's 3, GB and 5 by caution", len(countries.Closed))
 	}
 	seen := map[string]bool{}
 	for _, c := range countries.Closed {
@@ -19,7 +19,7 @@ func TestTheEUTheEEAAndTheUKAreClosed(t *testing.T) {
 		}
 		seen[c] = true
 	}
-	for _, c := range []string{"DE", "FR", "NO", "GB", "IS"} {
+	for _, c := range []string{"DE", "FR", "NO", "GB", "IS", "RE", "MF", "AX", "UK", "EL"} {
 		if !countries.IsClosed(c) {
 			t.Errorf("IsClosed(%q) = false", c)
 		}

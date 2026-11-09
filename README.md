@@ -21,7 +21,7 @@ A component of [NovaTrail](https://github.com/altnovatrail/spec/tree/v0.9.11), a
 
 ## Status
 
-Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — has begun: the service serves the contract on Connect, every request with a token passes the checks before learner data, an owner with an invite code creates the account and reads it, and sets the PIN of the section for adults, whose requests repeat by their idempotency keys; the other methods answer `unimplemented` until the tasks that build them. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
+Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — has begun: the service serves the contract on Connect, every request with a token passes the checks before learner data, an owner with an invite code creates the account and reads it, sets the PIN of the section for adults, whose requests repeat by their idempotency keys, and creates the profiles — the owner's, and a child's by a consent — and changes their settings; the other methods answer `unimplemented` until the tasks that build them. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
 
 ## Build and run
 
@@ -49,7 +49,7 @@ The binary reads its configuration from the environment, and only these variable
 | `API_HTTP_IDLE_TIMEOUT` | `120s` | how long an idle connection is kept |
 | `API_SHUTDOWN_TIMEOUT` | `9s` | the whole way out after a stop is asked for; under `10s` when deployed |
 | `API_REQUEST_TIMEOUT` | `30s` | the longest a request may run, under `API_HTTP_WRITE_TIMEOUT` |
-| `API_DATABASE_URL` | — | the pooler's connection string of the database `api`, with `sslmode=verify-full`; required by `serve` and `invite` |
+| `API_DATABASE_URL` | — | the pooler's connection string of the database `api`, with `sslmode=verify-full`; required by `serve`, `invite` and `countries` |
 | `API_OPENFGA_DATABASE_URL` | — | the pooler's connection string of `openfga`, the store of the rights; required by `serve` |
 | `API_FIREBASE_PROJECT_ID` | — | the Firebase project whose ID tokens are accepted; required by `serve` |
 | `API_FIREBASE_CREDENTIALS` | — | a service account's key, required off a deployment and refused on one, where the service's own account is taken, with no key |
@@ -61,6 +61,8 @@ The binary reads its configuration from the environment, and only these variable
 `api migrate` applies the migrations of the database `api` and of `openfga`, the store of the rights, makes that store and writes its model when it must, and exits. It reads `API_LOG_LEVEL`, `API_MIGRATE_DATABASE_URL` and `API_MIGRATE_OPENFGA_DATABASE_URL`, the direct connection strings — not the pooler's — with `sslmode=verify-full`; `just migrate` runs it. The tests run on a real PostgreSQL that `embedded-postgres` downloads on their first run, with no Docker.
 
 `api invite` makes one invite code of the closed slice and prints it on stdout, once: the database `api` keeps its SHA-256 alone, and the code lets one owner create an account. `-tariff` names the tariff the code passes to that account, `closed_slice` by default and the only one so far. It reads `API_LOG_LEVEL` and `API_DATABASE_URL`, and logs a failure on stderr, so that stdout holds the code alone. Run it from a terminal of the operator's own: a job's output is kept in its log, the code with it.
+
+`api countries list`, `api countries allow <XX>` and `api countries remove <XX>` keep the countries the deployment takes learners from, by ISO 3166-1 alpha-2. None is taken until it is allowed, and a country of the EU, the EEA or the United Kingdom is never allowed before the DPIA. It reads `API_LOG_LEVEL` and `API_DATABASE_URL`.
 
 A secret — a key, a token, a connection string — comes from its variable or from a file outside the repository whose absolute path the variable with the suffix `_FILE` names; a file inside a git working tree is refused. The log is JSON on stdout, and writes only the events and fields of its table, `internal/logging/events.go`: no identifier, address or content of a learner's work.
 

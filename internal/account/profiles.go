@@ -128,6 +128,8 @@ func refusedProfile(ctx context.Context, err error) error {
 		return alreadyExists(ctx)
 	case errors.Is(err, store.ErrNoProfile):
 		return rpc.Refuse(ctx, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+	case errors.Is(err, store.ErrNoConsent):
+		return notFound(ctx)
 	}
 	return refused(ctx, err)
 }

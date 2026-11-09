@@ -186,6 +186,28 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 			return err
 		}},
 		{"SET active_on", func(tx pgx.Tx) error { return store.TouchProfile(t.Context(), tx, id) }},
+		{"INSERT INTO consents", func(tx pgx.Tx) error {
+			_, err := store.CreateChildConsent(t.Context(), tx, id, "under_13", "US")
+			return err
+		}},
+		{"FROM consents", func(tx pgx.Tx) error {
+			_, err := store.ConsentFor(t.Context(), tx, id, "00000000-0000-0000-0000-000000000000")
+			return err
+		}},
+		{"INSERT INTO profiles", func(tx pgx.Tx) error {
+			_, err := store.CreateChildProfile(t.Context(), tx, id, store.Consent{}, p)
+			return err
+		}},
+		{"UPDATE consents", func(tx pgx.Tx) error {
+			c, err := store.CreateChildConsent(t.Context(), tx, id, "under_13", "US")
+			if err != nil {
+				return err
+			}
+			// The profile is made of it; the binding is what fails.
+			_, err = store.CreateChildProfile(t.Context(), tx, id, store.Consent{ChildConsent: c}, p)
+			return err
+		}},
+		{"FOR NO KEY UPDATE", func(tx pgx.Tx) error { return store.HoldAccount(t.Context(), tx, id) }},
 	} {
 		err := pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: tc.failOn}, tc.run)
 		if !errors.Is(err, errDown) {
