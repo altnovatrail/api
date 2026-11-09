@@ -2,6 +2,7 @@ package account_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,10 +10,13 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/rpc"
 )
 
 func (w *world) askConsent(t *testing.T, ctx context.Context, key string, age int32, country string) (*v1.ChildConsent, error) {
@@ -301,5 +305,46 @@ func TestConsentsAskedTogetherKeepToTheLimit(t *testing.T) {
 	}
 	if n := w.count(t, "consents"); taken != 1 || n != consentsLimit {
 		t.Errorf("%d took a place and %d consents wait, want 1 and %d", taken, n, consentsLimit)
+	}
+}
+
+// countFails is the database with the count of the consents that wait failing in
+// every transaction, and every other statement as it is.
+type countFails struct{ *pgxpool.Pool }
+
+func (c countFails) Begin(ctx context.Context) (pgx.Tx, error) {
+	tx, err := c.Pool.Begin(ctx)
+	return countFailsTx{tx}, err
+}
+
+func (c countFails) BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error) {
+	tx, err := c.Pool.BeginTx(ctx, options)
+	return countFailsTx{tx}, err
+}
+
+type countFailsTx struct{ pgx.Tx }
+
+type failedCount struct{}
+
+func (failedCount) Scan(...any) error { return errors.New("the test's count fails") }
+
+func (t countFailsTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, "SELECT count(*) FROM consents") {
+		return failedCount{}
+	}
+	return t.Tx.QueryRow(ctx, sql, args...)
+}
+
+// A count of the consents that fails is a failure, and leaves no consent.
+func TestAConsentWhoseCountFailsIsAFailure(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t, func(pool *pgxpool.Pool) rpc.DB { return countFails{pool} })
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	_, err := w.askConsent(t, ctx, "key", 8, "US")
+	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
+	if n := w.count(t, "consents"); n != 0 {
+		t.Errorf("consents = %d, want none", n)
 	}
 }
