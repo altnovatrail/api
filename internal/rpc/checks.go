@@ -25,6 +25,7 @@ type Rights interface {
 type DB interface {
 	store.Querier
 	store.Beginner
+	store.TxBeginner
 }
 
 // Caller is who a request is from, as the checks found it: the handler reads it
@@ -90,14 +91,14 @@ func (c *checks) intercept(next connect.ServerFunc) connect.ServerFunc {
 				return noAccess(ctx)
 			}
 		case err != nil:
-			return failed(ctx, err)
+			return Failed(ctx, err)
 		case account.Deleting:
-			return accountGone(ctx)
+			return AccountGone(ctx)
 		default:
 			// Written once a day: the other requests of the day cost no round trip.
 			if !account.TouchedOn(c.now()) {
 				if err := store.TouchAccount(ctx, c.db, account.ID); err != nil {
-					return failed(ctx, err)
+					return Failed(ctx, err)
 				}
 			}
 			caller.AccountID = account.ID
@@ -118,7 +119,7 @@ func (c *checks) intercept(next connect.ServerFunc) connect.ServerFunc {
 func (c *checks) refused(ctx context.Context, err error) error {
 	var refusal *authn.Refusal
 	if !errors.As(err, &refusal) {
-		return failed(ctx, err)
+		return Failed(ctx, err)
 	}
 	noteOf(ctx).class = refusal.Class
 	switch refusal.Class {
@@ -126,9 +127,9 @@ func (c *checks) refused(ctx context.Context, err error) error {
 		account, err := store.AccountByUID(ctx, c.db, refusal.UID)
 		switch {
 		case err == nil && account.Deleting:
-			return accountGone(ctx)
+			return AccountGone(ctx)
 		case err != nil && !errors.Is(err, store.ErrNoAccount):
-			return failed(ctx, err)
+			return Failed(ctx, err)
 		}
 		return signInAgain()
 	case authn.NoUser:
@@ -136,18 +137,18 @@ func (c *checks) refused(ctx context.Context, err error) error {
 		switch {
 		case errors.Is(err, store.ErrNoAccount):
 		case err != nil:
-			return failed(ctx, err)
+			return Failed(ctx, err)
 		case !account.Deleting:
 			// The user was deleted past api: the account goes too, with no fresh
 			// sign-in, in this request (R20). What does not finish, a repeat
 			// does: the account is still unmarked.
 			if err := c.userGone(ctx, account.ID); err != nil {
-				return failed(ctx, err)
+				return Failed(ctx, err)
 			}
 		}
-		return accountGone(ctx)
+		return AccountGone(ctx)
 	case authn.Failed:
-		return failed(ctx, refusal)
+		return Failed(ctx, refusal)
 	default:
 		return signInAgain()
 	}
@@ -184,7 +185,7 @@ func (s *checked) Receive(msg any) error {
 	}
 	allowed, err := s.checks.rights.Can(s.ctx, s.caller.AccountID, s.rule.right, profileID)
 	if err != nil {
-		return failed(s.ctx, err)
+		return Failed(s.ctx, err)
 	}
 	if !allowed {
 		return noProfile(s.ctx)
@@ -193,7 +194,7 @@ func (s *checked) Receive(msg any) error {
 	// dangling one (R21) — gives a right to nothing.
 	there, err := store.ProfileOf(s.ctx, s.checks.db, s.caller.AccountID, profileID)
 	if err != nil {
-		return failed(s.ctx, err)
+		return Failed(s.ctx, err)
 	}
 	if !there {
 		return noProfile(s.ctx)
@@ -210,7 +211,7 @@ func (s *checked) Receive(msg any) error {
 func RequireConsent(ctx context.Context, db store.Querier, profileID string) error {
 	given, err := store.ConsentGiven(ctx, db, profileID)
 	if err != nil {
-		return failed(ctx, err)
+		return Failed(ctx, err)
 	}
 	if !given {
 		return Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)

@@ -45,6 +45,12 @@ type Beginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
+// TxBeginner is what a transaction with its options starts from: a pool, or a
+// connection.
+type TxBeginner interface {
+	BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error)
+}
+
 // WriteUnderAccount runs fn in a transaction that holds the account's row by FOR
 // KEY SHARE and has found it not marked "deleting" (R21). The deletion of an
 // account takes the row FOR UPDATE, so a write that got here before the mark

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/config"
@@ -57,7 +58,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	defer closeWithin(cfg.CloseTimeout(), closeDeps)
 	deps.Log, deps.RequestTimeout = log, cfg.RequestTimeout
 	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
-		rpc.Mount(mux, rpc.NewServer(deps, rpc.Handlers{}))
+		rpc.Mount(mux, rpc.NewServer(deps, rpc.Handlers{Account: account.New(deps.DB)}))
 	})
 
 	// The port is taken before the service says it has started, so that a port

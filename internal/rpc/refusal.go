@@ -27,11 +27,13 @@ func Refuse(ctx context.Context, code connect.Code, cause v1.Cause, data ...func
 	return err.WithDetail(detail)
 }
 
-// The refusals of the checks (architecture 3.1, 3.10).
-func accountGone(ctx context.Context) error {
+// AccountGone is the account marked "deleting" or deleted: the checks give it,
+// and so does a handler that finds the account gone after them (R20).
+func AccountGone(ctx context.Context) error {
 	return Refuse(ctx, connect.CodeUnauthenticated, v1.Cause_CAUSE_ACCOUNT_GONE)
 }
 
+// The other refusals of the checks (architecture 3.1, 3.10).
 func noAccess(ctx context.Context) error {
 	return Refuse(ctx, connect.CodePermissionDenied, v1.Cause_CAUSE_NO_ACCESS)
 }
@@ -50,9 +52,10 @@ func freshSignInNeeded(ctx context.Context) error {
 // refreshes it, or signs out by itself (R20).
 func signInAgain() error { return connect.NewError(connect.CodeUnauthenticated, "") }
 
-// failed is a check that did not finish — the sign-in service, the database, the
-// rights. The client sees the code alone; the log names the failure by its kind.
-func failed(ctx context.Context, err error) error {
+// Failed is a check or a handler that did not finish — the sign-in service, the
+// database, the rights. The client sees the code alone; the log names the
+// failure by its kind.
+func Failed(ctx context.Context, err error) error {
 	noteOf(ctx).failure = err
 	return connect.NewError(connect.CodeUnavailable, "").WithCause(err)
 }

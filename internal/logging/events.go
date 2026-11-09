@@ -85,6 +85,7 @@ const (
 	MomentServe    = "serve"
 	MomentShutdown = "shutdown"
 	MomentMigrate  = "migrate"
+	MomentInvite   = "invite"
 )
 
 // The databases api migrates: the value set of FieldDatabase.
@@ -125,7 +126,7 @@ var fields = map[string]rule{
 	FieldDeployed:      {kind: slog.KindBool},
 	FieldStarted:       {kind: slog.KindBool},
 	FieldCutShort:      {kind: slog.KindBool},
-	FieldMoment:        {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate}},
+	FieldMoment:        {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite}},
 	FieldErrorKind:     {kind: slog.KindLogValuer},
 	FieldPanicKind:     {kind: slog.KindLogValuer},
 	FieldApplied:       {kind: slog.KindInt64},
