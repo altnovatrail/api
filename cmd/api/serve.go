@@ -18,6 +18,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
 	"github.com/altnovatrail/api/internal/store"
@@ -44,6 +45,14 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	}
 	log := logging.New(stdout, cfg.LogLevel)
 
+	// The packages of modules are read before anything is opened: a folder of
+	// another release, or a package that is not what its chain names, is a failed
+	// start, not a request that finds it (R07, R41).
+	set, err := readPackages(opens.PackagesDir)
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
+
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
 	deps, handlers, closeDeps, err := open(ctx, opens)
@@ -58,7 +67,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// may still hold a connection, and the pool's Close waits for it, past the
 	// platform's grace if nothing bounded it.
 	defer closeWithin(cfg.CloseTimeout(), closeDeps)
-	deps.Log, deps.RequestTimeout = log, cfg.RequestTimeout
+	deps.Log, deps.RequestTimeout, deps.Packages = log, cfg.RequestTimeout, set
 	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
 		rpc.Mount(mux, rpc.NewServer(deps, handlers))
 	})
@@ -88,6 +97,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldDate, version.Date,
 		logging.FieldPort, port,
 		logging.FieldDeployed, cfg.Deployed(),
+		logging.FieldModulesRelease, set.Release,
+		logging.FieldPackages, len(set.Packages),
 	)
 
 	if err := srv.Run(ctx); err != nil {
@@ -133,6 +144,16 @@ func startupFailed(ctx context.Context, log *slog.Logger, err error, fields ...a
 		return nil
 	}
 	return logged(log, logging.MomentStartup, err, fields...)
+}
+
+// readPackages reads the folder of the packages of the release modules.json
+// pins.
+func readPackages(dir string) (*packages.Set, error) {
+	modules, err := modulesConfig()
+	if err != nil {
+		return nil, err
+	}
+	return packages.Read(dir, modules)
 }
 
 // newSignin builds the port to the sign-in service; a test of serve puts a fake

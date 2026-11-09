@@ -133,3 +133,22 @@ func TestAnOriginOverHTTPIsForThisMachineOnly(t *testing.T) {
 		t.Errorf("ServeFrom deployed over http = %v, want a refusal naming API_APP_ORIGIN", err)
 	}
 }
+
+// The packages are in the image's folder unless a folder of its own is named,
+// by its absolute path.
+func TestThePackagesAreInAFolder(t *testing.T) {
+	t.Parallel()
+
+	serve, err := config.ServeFrom(serveEnviron, loaded(t, nil))
+	if err != nil || serve.PackagesDir != config.DefaultPackagesDir {
+		t.Errorf("ServeFrom = %+v, %v; want %s", serve, err, config.DefaultPackagesDir)
+	}
+	serve, err = config.ServeFrom(append(serveEnviron, "API_PACKAGES_DIR=/data/packages"), loaded(t, nil))
+	if err != nil || serve.PackagesDir != "/data/packages" {
+		t.Errorf("ServeFrom = %+v, %v; want /data/packages", serve, err)
+	}
+	if _, err := config.ServeFrom(append(serveEnviron, "API_PACKAGES_DIR=packages"), loaded(t, nil)); !errors.Is(err, config.ErrInvalid) ||
+		!strings.Contains(err.Error(), "API_PACKAGES_DIR") {
+		t.Errorf("ServeFrom of a relative folder = %v, want a refusal naming it", err)
+	}
+}

@@ -20,6 +20,7 @@ import (
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/packages"
 )
 
 // Deps is what the server runs on.
@@ -34,6 +35,9 @@ type Deps struct {
 	Log *slog.Logger
 	// RequestTimeout is the longest a request may run (R33).
 	RequestTimeout time.Duration
+	// Packages is the packages of modules serve read at its start (R07, R41),
+	// which the package and module services serve from (T32).
+	Packages *packages.Set
 }
 
 // Handlers are the methods of the contract that api serves. A service left

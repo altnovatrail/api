@@ -4,7 +4,8 @@
 # archive of the commit in the toolchain stage, twice, and holds the two builds to the same bytes.
 # Then it builds the image a deployment builds, the release's Dockerfile by --target release around
 # the release's binary, and the image built from the source, and checks each: the version and
-# commit it says, the user it runs as, its migrations, its health check, and a stop on SIGTERM
+# commit it says, the user it runs as, its migrations, its health check, the release of modules
+# whose packages it read, its size, and a stop on SIGTERM
 # that it ends well. serve opens its databases and the sign-in service before it starts (R33): the
 # databases are a PostgreSQL of the runner's, 17.11 as the tests' is, pinned by its digest, and
 # the sign-in service takes a key made here for the run, which no call ever uses.
@@ -120,6 +121,11 @@ check() {
     log="$(docker logs "$container" 2>&1)"
     [[ "$log" == *'"message":"startup","version":"'"${version}"'"'* ]] || fail "${image} logs no startup line naming ${version}: ${log}"
     [[ "$log" == *'"message":"shutdown"'* ]] || fail "${image} logs no shutdown line: ${log}"
+    # serve read the packages of the release modules.json pins, which the image's build laid (R41).
+    [[ "$log" == *'"modules_release":"'"${modules_release}"'"'* ]] || fail "${image} read no packages of modules ${modules_release}: ${log}"
+    # The size of the image, which R07 left to measure (Д8 in RUN.md).
+    echo "${image}: $(docker image inspect --format '{{.Size}}' "$image") bytes"
 }
+modules_release="$(jq --exit-status --raw-output .release "${tree}/modules.json")"
 check api:release
 check api:source

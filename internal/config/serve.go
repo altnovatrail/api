@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 )
 
@@ -25,10 +26,18 @@ const (
 	// VarAppOrigin is the exact origin of app, which CORS answers when api has an
 	// origin of its own; unset, api stands on app's origin and answers no CORS.
 	VarAppOrigin = "API_APP_ORIGIN"
+	// VarPackagesDir is the folder of the packages of modules that api packages
+	// laid: in the image, DefaultPackagesDir; for the first app, a folder outside
+	// git (R41).
+	VarPackagesDir = "API_PACKAGES_DIR"
 )
 
+// DefaultPackagesDir is where the stage of the Dockerfile lays the packages in
+// the image.
+const DefaultPackagesDir = "/packages"
+
 func init() {
-	for _, name := range []string{VarFirebaseProjectID, VarAppOrigin} {
+	for _, name := range []string{VarFirebaseProjectID, VarAppOrigin, VarPackagesDir} {
 		declared[name] = struct{}{}
 	}
 	for _, name := range []string{VarDatabaseURL, VarOpenFGADatabaseURL, VarFirebaseCredentials} {
@@ -52,6 +61,8 @@ type Serve struct {
 	FirebaseCredentials Secret
 	// AppOrigin is the exact origin of app, or empty for none (R33).
 	AppOrigin string
+	// PackagesDir is the absolute path of the folder of the packages (R41).
+	PackagesDir string
 }
 
 // ServeFrom reads what serve opens from a set of KEY=VALUE strings, as
@@ -62,7 +73,8 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 	env := read(environ)
 
 	var problems []error
-	serve := &Serve{FirebaseProjectID: env[VarFirebaseProjectID], AppOrigin: env[VarAppOrigin]}
+	serve := &Serve{FirebaseProjectID: env[VarFirebaseProjectID], AppOrigin: env[VarAppOrigin],
+		PackagesDir: env.or(VarPackagesDir, DefaultPackagesDir)}
 	// In this order, so that the refusals read the same on every run.
 	problems = append(problems, databaseURLs(env, []namedSecret{
 		{VarDatabaseURL, &serve.DatabaseURL},
@@ -76,6 +88,9 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 	}
 	if err := checkOrigin(serve.AppOrigin, cfg.Deployed()); err != nil {
 		problems = append(problems, err)
+	}
+	if !filepath.IsAbs(serve.PackagesDir) {
+		problems = append(problems, fmt.Errorf("%w: %s must be an absolute path, got %q", ErrInvalid, VarPackagesDir, serve.PackagesDir))
 	}
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)

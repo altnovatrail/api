@@ -192,8 +192,8 @@ func TestServeStartsServesAndStops(t *testing.T) {
 	}
 	startup := lines[0]
 	if startup["version"] != "dev" || startup["port"] != number(t, port) ||
-		startup["deployed"] != false {
-		t.Errorf("startup = %v, want version dev, port %s, deployed false", startup, port)
+		startup["deployed"] != false || startup["modules_release"] != "v0.1.4" || startup["packages"] != float64(0) {
+		t.Errorf("startup = %v, want version dev, port %s, deployed false, modules v0.1.4 and no package", startup, port)
 	}
 	if last := lines[len(lines)-1]; last["started"] != true {
 		t.Errorf("shutdown = %v, want started true", last)
@@ -339,6 +339,7 @@ func serveEnviron(t *testing.T, more ...string) []string {
 		"API_OPENFGA_DATABASE_URL=" + storetest.OpenFGAURL(t, true),
 		"API_FIREBASE_PROJECT_ID=novatrail-test",
 		`API_FIREBASE_CREDENTIALS={"type":"service_account"}`,
+		"API_PACKAGES_DIR=" + laidPackages(t),
 	}, more...)
 }
 
@@ -355,6 +356,7 @@ func TestWhatDoesNotOpenIsAFailedStart(t *testing.T) {
 		{"the database api", []string{"API_DATABASE_URL=" + strings.Replace(storetest.URL(t, false), "/test_", "/missing_", 1)}, "api"},
 		{"the rights, with no store", []string{"API_OPENFGA_DATABASE_URL=" + storetest.OpenFGAURL(t, false)}, "openfga"},
 		{"the sign-in service", []string{"API_FIREBASE_PROJECT_ID=broken"}, nil},
+		{"the packages, with no index", []string{"API_PACKAGES_DIR=" + t.TempDir()}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

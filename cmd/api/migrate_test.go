@@ -9,6 +9,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authn/authntest"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/store/storetest"
 )
 
@@ -27,7 +28,13 @@ func TestMain(m *testing.M) {
 		}
 		return &authntest.Fake{}, nil
 	}
-	os.Exit(storetest.Main(m))
+	// The release of modules the tests pin is one of their own, served by a server
+	// of theirs: they have no network.
+	server := releases()
+	modulesConfig, modulesSource = testModules, packages.Source{Client: server.Client(), Base: server.URL}
+	code := storetest.Main(m)
+	server.Close()
+	os.Exit(code)
 }
 
 // migrateEnviron is migrate's environment on two empty databases of the test's

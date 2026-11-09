@@ -118,6 +118,8 @@ THIRD_PARTY := """
     github.com/Masterminds/squirrel=Masterminds-squirrel
     github.com/MicahParks/keyfunc=MicahParks-keyfunc
     github.com/Yiling-J/theine-go=Yiling-J-theine-go
+    github.com/altnovatrail/module-kit=altnovatrail-module-kit
+    github.com/altnovatrail/spec=altnovatrail-spec
     github.com/altnovatrail/spec/contracts=altnovatrail-spec-contracts
     github.com/antlr4-go/antlr/v4=antlr4-go-antlr-v4
     github.com/beorn7/perks=beorn7-perks
@@ -164,6 +166,7 @@ THIRD_PARTY := """
     github.com/prometheus/common=prometheus-common
     github.com/prometheus/procfs=prometheus-procfs
     github.com/sagikazarmark/locafero=sagikazarmark-locafero
+    github.com/santhosh-tekuri/jsonschema/v6=santhosh-tekuri-jsonschema-v6
     github.com/sethvargo/go-retry=sethvargo-go-retry
     github.com/sourcegraph/conc=sourcegraph-conc
     github.com/spf13/afero=spf13-afero
@@ -187,10 +190,12 @@ THIRD_PARTY := """
     go.opentelemetry.io/otel/sdk/metric=otel-sdk-metric
     go.opentelemetry.io/otel/trace=otel-trace
     go.opentelemetry.io/proto/otlp=proto-otlp
+    go.starlark.net=go.starlark.net
     go.uber.org/mock=mock
     go.uber.org/multierr=multierr
     go.uber.org/zap=zap
     go.yaml.in/yaml/v3=yaml-v3
+    go.yaml.in/yaml/v4=yaml-v4
     golang.org/x/crypto=x-crypto
     golang.org/x/exp=x-exp
     golang.org/x/net=x-net
@@ -342,6 +347,66 @@ ci-licenses:
         exit 1
     fi
     go run {{GO_LICENSES}} check ./... --allowed_licenses="$allowed"
+
+# The check of modules.json (R07, R41), which the job Modules of ci.yml runs in the toolchain
+# stage, with the network, on every pull request and push: the index of the pinned release and its
+# signature, fetched by the public address with no token; release-verify, which accepts only the
+# shared release.yml of .github, v0.1.7 or later, at the tag's commit (R77 spec); then
+# cmd/modules-check, against main's modules.json when main has one: the index by its digest, a
+# release no older than main's, no current version lost but by a withdrawal, and each module's
+# current version printed.
+# Check modules.json: the signature of its index and the rules of R07.
+ci-modules:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    base=https://github.com/altnovatrail/modules/releases/download
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    fetch() {
+        mkdir -p "$1"
+        curl --fail --silent --show-error --location --retry 3 --output "$1/module-index.json" "${base}/$2/module-index.json"
+    }
+    release="$(jq --exit-status --raw-output .release modules.json)"
+    fetch "$work/current" "$release"
+    curl --fail --silent --show-error --location --retry 3 \
+        --output "$work/current/module-index.json.sigstore.json" "${base}/${release}/module-index.json.sigstore.json"
+    {{ quote(just_executable()) }} -f spec/justfile release-verify modules "$release" "$work/current/module-index.json"
+    # main must be there to compare with: a git that cannot say is a failure, not a main with no
+    # modules.json, which would let an older release or a lost version through.
+    git rev-parse --verify --quiet origin/main^{commit} > /dev/null \
+        || { echo "ci-modules: origin/main is not there to compare with: fetch it" >&2; exit 1; }
+    main=()
+    if git cat-file -e origin/main:modules.json 2> /dev/null; then
+        git show origin/main:modules.json > "$work/main.json"
+        fetch "$work/main" "$(jq --exit-status --raw-output .release "$work/main.json")"
+        main=(-main-config "$work/main.json" -main-index "$work/main/module-index.json")
+    fi
+    go run ./cmd/modules-check -config modules.json -index "$work/current/module-index.json" "${main[@]}"
+
+# The packages of modules for the first app (R07, R41): the command the image's build runs,
+# into a folder outside any git working tree, which serve then takes as API_PACKAGES_DIR. The
+# folder must be empty or not there.
+# Lay the packages of the pinned release of modules into a folder outside git.
+packages dir="/home/vscode/.novatrail-dev/packages":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir={{ quote(dir) }}
+    case "$dir" in
+        /*) ;;
+        *) echo "packages: name the folder by its absolute path, not ${dir}" >&2; exit 1 ;;
+    esac
+    # A folder is inside a working tree when it or a folder above it holds .git, as scripts/dev.sh
+    # and internal/config tell it: by the files, so that no failure of git lets it through.
+    at="$dir"
+    while :; do
+        if [ -e "$at/.git" ]; then
+            echo "packages: ${dir} is inside a git working tree; lay the packages outside it" >&2
+            exit 1
+        fi
+        [ "$at" = / ] && break
+        at="$(dirname "$at")"
+    done
+    go run ./cmd/api packages "$dir"
 
 # The configuration is a file outside any git working tree, API_DEV_CONFIG, by default
 # /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39); README.md shows

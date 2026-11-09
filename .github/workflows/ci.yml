@@ -54,3 +54,21 @@ jobs:
 
       - name: Build and check the images
         run: .github/image.sh
+
+  # The check of modules.json (R07, R41): the signature of the pinned release's index by
+  # release-verify, its digest, and the rules against main's — on every pull request and push, with
+  # no filter of paths, since a new tag of spec may raise what release-verify accepts. It reads
+  # main's modules.json from the history, and spec/justfile from the submodule.
+  modules:
+    name: Modules
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+          fetch-depth: 0
+
+      - name: Check modules.json
+        run: .github/modules.sh
