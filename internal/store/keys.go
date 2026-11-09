@@ -54,6 +54,22 @@ func RecordDone(ctx context.Context, tx pgx.Tx, accountID, key, method, fingerpr
 	return nil
 }
 
+// HoldAccount takes the account's row FOR NO KEY UPDATE in tx: what a request
+// under an idempotency key holds first, so that a repeat beside it waits and
+// finds its record. The lock conflicts with itself and not with FOR KEY SHARE,
+// so the other writes under the account do not wait for it (R29, R35).
+func HoldAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
+	var id string
+	err := tx.QueryRow(ctx, `SELECT id FROM accounts WHERE id = $1 FOR NO KEY UPDATE`, accountID).Scan(&id)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrNoAccount
+	case err != nil:
+		return fmt.Errorf("store: hold the account: %w", err)
+	}
+	return nil
+}
+
 // HoldPin takes the account's row FOR NO KEY UPDATE and reads its PIN. The lock
 // conflicts with itself and not with FOR KEY SHARE: the requests of the PIN of
 // one account — from two devices, or a repeat beside its first — go one after

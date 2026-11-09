@@ -78,6 +78,13 @@ func TestAFailedCheckIsUnavailable(t *testing.T) {
 		{"the account cannot be found", nil, func(d *rpc.Deps) { d.DB = &flaky{DB: d.DB, failOn: "auth_uid"} }},
 		{"the account cannot be touched", nil, func(d *rpc.Deps) { d.DB = &flaky{DB: d.DB, failOn: "SET last_request_on"} }},
 		{"the profile cannot be read", nil, func(d *rpc.Deps) { d.DB = &flaky{DB: d.DB, failOn: "FROM profiles"} }},
+		{"the profile cannot be touched", func(w *world, p person) string {
+			// A date of another day, which the request writes.
+			if _, err := w.pool.Exec(context.Background(), `UPDATE profiles SET active_on = DATE '2026-01-01'`); err != nil {
+				panic(err)
+			}
+			return p.token
+		}, func(d *rpc.Deps) { d.DB = &flaky{DB: d.DB, failOn: "SET active_on"} }},
 		{"the rights do not answer", nil, func(d *rpc.Deps) { d.Rights = downRights{} }},
 		{"the sign-in service breaks", nil, func(d *rpc.Deps) { d.Signin = brokenSignin{d.Signin} }},
 		{"a revoked token's account cannot be found", func(w *world, p person) string {

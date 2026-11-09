@@ -8,7 +8,6 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
-	"github.com/google/uuid"
 
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
@@ -176,11 +175,10 @@ func (s *checked) Receive(msg any) error {
 	if !ok {
 		return noProfile(s.ctx)
 	}
-	// An ID that is no UUID as the database writes one — lowercase, with its dashes —
-	// names no profile, and the rights are not asked of it: OpenFGA would refuse
-	// the colons of urn:uuid:, and hold no tuple of an uppercase one.
+	// An ID that is not canonical names no profile, and the rights are not asked
+	// of it (store.CanonicalID).
 	profileID := request.GetProfileId()
-	if parsed, err := uuid.Parse(profileID); err != nil || parsed.String() != profileID {
+	if !store.CanonicalID(profileID) {
 		return noProfile(s.ctx)
 	}
 	allowed, err := s.checks.rights.Can(s.ctx, s.caller.AccountID, s.rule.right, profileID)
@@ -192,7 +190,7 @@ func (s *checked) Receive(msg any) error {
 	}
 	// Read after the right, never before: a tuple whose profile is gone — a
 	// dangling one (R21) — gives a right to nothing.
-	there, err := store.ProfileOf(s.ctx, s.checks.db, s.caller.AccountID, profileID)
+	there, activeOn, err := store.ProfileOf(s.ctx, s.checks.db, s.caller.AccountID, profileID)
 	if err != nil {
 		return Failed(s.ctx, err)
 	}
@@ -201,6 +199,13 @@ func (s *checked) Receive(msg any) error {
 	}
 	if s.rule.fresh && !authn.Fresh(s.caller.AuthTime, s.checks.now()) {
 		return freshSignInNeeded(s.ctx)
+	}
+	// A request on the profile that passed every check is its activity, written
+	// once a day (П-9; R36).
+	if !store.TodayByUTC(activeOn, s.checks.now()) {
+		if err := store.TouchProfile(s.ctx, s.checks.db, profileID); err != nil {
+			return Failed(s.ctx, err)
+		}
 	}
 	return nil
 }

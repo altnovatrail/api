@@ -108,7 +108,7 @@ func TestAProfileIsTheAccountsOrNone(t *testing.T) {
 		{"another account's", other, profileID, false},
 		{"one that is not there", owner, "00000000-0000-0000-0000-000000000000", false},
 	} {
-		if got, err := store.ProfileOf(t.Context(), pool, tc.account, tc.profile); err != nil || got != tc.want {
+		if got, _, err := store.ProfileOf(t.Context(), pool, tc.account, tc.profile); err != nil || got != tc.want {
 			t.Errorf("%s: ProfileOf = %v, %v; want %v", tc.name, got, err, tc.want)
 		}
 	}
@@ -126,7 +126,7 @@ func TestAReadThatFailsIsAnError(t *testing.T) {
 	if err := store.TouchAccount(t.Context(), pool, "00000000-0000-0000-0000-000000000000"); err == nil {
 		t.Error("TouchAccount on a closed pool: error = nil")
 	}
-	if _, err := store.ProfileOf(t.Context(), pool, "a", "b"); err == nil {
+	if _, _, err := store.ProfileOf(t.Context(), pool, "a", "b"); err == nil {
 		t.Error("ProfileOf on a closed pool: error = nil")
 	}
 	if _, err := store.ConsentGiven(t.Context(), pool, "00000000-0000-0000-0000-000000000000"); err == nil {

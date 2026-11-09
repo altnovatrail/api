@@ -29,11 +29,7 @@ type Account struct {
 
 // TouchedOn says whether the date of the last request is already the date of
 // now by UTC, so that TouchAccount would write nothing.
-func (a Account) TouchedOn(now time.Time) bool {
-	year, month, day := now.UTC().Date()
-	lastYear, lastMonth, lastDay := a.LastRequestOn.Date()
-	return !a.LastRequestOn.IsZero() && year == lastYear && month == lastMonth && day == lastDay
-}
+func (a Account) TouchedOn(now time.Time) bool { return TodayByUTC(a.LastRequestOn, now) }
 
 // AccountByUID is the account of the sign-in service's UID, or ErrNoAccount.
 func AccountByUID(ctx context.Context, db Querier, uid string) (Account, error) {
@@ -67,17 +63,29 @@ func TouchAccount(ctx context.Context, db Querier, accountID string) error {
 	return nil
 }
 
-// ProfileOf says whether the account has the profile. It is read after the
-// right to the profile, never before (architecture 3.1): a tuple whose profile
-// is gone — dangling, R21 — gives a right to nothing.
-func ProfileOf(ctx context.Context, db Querier, accountID, profileID string) (bool, error) {
-	var there bool
-	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM profiles WHERE id = $1 AND account_id = $2)`,
-		profileID, accountID).Scan(&there)
-	if err != nil {
-		return false, fmt.Errorf("store: find the profile: %w", err)
+// ProfileOf says whether the account has the profile, and the date of the
+// profile's last activity. It is read after the right to the profile, never
+// before (architecture 3.1): a tuple whose profile is gone — dangling, R21 —
+// gives a right to nothing.
+func ProfileOf(ctx context.Context, db Querier, accountID, profileID string) (bool, time.Time, error) {
+	var activeOn time.Time
+	err := db.QueryRow(ctx, `SELECT active_on FROM profiles WHERE id = $1 AND account_id = $2`,
+		profileID, accountID).Scan(&activeOn)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return false, time.Time{}, nil
+	case err != nil:
+		return false, time.Time{}, fmt.Errorf("store: find the profile: %w", err)
 	}
-	return there, nil
+	return true, activeOn, nil
+}
+
+// TodayByUTC says whether on is the date of now by UTC: the date written once a
+// day, of an account or a profile, that needs no writing again.
+func TodayByUTC(on, now time.Time) bool {
+	year, month, day := now.UTC().Date()
+	onYear, onMonth, onDay := on.Date()
+	return !on.IsZero() && year == onYear && month == onMonth && day == onDay
 }
 
 // ConsentGiven says whether the profile's consent is confirmed: what a learning

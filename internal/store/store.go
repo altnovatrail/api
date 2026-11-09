@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -94,4 +95,12 @@ func MarkDeleting(ctx context.Context, tx pgx.Tx, accountID string) error {
 		return fmt.Errorf("store: mark the account: %w", err)
 	}
 	return nil
+}
+
+// CanonicalID says whether id is a UUID as the database writes one: lowercase,
+// with its dashes. Any other ID names no row, and nothing is asked of it: OpenFGA
+// would refuse the colons of urn:uuid:, and hold no tuple of an uppercase one.
+func CanonicalID(id string) bool {
+	parsed, err := uuid.Parse(id)
+	return err == nil && parsed.String() == id
 }
