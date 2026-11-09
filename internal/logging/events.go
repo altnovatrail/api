@@ -49,6 +49,10 @@ const (
 	// it did and failed, and whether it went to its end — counts alone, never an
 	// ID of what it did them to.
 	EventSwept = "swept"
+	// EventPackagesLaid is the line of api packages that laid the packages of the
+	// pinned release of modules into a folder (R07, R41): the release, and how many
+	// packages and files of their device parts it laid.
+	EventPackagesLaid = "packages_laid"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -81,6 +85,10 @@ const (
 	FieldDone          = "done"
 	FieldFailed        = "failed"
 	FieldFinished      = "finished"
+	// FieldModulesRelease is the release of modules that modules.json pins.
+	FieldModulesRelease = "modules_release"
+	FieldPackages       = "packages"
+	FieldFiles          = "files"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -96,6 +104,7 @@ const (
 	MomentInvite    = "invite"
 	MomentCountries = "countries"
 	MomentSweep     = "sweep"
+	MomentPackages  = "packages"
 )
 
 // The steps of the daily job: the value set of FieldStep.
@@ -121,15 +130,16 @@ const (
 
 // events is every event and the fields it may carry.
 var events = map[string][]string{
-	EventStartup:  {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed},
-	EventStopping: {},
-	EventStopped:  {FieldCutShort},
-	EventShutdown: {FieldStarted},
-	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
-	EventPanic:    {FieldPanicKind},
-	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
-	EventRequest:  {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind},
-	EventSwept:    {FieldStep, FieldDone, FieldFailed, FieldFinished},
+	EventStartup:      {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages},
+	EventStopping:     {},
+	EventStopped:      {FieldCutShort},
+	EventShutdown:     {FieldStarted},
+	EventFailure:      {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
+	EventPanic:        {FieldPanicKind},
+	EventMigrated:     {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
+	EventRequest:      {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind},
+	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
+	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -145,30 +155,33 @@ type rule struct {
 
 // fields is every field and its rule.
 var fields = map[string]rule{
-	FieldVersion:       {kind: slog.KindString, shape: matches(versionShape)},
-	FieldCommit:        {kind: slog.KindString, shape: matches(commitShape)},
-	FieldDate:          {kind: slog.KindString, shape: isBuildDate},
-	FieldPort:          {kind: slog.KindInt64},
-	FieldDeployed:      {kind: slog.KindBool},
-	FieldStarted:       {kind: slog.KindBool},
-	FieldCutShort:      {kind: slog.KindBool},
-	FieldMoment:        {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep}},
-	FieldErrorKind:     {kind: slog.KindLogValuer},
-	FieldPanicKind:     {kind: slog.KindLogValuer},
-	FieldApplied:       {kind: slog.KindInt64},
-	FieldSchemaVersion: {kind: slog.KindInt64},
-	FieldDatabase:      {kind: slog.KindString, values: []string{DatabaseAPI, DatabaseOpenFGA}},
-	FieldStoreCreated:  {kind: slog.KindBool},
-	FieldModelWritten:  {kind: slog.KindBool},
-	FieldMethod:        {kind: slog.KindString, shape: matches(methodShape)},
-	FieldCode:          {kind: slog.KindString, values: Codes},
-	FieldCause:         {kind: slog.KindString, shape: matches(causeShape)},
-	FieldTokenClass:    {kind: slog.KindString, values: TokenClasses},
-	FieldDurationMS:    {kind: slog.KindInt64},
-	FieldStep:          {kind: slog.KindString, values: Steps},
-	FieldDone:          {kind: slog.KindInt64},
-	FieldFailed:        {kind: slog.KindInt64},
-	FieldFinished:      {kind: slog.KindBool},
+	FieldVersion:        {kind: slog.KindString, shape: matches(versionShape)},
+	FieldCommit:         {kind: slog.KindString, shape: matches(commitShape)},
+	FieldDate:           {kind: slog.KindString, shape: isBuildDate},
+	FieldPort:           {kind: slog.KindInt64},
+	FieldDeployed:       {kind: slog.KindBool},
+	FieldStarted:        {kind: slog.KindBool},
+	FieldCutShort:       {kind: slog.KindBool},
+	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages}},
+	FieldErrorKind:      {kind: slog.KindLogValuer},
+	FieldPanicKind:      {kind: slog.KindLogValuer},
+	FieldApplied:        {kind: slog.KindInt64},
+	FieldSchemaVersion:  {kind: slog.KindInt64},
+	FieldDatabase:       {kind: slog.KindString, values: []string{DatabaseAPI, DatabaseOpenFGA}},
+	FieldStoreCreated:   {kind: slog.KindBool},
+	FieldModelWritten:   {kind: slog.KindBool},
+	FieldMethod:         {kind: slog.KindString, shape: matches(methodShape)},
+	FieldCode:           {kind: slog.KindString, values: Codes},
+	FieldCause:          {kind: slog.KindString, shape: matches(causeShape)},
+	FieldTokenClass:     {kind: slog.KindString, values: TokenClasses},
+	FieldDurationMS:     {kind: slog.KindInt64},
+	FieldStep:           {kind: slog.KindString, values: Steps},
+	FieldDone:           {kind: slog.KindInt64},
+	FieldFailed:         {kind: slog.KindInt64},
+	FieldFinished:       {kind: slog.KindBool},
+	FieldModulesRelease: {kind: slog.KindString, shape: matches(releaseShape)},
+	FieldPackages:       {kind: slog.KindInt64},
+	FieldFiles:          {kind: slog.KindInt64},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -178,6 +191,9 @@ var fields = map[string]rule{
 var (
 	versionShape = regexp.MustCompile(`^(dev|v\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?(-\d+-g[0-9a-f]{7,40})?(-dirty)?|[0-9a-f]{7,40}(-dirty)?)$`)
 	commitShape  = regexp.MustCompile(`^(unknown|[0-9a-f]{7,40})$`)
+	// releaseShape is a tag of a release of modules, as modules.json pins it:
+	// the form internal/packages holds it to, with no leading zeros.
+	releaseShape = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 )
 
 func matches(shape *regexp.Regexp) func(string) bool { return shape.MatchString }

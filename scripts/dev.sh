@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
 # of the binary with the configuration of the dev file, and `just dev-check` goes the whole way —
-# migrations, an invite code, a country, the server, an ID token, the account, the owner's profile
-# and the list of profiles — and checks the answers and the logs.
+# migrations, an invite code, a country, the packages of modules, the server, an ID token, the
+# account, the owner's profile and the list of profiles — and checks the answers and the logs.
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
@@ -152,8 +152,14 @@ check() {
     echo "dev-check: allow $country"
     "$binary" countries allow "$country" > /dev/null
 
+    # The packages of the pinned release, laid afresh for this run, as the image's build lays them
+    # (R41): a folder of the dev file stays as the author laid it.
+    echo "dev-check: packages"
+    "$binary" packages "$work/packages" > "$work/packages.log" || die "packages failed: $(cat "$work/packages.log")"
+    clean "$work/packages.log"
+
     echo "dev-check: serve"
-    PORT=0 "$binary" serve > "$work/serve.log" 2>&1 &
+    API_PACKAGES_DIR="$work/packages" PORT=0 "$binary" serve > "$work/serve.log" 2>&1 &
     serve_pid=$!
     local port=""
     for _ in $(seq 60); do

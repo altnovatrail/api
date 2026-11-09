@@ -51,8 +51,19 @@ func TestTheDockerfileBuildsWithTheGoOfGoMod(t *testing.T) {
 			t.Errorf("image %d is %s, want %s: the builder has the Go of go.mod, %s", i+1, pinned[i], want, goMod[1])
 		}
 	}
-	if !strings.Contains(dockerfile, "FROM runtime AS release") || !strings.Contains(dockerfile, "COPY --from=binary --chmod=0555 api /api") {
+	if !strings.Contains(dockerfile, "FROM runtime AS release\n") || !strings.Contains(dockerfile, "COPY --from=binary --chmod=0555 api /api") {
 		t.Error("the Dockerfile has no stage release around the binary of the context binary, which a deployment builds")
+	}
+	// The packages of modules are laid by the binary the image holds, and copied in
+	// owned by root (R41).
+	for _, line := range []string{
+		`RUN ["/api", "packages", "/tmp/packages"]`,
+		"COPY --from=release-packages --chown=0:0 /tmp/packages /packages",
+		"COPY --from=source-packages --chown=0:0 /tmp/packages /packages",
+	} {
+		if !strings.Contains(dockerfile, line) {
+			t.Errorf("the Dockerfile has no line %s, which lays the packages of modules into the image", line)
+		}
 	}
 }
 

@@ -1,9 +1,10 @@
 // Command api is NovaTrail's platform service, one binary with a command for
-// each thing it is run for: serve, migrate, invite, countries, sweep and
-// version. The image it runs in has no shell, so whatever an operator runs — the
-// migrations as a job, an invite code from a terminal of their own (R34), the
-// list of countries (R36), the daily job (R38) — is a command of this binary too
-// (R105 spec).
+// each thing it is run for: serve, migrate, invite, countries, sweep, packages
+// and version. The image it runs in has no shell, so whatever an operator or
+// its build runs — the migrations as a job, an invite code from a terminal of
+// their own (R34), the list of countries (R36), the daily job (R38), the
+// packages of modules laid into the image (R41) — is a command of this binary
+// too (R105 spec).
 package main
 
 import (
@@ -35,6 +36,7 @@ Commands:
   invite    make an invite code and print it, once
   countries list, allow or remove a country learners come from
   sweep     finish the deletions and delete what is past its term, once
+  packages  lay the packages of the pinned release of modules into a folder
   version   print the build of this binary
 `
 
@@ -68,6 +70,7 @@ var commands = map[string]func(ctx context.Context, args, environ []string, stdo
 	"invite":    createInvite,
 	"countries": listCountries,
 	"sweep":     sweepPass,
+	"packages":  layPackages,
 	"version":   printVersion,
 }
 

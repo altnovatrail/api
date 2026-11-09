@@ -13,9 +13,8 @@ FROM golang:1.27.3-trixie@sha256:af1bfc2614ebb1dbd31af514b78740fd678850e76498762
 
 WORKDIR /src
 
-# The whole context, then the build: the binary is built from the standard library and its own
-# packages alone, so no layer of downloaded modules would survive a rebuild. Of spec's modules,
-# which only the tests take, go fetches no more than their go.mod files.
+# The whole context, then the build: modules.json, which the binary embeds, comes with it (R41).
+# The modules the binary is built from are fetched by the build itself, as go.sum pins them.
 COPY . .
 
 # The build's identity comes in as arguments rather than being read from git: the context has no
@@ -41,17 +40,36 @@ EXPOSE 8080
 ENTRYPOINT ["/api"]
 CMD ["serve"]
 
+# The packages of modules the image holds (R07, R41 in docs/decisions.md): the binary lays them
+# itself, by its command packages, from the release of modules that the modules.json embedded in
+# it pins — the index by its digest, each package by module-kit by the chain from it — so the
+# build needs the network, and no file of the main context. The runtime has no shell, so the RUN
+# is of the exec form; it runs as nonroot, who may write /tmp alone.
+FROM runtime AS release-packages
+
+COPY --from=binary --chmod=0555 api /api
+RUN ["/api", "packages", "/tmp/packages"]
+
 # The image a deployment rolls out: the runtime around a binary of a release, which the
-# deployment has checked before it gets here. The binary arrives in a build context of its own,
+# deployment has checked before it gets here, and the packages that binary laid, owned by root so
+# that the service, nonroot, cannot change them. The binary arrives in a build context of its own,
 # named binary and holding it as api; downloaded, it has no execute bit, so it is given one here.
 # A build that names no context binary fails here: BuildKit then looks for an image of that name,
 # and the deployment always names the context.
 FROM runtime AS release
 
 COPY --from=binary --chmod=0555 api /api
+COPY --from=release-packages --chown=0:0 /tmp/packages /packages
+
+# The packages of the image built from the source, laid as the release's are.
+FROM runtime AS source-packages
+
+COPY --from=build /api /api
+RUN ["/api", "packages", "/tmp/packages"]
 
 # The image built from the source, which CI builds, starts and checks. It is the last stage, so a
 # build that names no target gets it.
 FROM runtime
 
 COPY --from=build /api /api
+COPY --from=source-packages --chown=0:0 /tmp/packages /packages

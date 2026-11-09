@@ -26,9 +26,11 @@ jobs:
       id-token: write
       actions: read
     uses: altnovatrail/.github/.github/workflows/release.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
-    # The go kind's list, and what api's release takes beyond it: the Dockerfile it carries, and
-    # the file git archive writes the commit into, with the attributes that make it do so. The
-    # programs the tests build, under testdata/, are no part of it.
+    # The go kind's list, and what api's release takes beyond it: the Dockerfile it carries, the
+    # file git archive writes the commit into, with the attributes that make it do so, and
+    # modules.json, which the binary embeds, so that a pull request that pins another release of
+    # modules makes a release (R41). The programs the tests build, under testdata/, are no part of
+    # it.
     with:
       paths: |
         *.go
@@ -39,6 +41,7 @@ jobs:
         justfile
         LICENSE
         Dockerfile
+        modules.json
         .gitattributes
         internal/version/archive.txt
         .devcontainer/Dockerfile
