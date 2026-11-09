@@ -44,6 +44,9 @@ type User struct {
 	LastSignIn time.Time
 	// LastRefresh is when the user's ID token was last refreshed; zero if never.
 	LastRefresh time.Time
+	// Created is when the user was made, so that one made and never signed in is
+	// not taken for one long gone.
+	Created time.Time
 }
 
 // Class is why a token was refused (R20; architecture 3.10).

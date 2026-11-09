@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -55,19 +56,42 @@ func New(db store.Beginner, rights Rights, signin Signin) *Deleter {
 // does not go is Unfinished, dangling: no row is there for it to give a right to,
 // and the job removes it.
 func (d *Deleter) Profile(ctx context.Context, accountID, profileID string) error {
+	_, err := d.profile(ctx, accountID, profileID, func(tx pgx.Tx) (bool, error) {
+		_, err := store.ProfileFor(ctx, tx, accountID, profileID)
+		return err == nil, err
+	})
+	return err
+}
+
+// IdleProfile deletes, as Profile does and with no fresh sign-in, the account's
+// profile that was not active since before, and says whether it did: the daily
+// job's deletion after 12 months (П-9). The term is read again under the row's
+// lock, so that a learner who came back while the job chose the profile keeps
+// it.
+func (d *Deleter) IdleProfile(ctx context.Context, accountID, profileID string, before time.Time) (bool, error) {
+	return d.profile(ctx, accountID, profileID, func(tx pgx.Tx) (bool, error) {
+		return store.ProfileIdle(ctx, tx, accountID, profileID, before)
+	})
+}
+
+// profile deletes the profile that hold holds, and then its tuple; a profile not
+// held deletes nothing.
+func (d *Deleter) profile(ctx context.Context, accountID, profileID string, hold func(pgx.Tx) (bool, error)) (bool, error) {
+	held := false
 	err := store.WriteUnderAccount(ctx, d.db, accountID, func(tx pgx.Tx) error {
-		if _, err := store.ProfileFor(ctx, tx, accountID, profileID); err != nil {
+		var err error
+		if held, err = hold(tx); err != nil || !held {
 			return err
 		}
 		return store.DeleteProfileRows(ctx, tx, profileID)
 	})
-	if err != nil {
-		return err
+	if err != nil || !held {
+		return false, err
 	}
 	if err := d.rights.DeleteOwner(ctx, accountID, profileID); err != nil {
-		return &Unfinished{err: err}
+		return true, &Unfinished{err: err}
 	}
-	return nil
+	return true, nil
 }
 
 // Account deletes the account of the sign-in service's uid (R21; architecture
@@ -77,19 +101,40 @@ func (d *Deleter) Profile(ctx context.Context, accountID, profileID string) erro
 // Unfinished: the mark stays, which tells the other devices the account is gone
 // and which the job finishes.
 func (d *Deleter) Account(ctx context.Context, accountID, uid string) error {
+	_, err := d.account(ctx, accountID, uid, func(tx pgx.Tx) (bool, error) {
+		return true, store.MarkDeleting(ctx, tx, accountID)
+	})
+	return err
+}
+
+// IdleAccount deletes, as Account does and with no fresh sign-in, the account
+// that had no request since before, and says whether it did: the daily job's
+// deletion after 12 months (П-9). The term is read again under the row's lock,
+// so that an owner who came back while the job chose the account keeps it.
+func (d *Deleter) IdleAccount(ctx context.Context, accountID, uid string, before time.Time) (bool, error) {
+	return d.account(ctx, accountID, uid, func(tx pgx.Tx) (bool, error) {
+		return store.MarkIdle(ctx, tx, accountID, before)
+	})
+}
+
+// account is step 1 under the mark that mark sets, and Finish after it; a mark
+// not set deletes nothing.
+func (d *Deleter) account(ctx context.Context, accountID, uid string, mark func(pgx.Tx) (bool, error)) (bool, error) {
+	marked := false
 	err := pgx.BeginFunc(ctx, d.db, func(tx pgx.Tx) error {
-		if err := store.MarkDeleting(ctx, tx, accountID); err != nil {
+		var err error
+		if marked, err = mark(tx); err != nil || !marked {
 			return err
 		}
 		return store.ClearAccount(ctx, tx, accountID)
 	})
-	if err != nil {
-		return err
+	if err != nil || !marked {
+		return false, err
 	}
 	if err := d.Finish(ctx, accountID, uid); err != nil {
-		return &Unfinished{err: err}
+		return true, &Unfinished{err: err}
 	}
-	return nil
+	return true, nil
 }
 
 // Finish does steps 2 to 4 of the deletion of a marked account (R21;

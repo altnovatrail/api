@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -368,5 +369,75 @@ func TestAFailureOfFinishIsItsStep(t *testing.T) {
 	err = deletion.New(f.pool, stuck{Rights: f.rights, read: true}, f.signin).Finish(t.Context(), f.account, f.uid)
 	if !errors.Is(err, authntest.ErrFailed) || !errors.Is(err, errDown) {
 		t.Errorf("Finish with both failing = %v, want both", err)
+	}
+}
+
+// The daily job deletes an account after 12 months without a request, the same
+// way and with no fresh sign-in, and only when the term holds under the lock
+// (П-9).
+func TestAnIdleAccountIsDeletedOnlyWhenIdle(t *testing.T) {
+	t.Parallel()
+
+	f := newFamily(t)
+	d := deletion.New(f.pool, f.rights, f.signin)
+	yearAgo := time.Now().UTC().AddDate(-1, 0, 0)
+	// The family made a request today: nothing is done.
+	if done, err := d.IdleAccount(t.Context(), f.account, f.uid, yearAgo); err != nil || done {
+		t.Fatalf("IdleAccount of an active account = %v, %v; want nothing done", done, err)
+	}
+	if f.count(t, "accounts WHERE deleting_at IS NULL") != 1 || f.count(t, "profiles") != 2 || len(f.signin.Removed()) != 0 {
+		t.Fatal("the active account changed")
+	}
+	if _, err := f.pool.Exec(t.Context(), `UPDATE accounts SET last_request_on = $1`, yearAgo.AddDate(0, 0, -1)); err != nil {
+		t.Fatal(err)
+	}
+	if done, err := d.IdleAccount(t.Context(), f.account, f.uid, yearAgo); err != nil || !done {
+		t.Fatalf("IdleAccount = %v, %v; want it deleted", done, err)
+	}
+	f.gone(t)
+
+	// What does not finish after the database is unfinished, as with a request.
+	g := newFamily(t)
+	if _, err := g.pool.Exec(t.Context(), `UPDATE accounts SET last_request_on = $1`, yearAgo.AddDate(0, 0, -1)); err != nil {
+		t.Fatal(err)
+	}
+	g.signin.FailRemoveUser()
+	done, err := deletion.New(g.pool, g.rights, g.signin).IdleAccount(t.Context(), g.account, g.uid, yearAgo)
+	var unfinished *deletion.Unfinished
+	if !done || !errors.As(err, &unfinished) || g.count(t, "accounts WHERE deleting_at IS NOT NULL") != 1 {
+		t.Errorf("IdleAccount with the user stuck = %v, %v; want unfinished, the mark left", done, err)
+	}
+}
+
+// The daily job deletes a profile after 12 months without activity, and only
+// when the term holds under the lock (П-9).
+func TestAnIdleProfileIsDeletedOnlyWhenIdle(t *testing.T) {
+	t.Parallel()
+
+	f := newFamily(t)
+	d := deletion.New(f.pool, f.rights, f.signin)
+	yearAgo := time.Now().UTC().AddDate(-1, 0, 0)
+	if done, err := d.IdleProfile(t.Context(), f.account, f.child, yearAgo); err != nil || done {
+		t.Fatalf("IdleProfile of an active profile = %v, %v; want nothing done", done, err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `UPDATE profiles SET active_on = $2 WHERE id = $1`, f.child, yearAgo.AddDate(0, 0, -1)); err != nil {
+		t.Fatal(err)
+	}
+	if done, err := d.IdleProfile(t.Context(), f.account, f.child, yearAgo); err != nil || !done {
+		t.Fatalf("IdleProfile = %v, %v; want it deleted", done, err)
+	}
+	if f.count(t, "profiles WHERE id = $1", f.child) != 0 || f.count(t, "child_consent_records WHERE id = $1", f.childConsent) != 1 {
+		t.Error("the idle child's profile did not go, with its minimal record kept")
+	}
+	if owned := f.owns(t); !slices.Equal(owned, []string{f.owner}) {
+		t.Errorf("tuples = %v, want the owner's alone", owned)
+	}
+	if _, err := f.pool.Exec(t.Context(), `UPDATE profiles SET active_on = $2 WHERE id = $1`, f.owner, yearAgo.AddDate(0, 0, -1)); err != nil {
+		t.Fatal(err)
+	}
+	done, err := deletion.New(f.pool, stuck{Rights: f.rights, delete: true}, f.signin).IdleProfile(t.Context(), f.account, f.owner, yearAgo)
+	var unfinished *deletion.Unfinished
+	if !done || !errors.As(err, &unfinished) {
+		t.Errorf("IdleProfile with its tuple stuck = %v, %v; want unfinished", done, err)
 	}
 }

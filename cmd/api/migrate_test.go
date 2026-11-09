@@ -13,11 +13,17 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// serve's tests have no Firebase project: the sign-in service is a fake, and
-	// the project "broken" one that does not open.
+	// serve's and sweep's tests have no Firebase project: the sign-in service is a
+	// fake, the project "broken" one that does not open, and "unlisted" one whose
+	// users cannot be listed.
 	newSignin = func(_ context.Context, o authn.Options) (authn.Port, error) {
-		if o.ProjectID == "broken" {
+		switch o.ProjectID {
+		case "broken":
 			return nil, errors.New("the test's sign-in service does not open")
+		case "unlisted":
+			failing := &authntest.Fake{}
+			failing.FailUsers()
+			return failing, nil
 		}
 		return &authntest.Fake{}, nil
 	}
