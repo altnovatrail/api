@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/altnovatrail/api/internal/pin"
 	"github.com/altnovatrail/api/internal/store"
 	"github.com/altnovatrail/api/internal/store/storetest"
 )
@@ -98,5 +99,44 @@ func TestAFailedStatementIsAFailure(t *testing.T) {
 		if _, err := store.AccountView(t.Context(), &flaky{Pool: pool, failOn: failOn}, id); !errors.Is(err, errDown) {
 			t.Errorf("AccountView failing on %q = %v, want the failure", failOn, err)
 		}
+	}
+}
+
+// A statement of the PIN or of a key that fails is the store's failure.
+func TestAFailedStatementOfThePINIsAFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	id := account(t, pool)
+	for _, tc := range []struct {
+		failOn string
+		run    func(tx pgx.Tx) error
+	}{
+		{"FOR NO KEY UPDATE", func(tx pgx.Tx) error {
+			_, err := store.HoldPin(t.Context(), tx, id)
+			return err
+		}},
+		{"FROM idempotency_keys", func(tx pgx.Tx) error {
+			_, _, err := store.RecordOf(t.Context(), tx, id, "k")
+			return err
+		}},
+		{"INSERT INTO idempotency_keys", func(tx pgx.Tx) error {
+			return store.RecordDone(t.Context(), tx, id, "k", "m", "f", []byte{})
+		}},
+		{"SET pin_hash", func(tx pgx.Tx) error {
+			return store.WritePin(t.Context(), tx, id, pin.State{Hash: "h"})
+		}},
+	} {
+		err := pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: tc.failOn}, tc.run)
+		if !errors.Is(err, errDown) {
+			t.Errorf("failing on %q = %v, want the failure", tc.failOn, err)
+		}
+	}
+	err := pgx.BeginFunc(t.Context(), pool, func(tx pgx.Tx) error {
+		_, err := store.HoldPin(t.Context(), tx, "00000000-0000-0000-0000-000000000000")
+		return err
+	})
+	if !errors.Is(err, store.ErrNoAccount) {
+		t.Errorf("HoldPin of no account = %v, want ErrNoAccount", err)
 	}
 }
