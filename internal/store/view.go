@@ -82,18 +82,12 @@ func AccountView(ctx context.Context, db TxBeginner, accountID string) (View, er
 }
 
 func profiles(ctx context.Context, tx pgx.Tx, accountID string) ([]Profile, error) {
-	rows, err := tx.Query(ctx, `SELECT id, owner, pseudonym, avatar, age_category, country, voicing_enabled,
-			voicing_speed, default_mode, interface_language, grade, ask_before_showing
+	rows, err := tx.Query(ctx, `SELECT `+profileColumns+`
 		FROM profiles WHERE account_id = $1 ORDER BY owner DESC, created_at, id`, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the profiles: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Profile, error) {
-		var p Profile
-		err := row.Scan(&p.ID, &p.Owner, &p.Pseudonym, &p.Avatar, &p.AgeCategory, &p.Country, &p.VoicingEnabled,
-			&p.VoicingSpeed, &p.DefaultMode, &p.InterfaceLanguage, &p.Grade, &p.AskBeforeShowing)
-		return p, err
-	})
+	list, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Profile, error) { return scanProfile(row) })
 	if err != nil {
 		return nil, fmt.Errorf("store: read the profiles: %w", err)
 	}

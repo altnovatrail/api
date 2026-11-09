@@ -1,6 +1,6 @@
 // Package account is api's AccountService of the contract novatrail.api.v1: the
 // account and its invite code, and, task by task, its PIN, profiles and
-// deletion (R04, R34, R35). Its methods run after the checks of architecture 3.1,
+// deletion (R04, R34, R35, R36). Its methods run after the checks of architecture 3.1,
 // which give them the caller (rpc.CallerFrom); a method it has no handler for
 // yet answers unimplemented.
 package account
@@ -22,8 +22,14 @@ import (
 // Service is the AccountService on the database api.
 type Service struct {
 	apiv1connect.UnimplementedAccountServiceHandler
-	db  rpc.DB
-	now func() time.Time
+	db     rpc.DB
+	owners Owners
+	now    func() time.Time
+}
+
+// Owners is what writes the tuple of a profile it makes: authz.Rights.
+type Owners interface {
+	WriteOwner(ctx context.Context, accountID, profileID string) error
 }
 
 // Option is a choice of New's that a test makes.
@@ -32,9 +38,10 @@ type Option func(*Service)
 // WithClock is the clock the PIN's count goes by, the system's by default.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
-// New is the AccountService on db.
-func New(db rpc.DB, options ...Option) *Service {
-	s := &Service{db: db, now: time.Now}
+// New is the AccountService on db, writing the tuples of the profiles it makes
+// to owners.
+func New(db rpc.DB, owners Owners, options ...Option) *Service {
+	s := &Service{db: db, owners: owners, now: time.Now}
 	for _, option := range options {
 		option(s)
 	}

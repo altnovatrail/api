@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,10 +40,34 @@ func TestMain(m *testing.M) { os.Exit(storetest.Main(m)) }
 // the test's own and a fake sign-in service.
 type world struct {
 	pool   *pgxpool.Pool
+	rights *authz.Rights
 	signin *authntest.Fake
 	client apiv1connect.AccountServiceClient
 	clock  *clock
 	log    *syncBuffer
+	// ownerFails makes the writing of a tuple fail.
+	ownerFails atomic.Bool
+}
+
+// owners is the rights the handlers write the tuples to, which fail when the
+// test says.
+type owners struct {
+	*authz.Rights
+	w *world
+}
+
+var errOwner = errors.New("the test's store of rights does not write")
+
+func (o owners) WriteOwner(ctx context.Context, accountID, profileID string) error {
+	if o.w.ownerFails.Load() {
+		return errOwner
+	}
+	return o.Rights.WriteOwner(ctx, accountID, profileID)
+}
+
+func (w *world) owners(rights *authz.Rights) owners {
+	w.rights = rights
+	return owners{Rights: rights, w: w}
 }
 
 // clock is the time the handlers go by, which a test moves.
@@ -98,7 +123,7 @@ func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	}
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(db, account.WithClock(w.clock.Now))})
+		rpc.Handlers{Account: account.New(db, w.owners(rights), account.WithClock(w.clock.Now))})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	w.client = apiv1connect.NewAccountServiceClient(connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL)))

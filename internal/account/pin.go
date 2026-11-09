@@ -21,7 +21,7 @@ import (
 // SetPin sets the PIN of the section for adults, while the account has none.
 func (s *Service) SetPin(ctx context.Context, req *v1.SetPinRequest) (*v1.SetPinResponse, error) {
 	if !pin.Valid(req.GetPin()) {
-		return nil, malformedPin("pin")
+		return nil, malformed("pin")
 	}
 	hash := pin.Hash(req.GetPin())
 	return once(ctx, s, apiv1connect.AccountServiceSetPinProcedure, req, func(state *pin.State, _ time.Time) (*v1.SetPinResponse, error) {
@@ -36,7 +36,7 @@ func (s *Service) SetPin(ctx context.Context, req *v1.SetPinRequest) (*v1.SetPin
 // VerifyPin checks a PIN: a wrong one counts toward closing the input.
 func (s *Service) VerifyPin(ctx context.Context, req *v1.VerifyPinRequest) (*v1.VerifyPinResponse, error) {
 	if !pin.Valid(req.GetPin()) {
-		return nil, malformedPin("pin")
+		return nil, malformed("pin")
 	}
 	return once(ctx, s, apiv1connect.AccountServiceVerifyPinProcedure, req, func(state *pin.State, now time.Time) (*v1.VerifyPinResponse, error) {
 		check, err := try(ctx, state, req.GetPin(), now)
@@ -51,10 +51,10 @@ func (s *Service) VerifyPin(ctx context.Context, req *v1.VerifyPinRequest) (*v1.
 // counts it; a wrong one changes nothing.
 func (s *Service) ChangePin(ctx context.Context, req *v1.ChangePinRequest) (*v1.ChangePinResponse, error) {
 	if !pin.Valid(req.GetPin()) {
-		return nil, malformedPin("pin")
+		return nil, malformed("pin")
 	}
 	if !pin.Valid(req.GetNewPin()) {
-		return nil, malformedPin("new_pin")
+		return nil, malformed("new_pin")
 	}
 	hash := pin.Hash(req.GetNewPin())
 	return once(ctx, s, apiv1connect.AccountServiceChangePinProcedure, req, func(state *pin.State, now time.Time) (*v1.ChangePinResponse, error) {
@@ -74,7 +74,7 @@ func (s *Service) ChangePin(ctx context.Context, req *v1.ChangePinRequest) (*v1.
 // the input.
 func (s *Service) ResetPin(ctx context.Context, req *v1.ResetPinRequest) (*v1.ResetPinResponse, error) {
 	if !pin.Valid(req.GetNewPin()) {
-		return nil, malformedPin("new_pin")
+		return nil, malformed("new_pin")
 	}
 	hash := pin.Hash(req.GetNewPin())
 	return once(ctx, s, apiv1connect.AccountServiceResetPinProcedure, req, func(state *pin.State, _ time.Time) (*v1.ResetPinResponse, error) {
@@ -101,10 +101,6 @@ func try(ctx context.Context, state *pin.State, given string, now time.Time) (*v
 	}
 	return out, nil
 }
-
-// malformedPin is a field of the PIN whose form the contract refuses. Its
-// message names the field, never the value.
-func malformedPin(field string) error { return connect.NewError(connect.CodeInvalidArgument, field) }
 
 // keyed is a request that carries an idempotency key.
 type keyed interface {

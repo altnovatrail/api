@@ -140,3 +140,56 @@ func TestAFailedStatementOfThePINIsAFailure(t *testing.T) {
 		t.Errorf("HoldPin of no account = %v, want ErrNoAccount", err)
 	}
 }
+
+// A statement of a profile or of the countries that fails is the store's failure.
+func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	id := account(t, pool)
+	p := store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"}
+	for _, tc := range []struct {
+		failOn string
+		run    func(tx pgx.Tx) error
+	}{
+		{"INSERT INTO profiles", func(tx pgx.Tx) error {
+			_, err := store.CreateOwnerProfile(t.Context(), tx, id, p)
+			return err
+		}},
+		{"INSERT INTO consents", func(tx pgx.Tx) error {
+			_, err := store.CreateOwnerProfile(t.Context(), tx, id, p)
+			return err
+		}},
+		{"FOR UPDATE", func(tx pgx.Tx) error {
+			_, err := store.ProfileFor(t.Context(), tx, id, "00000000-0000-0000-0000-000000000000")
+			return err
+		}},
+		{"UPDATE profiles", func(tx pgx.Tx) error { return store.WriteProfile(t.Context(), tx, p) }},
+		{"AND owner", func(tx pgx.Tx) error {
+			_, err := store.HasOwnerProfile(t.Context(), tx, id)
+			return err
+		}},
+		{"accepted_countries", func(tx pgx.Tx) error {
+			_, err := store.CountryAccepted(t.Context(), tx, "US")
+			return err
+		}},
+		{"accepted_countries", func(tx pgx.Tx) error {
+			_, err := store.AllowCountry(t.Context(), tx, "US")
+			return err
+		}},
+		{"accepted_countries", func(tx pgx.Tx) error {
+			_, err := store.RemoveCountry(t.Context(), tx, "US")
+			return err
+		}},
+		{"accepted_countries", func(tx pgx.Tx) error {
+			_, err := store.Countries(t.Context(), tx)
+			return err
+		}},
+		{"SET active_on", func(tx pgx.Tx) error { return store.TouchProfile(t.Context(), tx, id) }},
+	} {
+		err := pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: tc.failOn}, tc.run)
+		if !errors.Is(err, errDown) {
+			t.Errorf("failing on %q = %v, want the failure", tc.failOn, err)
+		}
+	}
+}

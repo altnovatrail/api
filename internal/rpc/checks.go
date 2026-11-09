@@ -192,12 +192,18 @@ func (s *checked) Receive(msg any) error {
 	}
 	// Read after the right, never before: a tuple whose profile is gone — a
 	// dangling one (R21) — gives a right to nothing.
-	there, err := store.ProfileOf(s.ctx, s.checks.db, s.caller.AccountID, profileID)
+	there, activeOn, err := store.ProfileOf(s.ctx, s.checks.db, s.caller.AccountID, profileID)
 	if err != nil {
 		return Failed(s.ctx, err)
 	}
 	if !there {
 		return noProfile(s.ctx)
+	}
+	// A request on the profile is its activity, written once a day (П-9; R36).
+	if !store.TodayByUTC(activeOn, s.checks.now()) {
+		if err := store.TouchProfile(s.ctx, s.checks.db, profileID); err != nil {
+			return Failed(s.ctx, err)
+		}
 	}
 	if s.rule.fresh && !authn.Fresh(s.caller.AuthTime, s.checks.now()) {
 		return freshSignInNeeded(s.ctx)

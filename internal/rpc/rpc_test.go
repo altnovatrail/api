@@ -586,3 +586,40 @@ func TestAPanicOfAHandlerHasItsLine(t *testing.T) {
 		t.Errorf("the log of a panic:\n%s", log2)
 	}
 }
+
+// A request on a profile is its activity, written once a day.
+func TestARequestOnAProfileTouchesIt(t *testing.T) {
+	w := newWorld(t, time.Second)
+	p := w.person(t, "uid-touch-profile")
+	if _, err := w.pool.Exec(t.Context(), `UPDATE profiles SET active_on = DATE '2026-01-01' WHERE id = $1`, p.profileID); err != nil {
+		t.Fatal(err)
+	}
+	version := func() string {
+		t.Helper()
+		var xmin string
+		if err := w.pool.QueryRow(t.Context(), `SELECT xmin::text FROM profiles WHERE id = $1`, p.profileID).Scan(&xmin); err != nil {
+			t.Fatal(err)
+		}
+		return xmin
+	}
+	for range 2 {
+		if _, err := w.client.UpdateProfile(as(t, p.token), &v1.UpdateProfileRequest{ProfileId: p.profileID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var today bool
+	if err := w.pool.QueryRow(t.Context(),
+		`SELECT active_on = (now() AT TIME ZONE 'UTC')::date FROM profiles WHERE id = $1`, p.profileID).Scan(&today); err != nil {
+		t.Fatal(err)
+	}
+	if !today {
+		t.Error("the date of the profile's activity is not today")
+	}
+	before := version()
+	if _, err := w.client.UpdateProfile(as(t, p.token), &v1.UpdateProfileRequest{ProfileId: p.profileID}); err != nil {
+		t.Fatal(err)
+	}
+	if version() != before {
+		t.Error("a second request of the day wrote the profile's date again")
+	}
+}

@@ -1,8 +1,8 @@
 // Command api is NovaTrail's platform service, one binary with a command for
-// each thing it is run for: serve, migrate, invite and version. The image it
-// runs in has no shell, so whatever an operator runs — the migrations as a job,
-// an invite code from a terminal of their own (R34) — is a command of this
-// binary too (R105 spec).
+// each thing it is run for: serve, migrate, invite, countries and version. The
+// image it runs in has no shell, so whatever an operator runs — the migrations
+// as a job, an invite code from a terminal of their own (R34), the list of
+// countries (R36) — is a command of this binary too (R105 spec).
 package main
 
 import (
@@ -32,6 +32,7 @@ Commands:
   serve     serve the API until a stop is asked for
   migrate   apply the migrations of the databases api and openfga
   invite    make an invite code and print it, once
+  countries list, allow or remove a country learners come from
   version   print the build of this binary
 `
 
@@ -60,10 +61,11 @@ func signalled() (context.Context, context.CancelFunc) {
 // commands are the binary's commands, by name. Each takes the arguments after
 // its name and the process's environment and streams.
 var commands = map[string]func(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error{
-	"serve":   serve,
-	"migrate": migrate,
-	"invite":  createInvite,
-	"version": printVersion,
+	"serve":     serve,
+	"migrate":   migrate,
+	"invite":    createInvite,
+	"countries": listCountries,
+	"version":   printVersion,
 }
 
 // run runs the command args name and returns the code to exit with.

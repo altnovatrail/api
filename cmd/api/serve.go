@@ -44,7 +44,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
-	deps, closeDeps, err := open(ctx, opens)
+	deps, handlers, closeDeps, err := open(ctx, opens)
 	if err != nil {
 		var fields []any
 		if failed := (*openFailed)(nil); errors.As(err, &failed) {
@@ -58,7 +58,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	defer closeWithin(cfg.CloseTimeout(), closeDeps)
 	deps.Log, deps.RequestTimeout = log, cfg.RequestTimeout
 	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
-		rpc.Mount(mux, rpc.NewServer(deps, rpc.Handlers{Account: account.New(deps.DB)}))
+		rpc.Mount(mux, rpc.NewServer(deps, handlers))
 	})
 
 	// The port is taken before the service says it has started, so that a port
@@ -159,9 +159,9 @@ func (o *openFailed) fields() []any {
 // open opens what the requests run on (R29, R31, R32): the database api through
 // the pooler, checked by a ping so that a wrong string fails the start and not
 // the first request; the rights, which find their store and model or refuse;
-// and the port to the sign-in service. What opened before a failure is closed;
-// close closes the rest.
-func open(ctx context.Context, opens *config.Serve) (rpc.Deps, func(), error) {
+// and the port to the sign-in service, with the handlers on them. What opened
+// before a failure is closed; close closes the rest.
+func open(ctx context.Context, opens *config.Serve) (rpc.Deps, rpc.Handlers, func(), error) {
 	pool, err := store.Open(ctx, opens.DatabaseURL.Reveal())
 	if err == nil {
 		if err = pool.Ping(ctx); err != nil {
@@ -169,12 +169,12 @@ func open(ctx context.Context, opens *config.Serve) (rpc.Deps, func(), error) {
 		}
 	}
 	if err != nil {
-		return rpc.Deps{}, nil, &openFailed{database: logging.DatabaseAPI, err: err}
+		return rpc.Deps{}, rpc.Handlers{}, nil, &openFailed{database: logging.DatabaseAPI, err: err}
 	}
 	rights, err := authz.Open(ctx, opens.OpenFGADatabaseURL.Reveal())
 	if err != nil {
 		pool.Close()
-		return rpc.Deps{}, nil, &openFailed{database: logging.DatabaseOpenFGA, err: err}
+		return rpc.Deps{}, rpc.Handlers{}, nil, &openFailed{database: logging.DatabaseOpenFGA, err: err}
 	}
 	signin, err := newSignin(ctx, authn.Options{
 		ProjectID:   opens.FirebaseProjectID,
@@ -183,13 +183,15 @@ func open(ctx context.Context, opens *config.Serve) (rpc.Deps, func(), error) {
 	if err != nil {
 		rights.Close()
 		pool.Close()
-		return rpc.Deps{}, nil, &openFailed{err: err}
+		return rpc.Deps{}, rpc.Handlers{}, nil, &openFailed{err: err}
 	}
 	closeAll := func() {
 		rights.Close()
 		pool.Close()
 	}
-	return rpc.Deps{Signin: signin, DB: pool, Rights: rights}, closeAll, nil
+	// The handlers write the tuples of the profiles they make (R31).
+	handlers := rpc.Handlers{Account: account.New(pool, rights)}
+	return rpc.Deps{Signin: signin, DB: pool, Rights: rights}, handlers, closeAll, nil
 }
 
 // closeWithin runs closeAll, and waits for it no longer than timeout: a process on
