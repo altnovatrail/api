@@ -17,6 +17,10 @@ const (
 	local  = "postgresql://postgres:postgres@127.0.0.1:5432/api?sslmode=disable"
 )
 
+// rights is the string of the database openfga every case below gives, so that a
+// refusal is the one of the string the case is about.
+const rights = "API_MIGRATE_OPENFGA_DATABASE_URL=postgresql://api:not-a-password@ep-example-123456.us-east-1.aws.neon.tech/openfga?sslmode=verify-full"
+
 func TestMigrateReadsTheDirectConnectionString(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +38,7 @@ func TestMigrateReadsTheDirectConnectionString(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := config.MigrateFrom(append(tc.environ, "API_LOG_LEVEL=warn"))
+			cfg, err := config.MigrateFrom(append(tc.environ, "API_LOG_LEVEL=warn", rights))
 			if err != nil {
 				t.Fatalf("MigrateFrom error = %v, want nil", err)
 			}
@@ -52,7 +56,7 @@ func TestMigrateReadsTheStringFromAFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(remote+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.MigrateFrom([]string{"API_MIGRATE_DATABASE_URL_FILE=" + path})
+	cfg, err := config.MigrateFrom([]string{"API_MIGRATE_DATABASE_URL_FILE=" + path, rights})
 	if err != nil {
 		t.Fatalf("MigrateFrom error = %v, want nil", err)
 	}
@@ -69,6 +73,7 @@ func TestMigrateRefusals(t *testing.T) {
 		name    string
 		environ []string
 	}{
+		// No environment at all leaves the string of the rights out too.
 		{"unset", nil},
 		{"not a URL", []string{"API_MIGRATE_DATABASE_URL=host=ep-example dbname=api"}},
 		{"another scheme", []string{"API_MIGRATE_DATABASE_URL=mysql://u:not-a-password@ep-example/api"}},
@@ -87,7 +92,11 @@ func TestMigrateRefusals(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := config.MigrateFrom(tc.environ)
+			environ := tc.environ
+			if tc.environ != nil {
+				environ = append(environ, rights)
+			}
+			_, err := config.MigrateFrom(environ)
 			if !errors.Is(err, config.ErrInvalid) {
 				t.Fatalf("MigrateFrom error = %v, want %v", err, config.ErrInvalid)
 			}
@@ -98,5 +107,28 @@ func TestMigrateRefusals(t *testing.T) {
 				t.Errorf("error %q holds the connection string", err)
 			}
 		})
+	}
+}
+
+// The string of the database openfga is read and checked as api's is.
+func TestMigrateReadsTheStringOfTheRights(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := config.MigrateFrom([]string{"API_MIGRATE_DATABASE_URL=" + remote, rights})
+	if err != nil {
+		t.Fatalf("MigrateFrom error = %v, want nil", err)
+	}
+	if !strings.HasSuffix(cfg.OpenFGADatabaseURL.Reveal(), "/openfga?sslmode=verify-full") {
+		t.Error("the string of the rights is not the one given")
+	}
+	for _, environ := range [][]string{
+		{"API_MIGRATE_DATABASE_URL=" + remote},
+		{"API_MIGRATE_DATABASE_URL=" + remote, strings.Replace(rights, "verify-full", "require", 1)},
+	} {
+		_, err := config.MigrateFrom(environ)
+		if !errors.Is(err, config.ErrInvalid) || !strings.Contains(err.Error(), "API_MIGRATE_OPENFGA_DATABASE_URL") ||
+			strings.Contains(err.Error(), "not-a-password") {
+			t.Errorf("MigrateFrom(%d variables) error = %v, want a refusal naming the string of the rights", len(environ), err)
+		}
 	}
 }

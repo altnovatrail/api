@@ -62,20 +62,6 @@ func runCommand(ctx context.Context, environ []string, args ...string) (int, str
 	return code, stdout.String(), stderr.String()
 }
 
-// freePort is a port nothing listens on, as far as the kernel knows now.
-func freePort(t *testing.T) string {
-	t.Helper()
-
-	var lc net.ListenConfig
-	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	return port
-}
-
 func TestTheCommandLine(t *testing.T) {
 	t.Parallel()
 
@@ -135,13 +121,25 @@ func TestAWrongConfigurationIsRefusedBeforeTheLog(t *testing.T) {
 func TestServeStartsServesAndStops(t *testing.T) {
 	t.Parallel()
 
-	port := freePort(t)
+	// Port 0: the kernel picks a free one, which the startup line names, so that no
+	// test beside this one — nor PostgreSQL — can take it in between.
 	ctx, stop := context.WithCancel(t.Context())
 	var stdout, stderr syncBuffer
 	exited := make(chan int, 1)
-	go func() { exited <- run(ctx, []string{"serve"}, []string{"PORT=" + port}, &stdout, &stderr) }()
+	go func() { exited <- run(ctx, []string{"serve"}, []string{"PORT=0"}, &stdout, &stderr) }()
 
 	deadline := time.Now().Add(5 * time.Second)
+	port := ""
+	for port == "" {
+		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
+			port = fmt.Sprint(lines[0]["port"])
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the service wrote no startup line: %s", stdout.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	for {
 		answer, err := http.Get("http://127.0.0.1:" + port + "/health")
 		if err == nil {
@@ -225,7 +223,7 @@ func TestAStopBeforeTheStartIsNoFailure(t *testing.T) {
 	ctx, stop := context.WithCancel(t.Context())
 	stop()
 	var stdout, stderr syncBuffer
-	if code := run(ctx, []string{"serve"}, []string{"PORT=" + freePort(t)}, &stdout, &stderr); code != exitOK {
+	if code := run(ctx, []string{"serve"}, []string{"PORT=0"}, &stdout, &stderr); code != exitOK {
 		t.Errorf("exit code = %d, want 0; log %s", code, stdout.String())
 	}
 	lines := stdout.lines(t)

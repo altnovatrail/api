@@ -35,8 +35,9 @@ const (
 	EventFailure = "failure"
 	// EventPanic is a panic a handler raised and the server recovered.
 	EventPanic = "panic"
-	// EventMigrated is the line that says the migrations ran: how many it applied,
-	// and the version the schema is at.
+	// EventMigrated is the line that says the migrations of a database ran: how many
+	// it applied, the version the schema is at, and, for the rights', whether it
+	// made the store and wrote the model.
 	EventMigrated = "migrated"
 )
 
@@ -58,6 +59,9 @@ const (
 	FieldPanicKind     = "panic_kind"
 	FieldApplied       = "applied"
 	FieldSchemaVersion = "schema_version"
+	FieldDatabase      = "database"
+	FieldStoreCreated  = "store_created"
+	FieldModelWritten  = "model_written"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -72,15 +76,21 @@ const (
 	MomentMigrate  = "migrate"
 )
 
+// The databases api migrates: the value set of FieldDatabase.
+const (
+	DatabaseAPI     = "api"
+	DatabaseOpenFGA = "openfga"
+)
+
 // events is every event and the fields it may carry.
 var events = map[string][]string{
 	EventStartup:  {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed},
 	EventStopping: {},
 	EventStopped:  {FieldCutShort},
 	EventShutdown: {FieldStarted},
-	EventFailure:  {FieldMoment, FieldErrorKind},
+	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase},
 	EventPanic:    {FieldPanicKind},
-	EventMigrated: {FieldApplied, FieldSchemaVersion},
+	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -108,6 +118,9 @@ var fields = map[string]rule{
 	FieldPanicKind:     {kind: slog.KindLogValuer},
 	FieldApplied:       {kind: slog.KindInt64},
 	FieldSchemaVersion: {kind: slog.KindInt64},
+	FieldDatabase:      {kind: slog.KindString, values: []string{DatabaseAPI, DatabaseOpenFGA}},
+	FieldStoreCreated:  {kind: slog.KindBool},
+	FieldModelWritten:  {kind: slog.KindBool},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a

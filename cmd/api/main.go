@@ -29,7 +29,7 @@ const usage = `Usage: api <command>
 
 Commands:
   serve     serve the API until a stop is asked for
-  migrate   apply the migrations of the database api
+  migrate   apply the migrations of the databases api and openfga
   version   print the build of this binary
 `
 

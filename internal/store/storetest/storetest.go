@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -41,15 +42,22 @@ const version = embeddedpostgres.V17
 // reads from the same release while it runs (amendment of 2026-11-02 to R05).
 const supervisorPackage = "github.com/fergusstrange/embedded-postgres/v2/cmd/embedded-postgres"
 
-// template is the database the migrations run in once, which each test's is a
-// copy of.
-const template = "api_template"
+// The databases the migrations run in once, which each test's is a copy of: the
+// database api's, and the rights' in the database openfga, with its store and model.
+const (
+	template        = "api_template"
+	openfgaTemplate = "openfga_template"
+)
 
 var (
 	// once starts the server for the first test that asks for a database, and
 	// started is how that went: a package whose tests ask for none starts none.
 	once    sync.Once
 	started error
+	// rightsOnce makes the template of the rights for the first test that asks for
+	// it, and rightsStarted is how that went.
+	rightsOnce    sync.Once
+	rightsStarted error
 	// work is the folder of the server and its supervisor, and postgres the
 	// server, which Main stops.
 	work     string
@@ -153,6 +161,26 @@ func identity(work string) error {
 	return nil
 }
 
+// startRights makes the template of the rights, once, for the first test that
+// asks for a database openfga: a package whose tests ask for none pays nothing for
+// OpenFGA's migrations, store and model.
+func startRights() error {
+	if err := start(); err != nil {
+		return err
+	}
+	rightsOnce.Do(func() {
+		ctx := context.Background()
+		if rightsStarted = exec1(ctx, "CREATE DATABASE "+openfgaTemplate); rightsStarted != nil {
+			rightsStarted = fmt.Errorf("create the template of the rights: %w", rightsStarted)
+			return
+		}
+		if _, err := authz.Migrate(ctx, at(openfgaTemplate)); err != nil {
+			rightsStarted = fmt.Errorf("migrate the template of the rights: %w", err)
+		}
+	})
+	return rightsStarted
+}
+
 // stop closes what start opened.
 func stop() {
 	if admin != nil {
@@ -176,17 +204,35 @@ func at(name string) string {
 	return u.String()
 }
 
-// URL is the connection string of a database of the test's own: migrated, as a
-// copy of the template, or empty, made from template0 with no migration. It is
+// URL is the connection string of a database api of the test's own: migrated, as
+// a copy of the template, or empty, made from template0 with no migration. It is
 // dropped when the test ends.
 func URL(t testing.TB, migrated bool) string {
+	t.Helper()
+	return database(t, template, migrated)
+}
+
+// OpenFGAURL is the connection string of a database openfga of the test's own:
+// migrated, with the store api and its model, or empty. It is dropped when the
+// test ends.
+func OpenFGAURL(t testing.TB, migrated bool) string {
+	t.Helper()
+	if err := startRights(); err != nil {
+		t.Fatalf("storetest: %v", err)
+	}
+	return database(t, openfgaTemplate, migrated)
+}
+
+// database is a copy of the template, or an empty database, dropped when the test
+// ends.
+func database(t testing.TB, migratedFrom string, migrated bool) string {
 	t.Helper()
 	if err := start(); err != nil {
 		t.Fatalf("storetest: %v", err)
 	}
 
 	name := fmt.Sprintf("test_%d", databases.Add(1))
-	from := template
+	from := migratedFrom
 	if !migrated {
 		from = "template0"
 	}

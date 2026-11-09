@@ -35,6 +35,9 @@ const (
 	// which migrate takes: a secret, read from the variable or from the file its
 	// twin with the suffix _FILE names (R29).
 	VarMigrateDatabaseURL = "API_MIGRATE_DATABASE_URL"
+	// VarMigrateOpenFGADatabaseURL is the direct connection string of the database
+	// openfga, the store of the rights, which migrate takes the same way (R31).
+	VarMigrateOpenFGADatabaseURL = "API_MIGRATE_OPENFGA_DATABASE_URL"
 )
 
 // declared is every variable the service reads. Nothing else the process
@@ -50,8 +53,10 @@ var declared = map[string]struct{}{
 	VarShutdownTimeout:   {},
 	VarService:           {},
 
-	VarMigrateDatabaseURL:              {},
-	VarMigrateDatabaseURL + fileSuffix: {},
+	VarMigrateDatabaseURL:                     {},
+	VarMigrateDatabaseURL + fileSuffix:        {},
+	VarMigrateOpenFGADatabaseURL:              {},
+	VarMigrateOpenFGADatabaseURL + fileSuffix: {},
 }
 
 // Defaults for every optional variable. They are named constants rather than
@@ -234,11 +239,17 @@ func (c *Config) validate() error {
 
 // validatePort refuses a port the server could not listen on, and one written
 // in any other way than plain digits: a sign or a leading zero would be read
-// as the same port and logged as something else.
+// as the same port and logged as something else. Port 0 asks the kernel for a
+// free port, which the startup line names; that is for this machine, where tests
+// run beside each other, and a deployment, where the platform names the port, is
+// refused it.
 func (c *Config) validatePort() error {
 	port, err := strconv.Atoi(c.Port)
-	if err != nil || port < 1 || port > 65535 || strconv.Itoa(port) != c.Port {
+	if err != nil || port < 0 || port > 65535 || strconv.Itoa(port) != c.Port {
 		return fmt.Errorf("%w: %s must be a number from 1 to 65535, got %q", ErrInvalid, VarPort, c.Port)
+	}
+	if port == 0 && c.Deployed() {
+		return fmt.Errorf("%w: %s must be a port from 1 to 65535 when %s is set, got 0", ErrInvalid, VarPort, VarService)
 	}
 	return nil
 }
