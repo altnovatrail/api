@@ -21,7 +21,7 @@ A component of [NovaTrail](https://github.com/altnovatrail/spec/tree/v0.9.11), a
 
 ## Status
 
-Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — has begun: the service serves the contract on Connect, every request with a token passes the checks before learner data, an owner with an invite code creates the account and reads it, sets the PIN of the section for adults, whose requests repeat by their idempotency keys, creates the profiles — the owner's, and a child's by a consent — changes their settings, and deletes a profile or the whole account by a fresh sign-in; a daily job finishes the deletions a request left and deletes what is past its term; the other methods answer `unimplemented` until the tasks that build them. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
+Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — is done, and has run on dev projects of Firebase and Neon: the service serves the contract on Connect, every request with a token passes the checks before learner data, an owner with an invite code creates the account and reads it, sets the PIN of the section for adults, whose requests repeat by their idempotency keys, creates the profiles — the owner's, and a child's by a consent — changes their settings, and deletes a profile or the whole account by a fresh sign-in; a daily job finishes the deletions a request left and deletes what is past its term; the other methods answer `unimplemented` until the tasks that build them. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
 
 ## Build and run
 
@@ -68,6 +68,26 @@ The binary reads its configuration from the environment, and only these variable
 `api sweep` is the daily job, one pass a run: it finishes the deletions of accounts a request left marked, deletes the accounts and profiles idle for more than 12 months, the users of the sign-in service with no account who have not been seen for 30 days, the dangling tuples, and the records of idempotency keys and the changelog of `openfga` older than a day. `-for` is how long the pass may run, `9m` by default; it stops between items after that. It reads what `serve` opens, and `API_REQUEST_TIMEOUT`; it logs a line for each step with its counts and nothing it did them to, and exits 1 unless the pass was clean, which the next pass picks up. A deployment runs it on a schedule as a Cloud Run job.
 
 A secret — a key, a token, a connection string — comes from its variable or from a file outside the repository whose absolute path the variable with the suffix `_FILE` names; a file inside a git working tree is refused. The log is JSON on stdout, and writes only the events and fields of its table, `internal/logging/events.go`: no identifier, address or content of a learner's work.
+
+## Run on the dev projects
+
+The first run is on dev projects of Firebase, on the Spark plan with Google sign-in, and of Neon, on the Free plan in `aws-us-east-1` with the databases `api` and `openfga` (R39). Their configuration lives outside the repository, in `/home/vscode/.novatrail-dev/`, a Docker volume the devcontainer mounts, which survives a rebuild: the service account's key as `key.json`, and `dev.env`, one `API_NAME=VALUE` a line, read as written and never run; no other name is taken:
+
+```sh
+# The pooler's strings, then the direct ones, each with sslmode=verify-full.
+API_DATABASE_URL=
+API_OPENFGA_DATABASE_URL=
+API_MIGRATE_DATABASE_URL=
+API_MIGRATE_OPENFGA_DATABASE_URL=
+API_FIREBASE_PROJECT_ID=
+API_FIREBASE_CREDENTIALS_FILE=/home/vscode/.novatrail-dev/key.json
+# The project's Web API key, which the recipe alone reads.
+API_DEV_WEB_API_KEY=
+```
+
+A comment is a line of its own: whatever follows `=` is the value.
+
+`just dev <command>` runs a command of the binary with that configuration — `just dev migrate`, `just dev invite`, `just dev serve`, `just dev sweep`. `just dev-check` goes the whole way: migrations, the country `US`, the server, an ID token of the test user `dev-author` by a custom token the service account's key signs, the account by an invite code, the owner's profile and the list of profiles, then a check that the log holds no UID, email, connection string or token. It prints no value of the configuration and puts none on a command line; a file inside a git working tree is refused. Both recipes build `bin/api` first.
 
 ## Documents
 
