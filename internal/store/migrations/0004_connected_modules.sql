@@ -7,7 +7,8 @@
 
 CREATE TABLE connected_modules (
     profile_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
-    module_id text NOT NULL CHECK (module_id <> ''),
+    -- An ID of a module is 1 to 128 characters long, by the schema of the format.
+    module_id text NOT NULL CHECK (char_length(module_id) BETWEEN 1 AND 128),
     connected_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (profile_id, module_id)
 );
