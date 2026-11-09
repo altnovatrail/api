@@ -1,9 +1,9 @@
 package account_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +41,44 @@ type world struct {
 	pool   *pgxpool.Pool
 	signin *authntest.Fake
 	client apiv1connect.AccountServiceClient
+	clock  *clock
+	log    *syncBuffer
+}
+
+// clock is the time the handlers go by, which a test moves.
+type clock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *clock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+// syncBuffer is the log, which the server writes from its goroutines.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // newWorld is the world; wrap, when given, is what the handlers see of its
@@ -53,14 +91,14 @@ func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 		t.Fatal(err)
 	}
 	t.Cleanup(rights.Close)
-	w := &world{pool: storetest.DB(t), signin: &authntest.Fake{}}
+	w := &world{pool: storetest.DB(t), signin: &authntest.Fake{}, clock: &clock{now: time.Now()}, log: &syncBuffer{}}
 	var db rpc.DB = w.pool
 	if len(wrap) > 0 {
 		db = wrap[0](w.pool)
 	}
-	log := logging.New(io.Discard, slog.LevelInfo)
+	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(db)})
+		rpc.Handlers{Account: account.New(db, account.WithClock(w.clock.Now))})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	w.client = apiv1connect.NewAccountServiceClient(connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL)))
@@ -74,8 +112,14 @@ func (w *world) signIn(t *testing.T, uid string) context.Context {
 
 	token := "token-" + uid
 	w.signin.Accept(token, authn.Token{UID: uid, AuthTime: time.Now()})
+	return as(t, uid)
+}
+
+// as is a context of its own whose calls carry the user's token: a call
+// writes into its context, so calls at once each take one.
+func as(t *testing.T, uid string) context.Context {
 	ctx, info := connect.NewClientContext(t.Context())
-	info.RequestHeader().Set("Authorization", "Bearer "+token)
+	info.RequestHeader().Set("Authorization", "Bearer token-"+uid)
 	return ctx
 }
 
@@ -90,26 +134,27 @@ func (w *world) code(t *testing.T) string {
 	return code
 }
 
-// refusedAs fails the test unless err is code with cause; CAUSE_UNSPECIFIED is an
-// error with no Refusal.
-func refusedAs(t *testing.T, err error, code connect.Code, cause v1.Cause) {
+// refusedAs fails the test unless err is code with cause, and returns its
+// Refusal; CAUSE_UNSPECIFIED is an error with no Refusal.
+func refusedAs(t *testing.T, err error, code connect.Code, cause v1.Cause) *v1.Refusal {
 	t.Helper()
 
 	var connectErr *connect.Error
 	if !errors.As(err, &connectErr) {
 		t.Fatalf("error = %v, want %v %v", err, code, cause)
 	}
-	got := v1.Cause_CAUSE_UNSPECIFIED
+	var refusal *v1.Refusal
 	for _, detail := range connectErr.Details() {
 		if msg, err := connectproto.UnmarshalErrorDetail(detail); err == nil {
 			if r, ok := msg.(*v1.Refusal); ok {
-				got = r.GetCause()
+				refusal = r
 			}
 		}
 	}
-	if connectErr.Code() != code || got != cause {
+	if got := refusal.GetCause(); connectErr.Code() != code || got != cause {
 		t.Fatalf("refusal = %v %v, want %v %v", connectErr.Code(), got, code, cause)
 	}
+	return refusal
 }
 
 func create(ctx context.Context, w *world, code string) (*v1.CreateAccountResponse, error) {

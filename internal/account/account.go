@@ -1,6 +1,6 @@
 // Package account is api's AccountService of the contract novatrail.api.v1: the
 // account and its invite code, and, task by task, its PIN, profiles and
-// deletion (R04, R34). Its methods run after the checks of architecture 3.1,
+// deletion (R04, R34, R35). Its methods run after the checks of architecture 3.1,
 // which give them the caller (rpc.CallerFrom); a method it has no handler for
 // yet answers unimplemented.
 package account
@@ -8,6 +8,7 @@ package account
 import (
 	"context"
 	"errors"
+	"time"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
@@ -21,11 +22,24 @@ import (
 // Service is the AccountService on the database api.
 type Service struct {
 	apiv1connect.UnimplementedAccountServiceHandler
-	db rpc.DB
+	db  rpc.DB
+	now func() time.Time
 }
 
+// Option is a choice of New's that a test makes.
+type Option func(*Service)
+
+// WithClock is the clock the PIN's count goes by, the system's by default.
+func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
+
 // New is the AccountService on db.
-func New(db rpc.DB) *Service { return &Service{db: db} }
+func New(db rpc.DB, options ...Option) *Service {
+	s := &Service{db: db, now: time.Now}
+	for _, option := range options {
+		option(s)
+	}
+	return s
+}
 
 // GetAccount gives the account of the caller: whether its PIN is set, its
 // profiles and its consents for a child with no profile. Open attempts and lesson
