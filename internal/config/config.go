@@ -239,11 +239,17 @@ func (c *Config) validate() error {
 
 // validatePort refuses a port the server could not listen on, and one written
 // in any other way than plain digits: a sign or a leading zero would be read
-// as the same port and logged as something else.
+// as the same port and logged as something else. Port 0 asks the kernel for a
+// free port, which the startup line names; that is for this machine, where tests
+// run beside each other, and a deployment, where the platform names the port, is
+// refused it.
 func (c *Config) validatePort() error {
 	port, err := strconv.Atoi(c.Port)
-	if err != nil || port < 1 || port > 65535 || strconv.Itoa(port) != c.Port {
+	if err != nil || port < 0 || port > 65535 || strconv.Itoa(port) != c.Port {
 		return fmt.Errorf("%w: %s must be a number from 1 to 65535, got %q", ErrInvalid, VarPort, c.Port)
+	}
+	if port == 0 && c.Deployed() {
+		return fmt.Errorf("%w: %s must be a port from 1 to 65535 when %s is set, got 0", ErrInvalid, VarPort, VarService)
 	}
 	return nil
 }

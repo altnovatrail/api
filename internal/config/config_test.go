@@ -148,7 +148,8 @@ func TestRefusals(t *testing.T) {
 		names   string
 	}{
 		{"port not a number", []string{"PORT=http"}, "PORT"},
-		{"port zero", []string{"PORT=0"}, "PORT"},
+		{"port zero deployed", []string{"PORT=0", "K_SERVICE=api"}, "PORT"},
+		{"a negative port", []string{"PORT=-1"}, "PORT"},
 		{"port too high", []string{"PORT=65536"}, "PORT"},
 		{"port with a sign", []string{"PORT=+8080"}, "PORT"},
 		{"port with a leading zero", []string{"PORT=08080"}, "PORT"},
@@ -189,5 +190,15 @@ func TestALocalShutdownMayBeLong(t *testing.T) {
 	}
 	if got, want := cfg.CloseTimeout(), 7500*time.Millisecond; got != want {
 		t.Errorf("CloseTimeout() = %v, want a quarter, %v", got, want)
+	}
+}
+
+// Port 0, on this machine, asks the kernel for a free port.
+func TestPortZeroIsAFreePortHere(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := config.LoadFrom([]string{"PORT=0"})
+	if err != nil || cfg.Port != "0" {
+		t.Errorf("LoadFrom(PORT=0) = %+v, %v; want the port 0", cfg, err)
 	}
 }

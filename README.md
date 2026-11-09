@@ -41,7 +41,7 @@ The binary reads its configuration from the environment, and only these variable
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `8080` | the port to listen on |
+| `PORT` | `8080` | the port to listen on; `0`, off a deployment, asks the kernel for a free one, which the `startup` line names |
 | `API_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `API_HTTP_READ_HEADER_TIMEOUT` | `5s` | how long a client may take to send its headers |
 | `API_HTTP_READ_TIMEOUT` | `30s` | how long a client may take to send its whole request |
