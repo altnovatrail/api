@@ -59,16 +59,18 @@ docker build --build-arg "VERSION=${version}" --build-arg "COMMIT=${commit}" --b
 # A string to the loopback needs no TLS (R29).
 postgres_image=postgres:17.11-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
 pg_port=55432
-postgres="$(docker run --detach --network host --env POSTGRES_PASSWORD=ci-only "$postgres_image" -p "$pg_port")"
+# A password of this run alone, so that none is written here.
+pg_password="$(openssl rand -hex 16)"
+postgres="$(docker run --detach --network host --env "POSTGRES_PASSWORD=${pg_password}" "$postgres_image" -p "$pg_port")"
 containers+=("$postgres")
 for _ in $(seq 100); do
     docker exec "$postgres" pg_isready --quiet --host 127.0.0.1 --port "$pg_port" && break
     sleep 0.3
 done
 for database in api openfga; do
-    docker exec --env PGPASSWORD=ci-only "$postgres" createdb --host 127.0.0.1 --port "$pg_port" --username postgres "$database"
+    docker exec --env "PGPASSWORD=${pg_password}" "$postgres" createdb --host 127.0.0.1 --port "$pg_port" --username postgres "$database"
 done
-database_url() { echo "postgres://postgres:ci-only@127.0.0.1:${pg_port}/$1?sslmode=disable"; }
+database_url() { echo "postgres://postgres:${pg_password}@127.0.0.1:${pg_port}/$1?sslmode=disable"; }
 
 # A service account's key of no project, made for this run: serve takes it, and calls nothing.
 key="$(jq --null-input --arg key "$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2> /dev/null)" '{
