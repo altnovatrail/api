@@ -21,7 +21,7 @@ A component of [NovaTrail](https://github.com/altnovatrail/spec/tree/v0.9.11), a
 
 ## Status
 
-Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — has begun: the service serves the contract on Connect, every request with a token passes the checks before learner data, an owner with an invite code creates the account and reads it, sets the PIN of the section for adults, whose requests repeat by their idempotency keys, creates the profiles — the owner's, and a child's by a consent — changes their settings, and deletes a profile or the whole account by a fresh sign-in; the other methods answer `unimplemented` until the tasks that build them. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
+Detailing is done. The first epic of [RUN.md](RUN.md) decided everything the component's card left open, and [docs/architecture.md](docs/architecture.md) now describes the service; the code epics it proposes are in RUN.md. The first, E2 — the skeleton, database, sign-in and deletion — has begun: the service serves the contract on Connect, every request with a token passes the checks before learner data, an owner with an invite code creates the account and reads it, sets the PIN of the section for adults, whose requests repeat by their idempotency keys, creates the profiles — the owner's, and a child's by a consent — changes their settings, and deletes a profile or the whole account by a fresh sign-in; a daily job finishes the deletions a request left and deletes what is past its term; the other methods answer `unimplemented` until the tasks that build them. Its first build with app, the first app, which the author alone runs locally, waits for this repository's skeleton, app's code and tutor's first code: the module format's code and content, the learner model and engine have released, and spec's contract between app and api is already out. E2 needs none of these, and spec's cross-repository plan lets it run now (RUN.md, table 1). No child learns here before verifiable parental consent and the contracts with AI providers are in place.
 
 ## Build and run
 
@@ -48,13 +48,14 @@ The binary reads its configuration from the environment, and only these variable
 | `API_HTTP_WRITE_TIMEOUT` | `60s` | how long the server may take to answer |
 | `API_HTTP_IDLE_TIMEOUT` | `120s` | how long an idle connection is kept |
 | `API_SHUTDOWN_TIMEOUT` | `9s` | the whole way out after a stop is asked for; under `10s` when deployed |
-| `API_REQUEST_TIMEOUT` | `30s` | the longest a request may run, under `API_HTTP_WRITE_TIMEOUT` |
-| `API_DATABASE_URL` | — | the pooler's connection string of the database `api`, with `sslmode=verify-full`; required by `serve`, `invite` and `countries` |
-| `API_OPENFGA_DATABASE_URL` | — | the pooler's connection string of `openfga`, the store of the rights; required by `serve` |
-| `API_FIREBASE_PROJECT_ID` | — | the Firebase project whose ID tokens are accepted; required by `serve` |
+| `API_REQUEST_TIMEOUT` | `30s` | the longest a request may run, under `API_HTTP_WRITE_TIMEOUT`; `sweep` leaves a mark or a tuple younger than that, so a job gets the value its service has |
+| `API_DATABASE_URL` | — | the pooler's connection string of the database `api`, with `sslmode=verify-full`; required by `serve`, `invite`, `countries` and `sweep` |
+| `API_OPENFGA_DATABASE_URL` | — | the pooler's connection string of `openfga`, the store of the rights; required by `serve` and `sweep` |
+| `API_FIREBASE_PROJECT_ID` | — | the Firebase project whose ID tokens are accepted and whose users `sweep` lists; required by `serve` and `sweep` |
 | `API_FIREBASE_CREDENTIALS` | — | a service account's key, required off a deployment and refused on one, where the service's own account is taken, with no key |
 | `API_APP_ORIGIN` | — | the exact origin of app, which CORS answers when api has an origin of its own |
 | `K_SERVICE` | — | set by Cloud Run; a deployment is known by it |
+| `CLOUD_RUN_JOB` | — | set by Cloud Run in a job; `sweep` deployed is known by it |
 
 `api serve` opens the database `api`, the rights and the sign-in service before it takes its port, and fails to start when one does not open. It serves the contract `novatrail.api.v1` on Connect, in binary protobuf and in JSON with the protobuf names, and logs a line for each request: its method, code, cause and time, and nothing of who asked.
 
@@ -63,6 +64,8 @@ The binary reads its configuration from the environment, and only these variable
 `api invite` makes one invite code of the closed slice and prints it on stdout, once: the database `api` keeps its SHA-256 alone, and the code lets one owner create an account. `-tariff` names the tariff the code passes to that account, `closed_slice` by default and the only one so far. It reads `API_LOG_LEVEL` and `API_DATABASE_URL`, and logs a failure on stderr, so that stdout holds the code alone. Run it from a terminal of the operator's own: a job's output is kept in its log, the code with it.
 
 `api countries list`, `api countries allow <XX>` and `api countries remove <XX>` keep the countries the deployment takes learners from, by ISO 3166-1 alpha-2. None is taken until it is allowed, and a country of the EU, the EEA or the United Kingdom is never allowed before the DPIA. It reads `API_LOG_LEVEL` and `API_DATABASE_URL`.
+
+`api sweep` is the daily job, one pass a run: it finishes the deletions of accounts a request left marked, deletes the accounts and profiles idle for more than 12 months, the users of the sign-in service with no account who have not been seen for 30 days, the dangling tuples, and the records of idempotency keys and the changelog of `openfga` older than a day. `-for` is how long the pass may run, `9m` by default; it stops between items after that. It reads what `serve` opens, and `API_REQUEST_TIMEOUT`; it logs a line for each step with its counts and nothing it did them to, and exits 1 unless the pass was clean, which the next pass picks up. A deployment runs it on a schedule as a Cloud Run job.
 
 A secret — a key, a token, a connection string — comes from its variable or from a file outside the repository whose absolute path the variable with the suffix `_FILE` names; a file inside a git working tree is refused. The log is JSON on stdout, and writes only the events and fields of its table, `internal/logging/events.go`: no identifier, address or content of a learner's work.
 

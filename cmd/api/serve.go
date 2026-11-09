@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
@@ -156,42 +158,57 @@ func (o *openFailed) fields() []any {
 	return []any{logging.FieldDatabase, o.database}
 }
 
-// open opens what the requests run on (R29, R31, R32): the database api through
-// the pooler, checked by a ping so that a wrong string fails the start and not
-// the first request; the rights, which find their store and model or refuse;
-// and the port to the sign-in service, with the handlers on them. What opened
-// before a failure is closed; close closes the rest.
-func open(ctx context.Context, opens *config.Serve) (rpc.Deps, rpc.Handlers, func(), error) {
-	pool, err := store.Open(ctx, opens.DatabaseURL.Reveal())
+// ports is what the requests and the daily job run on: the database api, the
+// rights and the sign-in service.
+type ports struct {
+	pool   *pgxpool.Pool
+	rights *authz.Rights
+	signin authn.Port
+}
+
+// close closes the databases; the sign-in service holds nothing to close.
+func (p ports) close() {
+	p.rights.Close()
+	p.pool.Close()
+}
+
+// openPorts opens the ports (R29, R31, R32): the database api through the
+// pooler, checked by a ping so that a wrong string fails the start and not the
+// first request; the rights, which find their store and model or refuse; and the
+// port to the sign-in service. What opened before a failure is closed.
+func openPorts(ctx context.Context, database, openfga config.Secret, projectID string, credentials config.Secret) (ports, error) {
+	pool, err := store.Open(ctx, database.Reveal())
 	if err == nil {
 		if err = pool.Ping(ctx); err != nil {
 			pool.Close()
 		}
 	}
 	if err != nil {
-		return rpc.Deps{}, rpc.Handlers{}, nil, &openFailed{database: logging.DatabaseAPI, err: err}
+		return ports{}, &openFailed{database: logging.DatabaseAPI, err: err}
 	}
-	rights, err := authz.Open(ctx, opens.OpenFGADatabaseURL.Reveal())
+	rights, err := authz.Open(ctx, openfga.Reveal())
 	if err != nil {
 		pool.Close()
-		return rpc.Deps{}, rpc.Handlers{}, nil, &openFailed{database: logging.DatabaseOpenFGA, err: err}
+		return ports{}, &openFailed{database: logging.DatabaseOpenFGA, err: err}
 	}
-	signin, err := newSignin(ctx, authn.Options{
-		ProjectID:   opens.FirebaseProjectID,
-		Credentials: []byte(opens.FirebaseCredentials.Reveal()),
-	})
+	signin, err := newSignin(ctx, authn.Options{ProjectID: projectID, Credentials: []byte(credentials.Reveal())})
 	if err != nil {
 		rights.Close()
 		pool.Close()
-		return rpc.Deps{}, rpc.Handlers{}, nil, &openFailed{err: err}
+		return ports{}, &openFailed{err: err}
 	}
-	closeAll := func() {
-		rights.Close()
-		pool.Close()
+	return ports{pool: pool, rights: rights, signin: signin}, nil
+}
+
+// open opens what the requests run on, with the handlers on it; close closes it.
+func open(ctx context.Context, opens *config.Serve) (rpc.Deps, rpc.Handlers, func(), error) {
+	p, err := openPorts(ctx, opens.DatabaseURL, opens.OpenFGADatabaseURL, opens.FirebaseProjectID, opens.FirebaseCredentials)
+	if err != nil {
+		return rpc.Deps{}, rpc.Handlers{}, nil, err
 	}
 	// The handlers write the tuples of the profiles they make (R31).
-	handlers := rpc.Handlers{Account: account.New(pool, rights, signin)}
-	return rpc.Deps{Signin: signin, DB: pool, Rights: rights}, handlers, closeAll, nil
+	handlers := rpc.Handlers{Account: account.New(p.pool, p.rights, p.signin)}
+	return rpc.Deps{Signin: p.signin, DB: p.pool, Rights: p.rights}, handlers, p.close, nil
 }
 
 // closeWithin runs closeAll, and waits for it no longer than timeout: a process on
