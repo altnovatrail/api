@@ -11,8 +11,9 @@ import (
 // minimalRecords keeps, of every confirmed consent for a child that the rows
 // matched by cond go with, the minimal record: its ID, when it was given, how it
 // was checked and when it was deleted — no ID of the account or the profile, no
-// pseudonym, category or country (П-14; R21). A record kept already stays as it
-// is, so that a repeat of the deletion keeps no second one.
+// pseudonym, category or country (R117 spec; R21). It is kept 5 years and then
+// erased by the daily job. A record kept already stays as it is, so that a
+// repeat of the deletion keeps no second one.
 const minimalRecords = `INSERT INTO child_consent_records (id, consented_at, method)
 	SELECT id, confirmed_at, coalesce(method, '') FROM consents
 	WHERE subject = 'child' AND state = 'confirmed' AND %s

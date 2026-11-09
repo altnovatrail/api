@@ -37,6 +37,19 @@ func CreateChildConsent(ctx context.Context, tx pgx.Tx, accountID, category, cou
 	return c, nil
 }
 
+// WaitingConsents is how many consents for a child wait under the account. It
+// takes no lock: its caller holds the account's row FOR NO KEY UPDATE, by
+// HoldAccount, as every request under a key does, so that two requests beside
+// each other count one after the other (R35, R36).
+func WaitingConsents(ctx context.Context, tx pgx.Tx, accountID string) (int, error) {
+	var n int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM consents
+		WHERE account_id = $1 AND subject = 'child' AND state = 'waiting'`, accountID).Scan(&n); err != nil {
+		return 0, fmt.Errorf("store: count the consents waiting: %w", err)
+	}
+	return n, nil
+}
+
 // ConsentFor is the account's consent for a child, held FOR UPDATE in tx, or
 // ErrNoConsent.
 func ConsentFor(ctx context.Context, tx pgx.Tx, accountID, consentID string) (Consent, error) {

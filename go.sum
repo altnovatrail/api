@@ -48,10 +48,10 @@ github.com/Microsoft/go-winio v0.6.3 h1:M/52tsoyTfwaxajLnXZm7PqkbMGRH8iSWP+8fcg9
 github.com/Microsoft/go-winio v0.6.3/go.mod h1:ma0QpxizD4fyyzJ1C7MIblymTD2Nxz5Mho/3CepwIZg=
 github.com/Yiling-J/theine-go v0.6.2 h1:1GeoXeQ0O0AUkiwj2S9Jc0Mzx+hpqzmqsJ4kIC4M9AY=
 github.com/Yiling-J/theine-go v0.6.2/go.mod h1:08QpMa5JZ2pKN+UJCRrCasWYO1IKCdl54Xa836rpmDU=
-github.com/altnovatrail/spec v0.9.11 h1:Yhu4cbpeO+bqboHmZRG0AsNoSrSQWNJBa09xDvoz3rk=
-github.com/altnovatrail/spec v0.9.11/go.mod h1:/JG4n8d9/3wY4DZg8V7PLoB1Y48uPjAyIBqoH/rwxXE=
-github.com/altnovatrail/spec/contracts v0.9.11 h1:Il+5guXdoGMbV69eK3RQJGGH5PcAhG6ERKa4TWNWITU=
-github.com/altnovatrail/spec/contracts v0.9.11/go.mod h1:omw6CYiQyGSNSQq+AlnKB6M18GNeWda+OPU1f2RyI8s=
+github.com/altnovatrail/spec v0.12.0 h1:tRTdopJvHIA1aUv1i/hKnqFYX/FHA5uWeav7RKpQMWU=
+github.com/altnovatrail/spec v0.12.0/go.mod h1:/JG4n8d9/3wY4DZg8V7PLoB1Y48uPjAyIBqoH/rwxXE=
+github.com/altnovatrail/spec/contracts v0.12.0 h1:6A0T3yS2LrUEn0nddtjmmxX8+iISzcPXYVrlDxM7XpU=
+github.com/altnovatrail/spec/contracts v0.12.0/go.mod h1:omw6CYiQyGSNSQq+AlnKB6M18GNeWda+OPU1f2RyI8s=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
