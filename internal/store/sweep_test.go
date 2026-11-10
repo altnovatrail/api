@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -292,6 +293,11 @@ func TestTheJobsQueriesFailOnADatabaseDown(t *testing.T) {
 		"HaveAccounts":  func() error { _, err := store.HaveAccounts(t.Context(), down, []string{"u"}); return err },
 		"ProfilesThere": func() error { _, err := store.ProfilesThere(t.Context(), down, []string{"p"}); return err },
 		"DropKeys":      func() error { _, err := store.DropKeys(t.Context(), down, today); return err },
+		"OpenAttemptsOn": func() error {
+			_, err := store.OpenAttemptsOn(t.Context(), down, []string{"d"}, "", 1)
+			return err
+		},
+		"OpenRunsOn": func() error { _, err := store.OpenRunsOn(t.Context(), down, []string{"d"}, "", 1); return err },
 		"DropConsentRecords": func() error {
 			_, err := store.DropConsentRecords(t.Context(), down, today)
 			return err
@@ -318,6 +324,69 @@ func TestTheJobsQueriesFailOnADatabaseDown(t *testing.T) {
 	} {
 		if err := call(); err == nil || errors.Is(err, store.ErrNoAccount) {
 			t.Errorf("%s on a database down: error = %v, want a failure", name, err)
+		}
+	}
+}
+
+// The open attempts and lesson runs on the packages named are chosen by ID, a
+// page at a time past the last seen, with their profile and account: not those
+// closed, nor on other packages, nor of an account a deletion marked.
+func TestTheOpenOnThePackagesAreChosenAndPaged(t *testing.T) {
+	t.Parallel()
+
+	e := newE3(t)
+	open, err := e.attempt(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := e.run(t, "example/m/l1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A profile with its attempt and run closed, and one on another package.
+	other := &e3{pool: e.pool, accountID: e.accountID, profileID: ownerProfile(t, e.pool, account(t, e.pool), time.Now())}
+	closed, err := other.attempt(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ended, err := other.run(t, "example/m/l1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(t.Context(), `UPDATE attempts SET close_reason = 'abandoned', closed_at = now() WHERE id = $1`, closed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(t.Context(), `UPDATE lesson_runs SET end_reason = 'abandoned', ended_at = now() WHERE id = $1`, ended); err != nil {
+		t.Fatal(err)
+	}
+	marked := account(t, e.pool)
+	deleting := &e3{pool: e.pool, accountID: marked, profileID: ownerProfile(t, e.pool, marked, time.Now())}
+	if _, err := deleting.attempt(t, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deleting.run(t, "example/m/l1"); err != nil {
+		t.Fatal(err)
+	}
+	mark(t, e.pool, marked)
+
+	want := store.OpenOn{ProfileID: e.profileID, AccountID: e.accountID}
+	for name, choose := range map[string]func(digests []string, after string) ([]store.OpenOn, error){
+		open: func(digests []string, after string) ([]store.OpenOn, error) {
+			return store.OpenAttemptsOn(t.Context(), e.pool, digests, after, 10)
+		},
+		run: func(digests []string, after string) ([]store.OpenOn, error) {
+			return store.OpenRunsOn(t.Context(), e.pool, digests, after, 10)
+		},
+	} {
+		want.ID = name
+		if got, err := choose([]string{digest}, ""); err != nil || len(got) != 1 || got[0] != want {
+			t.Errorf("chosen = %v, %v; want %v alone", got, err, want)
+		}
+		if got, err := choose([]string{digest}, name); err != nil || len(got) != 0 {
+			t.Errorf("past the last = %v, %v; want none", got, err)
+		}
+		if got, err := choose([]string{"sha256:" + strings.Repeat("b", 64)}, ""); err != nil || len(got) != 0 {
+			t.Errorf("on another package = %v, %v; want none", got, err)
 		}
 	}
 }

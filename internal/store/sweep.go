@@ -209,6 +209,49 @@ func EndAbandonedRuns(ctx context.Context, db Querier, before, at time.Time) (in
 			AND a.last_action_at >= $1)`, before, "end the abandoned lesson runs", at)
 }
 
+// OpenOn is an open attempt or lesson run the job after a rollout closes: its
+// ID, with its profile and account.
+type OpenOn struct {
+	ID        string
+	ProfileID string
+	AccountID string
+}
+
+// OpenAttemptsOn is up to limit open attempts on the packages of digests, whose
+// ID comes after after, by ID, of accounts no deletion marked: those whose
+// package the image no longer gives (R07). An account marked goes with its
+// attempts.
+func OpenAttemptsOn(ctx context.Context, db Lister, digests []string, after string, limit int) ([]OpenOn, error) {
+	return openOn(ctx, db, "the attempts", `SELECT t.id, t.profile_id, p.account_id FROM attempts t
+		JOIN profiles p ON p.id = t.profile_id JOIN accounts a ON a.id = p.account_id
+		WHERE t.closed_at IS NULL AND t.package_digest = ANY($1) AND a.deleting_at IS NULL AND t.id > $2
+		ORDER BY t.id LIMIT $3`, digests, from(after), limit)
+}
+
+// OpenRunsOn is OpenAttemptsOn for the open lesson runs.
+func OpenRunsOn(ctx context.Context, db Lister, digests []string, after string, limit int) ([]OpenOn, error) {
+	return openOn(ctx, db, "the lesson runs", `SELECT r.id, r.profile_id, p.account_id FROM lesson_runs r
+		JOIN profiles p ON p.id = r.profile_id JOIN accounts a ON a.id = p.account_id
+		WHERE r.ended_at IS NULL AND r.package_digest = ANY($1) AND a.deleting_at IS NULL AND r.id > $2
+		ORDER BY r.id LIMIT $3`, digests, from(after), limit)
+}
+
+func openOn(ctx context.Context, db Lister, what, sql string, args ...any) ([]OpenOn, error) {
+	rows, err := db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: choose %s: %w", what, err)
+	}
+	open, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (OpenOn, error) {
+		var o OpenOn
+		err := row.Scan(&o.ID, &o.ProfileID, &o.AccountID)
+		return o, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: choose %s: %w", what, err)
+	}
+	return open, nil
+}
+
 // inBatches runs sql, a statement on the rows older than its $1, a batch of $2
 // at a time, with the rest of its arguments after them, until a batch is short.
 func inBatches(ctx context.Context, db Querier, sql string, before time.Time, what string, rest ...any) (int64, error) {

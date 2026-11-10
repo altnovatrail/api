@@ -2,7 +2,8 @@
 # The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
 # of the binary with the configuration of the dev file, and `just dev-check` goes the whole way —
 # migrations, an invite code, a country, the packages of modules, the server, an ID token, the
-# account, the owner's profile and the list of profiles — and checks the answers and the logs.
+# account, the owner's profile, its progress and "something else", then the job after a rollout —
+# and checks the answers and the logs.
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
@@ -228,6 +229,12 @@ check() {
     stop_serve
     echo "dev-check: the logs"
     clean "$work/serve.log"
+
+    # The job after a rollout, on the database itself (R51): every version of the pinned release
+    # is out of the window, so it asks what is open on them, and finds nothing yet.
+    echo "dev-check: after"
+    API_PACKAGES_DIR="$work/packages" "$binary" after > "$work/after.log" 2>&1 || die "after failed: $(cat "$work/after.log")"
+    clean "$work/after.log"
     echo "dev-check: ok"
 }
 

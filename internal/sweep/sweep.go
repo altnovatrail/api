@@ -5,9 +5,11 @@
 // records of consents for children 5 years after the deletion, and the records
 // of keys and OpenFGA's changelog after a day — and closes what a learner
 // abandoned: an attempt with no action for 7 days, and a lesson run with none
-// for 30 (R10, R13). A pass keeps no state for the next: each
-// step chooses its work again by a query, so a pass cut short is taken up by the
-// next one. Its log is counts alone.
+// for 30 (R10, R13). Before them it closes "unchecked" the attempts and lesson
+// runs on the packages the image no longer gives, which are the two steps of the
+// job after a rollout too (R07). A pass keeps no state for the next: each step
+// chooses its work again by a query, so a pass cut short is taken up by the next
+// one. Its log is counts alone.
 package sweep
 
 import (
@@ -24,6 +26,7 @@ import (
 	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -67,25 +70,38 @@ type Signin interface {
 	Users(ctx context.Context) iter.Seq2[authn.User, error]
 }
 
-// Sweeper runs the passes of the job.
+// job is what both jobs share: the database, the learner model, which writes
+// the evidence the closed attempts owe (R49), the digests the image no longer
+// gives, whose attempts and lesson runs they close (R07), and the log.
+type job struct {
+	db    DB
+	model *model.Model
+	// gone is the digests of the packages the image no longer gives, of its set.
+	gone []string
+	log  *slog.Logger
+	// moment is what a line of a failure names: the daily job or the job after a
+	// rollout.
+	moment string
+}
+
+// Sweeper runs the passes of the daily job.
 type Sweeper struct {
-	db      DB
-	model   *model.Model
+	job
 	rights  Rights
 	signin  Signin
 	deleter *deletion.Deleter
 	settle  time.Duration
-	log     *slog.Logger
 }
 
-// New is the job on db, rights and signin, with the learner model, which
-// writes the evidence the closed attempts owe (R49). settle is the longest a request may
-// run: a mark or a tuple younger than that may be a request's still going, and
-// the job leaves it.
-func New(db DB, m *model.Model, rights Rights, signin Signin, settle time.Duration, log *slog.Logger) *Sweeper {
+// New is the daily job on db, rights and signin, with the packages of the image,
+// whose attempts and lesson runs it closes once the image no longer gives them
+// (R07), and the learner model. settle is the longest a request may run: a mark
+// or a tuple younger than that may be a request's still going, and the job
+// leaves it.
+func New(db DB, set *packages.Set, m *model.Model, rights Rights, signin Signin, settle time.Duration, log *slog.Logger) *Sweeper {
 	return &Sweeper{
-		db: db, model: m, rights: rights, signin: signin, deleter: deletion.New(db, rights, signin),
-		settle: settle, log: log,
+		job:    job{db: db, model: m, gone: set.NotGiven(), log: log, moment: logging.MomentSweep},
+		rights: rights, signin: signin, deleter: deletion.New(db, rights, signin), settle: settle,
 	}
 }
 
@@ -112,36 +128,45 @@ func (r Report) Clean() bool {
 	return true
 }
 
-// Run runs one pass at now, until ctx ends: the steps in their order, so that
-// the tuples and the changelog the deletions leave go in the same pass. A step
-// that fails goes on to the next item, and the next step runs all the same; once
-// ctx is done, every step left stops before its first item.
+// stepFunc is a step of a pass.
+type stepFunc func(ctx context.Context, now time.Time, step *Step)
+
+// Run runs one pass at now, until ctx ends: the steps of logging.Steps in their
+// order, so that the tuples and the changelog the deletions leave go in the same
+// pass, and the attempts the image no longer gives close "unchecked" before the
+// abandoned ones close "abandoned" (R07). A step that fails goes on to the next
+// item, and the next step runs all the same; once ctx is done, every step left
+// stops before its first item.
 func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
-	steps := []struct {
-		name string
-		run  func(ctx context.Context, now time.Time, step *Step)
-	}{
-		{logging.StepMarks, s.marks},
-		{logging.StepIdleAccounts, s.idleAccounts},
-		{logging.StepIdleProfiles, s.idleProfiles},
-		{logging.StepAbandonedAttempts, s.abandonedAttempts},
-		{logging.StepEvidence, s.evidence},
-		{logging.StepAbandonedRuns, s.abandonedRuns},
-		{logging.StepUsers, s.users},
-		{logging.StepTuples, s.tuples},
-		{logging.StepConsentRecords, s.consentRecords},
-		{logging.StepKeys, s.keys},
-		{logging.StepChangelog, s.changelog},
-	}
-	report := make(Report, 0, len(steps))
-	for _, each := range steps {
-		step := Step{Name: each.name}
+	return s.pass(ctx, now, logging.Steps, map[string]stepFunc{
+		logging.StepMarks:             s.marks,
+		logging.StepIdleAccounts:      s.idleAccounts,
+		logging.StepIdleProfiles:      s.idleProfiles,
+		logging.StepGoneAttempts:      s.goneAttempts,
+		logging.StepGoneRuns:          s.goneRuns,
+		logging.StepAbandonedAttempts: s.abandonedAttempts,
+		logging.StepEvidence:          s.evidence,
+		logging.StepAbandonedRuns:     s.abandonedRuns,
+		logging.StepUsers:             s.users,
+		logging.StepTuples:            s.tuples,
+		logging.StepConsentRecords:    s.consentRecords,
+		logging.StepKeys:              s.keys,
+		logging.StepChangelog:         s.changelog,
+	})
+}
+
+// pass runs the steps names in their order at now, a line for each, and gives
+// what each did. Every name has its step in steps: the tests run each pass.
+func (j *job) pass(ctx context.Context, now time.Time, names []string, steps map[string]stepFunc) Report {
+	report := make(Report, 0, len(names))
+	for _, name := range names {
+		done := Step{Name: name}
 		if ctx.Err() == nil {
-			each.run(ctx, now, &step)
+			steps[name](ctx, now, &done)
 		}
-		s.log.Info(logging.EventSwept, logging.FieldStep, step.Name, logging.FieldDone, step.Done,
-			logging.FieldFailed, step.Failed, logging.FieldFinished, step.Finished)
-		report = append(report, step)
+		j.log.Info(logging.EventSwept, logging.FieldStep, done.Name, logging.FieldDone, done.Done,
+			logging.FieldFailed, done.Failed, logging.FieldFinished, done.Finished)
+		report = append(report, done)
 	}
 	return report
 }
@@ -149,12 +174,12 @@ func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 // failed counts a failure of an item and logs its kind, and says whether the step
 // goes on: a failure that is the pass's time running out is no failure of the
 // item, and stops the step.
-func (s *Sweeper) failed(ctx context.Context, step *Step, err error) bool {
+func (j *job) failed(ctx context.Context, step *Step, err error) bool {
 	if ctx.Err() != nil {
 		return false
 	}
 	step.Failed++
-	s.log.Error(logging.EventFailure, logging.FieldMoment, logging.MomentSweep, logging.FieldStep, step.Name,
+	j.log.Error(logging.EventFailure, logging.FieldMoment, j.moment, logging.FieldStep, step.Name,
 		logging.FieldErrorKind, logging.ErrorKind(err))
 	return true
 }
@@ -163,13 +188,13 @@ func (s *Sweeper) failed(ctx context.Context, step *Step, err error) bool {
 // one seen, until a page comes short, ctx ends or a choice fails, and counts the
 // items each says it did. It says whether it went to the end. key is an item's
 // place in the order of the pages.
-func pages[T any](ctx context.Context, s *Sweeper, step *Step, choose func(after string) ([]T, error),
+func pages[T any](ctx context.Context, j *job, step *Step, choose func(after string) ([]T, error),
 	key func(T) string, each func(T) (bool, error)) bool {
 	after := ""
 	for {
 		items, err := choose(after)
 		if err != nil {
-			s.failed(ctx, step, err)
+			j.failed(ctx, step, err)
 			return false
 		}
 		for _, item := range items {
@@ -178,7 +203,7 @@ func pages[T any](ctx context.Context, s *Sweeper, step *Step, choose func(after
 			}
 			done, err := each(item)
 			if err != nil {
-				if !s.failed(ctx, step, err) {
+				if !j.failed(ctx, step, err) {
 					return false
 				}
 				continue
@@ -198,7 +223,7 @@ func pages[T any](ctx context.Context, s *Sweeper, step *Step, choose func(after
 // may run: steps 2–4 (R21; architecture 3.10).
 func (s *Sweeper) marks(ctx context.Context, now time.Time, step *Step) {
 	before := now.Add(-s.settle)
-	step.Finished = pages(ctx, s, step,
+	step.Finished = pages(ctx, &s.job, step,
 		func(after string) ([]store.AccountRef, error) {
 			return store.MarkedBefore(ctx, s.db, before, after, batch)
 		},
@@ -211,7 +236,7 @@ func (s *Sweeper) marks(ctx context.Context, now time.Time, step *Step) {
 // kept, and counts as nothing done.
 func (s *Sweeper) idleAccounts(ctx context.Context, now time.Time, step *Step) {
 	before := now.UTC().AddDate(-1, 0, 0)
-	step.Finished = pages(ctx, s, step,
+	step.Finished = pages(ctx, &s.job, step,
 		func(after string) ([]store.AccountRef, error) {
 			return store.IdleAccounts(ctx, s.db, before, after, batch)
 		},
@@ -224,7 +249,7 @@ func (s *Sweeper) idleAccounts(ctx context.Context, now time.Time, step *Step) {
 // one whose account was marked or deleted since: it goes with the account.
 func (s *Sweeper) idleProfiles(ctx context.Context, now time.Time, step *Step) {
 	before := now.UTC().AddDate(-1, 0, 0)
-	step.Finished = pages(ctx, s, step,
+	step.Finished = pages(ctx, &s.job, step,
 		func(after string) ([]store.ProfileRef, error) {
 			return store.IdleProfiles(ctx, s.db, before, after, batch)
 		},
@@ -379,7 +404,7 @@ func (s *Sweeper) abandonedAttempts(ctx context.Context, now time.Time, step *St
 // its own, as a request writes it (R49). A profile counts as done when evidence
 // of it was written; one deleted since it was chosen counts as nothing done.
 func (s *Sweeper) evidence(ctx context.Context, now time.Time, step *Step) {
-	step.Finished = pages(ctx, s, step,
+	step.Finished = pages(ctx, &s.job, step,
 		func(after string) ([]string, error) { return s.model.Owing(ctx, s.db, after, batch) },
 		func(id string) string { return id },
 		func(id string) (bool, error) {

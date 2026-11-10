@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 )
 
 // VarJob is the name of the Cloud Run job being run, which Cloud Run sets in
@@ -45,8 +44,7 @@ func SweepFrom(environ []string) (*Sweep, error) {
 	env := read(environ)
 
 	var problems []error
-	cfg := &Sweep{FirebaseProjectID: env[VarFirebaseProjectID], Job: env[VarJob],
-		PackagesDir: env.or(VarPackagesDir, DefaultPackagesDir)}
+	cfg := &Sweep{FirebaseProjectID: env[VarFirebaseProjectID], Job: env[VarJob]}
 	// In this order, so that the refusals read the same on every run.
 	problems = append(problems, databaseURLs(env, []namedSecret{
 		{VarDatabaseURL, &cfg.DatabaseURL},
@@ -58,8 +56,9 @@ func SweepFrom(environ []string) (*Sweep, error) {
 	if err := firebaseCredentials(env, cfg.Deployed(), VarJob, &cfg.FirebaseCredentials); err != nil {
 		problems = append(problems, err)
 	}
-	if !filepath.IsAbs(cfg.PackagesDir) {
-		problems = append(problems, fmt.Errorf("%w: %s must be an absolute path, got %q", ErrInvalid, VarPackagesDir, cfg.PackagesDir))
+	var err error
+	if cfg.PackagesDir, err = packagesDir(env); err != nil {
+		problems = append(problems, err)
 	}
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)
