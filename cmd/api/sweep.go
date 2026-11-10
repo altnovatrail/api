@@ -15,7 +15,7 @@ import (
 	"github.com/altnovatrail/api/internal/version"
 )
 
-// defaultFor is how long a pass of sweep may run: under the 10 minutes Cloud Run
+// defaultFor is how long a pass of sweep or after may run: under the 10 minutes Cloud Run
 // gives a task of a job by default, so that the pass stops between its items and
 // says so, rather than being stopped in one (R38).
 const defaultFor = 9 * time.Minute
@@ -28,22 +28,9 @@ const defaultFor = 9 * time.Minute
 // pass was clean, since a term that depends on the job runs to its next clean
 // pass.
 func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
-	set := flag.NewFlagSet("api sweep", flag.ContinueOnError)
-	set.SetOutput(stderr)
-	within := set.Duration("for", defaultFor, "how long the pass may run; it stops between items after that")
-	switch err := set.Parse(args); {
-	case errors.Is(err, flag.ErrHelp):
+	within, err := passFlags("sweep", args, stderr)
+	if err != nil {
 		return err
-	case err != nil:
-		return fmt.Errorf("%w: %w", errUsage, err)
-	}
-	if set.NArg() > 0 {
-		fmt.Fprintf(stderr, "api sweep takes no arguments, got %q\n", set.Args())
-		return errUsage
-	}
-	if *within <= 0 {
-		fmt.Fprintf(stderr, "api sweep: -for must be a positive duration, got %v\n", *within)
-		return errUsage
 	}
 	// The refusal of the configuration names the variable and never the string.
 	// The level of the log and the longest a request may run are read as serve
@@ -68,7 +55,7 @@ func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Wr
 		return logged(log, logging.MomentSweep, err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, *within)
+	ctx, cancel := context.WithTimeout(ctx, within)
 	defer cancel()
 	p, err := openPorts(ctx, opens.DatabaseURL, opens.OpenFGADatabaseURL, opens.FirebaseProjectID, opens.FirebaseCredentials)
 	if err != nil {
@@ -82,10 +69,33 @@ func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Wr
 	// would wait for: the close is bounded as serve's is.
 	defer closeWithin(cfg.CloseTimeout(), p.close)
 
-	report := sweep.New(p.pool, m, p.rights, p.signin, cfg.RequestTimeout, log).Run(ctx, time.Now())
+	report := sweep.New(p.pool, pkgs, m, p.rights, p.signin, cfg.RequestTimeout, log).Run(ctx, time.Now())
 	if !report.Clean() {
 		// Each step's line has said what it did and failed.
 		return fmt.Errorf("%w: the pass was not clean", errLogged)
 	}
 	return nil
+}
+
+// passFlags is how long a pass of the job name may run, by its flag -for: a
+// pass takes no arguments, and a duration that is not positive is refused.
+func passFlags(name string, args []string, stderr io.Writer) (time.Duration, error) {
+	set := flag.NewFlagSet("api "+name, flag.ContinueOnError)
+	set.SetOutput(stderr)
+	within := set.Duration("for", defaultFor, "how long the pass may run; it stops between items after that")
+	switch err := set.Parse(args); {
+	case errors.Is(err, flag.ErrHelp):
+		return 0, err
+	case err != nil:
+		return 0, fmt.Errorf("%w: %w", errUsage, err)
+	}
+	if set.NArg() > 0 {
+		fmt.Fprintf(stderr, "api %s takes no arguments, got %q\n", name, set.Args())
+		return 0, errUsage
+	}
+	if *within <= 0 {
+		fmt.Fprintf(stderr, "api %s: -for must be a positive duration, got %v\n", name, *within)
+		return 0, errUsage
+	}
+	return *within, nil
 }

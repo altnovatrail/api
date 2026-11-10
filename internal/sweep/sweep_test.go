@@ -22,6 +22,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/store/storetest"
 	"github.com/altnovatrail/api/internal/sweep"
@@ -44,6 +45,7 @@ var (
 // synthetic.
 type world struct {
 	pool    *pgxpool.Pool
+	set     *packages.Set
 	model   *model.Model
 	fga     *pgx.Conn
 	rights  *authz.Rights
@@ -53,7 +55,19 @@ type world struct {
 	devices []string
 }
 
+// old is the digest of a version out of the window, which the index of every
+// world names: the image no longer gives it, and does not hold it.
+const old = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+// newWorld is the world whose image gives the package of choices.
 func newWorld(t *testing.T) *world {
+	t.Helper()
+	return newWorldOn(t, "")
+}
+
+// newWorldOn is the world whose index marks the package of choices withdrawn
+// for withdrawn, or gives it; it names a version out of the window, old, too.
+func newWorldOn(t *testing.T, withdrawn string) *world {
 	t.Helper()
 
 	url := storetest.OpenFGAURL(t, true)
@@ -68,16 +82,18 @@ func newWorld(t *testing.T) *world {
 	}
 	t.Cleanup(func() { _ = fga.Close(context.Background()) })
 	builtOnce.Do(func() { choices = packagestest.Own(t, "choices") })
-	m, err := model.New(packagestest.Set(t, packagestest.Entry{Pkg: choices, Release: "v0.1.0"}), "v0.1.4")
+	set := packagestest.Set(t, packagestest.Entry{Pkg: choices, Release: "v0.1.0", Withdrawn: withdrawn},
+		packagestest.Entry{ID: "example/old", Version: "0.1.0", Format: "0.3", Digest: old, Release: "v0.1.0"})
+	m, err := model.New(set, "v0.1.4")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &world{pool: storetest.DB(t), fga: fga, rights: rights, signin: &authntest.Fake{}, model: m}
+	return &world{pool: storetest.DB(t), fga: fga, rights: rights, signin: &authntest.Fake{}, set: set, model: m}
 }
 
 // sweeper is the job on the world, with rights and signin as given.
 func (w *world) sweeper(rights sweep.Rights, signin sweep.Signin) *sweep.Sweeper {
-	return sweep.New(w.pool, w.model, rights, signin, settle, logging.New(&w.log, slog.LevelDebug))
+	return sweep.New(w.pool, w.set, w.model, rights, signin, settle, logging.New(&w.log, slog.LevelDebug))
 }
 
 func (w *world) run(t *testing.T) sweep.Report {
@@ -431,7 +447,7 @@ func TestAStepWhoseQueryFailsEndsThere(t *testing.T) {
 	down.Close()
 	w.signin.AddUser(authn.User{UID: "uid-gone"})
 	w.tuple(t, profileID(1), profileID(2), time.Hour)
-	report := sweep.New(down, w.model, w.rights, w.signin, settle, logging.New(&w.log, slog.LevelDebug)).Run(t.Context(), time.Now())
+	report := sweep.New(down, w.set, w.model, w.rights, w.signin, settle, logging.New(&w.log, slog.LevelDebug)).Run(t.Context(), time.Now())
 	for _, s := range report {
 		switch s.Name {
 		case logging.StepChangelog:

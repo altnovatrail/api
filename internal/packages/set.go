@@ -31,6 +31,20 @@ func (s *Set) Status(digest formatv0.Digest) Status {
 	return s.statuses[digest]
 }
 
+// NotGiven is every digest the image no longer gives, in the order of their
+// bytes: those whose attempts and lesson runs the job after a rollout closes
+// "unchecked" (R07).
+func (s *Set) NotGiven() []string {
+	var out []string
+	for digest, status := range s.statuses {
+		if status == NotGiven {
+			out = append(out, string(digest))
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // Current is the package of the current version of the module id: the newest by
 // semver of its versions the index does not mark withdrawn and whose format
 // version is in the window, by module-kit (R07). ok is false when it has none.

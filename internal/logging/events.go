@@ -46,7 +46,8 @@ const (
 	// or an ID (R18, R33). The path of a Connect GET holds the message, so the
 	// method is written, not the path.
 	EventRequest = "request"
-	// EventSwept is the line of a step of the daily job (R21): which step, how many
+	// EventSwept is the line of a step of the daily job (R21) or of the job after
+	// a rollout (R07): which step, how many
 	// it did and failed, and whether it went to its end — counts alone, never an
 	// ID of what it did them to.
 	EventSwept = "swept"
@@ -147,13 +148,17 @@ const (
 	MomentCountries = "countries"
 	MomentSweep     = "sweep"
 	MomentPackages  = "packages"
+	MomentAfter     = "after"
 )
 
-// The steps of the daily job: the value set of FieldStep.
+// The steps of the daily job and of the job after a rollout: the value set of
+// FieldStep.
 const (
 	StepMarks             = "marks"
 	StepIdleAccounts      = "idle_accounts"
 	StepIdleProfiles      = "idle_profiles"
+	StepGoneAttempts      = "gone_attempts"
+	StepGoneRuns          = "gone_runs"
 	StepAbandonedAttempts = "abandoned_attempts"
 	StepEvidence          = "evidence"
 	StepAbandonedRuns     = "abandoned_runs"
@@ -165,7 +170,12 @@ const (
 )
 
 // Steps is every step of the daily job, in the order it takes them.
-var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepKeys, StepChangelog}
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepKeys, StepChangelog}
+
+// AfterSteps is every step of the job after a rollout, in the order it takes
+// them: the steps of the daily job that close what the image no longer gives
+// (R07).
+var AfterSteps = []string{StepGoneAttempts, StepGoneRuns}
 
 // The databases api migrates: the value set of FieldDatabase.
 const (
@@ -212,7 +222,7 @@ var fields = map[string]rule{
 	FieldDeployed:       {kind: slog.KindBool},
 	FieldStarted:        {kind: slog.KindBool},
 	FieldCutShort:       {kind: slog.KindBool},
-	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages}},
+	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter}},
 	FieldErrorKind:      {kind: slog.KindLogValuer},
 	FieldPanicKind:      {kind: slog.KindLogValuer},
 	FieldApplied:        {kind: slog.KindInt64},

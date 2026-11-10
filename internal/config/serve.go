@@ -36,6 +36,17 @@ const (
 // the image.
 const DefaultPackagesDir = "/packages"
 
+// packagesDir is the folder of the packages env names, DefaultPackagesDir when
+// it names none, and its refusal unless it is an absolute path: serve, sweep
+// and after read it alike.
+func packagesDir(env environment) (string, error) {
+	dir := env.or(VarPackagesDir, DefaultPackagesDir)
+	if !filepath.IsAbs(dir) {
+		return dir, fmt.Errorf("%w: %s must be an absolute path, got %q", ErrInvalid, VarPackagesDir, dir)
+	}
+	return dir, nil
+}
+
 func init() {
 	for _, name := range []string{VarFirebaseProjectID, VarAppOrigin, VarPackagesDir} {
 		declared[name] = struct{}{}
@@ -75,8 +86,7 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 	env := read(environ)
 
 	var problems []error
-	serve := &Serve{FirebaseProjectID: env[VarFirebaseProjectID], AppOrigin: env[VarAppOrigin],
-		PackagesDir: env.or(VarPackagesDir, DefaultPackagesDir)}
+	serve := &Serve{FirebaseProjectID: env[VarFirebaseProjectID], AppOrigin: env[VarAppOrigin]}
 	// In this order, so that the refusals read the same on every run.
 	problems = append(problems, databaseURLs(env, []namedSecret{
 		{VarDatabaseURL, &serve.DatabaseURL},
@@ -91,8 +101,9 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 	if err := checkOrigin(serve.AppOrigin, cfg.Deployed()); err != nil {
 		problems = append(problems, err)
 	}
-	if !filepath.IsAbs(serve.PackagesDir) {
-		problems = append(problems, fmt.Errorf("%w: %s must be an absolute path, got %q", ErrInvalid, VarPackagesDir, serve.PackagesDir))
+	var err error
+	if serve.PackagesDir, err = packagesDir(env); err != nil {
+		problems = append(problems, err)
 	}
 	admission, err := AdmissionFrom(environ)
 	if err != nil {

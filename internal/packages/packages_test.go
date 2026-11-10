@@ -360,6 +360,9 @@ func TestTheSetGivesTheStatusTheCurrentVersionAndTheFiles(t *testing.T) {
 			t.Errorf("Status(%s) = %v, want %v", digest, got, want)
 		}
 	}
+	if got, want := set.NotGiven(), slices.Sorted(slices.Values([]string{string(newer.Digest), string(outOfWindow)})); !slices.Equal(got, want) {
+		t.Errorf("NotGiven = %v, want %v", got, want)
+	}
 
 	if pkg, ok := set.Current("example/smallest"); !ok || pkg.Digest != older.Digest {
 		t.Errorf("Current of a module whose newest version is withdrawn = %v, %v; want the older", pkg, ok)
