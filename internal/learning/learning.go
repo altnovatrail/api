@@ -23,6 +23,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -38,6 +39,7 @@ var (
 // Service runs the attempts of the profiles on the packages the image holds.
 type Service struct {
 	set       *packages.Set
+	gate      *admission.Gate
 	db        rpc.DB
 	now       func() time.Time
 	moduleKit string
@@ -49,13 +51,17 @@ type Option func(*Service)
 // WithClock is the clock a Service tells the time of its actions by.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
-// New is the Service of the packages of set; its handlers run on the database
-// they are given. A binary that recorded no version of module-kit is refused,
-// before anything is opened: every attempt keeps it.
-func New(set *packages.Set, opts ...Option) (*Service, error) {
-	s := &Service{set: set, now: time.Now, moduleKit: version.ModuleKit()}
+// New is the Service of the packages of set, which asks gate before a task that
+// AI checks; its handlers run on the database they are given. A binary that
+// recorded no version of module-kit is refused, before anything is opened:
+// every attempt keeps it. So is no gate.
+func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
+	s := &Service{set: set, gate: gate, now: time.Now, moduleKit: version.ModuleKit()}
 	for _, opt := range opts {
 		opt(s)
+	}
+	if gate == nil {
+		return nil, errors.New("learning: no gate of admission")
 	}
 	if s.moduleKit == "" {
 		return nil, errors.New("learning: the build recorded no version of module-kit")

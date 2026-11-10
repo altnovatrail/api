@@ -93,7 +93,7 @@ release-files version:
 # license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
 # NOTICE, as module-kit names them (R38 module-kit): pgx and goose (R29), OpenFGA and the modules
 # they take (R31), the Admin SDK for Go and the modules it takes (R32), Connect and spec's module
-# of contracts (R33); spec's own module is the tests' alone (R26). A module the binary takes beyond
+# of contracts (R33), module-kit and spec's own module (R41), and tutor (R45). A module the binary takes beyond
 # these fails release-licenses, and ci-lint with it, until it is named here. Each entry is
 # <module path>=<name>, one a line, the name the path without its host, its slashes dashes; where
 # that name would read as a license the release has of its own — go, Go's, and api, api's — the
@@ -121,6 +121,7 @@ THIRD_PARTY := """
     github.com/altnovatrail/module-kit=altnovatrail-module-kit
     github.com/altnovatrail/spec=altnovatrail-spec
     github.com/altnovatrail/spec/contracts=altnovatrail-spec-contracts
+    github.com/altnovatrail/tutor=altnovatrail-tutor
     github.com/antlr4-go/antlr/v4=antlr4-go-antlr-v4
     github.com/beorn7/perks=beorn7-perks
     github.com/cenkalti/backoff/v4=cenkalti-backoff-v4

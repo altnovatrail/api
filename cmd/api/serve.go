@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/altnovatrail/api/internal/account"
+	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/catalog"
@@ -45,6 +46,13 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return err
 	}
+	// What the deployment declares for admission to AI is configuration too: a
+	// file of facts that cannot be read, or that names what the table of this
+	// release does not, is refused as the variables are (R25, R45).
+	gate, declared, err := admission.Load(opens.Admission)
+	if err != nil {
+		return err
+	}
 	log := logging.New(stdout, cfg.LogLevel)
 
 	// The packages of modules are read before anything is opened: a folder of
@@ -59,8 +67,9 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
-	// Attempts keep the version of module-kit, which the build records (R44).
-	attempts, err := learning.New(set)
+	// Attempts keep the version of module-kit, which the build records (R44), and
+	// ask the gate before a task that AI checks (R45).
+	attempts, err := learning.New(set, gate)
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
@@ -103,7 +112,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		return startupFailed(ctx, log, err)
 	}
 
-	// The delivery finds the release a revision runs by this line.
+	// The delivery finds the release a revision runs by this line, and the
+	// operator what it declared for admission.
 	log.Info(logging.EventStartup,
 		logging.FieldVersion, version.Version,
 		logging.FieldCommit, version.Commit,
@@ -112,6 +122,12 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldDeployed, cfg.Deployed(),
 		logging.FieldModulesRelease, set.Release,
 		logging.FieldPackages, len(set.Packages),
+		// What is missing for admission, the operator reads here: no file of
+		// facts, no stage named (R25).
+		logging.FieldAdmissionTable, declared.TableVersion,
+		logging.FieldFactsFile, declared.FactsFile,
+		logging.FieldRung, declared.Rung,
+		logging.FieldRungSet, declared.RungSet,
 	)
 
 	if err := srv.Run(ctx); err != nil {

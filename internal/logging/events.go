@@ -21,8 +21,9 @@ import (
 
 // The events of the service's own lines.
 const (
-	// EventStartup is the line that says a revision has started, and which
-	// build it runs. The delivery finds a revision's release by it.
+	// EventStartup is the line that says a revision has started, which build it
+	// runs, and what it declared for admission to AI (R25, R45). The delivery
+	// finds a revision's release by it.
 	EventStartup = "startup"
 	// EventStopping is the line that says a stop was asked for.
 	EventStopping = "stopping"
@@ -58,6 +59,12 @@ const (
 	// it failed, the kind of the failure — never its path, which names the package
 	// and the file.
 	EventPackageFile = "package_file"
+	// EventAdmission is the line of api check that says what it found the
+	// deployment to declare for admission to AI (R25, R45): the version of the
+	// table, whether a file of facts was given, and the least stage and whether it
+	// was named, so that the operator sees what is missing — never a provider, a
+	// fact or a path.
+	EventAdmission = "admission"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -96,6 +103,15 @@ const (
 	FieldFiles          = "files"
 	// FieldStatus is the HTTP status of an answer.
 	FieldStatus = "status"
+	// FieldAdmissionTable is the version of the admission table, MAJOR.MINOR.
+	FieldAdmissionTable = "admission_table"
+	// FieldFactsFile says whether the deployment named a file of facts.
+	FieldFactsFile = "facts_file"
+	// FieldRung is the least stage of the rule of admission of models.
+	FieldRung = "rung"
+	// FieldRungSet says whether the deployment named the stage, rather than
+	// taking full by default.
+	FieldRungSet = "rung_set"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -139,7 +155,8 @@ const (
 
 // events is every event and the fields it may carry.
 var events = map[string][]string{
-	EventStartup:      {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages},
+	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
+		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet},
 	EventStopping:     {},
 	EventStopped:      {FieldCutShort},
 	EventShutdown:     {FieldStarted},
@@ -150,6 +167,7 @@ var events = map[string][]string{
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
+	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -193,6 +211,10 @@ var fields = map[string]rule{
 	FieldPackages:       {kind: slog.KindInt64},
 	FieldFiles:          {kind: slog.KindInt64},
 	FieldStatus:         {kind: slog.KindInt64},
+	FieldAdmissionTable: {kind: slog.KindString, shape: matches(tableShape)},
+	FieldFactsFile:      {kind: slog.KindBool},
+	FieldRung:           {kind: slog.KindString, values: Rungs},
+	FieldRungSet:        {kind: slog.KindBool},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -205,6 +227,8 @@ var (
 	// releaseShape is a tag of a release of modules, as modules.json pins it:
 	// the form internal/packages holds it to, with no leading zeros.
 	releaseShape = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+	// tableShape is the version of the admission table, MAJOR.MINOR.
+	tableShape = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 )
 
 func matches(shape *regexp.Regexp) func(string) bool { return shape.MatchString }
@@ -239,3 +263,7 @@ var Codes = []string{
 // TokenClasses is the value set of FieldTokenClass: the classes of a refused
 // token, in authn's words (R20, R32).
 var TokenClasses = []string{"expired", "invalid", "revoked", "no_user", "disabled", "failed"}
+
+// Rungs is the value set of FieldRung: the stages of tutor's rule of admission
+// of models, in tutor's codes (R25). admission's tests hold the set to config's.
+var Rungs = []string{"author", "full"}

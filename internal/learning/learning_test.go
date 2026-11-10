@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,9 +31,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/account"
+	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authn/authntest"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/invite"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/logging"
@@ -90,9 +93,16 @@ func (c *clock) move(by time.Duration) {
 	c.ahead += by
 }
 
-// newWorld is the world; wrap, when given, is what the attempts see of their
+// newWorld is the world of a deployment that declares no facts, at the stage
+// "full": no AI is admitted. wrap, when given, is what the attempts see of their
 // database, which the checks see as it is.
 func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
+	t.Helper()
+	return newGatedWorld(t, gate(t, "", config.RungFull), wrap...)
+}
+
+// newGatedWorld is the world whose attempts ask g.
+func newGatedWorld(t *testing.T, g *admission.Gate, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	t.Helper()
 
 	builtOnce.Do(func() {
@@ -113,7 +123,7 @@ func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	if len(wrap) > 0 {
 		db = wrap[0](w.pool)
 	}
-	s, err := learning.New(set, learning.WithClock(w.clock.now))
+	s, err := learning.New(set, g, learning.WithClock(w.clock.now))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -891,11 +901,14 @@ func TestARepeatThatCannotReadItsSubmissionIsUnavailable(t *testing.T) {
 }
 
 // A build that recorded no version of module-kit runs no attempts: each keeps it.
-func TestABuildWithNoVersionOfModuleKitIsRefused(t *testing.T) {
+func TestABuildWithNoVersionOfModuleKitOrNoGateIsRefused(t *testing.T) {
 	t.Parallel()
 
-	if _, err := learning.New(nil, learning.WithModuleKit("")); err == nil {
+	if _, err := learning.New(nil, gate(t, "", config.RungFull), learning.WithModuleKit("")); err == nil {
 		t.Error("New with no version of module-kit: error = nil")
+	}
+	if _, err := learning.New(nil, nil); err == nil {
+		t.Error("New with no gate: error = nil")
 	}
 }
 
@@ -940,4 +953,87 @@ func TestANewAttemptClosesALapsedOneByItsLapse(t *testing.T) {
 	_, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
 		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: lesson}})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+}
+
+// gate is the gate of a deployment that declares facts, YAML in a file of its
+// own when not empty, at the stage rung.
+func gate(t *testing.T, facts, rung string) *admission.Gate {
+	t.Helper()
+	cfg := config.Admission{Rung: rung, RungSet: true}
+	if facts != "" {
+		cfg.FactsFile = filepath.Join(t.TempDir(), "facts.yaml")
+		if err := os.WriteFile(cfg.FactsFile, []byte(facts), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g, _, err := admission.Load(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+// adultFacts are the facts that open the reading of handwriting by Anthropic's
+// models on platform AI for an adult.
+const adultFacts = `anthropic:
+  data_processing_agreement: [adult]
+  minimal_retention: [adult]
+`
+
+// A task of handwriting begins only where the gate admits its reading: by the
+// facts of the deployment, its stage and the learner's age category, or by the
+// own key of a provider whose models are admitted. Admitted, it waits for
+// tutor's reading (T36).
+func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
+	t.Parallel()
+
+	// A case is the profile, the task and the provider of an own key, and what the
+	// beginning answers.
+	type beginning struct {
+		child    bool
+		task     string
+		provider string
+		code     connect.Code
+	}
+	admitted, refused := connect.CodeUnimplemented, connect.CodeFailedPrecondition
+	for name, tc := range map[string]struct {
+		facts, rung string
+		cases       map[string]beginning
+	}{
+		"no facts, the stage author": {"", config.RungAuthor, map[string]beginning{
+			"platform AI":             {false, "apples", "", refused},
+			"an own key of Anthropic": {false, "apples", "anthropic", admitted},
+			"an own key of OpenAI":    {false, "apples", "openai", refused},
+		}},
+		"no facts, the stage full": {"", config.RungFull, map[string]beginning{
+			"an own key of Anthropic": {false, "apples", "anthropic", refused},
+		}},
+		"facts for an adult, the stage author": {adultFacts, config.RungAuthor, map[string]beginning{
+			"an adult": {false, "apples", "", admitted},
+			"a child":  {true, "apples", "", refused},
+			"a rubric": {false, "story", "", refused},
+		}},
+		"facts for an adult, the stage full": {adultFacts, config.RungFull, map[string]beginning{
+			"an adult": {false, "apples", "", refused},
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			w := newGatedWorld(t, gate(t, tc.facts, tc.rung))
+			l := w.learner(t)
+			for name, b := range tc.cases {
+				profile := l.adult
+				if b.child {
+					profile = l.child
+				}
+				_, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: profile, IdempotencyKey: uuid.NewString(),
+					OwnKeyProvider: b.provider, Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, profile, b.task)}})
+				cause := v1.Cause_CAUSE_UNSPECIFIED
+				if b.code == refused {
+					cause = v1.Cause_CAUSE_NOT_ADMITTED
+				}
+				t.Run(name, func(t *testing.T) { refusedAs(t, err, b.code, cause) })
+			}
+		})
+	}
 }

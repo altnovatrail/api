@@ -47,3 +47,4 @@ updates:
       - dependency-name: github.com/altnovatrail/spec
       - dependency-name: github.com/altnovatrail/spec/contracts
       - dependency-name: github.com/altnovatrail/module-kit
+      - dependency-name: github.com/altnovatrail/tutor
