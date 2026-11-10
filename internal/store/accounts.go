@@ -87,16 +87,3 @@ func TodayByUTC(on, now time.Time) bool {
 	onYear, onMonth, onDay := on.Date()
 	return !on.IsZero() && year == onYear && month == onMonth && day == onDay
 }
-
-// ConsentGiven says whether the profile's consent is confirmed: what a learning
-// request of E3 asks before it does anything (architecture 3.1, step 5; R116 spec).
-// A profile has one consent at most, and a consent that waits has no profile.
-func ConsentGiven(ctx context.Context, db Querier, profileID string) (bool, error) {
-	var given bool
-	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM consents WHERE profile_id = $1 AND state = 'confirmed')`,
-		profileID).Scan(&given)
-	if err != nil {
-		return false, fmt.Errorf("store: find the consent: %w", err)
-	}
-	return given, nil
-}

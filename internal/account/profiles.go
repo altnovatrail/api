@@ -23,7 +23,7 @@ var errCountry = errors.New("account: the country is not accepted")
 // country, so that a repeat is told it is there.
 func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerProfileRequest) (*v1.CreateOwnerProfileResponse, error) {
 	if !countries.Valid(req.GetCountry()) {
-		return nil, malformed("country")
+		return nil, rpc.Malformed("country")
 	}
 	p := newProfile("adult", req.GetCountry())
 	if err := apply(&p, req.GetSettings(), true); err != nil {

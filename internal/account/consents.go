@@ -48,10 +48,10 @@ func category(age int32) string {
 // counted; the key's fingerprint is slow, as the request carries the age.
 func (s *Service) RequestChildConsent(ctx context.Context, req *v1.RequestChildConsentRequest) (*v1.RequestChildConsentResponse, error) {
 	if req.AgeYears == nil || req.GetAgeYears() < 0 || req.GetAgeYears() >= adultAge {
-		return nil, malformed("age_years")
+		return nil, rpc.Malformed("age_years")
 	}
 	if !countries.Valid(req.GetCountry()) {
-		return nil, malformed("country")
+		return nil, rpc.Malformed("country")
 	}
 	category := category(req.GetAgeYears())
 	return keyedOnce(ctx, s, apiv1connect.AccountServiceRequestChildConsentProcedure, req,

@@ -1,0 +1,23 @@
+id: pairs
+statement:
+  - text: Choose the greater number in each pair.
+canvas:
+  kind: handwriting_sheet
+items:
+  - text: a) 12 or 21?
+    answer_slots:
+      - binding: choice
+        options: ["12", "21"]
+        check: {kind: choice, key: "21"}
+  - text: b) 30 or 13?
+    answer_slots:
+      - binding: choice
+        options: ["30", "13"]
+        check: {kind: choice, key: "30"}
+solution:
+  - text: "21 has two tens and 12 one; 30 has three tens and 13 one."
+techniques: [compare-tens, count-on]
+skills:
+  primary: [comparing]
+band: grades-1-2
+difficulty: 1

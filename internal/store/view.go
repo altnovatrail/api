@@ -10,7 +10,8 @@ import (
 )
 
 // View is the account as GetAccount gives it (contract, Account): whether its
-// PIN is set, its profiles, and its consents for a child with no profile yet.
+// PIN is set, its profiles with their open attempts, and its consents for a
+// child with no profile yet.
 type View struct {
 	// ID is the account's ID.
 	ID string
@@ -39,6 +40,9 @@ type Profile struct {
 	InterfaceLanguage *string
 	Grade             *int16
 	AskBeforeShowing  bool
+	// OpenAttempt is the profile's open attempt, which the view of the account
+	// alone reads: nil when it has none.
+	OpenAttempt *OpenAttempt
 }
 
 // ChildConsent is a consent for a child that waits for its profile.
@@ -71,6 +75,15 @@ func AccountView(ctx context.Context, db TxBeginner, accountID string) (View, er
 		}
 		if view.Profiles, err = profiles(ctx, tx, accountID); err != nil {
 			return err
+		}
+		open, err := openAttempts(ctx, tx, accountID)
+		if err != nil {
+			return err
+		}
+		for i, p := range view.Profiles {
+			if a, ok := open[p.ID]; ok {
+				view.Profiles[i].OpenAttempt = &a
+			}
 		}
 		view.ChildConsents, err = childConsents(ctx, tx, accountID)
 		return err

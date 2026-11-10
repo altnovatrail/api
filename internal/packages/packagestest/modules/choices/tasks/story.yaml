@@ -1,0 +1,17 @@
+id: story
+statement:
+  - text: Tell in a few sentences how you would share some sweets among your friends.
+canvas:
+  kind: handwriting_sheet
+items:
+  - answer_slots:
+      - binding: sheet
+        check:
+          kind: rubric
+          criteria:
+            - text: The story shares all the sweets.
+            - text: Every friend gets as many sweets as the others.
+skills:
+  primary: [telling]
+band: grades-1-2
+difficulty: 1

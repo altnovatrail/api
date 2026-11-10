@@ -2,6 +2,10 @@
 // reads: the packages of the vectors of spec's format, their archives, an index
 // of them and a release of modules that serves them, and a folder laid from
 // them, read as serve reads it (R41). The tests run without the network.
+//
+// The vectors of packages hold no answer slot bound choice, so the package
+// holds modules of its own too, synthetic, under modules/: choices, whose tasks
+// a tap checks, with one that AI would read and one with a rubric.
 package packagestest
 
 import (
@@ -10,6 +14,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"io/fs"
@@ -31,6 +36,11 @@ import (
 	"github.com/altnovatrail/api/internal/packages"
 )
 
+// own is the modules of this package's own, which Own builds.
+//
+//go:embed modules
+var own embed.FS
+
 // versionLine is the line of a manifest that names the module's version.
 var versionLine = regexp.MustCompile(`(?m)^version: .*$`)
 
@@ -43,6 +53,23 @@ func Built(t testing.TB, name string, version ...string) *modulepackage.Package 
 	if err != nil {
 		t.Fatal(err)
 	}
+	return build(t, name, module, version)
+}
+
+// Own is the package of this package's own module name, under modules/; with
+// version, the same module at that version.
+func Own(t testing.TB, name string, version ...string) *modulepackage.Package {
+	t.Helper()
+	module, err := fs.Sub(own, "modules/"+name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return build(t, name, module, version)
+}
+
+// build is the package module-kit builds of module, at version when given.
+func build(t testing.TB, name string, module fs.FS, version []string) *modulepackage.Package {
+	t.Helper()
 	if len(version) > 0 {
 		module = withVersion(t, module, version[0])
 	}

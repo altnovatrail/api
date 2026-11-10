@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -121,7 +122,7 @@ func TestAFailedStatementOfThePINIsAFailure(t *testing.T) {
 			return err
 		}},
 		{"INSERT INTO idempotency_keys", func(tx pgx.Tx) error {
-			return store.RecordDone(t.Context(), tx, id, "k", "m", "f", []byte{})
+			return store.RecordDone(t.Context(), tx, id, "k", "m", "f", store.KeyTarget{Response: []byte{}})
 		}},
 		{"SET pin_hash", func(tx pgx.Tx) error {
 			return store.WritePin(t.Context(), tx, id, pin.State{Hash: "h"})
@@ -231,5 +232,74 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 		if !errors.Is(err, errDown) {
 			t.Errorf("failing on %q = %v, want the failure", tc.failOn, err)
 		}
+	}
+}
+
+// A statement of an attempt that fails is the store's failure.
+func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	id := account(t, pool)
+	profile := ownerProfile(t, pool, id, time.Now())
+	none := "00000000-0000-0000-0000-000000000000"
+	for _, tc := range []struct {
+		failOn string
+		run    func(tx pgx.Tx) error
+	}{
+		{"FROM engine_choices", func(tx pgx.Tx) error {
+			_, err := store.ChoiceOf(t.Context(), tx, profile, none)
+			return err
+		}},
+		{"FROM lesson_runs", func(tx pgx.Tx) error {
+			_, err := store.LessonRunThere(t.Context(), tx, profile, none)
+			return err
+		}},
+		{"FROM attempts", func(tx pgx.Tx) error {
+			_, err := store.HoldAttempt(t.Context(), tx, profile, none)
+			return err
+		}},
+		{"closed_at IS NULL FOR UPDATE", func(tx pgx.Tx) error {
+			_, _, err := store.HoldOpenAttempt(t.Context(), tx, profile)
+			return err
+		}},
+		{"INSERT INTO attempts", func(tx pgx.Tx) error {
+			_, err := store.BeginAttempt(t.Context(), tx, profile, store.NewAttempt{}, time.Now())
+			return err
+		}},
+		{"choice_id = $2", func(tx pgx.Tx) error {
+			_, err := store.ChoiceBegun(t.Context(), tx, profile, none)
+			return err
+		}},
+		{"SET close_reason = $3", func(tx pgx.Tx) error {
+			return store.CloseAttempt(t.Context(), tx, profile, none, "left", time.Now())
+		}},
+		{"INSERT INTO submissions", func(tx pgx.Tx) error {
+			_, err := store.Submit(t.Context(), tx, profile, none, []byte{}, false, time.Now())
+			return err
+		}},
+		{"FROM submissions", func(tx pgx.Tx) error {
+			_, _, err := store.LastSubmission(t.Context(), tx, profile, none)
+			return err
+		}},
+		{"FROM submissions", func(tx pgx.Tx) error {
+			_, err := store.SubmissionAnswer(t.Context(), tx, profile, none)
+			return err
+		}},
+		{"SET step_techniques_at", func(tx pgx.Tx) error {
+			return store.GiveStepTechniques(t.Context(), tx, profile, none, time.Now())
+		}},
+		{"FROM connected_modules", func(tx pgx.Tx) error {
+			_, err := store.ModuleConnected(t.Context(), tx, profile, "example/m")
+			return err
+		}},
+	} {
+		err := pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: tc.failOn}, tc.run)
+		if !errors.Is(err, errDown) {
+			t.Errorf("failing on %q = %v, want the failure", tc.failOn, err)
+		}
+	}
+	if _, err := store.AccountView(t.Context(), &flaky{Pool: pool, failOn: "FROM attempts"}, id); !errors.Is(err, errDown) {
+		t.Errorf("AccountView failing on its open attempts = %v, want the failure", err)
 	}
 }

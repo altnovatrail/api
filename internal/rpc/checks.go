@@ -228,16 +228,26 @@ func (s *checked) Receive(msg any) error {
 	return nil
 }
 
-// RequireConsent is step 5 of architecture 3.1, for the handlers of the learning
-// requests (E3): the profile's consent is confirmed, or the request is refused
-// "no consent" (R116 spec). It runs after the checks, on the profile they let through.
-func RequireConsent(ctx context.Context, db store.Querier, profileID string) error {
-	given, err := store.ConsentGiven(ctx, db, profileID)
-	if err != nil {
-		return Failed(ctx, err)
+// Learner is step 5 of architecture 3.1, for the handlers of the learning
+// requests: the profile's consent is confirmed, or the request is refused "no
+// consent" (R116 spec). It gives the profile's age category, read with the
+// consent in one query, by which a module and a task suit the learner (R07). It
+// runs after the checks, on the profile they let through: one gone meanwhile is
+// "no profile".
+func Learner(ctx context.Context, db store.Querier, profileID string) (string, error) {
+	caller, _ := CallerFrom(ctx)
+	l, err := store.LearnerOf(ctx, db, caller.AccountID, profileID)
+	switch {
+	case errors.Is(err, store.ErrNoProfile):
+		return "", noProfile(ctx)
+	case err != nil:
+		return "", Failed(ctx, err)
+	case !l.Consented:
+		return "", Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
 	}
-	if !given {
-		return Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
-	}
-	return nil
+	return l.AgeCategory, nil
 }
+
+// Malformed is a request whose form the contract refuses: invalid_argument with
+// no Refusal, naming the field.
+func Malformed(field string) error { return connect.NewError(connect.CodeInvalidArgument, field) }

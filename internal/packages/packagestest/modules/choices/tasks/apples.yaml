@@ -1,0 +1,18 @@
+id: apples
+statement:
+  - text: Ann has 3 apples, and Ben gives her 4 more. How many apples has Ann now?
+canvas:
+  kind: handwriting_sheet
+items:
+  - answer_slots:
+      - binding: anywhere
+        check:
+          kind: number
+          key: "7"
+          units: [apple, apples]
+solution:
+  - text: "3 + 4 = 7: Ann has 7 apples."
+skills:
+  primary: [adding]
+band: grades-1-2
+difficulty: 1

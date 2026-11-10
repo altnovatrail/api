@@ -158,6 +158,12 @@ func profile(p store.Profile) *v1.Profile {
 		grade := int32(*p.Grade)
 		out.Grade = &grade
 	}
+	if a := p.OpenAttempt; a != nil {
+		out.OpenAttempt = &v1.OpenAttemptRef{AttemptId: a.ID}
+		if a.LessonRunID != nil {
+			out.OpenAttempt.Segment = &v1.SegmentPlace{LessonRunId: *a.LessonRunID, Segment: int32(*a.Segment)}
+		}
+	}
 	return out
 }
 

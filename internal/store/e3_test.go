@@ -36,11 +36,13 @@ func newE3(t *testing.T) *e3 {
 	return &e3{pool: pool, accountID: accountID, profileID: ownerProfile(t, pool, accountID, time.Now())}
 }
 
-// choice is a new engine's choice of the profile, of a task or a lesson.
+// choice is a new engine's choice of the profile, of a task, which names its
+// module and task, or of a lesson.
 func (e *e3) choice(t *testing.T, kind string) string {
 	t.Helper()
 	var id string
-	if err := e.pool.QueryRow(t.Context(), `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, $2) RETURNING id`,
+	if err := e.pool.QueryRow(t.Context(), `INSERT INTO engine_choices (profile_id, kind, module_id, task_id)
+		SELECT $1, $2, m, m FROM (SELECT CASE WHEN $2 = 'task' THEN 'example/m' END AS m) AS task RETURNING id`,
 		e.profileID, kind).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
@@ -125,17 +127,22 @@ func TestTheSchemaOfE3HoldsItsRules(t *testing.T) {
 		args []any
 		code string
 	}{
-		"a close with no time":     {`UPDATE attempts SET close_reason = 'left' WHERE id = $1`, []any{again}, "23514"},
-		"a time with no close":     {`UPDATE attempts SET closed_at = now() WHERE id = $1`, []any{again}, "23514"},
-		"a close of no reason":     {`UPDATE attempts SET close_reason = 'gone', closed_at = now() WHERE id = $1`, []any{again}, "23514"},
-		"an end of no reason":      {`UPDATE lesson_runs SET end_reason = 'gone', ended_at = now() WHERE id = $1`, []any{first}, "23514"},
-		"an end with no time":      {`UPDATE lesson_runs SET end_reason = 'passed' WHERE id = $1`, []any{first}, "23514"},
-		"a segment of no run":      {`UPDATE attempts SET segment = 1 WHERE id = $1`, []any{again}, "23514"},
-		"two ways to begin":        {`UPDATE attempts SET choice_id = (SELECT id FROM engine_choices LIMIT 1) WHERE id = $1`, []any{again}, "23514"},
-		"a digest that is none":    {`UPDATE attempts SET package_digest = 'sha256:x' WHERE id = $1`, []any{again}, "23514"},
-		"a choice of two runs":     {`UPDATE lesson_runs SET choice_id = (SELECT choice_id FROM lesson_runs WHERE id <> $1 LIMIT 1) WHERE id = $1`, []any{first}, "23505"},
-		"a negative instance":      {`UPDATE attempts SET instance = -1 WHERE id = $1`, []any{again}, "23514"},
-		"a choice of two attempts": {`UPDATE attempts SET previous_attempt_id = NULL, choice_id = (SELECT choice_id FROM attempts WHERE id = $2) WHERE id = $1`, []any{again, open}, "23505"},
+		"a close with no time":              {`UPDATE attempts SET close_reason = 'left' WHERE id = $1`, []any{again}, "23514"},
+		"a time with no close":              {`UPDATE attempts SET closed_at = now() WHERE id = $1`, []any{again}, "23514"},
+		"a close of no reason":              {`UPDATE attempts SET close_reason = 'gone', closed_at = now() WHERE id = $1`, []any{again}, "23514"},
+		"an end of no reason":               {`UPDATE lesson_runs SET end_reason = 'gone', ended_at = now() WHERE id = $1`, []any{first}, "23514"},
+		"an end with no time":               {`UPDATE lesson_runs SET end_reason = 'passed' WHERE id = $1`, []any{first}, "23514"},
+		"a segment of no run":               {`UPDATE attempts SET segment = 1 WHERE id = $1`, []any{again}, "23514"},
+		"two ways to begin":                 {`UPDATE attempts SET choice_id = (SELECT id FROM engine_choices LIMIT 1) WHERE id = $1`, []any{again}, "23514"},
+		"a digest that is none":             {`UPDATE attempts SET package_digest = 'sha256:x' WHERE id = $1`, []any{again}, "23514"},
+		"a choice of two runs":              {`UPDATE lesson_runs SET choice_id = (SELECT choice_id FROM lesson_runs WHERE id <> $1 LIMIT 1) WHERE id = $1`, []any{first}, "23505"},
+		"a negative instance":               {`UPDATE attempts SET instance = -1 WHERE id = $1`, []any{again}, "23514"},
+		"a choice of two attempts":          {`UPDATE attempts SET previous_attempt_id = NULL, choice_id = (SELECT choice_id FROM attempts WHERE id = $2) WHERE id = $1`, []any{again, open}, "23505"},
+		"a choice of a task of no task":     {`INSERT INTO engine_choices (profile_id, kind, module_id) VALUES ($1, 'task', 'example/m')`, []any{e.profileID}, "23514"},
+		"a submission before the first":     {`INSERT INTO submissions (profile_id, attempt_id, number, answer) VALUES ($1, $2, 0, '\x00')`, []any{e.profileID, again}, "23514"},
+		"a submission of another's attempt": {`INSERT INTO submissions (profile_id, attempt_id, number, answer) VALUES ($1, $2, 1, '\x00')`, []any{ownerProfile(t, e.pool, account(t, e.pool), time.Now()), again}, "23503"},
+		"negative wrong answers":            {`UPDATE attempts SET wrong_answers = -1 WHERE id = $1`, []any{again}, "23514"},
+		"a record done of nothing":          {`INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state) VALUES ($1, 'n', '/m', 'f', 'done')`, []any{e.accountID}, "23514"},
 	} {
 		if _, err := e.pool.Exec(ctx, tc.sql, tc.args...); sqlstate(err) != tc.code {
 			t.Errorf("%s = %v, want SQLSTATE %s", name, err, tc.code)
@@ -279,10 +286,21 @@ func TestWhatE3KeepsGoesWithTheProfile(t *testing.T) {
 				e.accountID, e.profileID, attempt, run); err != nil {
 				t.Fatal(err)
 			}
+			var submission string
+			if err := e.pool.QueryRow(ctx, `INSERT INTO submissions (profile_id, attempt_id, number, answer)
+				VALUES ($1, $2, 1, '\x00') RETURNING id`, e.profileID, attempt).Scan(&submission); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.pool.Exec(ctx, `INSERT INTO idempotency_keys
+				(account_id, key, method, profile_id, attempt_id, submission_id, fingerprint, state)
+				VALUES ($1, 's', '/novatrail.api.v1.AttemptService/SubmitWork', $2, $3, $4, 'f', 'done')`,
+				e.accountID, e.profileID, attempt, submission); err != nil {
+				t.Fatal(err)
+			}
 			if err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return del(ctx, tx, e) }); err != nil {
 				t.Fatal(err)
 			}
-			for _, table := range []string{"engine_choices", "lesson_runs", "attempts", "evidence", "skill_states", "idempotency_keys"} {
+			for _, table := range []string{"engine_choices", "lesson_runs", "attempts", "evidence", "skill_states", "submissions", "idempotency_keys"} {
 				if n := count(t, e.pool, table); n != 0 {
 					t.Errorf("%d rows of %s left", n, table)
 				}
@@ -432,5 +450,138 @@ func TestTheJobOfE3FailsWithItsStatements(t *testing.T) {
 	}
 	if _, err := store.EndAbandonedRuns(ctx, tx, time.Now(), time.Now()); !errors.Is(err, errDown) {
 		t.Errorf("EndAbandonedRuns = %v, want the failure", err)
+	}
+}
+
+// An attempt begins by a choice of a task, which begins one; its submissions
+// are numbered in order, counted as wrong answers when they are, and read back;
+// the techniques given at a step keep the first time; and its close holds.
+func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
+	t.Parallel()
+
+	e := newE3(t)
+	ctx := t.Context()
+	none := "00000000-0000-0000-0000-000000000000"
+	task, lesson := e.choice(t, "task"), e.choice(t, "lesson")
+	if _, err := e.pool.Exec(ctx, `UPDATE engine_choices SET module_id = 'example/m' WHERE id = $1`, lesson); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := store.ChoiceOf(ctx, e.pool, e.profileID, task); err != nil || c.Kind != "task" || c.ModuleID != "example/m" || c.TaskID != "example/m" {
+		t.Errorf("ChoiceOf a task = %+v, %v", c, err)
+	}
+	if c, err := store.ChoiceOf(ctx, e.pool, e.profileID, lesson); err != nil || c.Kind != "lesson" || c.ModuleID != "example/m" || c.TaskID != "" {
+		t.Errorf("ChoiceOf a lesson with its module = %+v, %v", c, err)
+	}
+	if _, err := store.ChoiceOf(ctx, e.pool, e.profileID, none); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("ChoiceOf none = %v, want ErrNotFound", err)
+	}
+	instance := 2
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	var id string
+	err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		if _, found, err := store.HoldOpenAttempt(ctx, tx, e.profileID); err != nil || found {
+			t.Errorf("HoldOpenAttempt before = %v, %v; want none", found, err)
+		}
+		var err error
+		id, err = store.BeginAttempt(ctx, tx, e.profileID, store.NewAttempt{PackageDigest: digest, ModuleID: "example/m",
+			ModuleVersion: "0.1.0", FormatVersion: "0.4", ModuleKit: "v0.3.0", TaskID: "t1", Seed: 1 << 63,
+			Instance: &instance, ChoiceID: &task}, at)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if begun, err := store.ChoiceBegun(ctx, e.pool, e.profileID, task); err != nil || !begun {
+		t.Errorf("ChoiceBegun = %v, %v; want true", begun, err)
+	}
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		a, found, err := store.HoldOpenAttempt(ctx, tx, e.profileID)
+		if err != nil || !found || a.ID != id || a.Seed != 1<<63 || *a.Instance != 2 || *a.ChoiceID != task ||
+			a.CloseReason != nil || !a.LastActionAt.Equal(at) || a.StepTechniques {
+			t.Errorf("HoldOpenAttempt = %+v, %v, %v", a, found, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `UPDATE attempts SET close_reason = 'left', closed_at = now() WHERE id = $1`, id); err != nil {
+			return err
+		}
+		_, err := store.BeginAttempt(ctx, tx, e.profileID, store.NewAttempt{PackageDigest: digest, ModuleID: "example/m",
+			ModuleVersion: "0.1.0", FormatVersion: "0.4", ModuleKit: "v0.3.0", TaskID: "t1", ChoiceID: &task}, at)
+		return err
+	})
+	if !errors.Is(err, store.ErrChoiceBegun) {
+		t.Errorf("a second attempt of the choice = %v, want ErrChoiceBegun", err)
+	}
+	later := at.Add(time.Minute)
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{1}, true, at); err != nil {
+			return err
+		}
+		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{2}, false, later); err != nil {
+			return err
+		}
+		if err := store.GiveStepTechniques(ctx, tx, e.profileID, id, at); err != nil {
+			return err
+		}
+		return store.GiveStepTechniques(ctx, tx, e.profileID, id, later)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer, found, err := store.LastSubmission(ctx, e.pool, e.profileID, id); err != nil || !found || answer[0] != 2 {
+		t.Errorf("LastSubmission = %v, %v, %v; want the second", answer, found, err)
+	}
+	var first string
+	var given time.Time
+	if err := e.pool.QueryRow(ctx, `SELECT s.id, a.step_techniques_at FROM submissions s JOIN attempts a ON a.id = s.attempt_id
+		WHERE s.attempt_id = $1 AND s.number = 1`, id).Scan(&first, &given); err != nil {
+		t.Fatal(err)
+	}
+	if answer, err := store.SubmissionAnswer(ctx, e.pool, e.profileID, first); err != nil || answer[0] != 1 || !given.Equal(at) {
+		t.Errorf("SubmissionAnswer = %v, %v; techniques given at %v, want the first time", answer, err, given)
+	}
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		a, err := store.HoldAttempt(ctx, tx, e.profileID, id)
+		if err != nil || a.WrongAnswers != 1 || !a.LastActionAt.Equal(later) || !a.StepTechniques {
+			t.Errorf("HoldAttempt = %+v, %v; want one wrong answer, the last action later, techniques given", a, err)
+		}
+		if err := store.CloseAttempt(ctx, tx, e.profileID, id, "correct", later); err != nil {
+			return err
+		}
+		// A close kept is not written over.
+		return store.CloseAttempt(ctx, tx, e.profileID, id, "left", later)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		a, err := store.HoldAttempt(ctx, tx, e.profileID, id)
+		if err != nil || *a.CloseReason != "correct" {
+			t.Errorf("the attempt closed = %+v, %v; want correct", a, err)
+		}
+		if _, err := store.HoldAttempt(ctx, tx, e.profileID, none); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("HoldAttempt of none = %v, want ErrNotFound", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := store.LastSubmission(ctx, e.pool, e.profileID, none); err != nil || found {
+		t.Errorf("LastSubmission of none = %v, %v", found, err)
+	}
+	run, err := e.run(t, "example/m/l1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if there, err := store.LessonRunThere(ctx, e.pool, e.profileID, run); err != nil || !there {
+		t.Errorf("LessonRunThere = %v, %v; want true", there, err)
+	}
+	if connected, err := store.ModuleConnected(ctx, e.pool, e.profileID, "example/m"); err != nil || connected {
+		t.Errorf("ModuleConnected = %v, %v; want false", connected, err)
 	}
 }

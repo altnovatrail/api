@@ -1,0 +1,17 @@
+id: grown-ups
+statement:
+  - text: "Which is more: a dozen, or ten?"
+canvas:
+  kind: handwriting_sheet
+items:
+  - answer_slots:
+      - binding: choice
+        options: [a dozen, ten]
+        check: {kind: choice, key: a dozen}
+solution:
+  - text: "A dozen is 12, and 12 is more than 10."
+skills:
+  primary: [comparing]
+band: grades-1-2
+difficulty: 1
+age_categories: [adult]

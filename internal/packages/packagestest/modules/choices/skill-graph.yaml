@@ -1,0 +1,10 @@
+skills:
+  comparing:
+    title: Comparing
+    assessability: verdict
+  adding:
+    title: Adding
+    assessability: verdict
+  telling:
+    title: Telling
+    assessability: rubric

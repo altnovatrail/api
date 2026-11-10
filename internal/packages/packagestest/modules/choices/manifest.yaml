@@ -1,0 +1,18 @@
+module_format_version: "0.4"
+id: example/choices
+version: "1.0.0"
+title: Choosing
+subject: mathematics
+audience:
+  age_categories: [under_13, adult]
+  grades: [1, 2]
+bands:
+  - id: grades-1-2
+    title: Grades 1–2
+    grades: [1, 2]
+languages:
+  explanation: en
+authors:
+  - name: The NovaTrail authors
+license: Apache-2.0
+rung_templates: [Which step of your work gave you this answer?, Read the task again slowly. Is there anything it says that your work does not use yet?]

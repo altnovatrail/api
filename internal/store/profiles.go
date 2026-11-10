@@ -52,7 +52,7 @@ func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Prof
 		p.InterfaceLanguage, p.Grade))
 	var pgErr *pgconn.PgError
 	switch {
-	case errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "profiles_one_owner":
+	case errors.As(err, &pgErr) && pgErr.Code == uniqueViolation && pgErr.ConstraintName == "profiles_one_owner":
 		return Profile{}, ErrProfileExists
 	case errors.Is(err, pgx.ErrNoRows):
 		return Profile{}, ErrNoAccount

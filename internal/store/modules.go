@@ -22,7 +22,8 @@ type ConnectedModule struct {
 
 // Learner is what a learning request reads of its profile, in one query: the
 // age category, by which a module's audience suits it (R07), and whether its
-// consent is confirmed, as ConsentGiven says.
+// consent is confirmed: a profile has one consent at most, and a consent that
+// waits has no profile (architecture 3.1, step 5; R116 spec).
 type Learner struct {
 	AgeCategory string
 	Consented   bool
@@ -83,4 +84,15 @@ func ConnectedModules(ctx context.Context, db Lister, profileID string) ([]Conne
 		return nil, fmt.Errorf("store: read the connected modules: %w", err)
 	}
 	return modules, nil
+}
+
+// ModuleConnected says whether the module is connected to the profile.
+func ModuleConnected(ctx context.Context, db Querier, profileID, moduleID string) (bool, error) {
+	var connected bool
+	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM connected_modules WHERE profile_id = $1 AND module_id = $2)`,
+		profileID, moduleID).Scan(&connected)
+	if err != nil {
+		return false, fmt.Errorf("store: read the connection of the module: %w", err)
+	}
+	return connected, nil
 }
