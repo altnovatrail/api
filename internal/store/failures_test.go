@@ -286,6 +286,10 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			_, err := store.SubmissionAnswer(t.Context(), tx, profile, none)
 			return err
 		}},
+		{"SELECT package_digest, task_id", func(tx pgx.Tx) error {
+			_, _, err := store.AttemptTask(t.Context(), tx, profile, none)
+			return err
+		}},
 		{"SET step_techniques_at", func(tx pgx.Tx) error {
 			return store.GiveStepTechniques(t.Context(), tx, profile, none, time.Now())
 		}},

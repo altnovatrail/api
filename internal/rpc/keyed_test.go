@@ -3,12 +3,15 @@ package rpc_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/idem"
@@ -211,4 +214,71 @@ func TestARequestAcrossItsCallRecordsItGoing(t *testing.T) {
 	}
 	_, err = rpc.Across(ctx, w.pool, key, &v1.SubmitWorkRequest{}, phases(nil))
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+}
+
+// flakyTxs begins transactions on a pool, and in each after the first `after`
+// fails the statements whose SQL holds failOn.
+type flakyTxs struct {
+	pool   *pgxpool.Pool
+	failOn string
+	after  int
+	begun  int
+}
+
+func (f *flakyTxs) Begin(ctx context.Context) (pgx.Tx, error) {
+	tx, err := f.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	f.begun++
+	if f.begun <= f.after {
+		return tx, nil
+	}
+	return &flakyTx{Tx: tx, failOn: f.failOn}, nil
+}
+
+// flakyTx is a transaction whose statements holding failOn fail.
+type flakyTx struct {
+	pgx.Tx
+	failOn string
+}
+
+func (t *flakyTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, t.failOn) {
+		return failedRow{}
+	}
+	return t.Tx.QueryRow(ctx, sql, args...)
+}
+
+func (t *flakyTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if strings.Contains(sql, t.failOn) {
+		return pgconn.CommandTag{}, errDown
+	}
+	return t.Tx.Exec(ctx, sql, args...)
+}
+
+// A database that fails in either transaction of a request across its call is
+// the failure, given back as it came.
+func TestARequestAcrossAFailingDatabaseFails(t *testing.T) {
+	w := newWorld(t, time.Second)
+	p := w.person(t, "uid-across-down")
+	ctx := rpc.WithCaller(t.Context(), rpc.Caller{AccountID: p.accountID})
+	key := rpc.Key{Method: "/novatrail.api.v1.AttemptService/SubmitWork", GoingFor: time.Minute}
+	phases := rpc.Phases[int, *v1.SubmitWorkResponse]{
+		Prepare: func(pgx.Tx, string) (int, store.KeyTarget, error) { return 0, store.KeyTarget{}, nil },
+		Call:    func(_ context.Context, n int) int { return n },
+		Finish: func(pgx.Tx, int) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
+			return &v1.SubmitWorkResponse{}, store.KeyTarget{}, nil
+		},
+	}
+	for name, db := range map[string]*flakyTxs{
+		"the account held first":   {pool: w.pool, failOn: "FOR NO KEY UPDATE"},
+		"the key's record read":    {pool: w.pool, failOn: "FROM idempotency_keys"},
+		"the account held at last": {pool: w.pool, failOn: "FOR NO KEY UPDATE", after: 1},
+	} {
+		_, err := rpc.Across(ctx, db, key, &v1.SubmitWorkRequest{IdempotencyKey: name}, phases)
+		if !errors.Is(err, errDown) || recorded(t, w, p, name) {
+			t.Errorf("%s failing = %v, recorded %v; want the failure, recorded nowhere", name, err, recorded(t, w, p, name))
+		}
+	}
 }

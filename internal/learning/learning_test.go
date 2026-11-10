@@ -674,6 +674,9 @@ func TestTheCheckOfARequestClosesWhatCannotGoOn(t *testing.T) {
 	notKnown := w.attempt(t, l.child, unknown, "pick")
 	_, err = w.learning.GetOpenAttempt(l.ctx, &v1.GetOpenAttemptRequest{ProfileId: l.child, AttemptId: notKnown})
 	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
+	// A submission too: what its task is, the image cannot tell.
+	_, err = w.submit(l, l.child, notKnown, tap(1, 1, "five"))
+	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
 	if got := w.closeOf(t, notKnown); got != "" {
 		t.Errorf("the attempt on a package not known is closed %q, want open", got)
 	}

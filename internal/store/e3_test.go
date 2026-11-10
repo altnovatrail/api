@@ -533,6 +533,12 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if digest, task, err := store.AttemptTask(ctx, e.pool, e.profileID, id); err != nil || digest == "" || task == "" {
+		t.Errorf("AttemptTask = %q, %q, %v; want the attempt's package and task", digest, task, err)
+	}
+	if _, _, err := store.AttemptTask(ctx, e.pool, e.profileID, "00000000-0000-0000-0000-000000000000"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("AttemptTask of none = %v, want ErrNotFound", err)
+	}
 	if answer, found, err := store.LastSubmission(ctx, e.pool, e.profileID, id); err != nil || !found || answer[0] != 2 {
 		t.Errorf("LastSubmission = %v, %v, %v; want the second", answer, found, err)
 	}
