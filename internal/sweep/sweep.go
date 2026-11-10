@@ -1,9 +1,11 @@
-// Package sweep is the daily job of the terms of keeping (R05, R21, R38): it
-// finishes the deletions the requests left unfinished and deletes what E2 keeps
-// past its term — accounts and profiles idle for 12 months, users of the sign-in
-// service with no account for 30 days, dangling tuples, the minimal records of
-// consents for children 5 years after the deletion, and the records of keys and
-// OpenFGA's changelog after a day. A pass keeps no state for the next: each
+// Package sweep is the daily job of the terms of keeping (R05, R21, R38, R43):
+// it finishes the deletions the requests left unfinished and deletes what is
+// kept past its term — accounts and profiles idle for 12 months, users of the
+// sign-in service with no account for 30 days, dangling tuples, the minimal
+// records of consents for children 5 years after the deletion, and the records
+// of keys and OpenFGA's changelog after a day — and closes what a learner
+// abandoned: an attempt with no action for 7 days, and a lesson run with none
+// for 30 (R10, R13). A pass keeps no state for the next: each
 // step chooses its work again by a query, so a pass cut short is taken up by the
 // next one. Its log is counts alone.
 package sweep
@@ -27,8 +29,12 @@ import (
 // row; a user with no account after 30 days with no sign-in, refresh of a token
 // or creation; the minimal record of a consent for a child 5 years after the
 // deletion of its account or profile; the records of keys and the changelog after
-// a day, so that neither is kept for more than two.
+// a day, so that neither is kept for more than two. An attempt with no action for
+// 7 days is closed "abandoned", and a lesson run with none for 30 days ends so
+// (R10, R13).
 const (
+	attemptsTerm       = 7 * 24 * time.Hour
+	runsTerm           = 30 * 24 * time.Hour
 	usersTerm          = 30 * 24 * time.Hour
 	consentRecordYears = 5
 	keysTerm           = 24 * time.Hour
@@ -113,6 +119,8 @@ func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 		{logging.StepMarks, s.marks},
 		{logging.StepIdleAccounts, s.idleAccounts},
 		{logging.StepIdleProfiles, s.idleProfiles},
+		{logging.StepAbandonedAttempts, s.abandonedAttempts},
+		{logging.StepAbandonedRuns, s.abandonedRuns},
 		{logging.StepUsers, s.users},
 		{logging.StepTuples, s.tuples},
 		{logging.StepConsentRecords, s.consentRecords},
@@ -340,6 +348,30 @@ func (s *Sweeper) tuples(ctx context.Context, now time.Time, step *Step) {
 func (s *Sweeper) consentRecords(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropConsentRecords(ctx, s.db, now.UTC().AddDate(-consentRecordYears, 0, 0))
 	step.Done = dropped
+	if err != nil {
+		s.failed(ctx, step, err)
+		return
+	}
+	step.Finished = true
+}
+
+// abandonedAttempts closes the attempts with no action for 7 days (R10). The
+// words of their hints, and the evidence of one with wrong answers, are what the
+// tasks that keep them add to the close (T37, T39).
+func (s *Sweeper) abandonedAttempts(ctx context.Context, now time.Time, step *Step) {
+	closed, err := store.CloseAbandonedAttempts(ctx, s.db, now.Add(-attemptsTerm), now)
+	step.Done = closed
+	if err != nil {
+		s.failed(ctx, step, err)
+		return
+	}
+	step.Finished = true
+}
+
+// abandonedRuns ends the lesson runs with no action for 30 days (R13).
+func (s *Sweeper) abandonedRuns(ctx context.Context, now time.Time, step *Step) {
+	ended, err := store.EndAbandonedRuns(ctx, s.db, now.Add(-runsTerm), now)
+	step.Done = ended
 	if err != nil {
 		s.failed(ctx, step, err)
 		return

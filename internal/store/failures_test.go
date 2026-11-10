@@ -207,6 +207,24 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 			_, err = store.CreateChildProfile(t.Context(), tx, id, store.Consent{ChildConsent: c}, p)
 			return err
 		}},
+		{"INSERT INTO skill_states", func(tx pgx.Tx) error {
+			_, err := store.CreateOwnerProfile(t.Context(), tx, id, p)
+			return err
+		}},
+		{"INSERT INTO skill_states", func(tx pgx.Tx) error {
+			c, err := store.CreateChildConsent(t.Context(), tx, id, "under_13", "US")
+			if err != nil {
+				return err
+			}
+			// Confirmed, as epic E4 will: the profile is made and bound, and its skill
+			// state is what fails.
+			if _, err := tx.Exec(t.Context(), `UPDATE consents SET state = 'confirmed', confirmed_at = now(), method = 'synthetic'
+				WHERE id = $1`, c.ID); err != nil {
+				return err
+			}
+			_, err = store.CreateChildProfile(t.Context(), tx, id, store.Consent{ChildConsent: c}, p)
+			return err
+		}},
 		{"FOR NO KEY UPDATE", func(tx pgx.Tx) error { return store.HoldAccount(t.Context(), tx, id) }},
 	} {
 		err := pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: tc.failOn}, tc.run)

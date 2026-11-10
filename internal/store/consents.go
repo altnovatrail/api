@@ -71,8 +71,9 @@ func ConsentFor(ctx context.Context, tx pgx.Tx, accountID, consentID string) (Co
 }
 
 // CreateChildProfile makes the profile of a confirmed consent, which ConsentFor
-// held, of its category and country, and binds the consent to it. The date the
-// age was given is the date the consent was asked for, by UTC.
+// held, of its category and country, binds the consent to it, and makes the row
+// of its skill state. The date the age was given is the date the consent was
+// asked for, by UTC.
 func CreateChildProfile(ctx context.Context, tx pgx.Tx, accountID string, c Consent, p Profile) (Profile, error) {
 	created, err := scanProfile(tx.QueryRow(ctx, `INSERT INTO profiles (account_id, owner, pseudonym, avatar,
 			age_category, country, age_stated_on, voicing_enabled, voicing_speed, default_mode, interface_language,
@@ -88,6 +89,9 @@ func CreateChildProfile(ctx context.Context, tx pgx.Tx, accountID string, c Cons
 	}
 	if _, err := tx.Exec(ctx, `UPDATE consents SET profile_id = $2 WHERE id = $1`, c.ID, created.ID); err != nil {
 		return Profile{}, fmt.Errorf("store: bind the consent: %w", err)
+	}
+	if err := startSkillState(ctx, tx, created.ID); err != nil {
+		return Profile{}, err
 	}
 	return created, nil
 }

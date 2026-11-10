@@ -35,8 +35,9 @@ func scanProfile(row pgx.Row) (Profile, error) {
 
 // CreateOwnerProfile makes the owner's profile in tx, of the category adult by
 // the owner's statement, with its consent: confirmed now, given by that
-// statement (R36; architecture 3.1). The date the age was given is the date of
-// the statement, and every date is by UTC, as TouchProfile writes it. The account has one owner's profile: a second is
+// statement (R36; architecture 3.1), and the row of its skill state. The date
+// the age was given is the date of the statement, and every date is by UTC, as
+// TouchProfile writes it. The account has one owner's profile: a second is
 // ErrProfileExists.
 func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Profile) (Profile, error) {
 	p.Owner, p.AgeCategory = true, "adult"
@@ -64,7 +65,20 @@ func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Prof
 		accountID, created.ID, created.Country, ConsentByOwnerStatement); err != nil {
 		return Profile{}, fmt.Errorf("store: record the owner's consent: %w", err)
 	}
+	if err := startSkillState(ctx, tx, created.ID); err != nil {
+		return Profile{}, err
+	}
 	return created, nil
+}
+
+// startSkillState makes the row of the profile's cache of the skill state, with
+// the profile: empty and at number 0, so that the first evidence of the profile
+// has a row to lock (R06, R43).
+func startSkillState(ctx context.Context, tx pgx.Tx, profileID string) error {
+	if _, err := tx.Exec(ctx, `INSERT INTO skill_states (profile_id) VALUES ($1)`, profileID); err != nil {
+		return fmt.Errorf("store: start the skill state: %w", err)
+	}
+	return nil
 }
 
 // ProfileFor is the account's profile, held FOR UPDATE in tx for a change, or
