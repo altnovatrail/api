@@ -1,0 +1,12 @@
+id: basics
+title: Choosing and adding
+skills: [comparing, adding]
+segments:
+  - explanation:
+      - text: Before you choose, look at both of the numbers.
+  - task: pick
+  - explanation:
+      - text: A number with more tens is the greater one.
+  - task: pairs
+  - explanation:
+      - text: Each time, look at the tens first.

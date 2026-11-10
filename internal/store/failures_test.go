@@ -65,6 +65,15 @@ func (t *flakyTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.Com
 	return t.Tx.Exec(ctx, sql, args...)
 }
 
+// Begin is a savepoint of the transaction, whose statements fail as its own.
+func (t *flakyTx) Begin(ctx context.Context) (pgx.Tx, error) {
+	tx, err := t.Tx.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &flakyTx{Tx: tx, failOn: t.failOn}, nil
+}
+
 func (t *flakyTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	if strings.Contains(sql, t.failOn) {
 		return nil, errDown
@@ -252,7 +261,7 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			return err
 		}},
 		{"FROM lesson_runs", func(tx pgx.Tx) error {
-			_, err := store.LessonRunThere(t.Context(), tx, profile, none)
+			_, err := store.HoldLessonRun(t.Context(), tx, profile, none)
 			return err
 		}},
 		{"FROM attempts", func(tx pgx.Tx) error {

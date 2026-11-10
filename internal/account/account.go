@@ -164,6 +164,10 @@ func profile(p store.Profile) *v1.Profile {
 			out.OpenAttempt.Segment = &v1.SegmentPlace{LessonRunId: *a.LessonRunID, Segment: int32(*a.Segment)}
 		}
 	}
+	for _, r := range p.OpenLessonRuns {
+		out.OpenLessonRuns = append(out.OpenLessonRuns, &v1.LessonRunRef{LessonRunId: r.ID, Lesson: r.LessonID,
+			PackageDigest: r.PackageDigest})
+	}
 	return out
 }
 

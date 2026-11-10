@@ -172,6 +172,16 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 type learner struct {
 	ctx                     context.Context
 	accountID, adult, child string
+	// bearer is the header of the owner's token, for a context of a request of its
+	// own: one request at a time goes on a context of the client.
+	bearer string
+}
+
+// alone is a context of the owner's requests for one request beside others.
+func (l learner) alone(t *testing.T) context.Context {
+	ctx, info := connect.NewClientContext(t.Context())
+	info.RequestHeader().Set("Authorization", l.bearer)
+	return ctx
 }
 
 func (w *world) learner(t *testing.T) learner {
@@ -196,7 +206,8 @@ func (w *world) learner(t *testing.T) learner {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := learner{ctx: ctx, accountID: created.GetAccount().GetAccountId(), adult: owner.GetProfile().GetProfileId()}
+	l := learner{ctx: ctx, accountID: created.GetAccount().GetAccountId(), adult: owner.GetProfile().GetProfileId(),
+		bearer: "Bearer token-" + uid}
 	l.child = w.child(t, l, "under_13", true)
 	w.exec(t, `INSERT INTO connected_modules (profile_id, module_id) VALUES ($1, $3), ($2, $3)`, l.adult, l.child, module)
 	return l
@@ -242,6 +253,14 @@ func (w *world) choice(t *testing.T, profile, task string) string {
 	t.Helper()
 	return w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id) VALUES ($1, 'task', $2, $3)
 		RETURNING id`, profile, module, task)
+}
+
+// lessonChoice is a new engine's choice of the module's lesson for the profile,
+// as the engine's code will write it.
+func (w *world) lessonChoice(t *testing.T, profile, lesson string) string {
+	t.Helper()
+	return w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id) VALUES ($1, 'lesson', $2, $3)
+		RETURNING id`, profile, module, lesson)
 }
 
 // begin begins an attempt of the task on the profile by a new choice.
@@ -447,9 +466,9 @@ func TestABeginningIsRefusedWhenItCannotBegin(t *testing.T) {
 	teen := w.child(t, l, "from_13_to_consent", true)
 	waiting := w.child(t, l, "under_13", false)
 	w.exec(t, `INSERT INTO connected_modules (profile_id, module_id) VALUES ($1, $2)`, teen, module)
-	lessonChoice := w.id(t, `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, 'lesson') RETURNING id`, l.child)
+	lessonChoice := w.lessonChoice(t, l.child, "basics")
 	run := w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
-		VALUES ($1, 'example/choices/l', $2, '1.0.0', $3, $4) RETURNING id`, l.child, module, string(w.current.Digest), lessonChoice)
+		VALUES ($1, 'example/choices/lesson/basics', $2, '1.0.0', $3, $4) RETURNING id`, l.child, module, string(w.current.Digest), lessonChoice)
 	unconnected := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id) VALUES ($1, 'task', 'example/other', 'pick')
 		RETURNING id`, l.child)
 	byChoice := func(profile, task string) *v1.BeginAttemptRequest {
@@ -480,7 +499,8 @@ func TestABeginningIsRefusedWhenItCannotBegin(t *testing.T) {
 		"a segment before the first":   {&v1.BeginAttemptRequest{ProfileId: l.child, Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: run}}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"a run that is no ID":          {&v1.BeginAttemptRequest{ProfileId: l.child, Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: "x", Segment: 1}}}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
 		"a run not there":              {&v1.BeginAttemptRequest{ProfileId: l.child, Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: uuid.NewString(), Segment: 1}}}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
-		"a segment of a run":           {&v1.BeginAttemptRequest{ProfileId: l.child, Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 1}}}, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED},
+		"a segment that is no task":    {&v1.BeginAttemptRequest{ProfileId: l.child, Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 1}}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a segment past the lesson":    {&v1.BeginAttemptRequest{ProfileId: l.child, Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 9}}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 	} {
 		if tc.req.IdempotencyKey == "" {
 			tc.req.IdempotencyKey = uuid.NewString()
@@ -892,6 +912,15 @@ func (f *failingTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.R
 	return f.Tx.QueryRow(ctx, sql, args...)
 }
 
+// Begin is a savepoint of the transaction, whose statements fail as its own.
+func (f *failingTx) Begin(ctx context.Context) (pgx.Tx, error) {
+	tx, err := f.Tx.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &failingTx{Tx: tx, failOn: f.failOn}, nil
+}
+
 func (f *failingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	if strings.Contains(sql, f.failOn) {
 		return nil, errDown
@@ -1013,7 +1042,7 @@ func TestANewAttemptClosesALapsedOneByItsLapse(t *testing.T) {
 		t.Errorf("the attempt past its term is closed %q, want abandoned", got)
 	}
 	// A choice of a lesson that names its module is still no choice of a task.
-	lesson := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id) VALUES ($1, 'lesson', $2) RETURNING id`, l.child, module)
+	lesson := w.lessonChoice(t, l.child, "basics")
 	_, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
 		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: lesson}})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)

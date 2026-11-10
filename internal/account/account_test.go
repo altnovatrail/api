@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -328,6 +329,22 @@ func TestTheAccountGivesItsProfilesAndConsentsInTheContractsWords(t *testing.T) 
 		VALUES ($1, 'child', 'waiting', 'from_13_to_consent', 'US') RETURNING id`, id).Scan(&consent); err != nil {
 		t.Fatal(err)
 	}
+	// The child is in a lesson run, on the attempt of its second segment.
+	digest := "sha256:" + strings.Repeat("a", 64)
+	var run, attempt string
+	if err := w.pool.QueryRow(t.Context(), `WITH c AS (
+			INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id) VALUES ($1, 'lesson', 'example/m', 'l1') RETURNING id
+		)
+		INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
+		SELECT $1, 'example/m/lesson/l1', 'example/m', '0.1.0', $2, id FROM c RETURNING id`, child, digest).Scan(&run); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.pool.QueryRow(t.Context(), `INSERT INTO attempts (profile_id, package_digest, module_id, module_version,
+			module_format_version, module_kit_version, task_id, seed, lesson_run_id, segment)
+		VALUES ($1, $2, 'example/m', '0.1.0', '0.4', 'v0.3.0', 't1', 1, $3, 2) RETURNING id`, child, digest, run).Scan(&attempt); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := w.pool.Exec(t.Context(), `UPDATE accounts SET pin_hash = 'synthetic' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
@@ -348,6 +365,8 @@ func TestTheAccountGivesItsProfilesAndConsentsInTheContractsWords(t *testing.T) 
 			ProfileId: child, Pseudonym: "Fox", Avatar: "fox", AgeCategory: "under_13", Country: "US",
 			PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &on, Speed: v1.VoicingSpeed_VOICING_SPEED_SLOW}},
 			DefaultMode:       v1.Mode_MODE_BY_STEPS, InterfaceLanguage: &language, Grade: &grade, AskBeforeShowing: true,
+			OpenAttempt:    &v1.OpenAttemptRef{AttemptId: attempt, Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 2}},
+			OpenLessonRuns: []*v1.LessonRunRef{{LessonRunId: run, Lesson: "example/m/lesson/l1", PackageDigest: digest}},
 		}},
 		ChildConsents: []*v1.ChildConsent{{
 			ConsentId: consent, AgeCategory: "from_13_to_consent", Country: "US", State: v1.ConsentState_CONSENT_STATE_WAITING,

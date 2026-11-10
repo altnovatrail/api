@@ -196,12 +196,17 @@ func CloseAbandonedAttempts(ctx context.Context, db Querier, before, at time.Tim
 }
 
 // EndAbandonedRuns ends "abandoned", at at, the open lesson runs with no action
-// since before, a batch at a time, as CloseAbandonedAttempts closes attempts (R13).
+// since before, a batch at a time, as CloseAbandonedAttempts closes attempts (R13):
+// no request on the run, and no action on its attempts, which is the run's too.
 func EndAbandonedRuns(ctx context.Context, db Querier, before, at time.Time) (int64, error) {
-	return inBatches(ctx, db, `UPDATE lesson_runs SET end_reason = 'abandoned', ended_at = $3
-		WHERE id IN (SELECT id FROM lesson_runs WHERE ended_at IS NULL AND last_action_at < $1
-			LIMIT $2 FOR UPDATE SKIP LOCKED)
-		AND ended_at IS NULL AND last_action_at < $1`, before, "end the abandoned lesson runs", at)
+	return inBatches(ctx, db, `UPDATE lesson_runs r SET end_reason = 'abandoned', ended_at = $3
+		WHERE r.id IN (SELECT c.id FROM lesson_runs c WHERE c.ended_at IS NULL AND c.last_action_at < $1
+			AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.profile_id = c.profile_id AND a.lesson_run_id = c.id
+				AND a.last_action_at >= $1)
+			LIMIT $2 FOR UPDATE OF c SKIP LOCKED)
+		AND r.ended_at IS NULL AND r.last_action_at < $1
+		AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.profile_id = r.profile_id AND a.lesson_run_id = r.id
+			AND a.last_action_at >= $1)`, before, "end the abandoned lesson runs", at)
 }
 
 // inBatches runs sql, a statement on the rows older than its $1, a batch of $2
