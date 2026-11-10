@@ -1,0 +1,5 @@
+traps:
+  first-seen:
+    description: Chose the first number seen, not the greater one.
+    skills: [comparing]
+    trap_advice: Look at both numbers before you choose.

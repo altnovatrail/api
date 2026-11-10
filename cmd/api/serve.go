@@ -18,6 +18,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -58,10 +59,15 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
+	// Attempts keep the version of module-kit, which the build records (R44).
+	attempts, err := learning.New(set)
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
 
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
-	deps, handlers, closeDeps, err := open(ctx, opens, cat)
+	deps, handlers, closeDeps, err := open(ctx, opens, cat, attempts)
 	if err != nil {
 		var fields []any
 		if failed := (*openFailed)(nil); errors.As(err, &failed) {
@@ -230,16 +236,18 @@ func openPorts(ctx context.Context, database, openfga config.Secret, projectID s
 
 // open opens what the requests run on, with the handlers on it and on the
 // catalog of the packages; close closes it.
-func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog) (rpc.Deps, rpc.Handlers, func(), error) {
+func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attempts *learning.Service) (rpc.Deps, rpc.Handlers, func(), error) {
 	p, err := openPorts(ctx, opens.DatabaseURL, opens.OpenFGADatabaseURL, opens.FirebaseProjectID, opens.FirebaseCredentials)
 	if err != nil {
 		return rpc.Deps{}, rpc.Handlers{}, nil, err
 	}
 	// The handlers write the tuples of the profiles they make (R31).
 	handlers := rpc.Handlers{
-		Account: account.New(p.pool, p.rights, p.signin),
-		Module:  cat.Modules(p.pool),
-		Package: cat.Packages(),
+		Account:  account.New(p.pool, p.rights, p.signin),
+		Module:   cat.Modules(p.pool),
+		Package:  cat.Packages(),
+		Learning: attempts.Learning(p.pool),
+		Attempt:  attempts.Attempts(p.pool),
 	}
 	return rpc.Deps{Signin: p.signin, DB: p.pool, Rights: p.rights}, handlers, p.close, nil
 }

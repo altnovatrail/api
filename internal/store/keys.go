@@ -20,19 +20,33 @@ const (
 )
 
 // KeyRecord is what is recorded of a request under its idempotency key (R17,
-// R35): its method, its fingerprint, its state and, once done, its answer.
+// R35): its method, its fingerprint, its state and, once done, its answer — or,
+// for an answer that holds what the learner sent, the submission it recorded.
 type KeyRecord struct {
-	Method      string
-	Fingerprint string
-	State       string
-	Response    []byte
+	Method       string
+	Fingerprint  string
+	State        string
+	Response     []byte
+	SubmissionID string
+}
+
+// KeyTarget is what a request done under a key acted on, and what its record
+// holds of the answer: the profile and the attempt it acted on, when it did, and
+// either the answer or the submission whose answer a repeat gets (architecture
+// 3.2).
+type KeyTarget struct {
+	ProfileID    string
+	AttemptID    string
+	SubmissionID string
+	Response     []byte
 }
 
 // RecordOf is the record of the account's key, and whether there is one.
 func RecordOf(ctx context.Context, tx pgx.Tx, accountID, key string) (KeyRecord, bool, error) {
 	var r KeyRecord
-	err := tx.QueryRow(ctx, `SELECT method, fingerprint, state, response FROM idempotency_keys
-		WHERE account_id = $1 AND key = $2`, accountID, key).Scan(&r.Method, &r.Fingerprint, &r.State, &r.Response)
+	err := tx.QueryRow(ctx, `SELECT method, fingerprint, state, response, coalesce(submission_id::text, '')
+		FROM idempotency_keys WHERE account_id = $1 AND key = $2`, accountID, key).
+		Scan(&r.Method, &r.Fingerprint, &r.State, &r.Response, &r.SubmissionID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return KeyRecord{}, false, nil
@@ -42,12 +56,14 @@ func RecordOf(ctx context.Context, tx pgx.Tx, accountID, key string) (KeyRecord,
 	return r, true, nil
 }
 
-// RecordDone records a request done under the account's key, with its answer,
+// RecordDone records a request done under the account's key, with its target,
 // in the transaction of the action, so that the action and its record commit
 // together or not at all. A request on the account itself names no profile.
-func RecordDone(ctx context.Context, tx pgx.Tx, accountID, key, method, fingerprint string, response []byte) error {
-	_, err := tx.Exec(ctx, `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, response)
-		VALUES ($1, $2, $3, $4, 'done', $5)`, accountID, key, method, fingerprint, response)
+func RecordDone(ctx context.Context, tx pgx.Tx, accountID, key, method, fingerprint string, target KeyTarget) error {
+	_, err := tx.Exec(ctx, `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, response,
+			profile_id, attempt_id, submission_id)
+		VALUES ($1, $2, $3, $4, 'done', $5, nullif($6, '')::uuid, nullif($7, '')::uuid, nullif($8, '')::uuid)`,
+		accountID, key, method, fingerprint, target.Response, target.ProfileID, target.AttemptID, target.SubmissionID)
 	if err != nil {
 		return fmt.Errorf("store: record the key: %w", err)
 	}

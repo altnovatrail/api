@@ -7,10 +7,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"golang.org/x/text/language"
 
+	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -50,15 +50,15 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 		// A control character — a NUL, which the database cannot hold, a line's end —
 		// is no part of a name to show.
 		if n := utf8.RuneCountInString(pseudonym); n < 1 || n > maxPseudonym || strings.ContainsFunc(pseudonym, unicode.IsControl) {
-			return malformed("pseudonym")
+			return rpc.Malformed("pseudonym")
 		}
 		p.Pseudonym = pseudonym
 	case creating:
-		return malformed("pseudonym")
+		return rpc.Malformed("pseudonym")
 	}
 	if s.Avatar != nil {
 		if !ascii(s.GetAvatar()) || len(s.GetAvatar()) > maxAvatar {
-			return malformed("avatar")
+			return rpc.Malformed("avatar")
 		}
 		p.Avatar = s.GetAvatar()
 	}
@@ -72,14 +72,14 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 	case v1.Mode_MODE_SELF:
 		p.DefaultMode = "self"
 	default:
-		return malformed("default_mode")
+		return rpc.Malformed("default_mode")
 	}
 	if s.InterfaceLanguage != nil {
 		switch tag := s.GetInterfaceLanguage(); {
 		case tag == "":
 			p.InterfaceLanguage = nil
 		case !wellFormed(tag):
-			return malformed("interface_language")
+			return rpc.Malformed("interface_language")
 		default:
 			p.InterfaceLanguage = &tag
 		}
@@ -89,7 +89,7 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 		case grade == 0:
 			p.Grade = nil
 		case grade < 1 || grade > maxGrade:
-			return malformed("grade")
+			return rpc.Malformed("grade")
 		default:
 			g := int16(grade)
 			p.Grade = &g
@@ -98,7 +98,7 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 	if s.AskBeforeShowing != nil {
 		// A profile of the category adult never asks before showing.
 		if p.AgeCategory == "adult" {
-			return malformed("ask_before_showing")
+			return rpc.Malformed("ask_before_showing")
 		}
 		p.AskBeforeShowing = s.GetAskBeforeShowing()
 	}
@@ -121,7 +121,7 @@ func applyVoicing(p *store.Profile, v *v1.Voicing) error {
 	case v1.VoicingSpeed_VOICING_SPEED_SLOW:
 		p.VoicingSpeed = "slow"
 	default:
-		return malformed("voicing")
+		return rpc.Malformed("voicing")
 	}
 	return nil
 }
@@ -153,7 +153,3 @@ func ascii(s string) bool {
 	}
 	return true
 }
-
-// malformed is a field whose form the contract refuses. Its message names the
-// field, never the value.
-func malformed(field string) error { return connect.NewError(connect.CodeInvalidArgument, field) }

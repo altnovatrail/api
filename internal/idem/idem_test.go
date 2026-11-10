@@ -55,3 +55,21 @@ func TestAFingerprintOfAPINIsSlow(t *testing.T) {
 		t.Error("a message with no key is not the same as itself")
 	}
 }
+
+// A fingerprint holds nothing of the learner's own key: a repeat with another
+// key at the provider is the same request, and the request keeps its own.
+func TestAFingerprintLeavesTheOwnKeyOut(t *testing.T) {
+	t.Parallel()
+
+	first := &v1.SubmitWorkRequest{AttemptId: "a", IdempotencyKey: "k", OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "secret"}}
+	fingerprint := idem.Fingerprint(first, false)
+	if !idem.Same(&v1.SubmitWorkRequest{AttemptId: "a", IdempotencyKey: "other"}, fingerprint) {
+		t.Error("the same request without its own key is another request")
+	}
+	if idem.Same(&v1.SubmitWorkRequest{AttemptId: "b", IdempotencyKey: "k"}, fingerprint) {
+		t.Error("another attempt is the same request")
+	}
+	if first.GetOwnKey().GetKey() != "secret" {
+		t.Error("the fingerprint cleared the request's own key")
+	}
+}

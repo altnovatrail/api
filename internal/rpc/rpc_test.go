@@ -544,18 +544,22 @@ func TestALearningRequestNeedsItsConsent(t *testing.T) {
 	w := newWorld(t, time.Second)
 	p := w.person(t, "uid-consent")
 
-	err := rpc.RequireConsent(t.Context(), w.pool, p.profileID)
+	ctx := rpc.WithCaller(t.Context(), rpc.Caller{AccountID: p.accountID})
+	_, err := rpc.Learner(ctx, w.pool, p.profileID)
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
+	_, err = rpc.Learner(rpc.WithCaller(t.Context(), rpc.Caller{AccountID: "00000000-0000-0000-0000-000000000000"}), w.pool, p.profileID)
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
 	if _, err := w.pool.Exec(t.Context(), `INSERT INTO consents
 		(account_id, profile_id, subject, state, age_category, country, confirmed_at)
 		VALUES ($1, $2, 'adult', 'confirmed', 'adult', 'US', now())`, p.accountID, p.profileID); err != nil {
 		t.Fatal(err)
 	}
-	if err := rpc.RequireConsent(t.Context(), w.pool, p.profileID); err != nil {
-		t.Errorf("RequireConsent with a confirmed consent = %v, want nil", err)
+	if category, err := rpc.Learner(ctx, w.pool, p.profileID); err != nil || category != "adult" {
+		t.Errorf("Learner with a confirmed consent = %q, %v; want adult", category, err)
 	}
 	down := &flaky{DB: w.pool, failOn: "FROM consents"}
-	refusedAs(t, rpc.RequireConsent(t.Context(), down, p.profileID), connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
+	_, err = rpc.Learner(ctx, down, p.profileID)
+	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
 // panicking is a handler of AccountService that panics.

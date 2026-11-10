@@ -43,6 +43,18 @@ func (s *Set) Current(id formatv0.ModuleID) (pkg *modulepackage.Package, ok bool
 	return pkg, ok
 }
 
+// CurrentFor is the package of the current version of the module id for a
+// learner of category: none when the module has no current version, or one whose
+// audience the learner is not in — the version is one for every learner, and an
+// older one is never given instead (R07).
+func (s *Set) CurrentFor(id formatv0.ModuleID, category formatv0.AgeCategory) (*modulepackage.Package, bool) {
+	pkg, ok := s.Current(id)
+	if !ok || !slices.Contains(pkg.View.Manifest.Audience.AgeCategories, category) {
+		return nil, false
+	}
+	return pkg, true
+}
+
 // Modules is the ID of each module the index names, in the order of their bytes.
 func (s *Set) Modules() []formatv0.ModuleID {
 	return slices.Sorted(maps.Keys(s.Index.Modules))

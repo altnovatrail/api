@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"connectrpc.com/connect/v2"
-	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
@@ -54,7 +53,7 @@ func (s *ModuleService) ListCatalog(ctx context.Context, req *v1.ListCatalogRequ
 	}
 	var modules []*v1.CatalogModule
 	for _, id := range s.c.set.Modules() {
-		if pkg, ok := s.c.current(id, category); ok {
+		if pkg, ok := s.c.set.CurrentFor(id, category); ok {
 			modules = append(modules, &v1.CatalogModule{ModuleId: string(id), PackageDigest: string(pkg.Digest)})
 		}
 	}
@@ -97,7 +96,7 @@ func (c *Catalog) unconnectable(id formatv0.ModuleID, category formatv0.AgeCateg
 	if !c.set.Names(id) {
 		return connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND, true
 	}
-	if _, ok := c.current(id, category); !ok {
+	if _, ok := c.set.CurrentFor(id, category); !ok {
 		return connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION, true
 	}
 	return 0, v1.Cause_CAUSE_UNSPECIFIED, false
@@ -135,19 +134,11 @@ func (s *ModuleService) ListConnectedModules(ctx context.Context, req *v1.ListCo
 	return &v1.ListConnectedModulesResponse{Modules: s.c.connected(rows, category)}, nil
 }
 
-// learner is the age category of the profile, read with its consent in one
-// query: a consent not confirmed is refused as rpc.RequireConsent refuses it,
-// "no consent" (R116 spec).
+// learner is the age category of the profile, whose consent is confirmed
+// (rpc.Learner).
 func (s *ModuleService) learner(ctx context.Context, profileID string) (formatv0.AgeCategory, error) {
-	caller, _ := rpc.CallerFrom(ctx)
-	l, err := store.LearnerOf(ctx, s.db, caller.AccountID, profileID)
-	if err != nil {
-		return "", refused(ctx, err)
-	}
-	if !l.Consented {
-		return "", rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
-	}
-	return formatv0.AgeCategory(l.AgeCategory), nil
+	category, err := rpc.Learner(ctx, s.db, profileID)
+	return formatv0.AgeCategory(category), err
 }
 
 // change runs fn under the caller's account, which a deletion marks (R21), and
@@ -176,24 +167,12 @@ func (c *Catalog) connected(rows []store.ConnectedModule, category formatv0.AgeC
 	modules := make([]*v1.ConnectedModule, 0, len(rows))
 	for _, row := range rows {
 		m := &v1.ConnectedModule{ModuleId: row.ModuleID, ConnectedAt: timestamppb.New(row.ConnectedAt)}
-		if pkg, ok := c.current(formatv0.ModuleID(row.ModuleID), category); ok {
+		if pkg, ok := c.set.CurrentFor(formatv0.ModuleID(row.ModuleID), category); ok {
 			m.PackageDigest = string(pkg.Digest)
 		}
 		modules = append(modules, m)
 	}
 	return modules
-}
-
-// current is the package of the current version of the module id for a learner
-// of category: none when the module has no current version, or one whose
-// audience the learner is not in — the version is one for every learner, and an
-// older one is never given instead (R07).
-func (c *Catalog) current(id formatv0.ModuleID, category formatv0.AgeCategory) (*modulepackage.Package, bool) {
-	pkg, ok := c.set.Current(id)
-	if !ok || !slices.Contains(pkg.View.Manifest.Audience.AgeCategories, category) {
-		return nil, false
-	}
-	return pkg, true
 }
 
 // refused answers what a request on a profile met after the checks: the profile

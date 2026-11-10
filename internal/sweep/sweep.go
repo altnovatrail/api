@@ -33,7 +33,7 @@ import (
 // 7 days is closed "abandoned", and a lesson run with none for 30 days ends so
 // (R10, R13).
 const (
-	attemptsTerm       = 7 * 24 * time.Hour
+	attemptsTerm       = store.AbandonedAfter
 	runsTerm           = 30 * 24 * time.Hour
 	usersTerm          = 30 * 24 * time.Hour
 	consentRecordYears = 5

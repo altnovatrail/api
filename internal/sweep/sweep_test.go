@@ -222,7 +222,7 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	// An attempt idle for 8 days, and one of the profile idle for long, which
 	// goes with it; lesson runs idle for 31 days and for a day.
 	for _, profile := range []string{newProfile, oldProfile} {
-		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, 'task') RETURNING id`, profile)
+		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id) VALUES ($1, 'task', 'example/m', 't') RETURNING id`, profile)
 		w.id(t, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
 			module_kit_version, task_id, seed, choice_id, last_action_at)
 			VALUES ($1, 'sha256:'||repeat('a', 64), 'example/m', '0.1.0', '0.4', 'v0.3.0', 't1', 1, $2, now() - interval '8 days')

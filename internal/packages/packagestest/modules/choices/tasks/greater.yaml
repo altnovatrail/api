@@ -1,0 +1,21 @@
+id: greater
+template:
+  parameters:
+    a: {from: 1, to: 2}
+    b: {from: 3, to: 4}
+statement:
+  - text: "Which of the two numbers is the greater?"
+canvas:
+  kind: handwriting_sheet
+items:
+  - text: "{a} or {b}?"
+    answer_slots:
+      - binding: choice
+        options: ["{a}", "{b}"]
+        check: {kind: choice, key: "{b}"}
+solution:
+  - text: "{b} is greater than {a}."
+skills:
+  primary: [comparing]
+band: grades-1-2
+difficulty: 1

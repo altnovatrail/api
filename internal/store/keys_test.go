@@ -22,7 +22,7 @@ func TestAKeyIsRecordedWithItsAnswerInItsAccountsSpace(t *testing.T) {
 		if _, found, err := store.RecordOf(ctx, tx, id, "k"); err != nil || found {
 			t.Errorf("RecordOf before = %v, %v; want none", found, err)
 		}
-		return store.RecordDone(ctx, tx, id, "k", "/m", "sha256:00", []byte{1, 2})
+		return store.RecordDone(ctx, tx, id, "k", "/m", "sha256:00", store.KeyTarget{Response: []byte{1, 2}})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestAKeyIsRecordedWithItsAnswerInItsAccountsSpace(t *testing.T) {
 		if _, found, err := store.RecordOf(ctx, tx, other, "k"); err != nil || found {
 			t.Errorf("RecordOf of another account = %v, %v; want none", found, err)
 		}
-		return store.RecordDone(ctx, tx, other, "k", "/m", "sha256:00", []byte{})
+		return store.RecordDone(ctx, tx, other, "k", "/m", "sha256:00", store.KeyTarget{Response: []byte{}})
 	})
 	if err != nil {
 		t.Errorf("the same key of another account: %v, want it recorded", err)

@@ -129,8 +129,8 @@ func TestAReadThatFailsIsAnError(t *testing.T) {
 	if _, _, err := store.ProfileOf(t.Context(), pool, "a", "b"); err == nil {
 		t.Error("ProfileOf on a closed pool: error = nil")
 	}
-	if _, err := store.ConsentGiven(t.Context(), pool, "00000000-0000-0000-0000-000000000000"); err == nil {
-		t.Error("ConsentGiven on a closed pool: error = nil")
+	if _, err := store.LearnerOf(t.Context(), pool, "a", "b"); err == nil || errors.Is(err, store.ErrNoProfile) {
+		t.Errorf("LearnerOf on a closed pool = %v, want a failure", err)
 	}
 }
 
@@ -149,16 +149,19 @@ func TestAConsentIsGivenOnceConfirmed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if given, err := store.ConsentGiven(t.Context(), pool, profileID); err != nil || given {
-		t.Errorf("ConsentGiven with none = %v, %v; want false", given, err)
+	if l, err := store.LearnerOf(t.Context(), pool, id, profileID); err != nil || l.Consented || l.AgeCategory != "adult" {
+		t.Errorf("LearnerOf with no consent = %+v, %v; want an adult not consented", l, err)
+	}
+	if _, err := store.LearnerOf(t.Context(), pool, account(t, pool), profileID); !errors.Is(err, store.ErrNoProfile) {
+		t.Errorf("LearnerOf of another account = %v, want ErrNoProfile", err)
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO consents
 		(account_id, profile_id, subject, state, age_category, country, confirmed_at)
 		VALUES ($1, $2, 'adult', 'confirmed', 'adult', 'US', now())`, id, profileID); err != nil {
 		t.Fatal(err)
 	}
-	if given, err := store.ConsentGiven(t.Context(), pool, profileID); err != nil || !given {
-		t.Errorf("ConsentGiven confirmed = %v, %v; want true", given, err)
+	if l, err := store.LearnerOf(t.Context(), pool, id, profileID); err != nil || !l.Consented {
+		t.Errorf("LearnerOf confirmed = %+v, %v; want consented", l, err)
 	}
 }
 
