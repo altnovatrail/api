@@ -291,6 +291,26 @@ func TestTheSchemaRefuses(t *testing.T) {
 				return err
 			})
 		}, "23514"},
+		{"a module of no ID", func(ctx context.Context, pool *pgxpool.Pool, id string) error {
+			return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+				if err := profile(ctx, tx, id); err != nil {
+					return err
+				}
+				_, err := tx.Exec(ctx, `INSERT INTO connected_modules (profile_id, module_id)
+					SELECT id, '' FROM profiles WHERE account_id = $1`, id)
+				return err
+			})
+		}, "23514"},
+		{"a module of an ID too long", func(ctx context.Context, pool *pgxpool.Pool, id string) error {
+			return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+				if err := profile(ctx, tx, id); err != nil {
+					return err
+				}
+				_, err := tx.Exec(ctx, `INSERT INTO connected_modules (profile_id, module_id)
+					SELECT id, repeat('a', 129) FROM profiles WHERE account_id = $1`, id)
+				return err
+			})
+		}, "23514"},
 		{"a row about a profile that is gone", func(ctx context.Context, pool *pgxpool.Pool, id string) error {
 			_, err := pool.Exec(ctx, `INSERT INTO consents (account_id, profile_id, subject, state, age_category, country, confirmed_at)
 				VALUES ($1, gen_random_uuid(), 'adult', 'confirmed', 'adult', 'US', now())`, id)

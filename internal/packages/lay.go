@@ -198,7 +198,7 @@ func inWindow(index formatv0.ModuleIndex) []formatv0.Entry {
 		versions := index.Modules[id]
 		for _, v := range slices.Sorted(maps.Keys(versions)) {
 			entry := versions[v]
-			if !module.ReadsFormat(string(entry.ModuleFormatVersion)) || seen[entry.PackageDigest] {
+			if !readable(entry) || seen[entry.PackageDigest] {
 				continue
 			}
 			seen[entry.PackageDigest] = true
@@ -206,6 +206,12 @@ func inWindow(index formatv0.ModuleIndex) []formatv0.Entry {
 		}
 	}
 	return entries
+}
+
+// readable says whether api reads the format version of the package of entry:
+// whether it is in the window (R07).
+func readable(entry formatv0.Entry) bool {
+	return module.ReadsFormat(string(entry.ModuleFormatVersion))
 }
 
 // fetch is the file name of the release, no more than limit bytes.
@@ -235,7 +241,7 @@ func fetch(ctx context.Context, client *http.Client, base, release, name string,
 
 // archiveName is the name of the archive of the package of digest in its
 // release: the digest with - for : (architecture 3.10 spec).
-func archiveName(digest formatv0.Digest) string { return folderName(digest) + ".tar.gz" }
+func archiveName(digest formatv0.Digest) string { return Name(digest) + ".tar.gz" }
 
 // unpack is the files of an archive of a package, by their paths in its folder.
 // The archive holds the files of the package and its folders alone: a link or
@@ -309,7 +315,7 @@ func partOfPackage(name string) bool {
 // of its device part under that file's digest, unless an earlier package laid
 // it. It says how many files of a device part it wrote.
 func write(dir string, pkg *modulepackage.Package) (int, error) {
-	own := filepath.Join(dir, packagesDir, folderName(pkg.Digest))
+	own := filepath.Join(dir, packagesDir, Name(pkg.Digest))
 	if err := os.MkdirAll(own, 0o755); err != nil {
 		return 0, fmt.Errorf("packages: %w", err)
 	}
@@ -323,7 +329,7 @@ func write(dir string, pkg *modulepackage.Package) (int, error) {
 	}
 	written := 0
 	for _, d := range deviceFiles(pkg.Listing) {
-		target := filepath.Join(dir, filesDir, folderName(d.Digest))
+		target := filepath.Join(dir, filesDir, Name(d.Digest))
 		if _, err := os.Stat(target); err == nil {
 			continue
 		}
@@ -354,9 +360,18 @@ func deviceFiles(listing formatv0.DeviceListing) []deviceFile {
 	return files
 }
 
-// folderName is a digest as a name in the folder: sha256-<hex>.
-func folderName(digest formatv0.Digest) string {
+// Name is a digest as a name in the folder and in a release, and in the path of
+// a file of a device part: sha256-<hex> (architecture 3.10 spec).
+func Name(digest formatv0.Digest) string {
 	return strings.Replace(string(digest), ":", "-", 1)
+}
+
+// FromName is the digest whose Name name is; ok is false when name is no such
+// name.
+func FromName(name string) (digest formatv0.Digest, ok bool) {
+	hex, ok := strings.CutPrefix(name, "sha256-")
+	digest = formatv0.Digest("sha256:" + hex)
+	return digest, ok && IsDigest(string(digest))
 }
 
 // digestOf is the digest of data, as the format writes one.

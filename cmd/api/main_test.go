@@ -170,6 +170,17 @@ func TestServeStartsServesAndStops(t *testing.T) {
 	if answer.StatusCode != http.StatusUnauthorized {
 		t.Errorf("GetAccount with no token = %d, want 401", answer.StatusCode)
 	}
+	// The files of the device parts are served too, without a token: the pinned
+	// index names its one package, out of the window, which the image no longer
+	// gives.
+	answer, err = http.Get("http://127.0.0.1:" + port + "/packages/sha256-" + strings.Repeat("0", 63) + "3/device/LICENSE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = answer.Body.Close()
+	if answer.StatusCode != http.StatusGone {
+		t.Errorf("GET of a file of a package out of the window = %d, want 410", answer.StatusCode)
+	}
 
 	stop()
 	if code := <-exited; code != exitOK {
@@ -187,7 +198,7 @@ func TestServeStartsServesAndStops(t *testing.T) {
 			t.Errorf("a line of the service lost fields to the guard: %v", line)
 		}
 	}
-	if got, want := events, []any{"startup", "request", "stopping", "stopped", "shutdown"}; !equal(got, want) {
+	if got, want := events, []any{"startup", "request", "package_file", "stopping", "stopped", "shutdown"}; !equal(got, want) {
 		t.Errorf("events = %v, want %v", got, want)
 	}
 	startup := lines[0]

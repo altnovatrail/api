@@ -3,171 +3,21 @@ package packages_test
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"io/fs"
 	"maps"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/altnovatrail/module-kit/modulepackage"
-	"github.com/altnovatrail/spec"
 	"github.com/altnovatrail/spec/types/formatv0"
 
 	"github.com/altnovatrail/api/internal/packages"
+	"github.com/altnovatrail/api/internal/packages/packagestest"
 )
-
-// built is the package of the vector name of spec's format, which module-kit
-// builds from its module (format/vectors/packages/).
-func built(t *testing.T, name string) *modulepackage.Package {
-	t.Helper()
-	module, err := fs.Sub(spec.Format, "vectors/packages/"+name+"/module")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pkg, err := modulepackage.Build(context.Background(), module)
-	if err != nil {
-		t.Fatalf("build %s: %v", name, err)
-	}
-	return pkg
-}
-
-// entry is a file of an archive: a regular file, or what a test puts there.
-type entry struct {
-	name     string
-	data     []byte
-	typeflag byte
-}
-
-// archiveOf is a package's archive as a release of modules gives it: its files,
-// flat, and the folders of device/.
-func archiveOf(t *testing.T, files map[string][]byte, extra ...entry) []byte {
-	t.Helper()
-	var entries []entry
-	for _, name := range slices.Sorted(maps.Keys(files)) {
-		entries = append(entries, entry{name: name, data: files[name], typeflag: tar.TypeReg})
-	}
-	return tarGz(t, append(entries, extra...))
-}
-
-func tarGz(t *testing.T, entries []entry) []byte {
-	t.Helper()
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	tw := tar.NewWriter(gz)
-	for _, e := range entries {
-		header := &tar.Header{Name: e.name, Mode: 0o644, Size: int64(len(e.data)), Typeflag: e.typeflag}
-		if e.typeflag == tar.TypeSymlink {
-			header.Linkname, header.Size = "/etc/passwd", 0
-		}
-		if err := tw.WriteHeader(header); err != nil {
-			t.Fatal(err)
-		}
-		if e.typeflag == tar.TypeReg {
-			if _, err := tw.Write(e.data); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return buf.Bytes()
-}
-
-func digestOf(data []byte) formatv0.Digest {
-	sum := sha256.Sum256(data)
-	return formatv0.Digest("sha256:" + hex.EncodeToString(sum[:]))
-}
-
-func archiveName(d formatv0.Digest) string {
-	return strings.Replace(string(d), ":", "-", 1) + ".tar.gz"
-}
-
-// release is the files of the releases of modules a test serves, by release and
-// name, and what the server was asked for.
-type release struct {
-	mu    sync.Mutex
-	files map[string][]byte
-	asked []string
-}
-
-func (r *release) put(tag, name string, data []byte) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.files == nil {
-		r.files = map[string][]byte{}
-	}
-	r.files[tag+"/"+name] = data
-}
-
-func (r *release) serve(t *testing.T) packages.Source {
-	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		path := strings.TrimPrefix(req.URL.Path, "/")
-		r.asked = append(r.asked, path)
-		data, ok := r.files[path]
-		if !ok {
-			http.NotFound(w, req)
-			return
-		}
-		_, _ = w.Write(data)
-	}))
-	t.Cleanup(server.Close)
-	return packages.Source{Client: server.Client(), Base: server.URL}
-}
-
-// indexEntry is an entry of a test's index.
-type indexEntry struct {
-	pkg       *modulepackage.Package
-	id        string
-	version   string
-	format    string
-	digest    formatv0.Digest
-	release   string
-	withdrawn string
-}
-
-// indexOf is a module index of the entries, as module-kit reads one.
-func indexOf(t *testing.T, entries ...indexEntry) []byte {
-	t.Helper()
-	modules := map[string]map[string]map[string]any{}
-	for _, e := range entries {
-		id, version, format, digest := e.id, e.version, e.format, e.digest
-		if e.pkg != nil {
-			id, version, digest = string(e.pkg.Inventory.ID), string(e.pkg.Inventory.Version), e.pkg.Digest
-			format = string(e.pkg.Inventory.ModuleFormatVersion)
-		}
-		value := map[string]any{"module_format_version": format, "package_digest": digest, "release": e.release}
-		if e.withdrawn != "" {
-			value["withdrawn"] = e.withdrawn
-		}
-		if modules[id] == nil {
-			modules[id] = map[string]map[string]any{}
-		}
-		modules[id][version] = value
-	}
-	data, err := json.Marshal(map[string]any{"module_format_version": "0.4", "modules": modules})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return data
-}
 
 // world is a release of two packages of format 0.4 and an entry of 0.3, which
 // api does not read, served by a test's server.
@@ -175,7 +25,7 @@ type world struct {
 	smallest, media *modulepackage.Package
 	index           []byte
 	cfg             packages.Config
-	rel             *release
+	rel             *packagestest.Release
 	src             packages.Source
 }
 
@@ -183,18 +33,18 @@ const outOfWindow = "sha256:0000000000000000000000000000000000000000000000000000
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	w := &world{smallest: built(t, "smallest"), media: built(t, "with-media-and-notice"), rel: &release{}}
-	w.index = indexOf(t,
-		indexEntry{pkg: w.smallest, release: "v0.2.0"},
-		indexEntry{pkg: w.media, release: "v0.3.0", withdrawn: "answer_leak"},
-		indexEntry{id: "example/older", version: "0.1.0", format: "0.3", digest: outOfWindow, release: "v0.1.0"},
+	w := &world{smallest: packagestest.Built(t, "smallest"), media: packagestest.Built(t, "with-media-and-notice"), rel: &packagestest.Release{}}
+	w.index = packagestest.Index(t,
+		packagestest.Entry{Pkg: w.smallest, Release: "v0.2.0"},
+		packagestest.Entry{Pkg: w.media, Release: "v0.3.0", Withdrawn: "answer_leak"},
+		packagestest.Entry{ID: "example/older", Version: "0.1.0", Format: "0.3", Digest: outOfWindow, Release: "v0.1.0"},
 	)
-	w.cfg = packages.Config{Release: "v0.3.0", Index: digestOf(w.index)}
-	w.rel.put("v0.3.0", "module-index.json", w.index)
-	w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, w.smallest.Files))
-	w.rel.put("v0.3.0", archiveName(w.media.Digest), archiveOf(t, w.media.Files,
-		entry{name: "device/", typeflag: tar.TypeDir}, entry{name: "device/media/", typeflag: tar.TypeDir}))
-	w.src = w.rel.serve(t)
+	w.cfg = packages.Config{Release: "v0.3.0", Index: packagestest.DigestOf(w.index)}
+	w.rel.Put("v0.3.0", "module-index.json", w.index)
+	w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, w.smallest.Files))
+	w.rel.Put("v0.3.0", packagestest.ArchiveName(w.media.Digest), packagestest.Archive(t, w.media.Files,
+		packagestest.TarEntry{Name: "device/", Typeflag: tar.TypeDir}, packagestest.TarEntry{Name: "device/media/", Typeflag: tar.TypeDir}))
+	w.src = w.rel.Serve(t)
 	return w
 }
 
@@ -213,14 +63,14 @@ func TestLayLaysTheWindowAndReadReadsItBack(t *testing.T) {
 	for _, p := range []*modulepackage.Package{w.smallest, w.media} {
 		for name, data := range p.Files {
 			if strings.HasPrefix(name, modulepackage.DeviceFolder) {
-				unique[digestOf(data)] = true
+				unique[packagestest.DigestOf(data)] = true
 			}
 		}
 	}
 	if laid.Packages != 2 || laid.Files != len(unique) {
 		t.Errorf("laid %+v, want 2 packages and %d files", laid, len(unique))
 	}
-	for _, asked := range w.rel.asked {
+	for _, asked := range w.rel.Asked() {
 		if strings.Contains(asked, strings.TrimPrefix(outOfWindow, "sha256:")) {
 			t.Errorf("the package out of the window was fetched: %s", asked)
 		}
@@ -262,15 +112,15 @@ func TestLayLaysTheWindowAndReadReadsItBack(t *testing.T) {
 func TestAnIndexOfNoPackageInTheWindowLaysTheIndexAlone(t *testing.T) {
 	t.Parallel()
 
-	rel := &release{}
-	index := indexOf(t, indexEntry{id: "example/older", version: "0.1.0", format: "0.3", digest: outOfWindow, release: "v0.1.4"})
-	rel.put("v0.1.4", "module-index.json", index)
-	cfg := packages.Config{Release: "v0.1.4", Index: digestOf(index)}
+	rel := &packagestest.Release{}
+	index := packagestest.Index(t, packagestest.Entry{ID: "example/older", Version: "0.1.0", Format: "0.3", Digest: outOfWindow, Release: "v0.1.4"})
+	rel.Put("v0.1.4", "module-index.json", index)
+	cfg := packages.Config{Release: "v0.1.4", Index: packagestest.DigestOf(index)}
 	dir := filepath.Join(t.TempDir(), "packages")
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	laid, err := packages.Lay(t.Context(), rel.serve(t), cfg, dir)
+	laid, err := packages.Lay(t.Context(), rel.Serve(t), cfg, dir)
 	if err != nil || laid != (packages.Laid{}) {
 		t.Fatalf("Lay = %+v, %v; want nothing laid but the index", laid, err)
 	}
@@ -295,32 +145,31 @@ func TestLayRefusesWhatDoesNotMatch(t *testing.T) {
 		change func(t *testing.T, w *world)
 		want   error
 	}{
-		{"another index", func(t *testing.T, w *world) { w.cfg.Index = digestOf([]byte("another")) }, packages.ErrIndex},
+		{"another index", func(t *testing.T, w *world) { w.cfg.Index = packagestest.DigestOf([]byte("another")) }, packages.ErrIndex},
 		{"no index", func(t *testing.T, w *world) { w.cfg.Release = "v9.9.9" }, packages.ErrFetch},
 		{"no archive", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), nil)
-			delete(w.rel.files, "v0.2.0/"+archiveName(w.smallest.Digest))
+			w.rel.Remove("v0.2.0", packagestest.ArchiveName(w.smallest.Digest))
 		}, packages.ErrFetch},
 		{"a changed part", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, tampered(w)))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, tampered(w)))
 		}, modulepackage.ErrChain},
 		{"a link", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, w.smallest.Files, entry{name: "device/media/x", typeflag: tar.TypeSymlink}))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, w.smallest.Files, packagestest.TarEntry{Name: "device/media/x", Typeflag: tar.TypeSymlink}))
 		}, packages.ErrArchive},
 		{"a path out", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, w.smallest.Files, entry{name: "../x", data: []byte("x"), typeflag: tar.TypeReg}))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, w.smallest.Files, packagestest.TarEntry{Name: "../x", Data: []byte("x"), Typeflag: tar.TypeReg}))
 		}, packages.ErrArchive},
 		{"a file of no part", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, w.smallest.Files, entry{name: "README", data: []byte("x"), typeflag: tar.TypeReg}))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, w.smallest.Files, packagestest.TarEntry{Name: "README", Data: []byte("x"), Typeflag: tar.TypeReg}))
 		}, packages.ErrArchive},
 		{"a folder of no part", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, w.smallest.Files, entry{name: "eval/", typeflag: tar.TypeDir}))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, w.smallest.Files, packagestest.TarEntry{Name: "eval/", Typeflag: tar.TypeDir}))
 		}, packages.ErrArchive},
 		{"a file twice", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), archiveOf(t, w.smallest.Files, entry{name: "device/LICENSE", data: []byte("x"), typeflag: tar.TypeReg}))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), packagestest.Archive(t, w.smallest.Files, packagestest.TarEntry{Name: "device/LICENSE", Data: []byte("x"), Typeflag: tar.TypeReg}))
 		}, packages.ErrArchive},
 		{"no gzip", func(t *testing.T, w *world) {
-			w.rel.put("v0.2.0", archiveName(w.smallest.Digest), []byte("not an archive"))
+			w.rel.Put("v0.2.0", packagestest.ArchiveName(w.smallest.Digest), []byte("not an archive"))
 		}, packages.ErrArchive},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -357,7 +206,7 @@ func TestReadRefusesAFolderThatIsNotLaid(t *testing.T) {
 	if _, err := packages.Lay(t.Context(), w.src, w.cfg, dir); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := packages.Read(dir, packages.Config{Release: "v0.3.0", Index: digestOf([]byte("another"))}); !errors.Is(err, packages.ErrIndex) {
+	if _, err := packages.Read(dir, packages.Config{Release: "v0.3.0", Index: packagestest.DigestOf([]byte("another"))}); !errors.Is(err, packages.ErrIndex) {
 		t.Errorf("Read of another index = %v, want ErrIndex", err)
 	}
 	if _, err := packages.Read(t.TempDir(), w.cfg); !errors.Is(err, fs.ErrNotExist) {
@@ -425,33 +274,33 @@ func TestTheConfigurationIsAReleaseAndADigest(t *testing.T) {
 func TestTheCheckOfCI(t *testing.T) {
 	t.Parallel()
 
-	smallest := built(t, "smallest")
-	current := indexEntry{pkg: smallest, release: "v0.2.0"}
-	main := indexOf(t, current)
-	mainCfg := packages.Config{Release: "v0.2.0", Index: digestOf(main)}
+	smallest := packagestest.Built(t, "smallest")
+	current := packagestest.Entry{Pkg: smallest, Release: "v0.2.0"}
+	main := packagestest.Index(t, current)
+	mainCfg := packages.Config{Release: "v0.2.0", Index: packagestest.DigestOf(main)}
 
 	got, err := packages.Check(mainCfg, main, nil, nil)
 	if err != nil || len(got) != 1 || !got[0].OK || got[0].Version != "0.1.0" || got[0].ID != "example/smallest" {
 		t.Errorf("Check with no main = %+v, %v", got, err)
 	}
-	if _, err := packages.Check(packages.Config{Release: "v0.2.0", Index: digestOf([]byte("x"))}, main, nil, nil); !errors.Is(err, packages.ErrIndex) {
+	if _, err := packages.Check(packages.Config{Release: "v0.2.0", Index: packagestest.DigestOf([]byte("x"))}, main, nil, nil); !errors.Is(err, packages.ErrIndex) {
 		t.Errorf("Check of another index = %v, want ErrIndex", err)
 	}
 	if _, err := packages.Check(packages.Config{Release: "v0.1.9", Index: mainCfg.Index}, main, &mainCfg, main); !errors.Is(err, packages.ErrOlderRelease) {
 		t.Errorf("Check of an older release = %v, want ErrOlderRelease", err)
 	}
-	if _, err := packages.Check(mainCfg, main, &packages.Config{Release: "v0.2.0", Index: digestOf([]byte("x"))}, main); !errors.Is(err, packages.ErrIndex) {
+	if _, err := packages.Check(mainCfg, main, &packages.Config{Release: "v0.2.0", Index: packagestest.DigestOf([]byte("x"))}, main); !errors.Is(err, packages.ErrIndex) {
 		t.Errorf("Check against another main index = %v, want ErrIndex", err)
 	}
 
 	// The next release moves the module out of the window: lost.
-	moved := indexOf(t, indexEntry{id: "example/smallest", version: "0.1.0", format: "0.3", digest: outOfWindow, release: "v0.2.0"})
-	if _, err := packages.Check(packages.Config{Release: "v0.3.0", Index: digestOf(moved)}, moved, &mainCfg, main); !errors.Is(err, packages.ErrLostVersion) {
+	moved := packagestest.Index(t, packagestest.Entry{ID: "example/smallest", Version: "0.1.0", Format: "0.3", Digest: outOfWindow, Release: "v0.2.0"})
+	if _, err := packages.Check(packages.Config{Release: "v0.3.0", Index: packagestest.DigestOf(moved)}, moved, &mainCfg, main); !errors.Is(err, packages.ErrLostVersion) {
 		t.Errorf("Check of a module out of the window = %v, want ErrLostVersion", err)
 	}
 	// Withdrawn, it may have none.
-	withdrawn := indexOf(t, indexEntry{pkg: smallest, release: "v0.2.0", withdrawn: "wrong_key"})
-	got, err = packages.Check(packages.Config{Release: "v0.3.0", Index: digestOf(withdrawn)}, withdrawn, &mainCfg, main)
+	withdrawn := packagestest.Index(t, packagestest.Entry{Pkg: smallest, Release: "v0.2.0", Withdrawn: "wrong_key"})
+	got, err = packages.Check(packages.Config{Release: "v0.3.0", Index: packagestest.DigestOf(withdrawn)}, withdrawn, &mainCfg, main)
 	if err != nil || len(got) != 1 || got[0].OK {
 		t.Errorf("Check of a withdrawal = %+v, %v; want no current version, and no refusal", got, err)
 	}
@@ -462,11 +311,11 @@ func TestTheCheckOfCI(t *testing.T) {
 func TestLayRefusesWhatItCannotLayInto(t *testing.T) {
 	t.Parallel()
 
-	rel := &release{}
+	rel := &packagestest.Release{}
 	notIndex := []byte(`{"modules": []}`)
-	rel.put("v0.1.4", "module-index.json", notIndex)
-	src := rel.serve(t)
-	if _, err := packages.Lay(t.Context(), src, packages.Config{Release: "v0.1.4", Index: digestOf(notIndex)}, filepath.Join(t.TempDir(), "p")); !errors.Is(err, packages.ErrIndex) {
+	rel.Put("v0.1.4", "module-index.json", notIndex)
+	src := rel.Serve(t)
+	if _, err := packages.Lay(t.Context(), src, packages.Config{Release: "v0.1.4", Index: packagestest.DigestOf(notIndex)}, filepath.Join(t.TempDir(), "p")); !errors.Is(err, packages.ErrIndex) {
 		t.Errorf("Lay of no index = %v, want ErrIndex", err)
 	}
 	w := newWorld(t)
@@ -480,7 +329,72 @@ func TestLayRefusesWhatItCannotLayInto(t *testing.T) {
 	if _, err := packages.Lay(t.Context(), w.src, w.cfg, filepath.Join(t.TempDir(), "no", "parent")); err == nil {
 		t.Error("Lay into a folder with no parent: no error")
 	}
-	if _, err := packages.Check(packages.Config{Release: "v0.1.4", Index: digestOf(notIndex)}, notIndex, nil, nil); !errors.Is(err, packages.ErrIndex) {
+	if _, err := packages.Check(packages.Config{Release: "v0.1.4", Index: packagestest.DigestOf(notIndex)}, notIndex, nil, nil); !errors.Is(err, packages.ErrIndex) {
 		t.Errorf("Check of no index = %v, want ErrIndex", err)
+	}
+}
+
+// A set says which digests the image gives, which version of a module is
+// current, and where each file of a device part lies.
+func TestTheSetGivesTheStatusTheCurrentVersionAndTheFiles(t *testing.T) {
+	t.Parallel()
+
+	older, newer := packagestest.Built(t, "smallest"), packagestest.Built(t, "smallest", "0.2.0")
+	media := packagestest.Built(t, "with-media-and-notice")
+	set := packagestest.Set(t,
+		packagestest.Entry{Pkg: older, Release: "v0.1.0"},
+		packagestest.Entry{Pkg: newer, Release: "v0.2.0", Withdrawn: "wrong_key"},
+		packagestest.Entry{Pkg: media, Release: "v0.2.0"},
+		packagestest.Entry{ID: "example/older", Version: "0.1.0", Format: "0.3", Digest: outOfWindow, Release: "v0.1.0"},
+		// A digest two entries name is given when either gives it.
+		packagestest.Entry{ID: "example/twice", Version: "0.1.0", Format: "0.4", Digest: older.Digest, Release: "v0.1.0", Withdrawn: "wrong_key"},
+	)
+	for digest, want := range map[formatv0.Digest]packages.Status{
+		older.Digest: packages.Given,
+		newer.Digest: packages.NotGiven,
+		media.Digest: packages.Given,
+		outOfWindow:  packages.NotGiven,
+		packagestest.DigestOf([]byte("no package")): packages.Unknown,
+	} {
+		if got := set.Status(digest); got != want {
+			t.Errorf("Status(%s) = %v, want %v", digest, got, want)
+		}
+	}
+
+	if pkg, ok := set.Current("example/smallest"); !ok || pkg.Digest != older.Digest {
+		t.Errorf("Current of a module whose newest version is withdrawn = %v, %v; want the older", pkg, ok)
+	}
+	if pkg, ok := set.Current("example/older"); ok {
+		t.Errorf("Current of a module out of the window = %v, want none", pkg.Digest)
+	}
+	if pkg, ok := set.Current("example/none"); ok {
+		t.Errorf("Current of a module the index does not name = %v, want none", pkg.Digest)
+	}
+	want := []formatv0.ModuleID{"example/older", "example/smallest", "example/twice", "example/with-media-and-notice"}
+	if got := set.Modules(); !slices.Equal(got, want) {
+		t.Errorf("Modules = %v, want %v", got, want)
+	}
+	if !set.Names("example/older") || set.Names("example/none") {
+		t.Error("Names does not tell the modules of the index")
+	}
+
+	for path, data := range map[string][]byte{
+		"LICENSE":                media.Files["device/LICENSE"],
+		"NOTICE":                 media.Files["device/NOTICE"],
+		"media/pictures/dot.png": media.Files["device/media/pictures/dot.png"],
+	} {
+		name, digest, ok := set.DeviceFile(media.Digest, path)
+		got, err := os.ReadFile(name)
+		if !ok || err != nil || digest != packagestest.DigestOf(data) || !bytes.Equal(got, data) {
+			t.Errorf("DeviceFile(%s) = %s, %s, %v: %v", path, name, digest, ok, err)
+		}
+	}
+	for _, missing := range []struct {
+		digest formatv0.Digest
+		path   string
+	}{{media.Digest, "media/none.png"}, {media.Digest, "device/LICENSE"}, {older.Digest, "NOTICE"}, {outOfWindow, "LICENSE"}} {
+		if _, _, ok := set.DeviceFile(missing.digest, missing.path); ok {
+			t.Errorf("DeviceFile(%s, %s) is there", missing.digest, missing.path)
+		}
 	}
 }

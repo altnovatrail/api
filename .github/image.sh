@@ -4,11 +4,11 @@
 # archive of the commit in the toolchain stage, twice, and holds the two builds to the same bytes.
 # Then it builds the image a deployment builds, the release's Dockerfile by --target release around
 # the release's binary, and the image built from the source, and checks each: the version and
-# commit it says, the user it runs as, its migrations, its health check, the release of modules
-# whose packages it read, its size, and a stop on SIGTERM
-# that it ends well. serve opens its databases and the sign-in service before it starts (R33): the
-# databases are a PostgreSQL of the runner's, 17.11 as the tests' is, pinned by its digest, and
-# the sign-in service takes a key made here for the run, which no call ever uses.
+# commit it says, the user it runs as, its migrations, its health check, its answer to a file of a
+# package it does not know, the release of modules whose packages it read, its size, and a stop on
+# SIGTERM that it ends well. serve opens its databases and the sign-in service before it starts
+# (R33): the databases are a PostgreSQL of the runner's, 17.11 as the tests' is, pinned by its
+# digest, and the sign-in service takes a key made here for the run, which no call ever uses.
 set -euo pipefail
 
 version=v0.0.0-ci
@@ -110,6 +110,12 @@ check() {
         sleep 0.2
     done
     [[ "$body" == '{"status":"ok"}' ]] || fail "${image} answers /health with ${body:-nothing}; its log: $(docker logs "$container" 2>&1)"
+    # A file of a package whose digest the index does not know: a deployment is going on, and app
+    # asks again after the time it names (R42).
+    local file
+    file="$(curl --silent --output /dev/null --write-out '%{http_code} %header{retry-after}' \
+        "http://127.0.0.1:${port}/packages/sha256-${unknown_digest}/device/LICENSE")"
+    [[ "$file" == '503 30' ]] || fail "${image} answers a file of a digest it does not know with ${file:-nothing}"
 
     docker stop --time 10 "$container" > /dev/null
     local code
@@ -126,6 +132,8 @@ check() {
     # The size of the image, which R07 left to measure (Д8 in RUN.md).
     echo "${image}: $(docker image inspect --format '{{.Size}}' "$image") bytes"
 }
+# A digest no index names.
+unknown_digest=0000000000000000000000000000000000000000000000000000000000000000
 modules_release="$(jq --exit-status --raw-output .release "${tree}/modules.json")"
 check api:release
 check api:source

@@ -37,6 +37,10 @@ var (
 	digestForm  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
+// IsDigest says whether s is a digest as the format and the contract write one:
+// sha256: and 64 lowercase hexadecimal digits.
+func IsDigest(s string) bool { return digestForm.MatchString(s) }
+
 // ParseConfig reads modules.json: one object of the two members alone, each once
 // and of its form, and nothing after it — so that what a reviewer reads in the
 // file is what the binary pins.
@@ -51,7 +55,7 @@ func ParseConfig(data []byte) (Config, error) {
 	if !releaseForm.MatchString(c.Release) {
 		return Config{}, fmt.Errorf("%w: release %q is no tag vX.Y.Z", ErrConfig, c.Release)
 	}
-	if !digestForm.MatchString(string(c.Index)) {
+	if !IsDigest(string(c.Index)) {
 		return Config{}, fmt.Errorf("%w: index %q is no sha256: digest", ErrConfig, c.Index)
 	}
 	return c, nil
