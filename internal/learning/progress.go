@@ -1,0 +1,307 @@
+package learning
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"connectrpc.com/connect/v2"
+	learnermodel "github.com/altnovatrail/learner-model"
+	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
+	"github.com/altnovatrail/spec/types/formatv0"
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/rpc"
+	"github.com/altnovatrail/api/internal/store"
+)
+
+var _ apiv1connect.ProgressServiceHandler = (*ProgressService)(nil)
+
+// progressPage is how many attempts a page of the progress holds.
+const progressPage = 50
+
+// ProgressService is what the learner model and the history of a profile show
+// (R49): the skill map and the adult's progress. Both write first the evidence
+// the profile's closed attempts owe, so that they read the journal whole.
+type ProgressService struct {
+	apiv1connect.UnimplementedProgressServiceHandler
+	s      *Service
+	rights canner
+}
+
+// Progress is the ProgressService of s, on db, which asks rights of an adult's
+// view of the skill map.
+func (s *Service) Progress(db rpc.DB, rights canner) *ProgressService {
+	return &ProgressService{s: s.on(db), rights: rights}
+}
+
+// GetSkillMap is the state of the skills of a connected module's current
+// version, as learner-model reads it at the time of the request: by a learning
+// action, whose profile's consent is confirmed, or by an adult's view, with the
+// right can_view, which the handler checks — the checks before it hold
+// can_learn alone. A module not connected is "not found", and one with no
+// current version for the learner says so.
+func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRequest) (*v1.GetSkillMapResponse, error) {
+	s := p.s
+	profileID := req.GetProfileId()
+	var category formatv0.AgeCategory
+	switch req.GetAction() {
+	case v1.Action_ACTION_LEARNING:
+		c, err := s.learner(ctx, profileID)
+		if err != nil {
+			return nil, err
+		}
+		category = c
+	case v1.Action_ACTION_ADULT:
+		caller, _ := rpc.CallerFrom(ctx)
+		can, err := p.rights.Can(ctx, caller.AccountID, authz.CanView, profileID)
+		switch {
+		case err != nil:
+			return nil, rpc.Failed(ctx, err)
+		case !can:
+			return nil, connect.NewError(connect.CodePermissionDenied, "")
+		}
+		l, err := store.LearnerOf(ctx, s.db, caller.AccountID, profileID)
+		if err != nil {
+			return nil, refused(ctx, err)
+		}
+		category = formatv0.AgeCategory(l.AgeCategory)
+	default:
+		return nil, rpc.Malformed("action")
+	}
+	var answer *v1.GetSkillMapResponse
+	err := s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+		connected, err := store.ConnectedModules(ctx, tx, profileID)
+		if err != nil {
+			return err
+		}
+		module := formatv0.ModuleID(req.GetModuleId())
+		if !slices.ContainsFunc(connected, func(c store.ConnectedModule) bool { return c.ModuleID == string(module) }) {
+			return store.ErrNotFound
+		}
+		pkg, ok := s.set.CurrentFor(module, category)
+		if !ok {
+			return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+		}
+		// The modules of the engine: those connected and fit for the learner.
+		var engine []string
+		for _, c := range connected {
+			if _, ok := s.set.CurrentFor(formatv0.ModuleID(c.ModuleID), category); ok {
+				engine = append(engine, c.ModuleID)
+			}
+		}
+		settled, err := s.model.Settle(ctx, tx, profileID, now)
+		if err != nil {
+			return err
+		}
+		read, err := s.model.Read(settled, now, engine)
+		if err != nil {
+			return err
+		}
+		answer = skillMap(pkg.View, string(pkg.Digest), read)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return answer, nil
+}
+
+// skillMap is the map of the module of view, of the package digest: the state
+// of each skill of its graph with a verdict, by local ID — with no practice, the
+// count of its evidence alone —, and of each anchor skill its graph names as a
+// prerequisite or a skill it teaches (contract, GetSkillMapResponse).
+func skillMap(view formatv0.CanonicalView, digest string, read learnermodel.Readout) *v1.GetSkillMapResponse {
+	out := &v1.GetSkillMapResponse{PackageDigest: digest}
+	graph := view.SkillGraph
+	if graph == nil {
+		return out
+	}
+	module := string(view.Manifest.ID)
+	practised := map[string]learnermodel.SkillReadout{}
+	for _, m := range read.Modules {
+		if m.Module != module {
+			continue
+		}
+		for _, sk := range m.Skills {
+			practised[sk.Skill] = sk
+		}
+	}
+	anchors := map[string]bool{}
+	var ids []string
+	for id, skill := range graph.Skills {
+		for _, a := range skill.Teaches {
+			anchors[string(a)] = true
+		}
+		for _, a := range skill.Prerequisites {
+			if model.IsAnchor(a) {
+				anchors[a] = true
+			}
+		}
+		if skill.Assessability == formatv0.SkillAssessabilityVerdict {
+			ids = append(ids, string(id))
+		}
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		out.Skills = append(out.Skills, skillState(id, practised[model.SkillID(view.Manifest.ID, id)]))
+	}
+	for _, a := range read.Anchors {
+		if anchors[a.Anchor] {
+			out.AnchorSkills = append(out.AnchorSkills, anchorState(a))
+		}
+	}
+	return out
+}
+
+// skillState is the state of the skill id, by what reading gave of it: the
+// count of its evidence, and, once practised, its estimate, uncertainty and
+// retention, and, once mastered, its band, its cautious probability and its
+// review date.
+func skillState(id string, r learnermodel.SkillReadout) *v1.SkillState {
+	out := &v1.SkillState{Skill: id, EvidenceCount: int32(r.EvidenceCount)}
+	if r.EvidenceCount == 0 {
+		return out
+	}
+	out.LastPracticedAt = timestamppb.New(time.Unix(r.LastPractice, 0))
+	out.Estimate, out.Uncertainty, out.Retention = &r.Estimate, &r.Uncertainty, &r.Retention
+	if !r.Mastered {
+		return out
+	}
+	out.MasteryBand, out.CautiousProbability = r.MasteryBand.ID, &r.CautiousProbability
+	if r.Review.Already {
+		out.ReviewDue = true
+	} else {
+		out.ReviewDate = timestamppb.New(time.Unix(r.Review.At, 0))
+	}
+	return out
+}
+
+// The holdings and reasons of an anchor skill, in the contract's words.
+var (
+	holdings = map[learnermodel.AnchorStatus]v1.AnchorSkillHolding{
+		learnermodel.AnchorHas:     v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_HELD,
+		learnermodel.AnchorHasNot:  v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_NOT_HELD,
+		learnermodel.AnchorUnknown: v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_UNKNOWN,
+	}
+	anchorReasons = map[learnermodel.AnchorReason]v1.AnchorSkillReason{
+		learnermodel.AnchorReasonNotMastered:      v1.AnchorSkillReason_ANCHOR_SKILL_REASON_NOT_MASTERED,
+		learnermodel.AnchorReasonNoEvidence:       v1.AnchorSkillReason_ANCHOR_SKILL_REASON_NO_EVIDENCE,
+		learnermodel.AnchorReasonNoTeacher:        v1.AnchorSkillReason_ANCHOR_SKILL_REASON_NOBODY_TEACHES,
+		learnermodel.AnchorReasonNoVerdictTeacher: v1.AnchorSkillReason_ANCHOR_SKILL_REASON_ONLY_UNASSESSABLE,
+	}
+)
+
+// anchorState is the state of an anchor skill, as reading gave it.
+func anchorState(a learnermodel.AnchorReadout) *v1.AnchorSkillState {
+	out := &v1.AnchorSkillState{AnchorSkill: a.Anchor, Holding: holdings[a.Status], Reason: anchorReasons[a.Reason]}
+	for _, t := range a.Teachers {
+		out.TeachingSkills = append(out.TeachingSkills, t.Skill)
+	}
+	return out
+}
+
+// GetProgress is the progress of a profile, which an adult views with the right
+// can_view, which the checks hold (R49): its attempts, newest first, a page at a
+// time, and, on the first page, the traps that repeat in its closed attempts.
+// When the engine chose an attempt's task, and why, come with the engine's
+// choice (T40); an essay's submissions with the path of a task with a rubric
+// (R14).
+func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRequest) (*v1.GetProgressResponse, error) {
+	s := p.s
+	profileID := req.GetProfileId()
+	after, err := cursorOf(req.GetPageToken())
+	if err != nil {
+		return nil, rpc.Malformed("page_token")
+	}
+	answer := &v1.GetProgressResponse{}
+	err = s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+		if _, err := s.model.Settle(ctx, tx, profileID, now); err != nil {
+			return err
+		}
+		records, err := store.ProgressPage(ctx, tx, profileID, after, progressPage+1)
+		if err != nil {
+			return err
+		}
+		if len(records) > progressPage {
+			records = records[:progressPage]
+			last := records[len(records)-1]
+			answer.NextPageToken = tokenOf(store.Cursor{StartedAt: last.StartedAt, ID: last.ID})
+		}
+		for _, r := range records {
+			answer.Attempts = append(answer.Attempts, attemptRecord(r))
+		}
+		if after != nil {
+			return nil
+		}
+		journal, err := store.Journal(ctx, tx, profileID, 0)
+		if err != nil {
+			return err
+		}
+		traps, err := s.model.RepeatingTraps(journal)
+		if err != nil {
+			return err
+		}
+		for _, t := range traps {
+			answer.RepeatingTraps = append(answer.RepeatingTraps, &v1.RepeatingTrap{
+				Trap: t.ID, Description: t.Description, TrapAdvice: t.Advice,
+				AttemptCount: int32(t.Attempts), LastClosedAt: timestamppb.New(t.LastClosedAt),
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return answer, nil
+}
+
+// attemptRecord is the attempt r in the progress.
+func attemptRecord(r store.Record) *v1.AttemptRecord {
+	out := &v1.AttemptRecord{
+		Task: model.TaskID(formatv0.ModuleID(r.ModuleID), formatv0.TaskID(r.TaskID)), ModuleVersion: r.ModuleVersion,
+		WrongAnswers: int32(r.WrongAnswers), BegunAt: timestamppb.New(r.StartedAt),
+	}
+	if r.LessonID != nil {
+		out.Lesson = *r.LessonID
+	}
+	if r.CloseReason != nil {
+		out.CloseReason = closeReasons[*r.CloseReason]
+		out.ClosedAt = timestamppb.New(*r.ClosedAt)
+	}
+	return out
+}
+
+// errToken is a page token this service did not give.
+var errToken = errors.New("learning: not a page token of the progress")
+
+// tokenOf is the page token of a cursor: opaque to app, which gives it back as
+// it got it.
+func tokenOf(c store.Cursor) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(c.StartedAt.UnixMicro(), 10) + "/" + c.ID))
+}
+
+// cursorOf is the cursor of a page token, nil for the first page.
+func cursorOf(token string) (*store.Cursor, error) {
+	if token == "" {
+		return nil, nil
+	}
+	data, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, errToken
+	}
+	at, id, ok := strings.Cut(string(data), "/")
+	micros, err := strconv.ParseInt(at, 10, 64)
+	if !ok || err != nil || !store.CanonicalID(id) {
+		return nil, errToken
+	}
+	return &store.Cursor{StartedAt: time.UnixMicro(micros).UTC(), ID: id}, nil
+}

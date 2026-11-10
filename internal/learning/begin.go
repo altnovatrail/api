@@ -230,7 +230,7 @@ func (s *Service) leave(ctx context.Context, tx pgx.Tx, profileID string, now ti
 	if reason == "" {
 		reason = closeLeft
 	}
-	return store.CloseAttempt(ctx, tx, profileID, open.ID, reason, now)
+	return s.close(ctx, tx, profileID, open.ID, reason, now)
 }
 
 // GetOpenAttempt is the open attempt, by which the learner goes on with it on

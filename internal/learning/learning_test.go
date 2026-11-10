@@ -73,6 +73,7 @@ type world struct {
 	accounts apiv1connect.AccountServiceClient
 	learning apiv1connect.LearningServiceClient
 	attempts apiv1connect.AttemptServiceClient
+	progress apiv1connect.ProgressServiceClient
 	current  *modulepackage.Package
 	earlier  *modulepackage.Package
 	// log is what the server wrote to its log.
@@ -80,6 +81,9 @@ type world struct {
 	// denyManage takes the right can_manage away from every account, for the
 	// action of an adult; the checks before a handler still see the rights.
 	denyManage atomic.Bool
+	// denyView takes the right can_view away the same way, for the skill map
+	// an adult views.
+	denyView atomic.Bool
 }
 
 // adultRights is the rights the action of an adult is asked of: the world's,
@@ -87,7 +91,7 @@ type world struct {
 type adultRights struct{ w *world }
 
 func (r adultRights) Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error) {
-	if right == authz.CanManage && r.w.denyManage.Load() {
+	if right == authz.CanManage && r.w.denyManage.Load() || right == authz.CanView && r.w.denyView.Load() {
 		return false, nil
 	}
 	return r.w.rights.Can(ctx, accountID, right, profileID)
@@ -156,13 +160,15 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 	}
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Learning: s.Learning(db), Attempt: s.Attempts(db, adultRights{w})})
+		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Learning: s.Learning(db), Attempt: s.Attempts(db, adultRights{w}),
+			Progress: s.Progress(db, adultRights{w})})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL))
 	w.accounts = apiv1connect.NewAccountServiceClient(transport)
 	w.learning = apiv1connect.NewLearningServiceClient(transport)
 	w.attempts = apiv1connect.NewAttemptServiceClient(transport)
+	w.progress = apiv1connect.NewProgressServiceClient(transport)
 	return w
 }
 

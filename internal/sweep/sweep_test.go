@@ -9,9 +9,11 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/altnovatrail/module-kit/modulepackage"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -19,6 +21,8 @@ import (
 	"github.com/altnovatrail/api/internal/authn/authntest"
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/store/storetest"
 	"github.com/altnovatrail/api/internal/sweep"
 )
@@ -30,10 +34,17 @@ var errDown = errors.New("the test's service is down")
 // settle is the longest a request runs, in the tests as in a deployment.
 const settle = 30 * time.Second
 
+// The package of the module choices is built once: a build checks the module.
+var (
+	builtOnce sync.Once
+	choices   *modulepackage.Package
+)
+
 // world is the job's databases and sign-in service. Every ID and UID in it is
 // synthetic.
 type world struct {
 	pool    *pgxpool.Pool
+	model   *model.Model
 	fga     *pgx.Conn
 	rights  *authz.Rights
 	signin  *authntest.Fake
@@ -56,12 +67,17 @@ func newWorld(t *testing.T) *world {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = fga.Close(context.Background()) })
-	return &world{pool: storetest.DB(t), fga: fga, rights: rights, signin: &authntest.Fake{}}
+	builtOnce.Do(func() { choices = packagestest.Own(t, "choices") })
+	m, err := model.New(packagestest.Set(t, packagestest.Entry{Pkg: choices, Release: "v0.1.0"}), "v0.1.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &world{pool: storetest.DB(t), fga: fga, rights: rights, signin: &authntest.Fake{}, model: m}
 }
 
 // sweeper is the job on the world, with rights and signin as given.
 func (w *world) sweeper(rights sweep.Rights, signin sweep.Signin) *sweep.Sweeper {
-	return sweep.New(w.pool, rights, signin, settle, logging.New(&w.log, slog.LevelDebug))
+	return sweep.New(w.pool, w.model, rights, signin, settle, logging.New(&w.log, slog.LevelDebug))
 }
 
 func (w *world) run(t *testing.T) sweep.Report {
@@ -219,14 +235,15 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 		w.ids = append(w.ids, profileID(10+i))
 	}
 
-	// An attempt idle for 8 days, and one of the profile idle for long, which
-	// goes with it; lesson runs idle for 31 days and for a day.
+	// An attempt idle for 8 days, with a wrong answer, whose evidence the pass
+	// writes once it closes it, and one of the profile idle for long, which goes
+	// with it; lesson runs idle for 31 days and for a day.
 	for _, profile := range []string{newProfile, oldProfile} {
-		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id) VALUES ($1, 'task', 'example/m', 't') RETURNING id`, profile)
+		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id) VALUES ($1, 'task', 'example/choices', 'pick') RETURNING id`, profile)
 		w.id(t, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
-			module_kit_version, task_id, seed, choice_id, last_action_at)
-			VALUES ($1, 'sha256:'||repeat('a', 64), 'example/m', '0.1.0', '0.4', 'v0.3.0', 't1', 1, $2, now() - interval '8 days')
-			RETURNING id`, profile, choice)
+			module_kit_version, task_id, seed, choice_id, wrong_answers, last_action_at)
+			VALUES ($1, $3, 'example/choices', '1.0.0', '0.4', 'v0.3.0', 'pick', 1, $2, 1, now() - interval '8 days')
+			RETURNING id`, profile, choice, choices.Digest)
 	}
 	for i, idleFor := range []string{"31 days", "1 day"} {
 		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id) VALUES ($1, 'lesson', 'example/m', 'l1') RETURNING id`, newProfile)
@@ -241,7 +258,7 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	}
 	for name, want := range map[string]int64{
 		logging.StepMarks: 1, logging.StepIdleAccounts: 1, logging.StepIdleProfiles: 1, logging.StepUsers: 2,
-		logging.StepAbandonedAttempts: 1, logging.StepAbandonedRuns: 1,
+		logging.StepAbandonedAttempts: 1, logging.StepEvidence: 1, logging.StepAbandonedRuns: 1,
 		logging.StepTuples: 2, logging.StepConsentRecords: 1, logging.StepKeys: 1, logging.StepChangelog: 1,
 	} {
 		if got := step(t, report, name).Done; got != want {
@@ -267,6 +284,10 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	}
 	if w.count(t, "profiles WHERE id = $1", newProfile) != 1 || !w.owns(t, active, newProfile) {
 		t.Error("the active profile or its tuple went")
+	}
+	if w.count(t, "evidence WHERE profile_id = $1", newProfile) != 1 ||
+		w.count(t, "skill_states WHERE profile_id = $1 AND last_seq = 1", newProfile) != 1 {
+		t.Error("the attempt closed abandoned with a wrong answer has no evidence in the journal and the cache")
 	}
 	if !w.removed("uid-long-gone") || !w.removed("uid-never-seen") {
 		t.Errorf("users removed = %v, want those with no account and long gone", w.signin.Removed())
@@ -410,7 +431,7 @@ func TestAStepWhoseQueryFailsEndsThere(t *testing.T) {
 	down.Close()
 	w.signin.AddUser(authn.User{UID: "uid-gone"})
 	w.tuple(t, profileID(1), profileID(2), time.Hour)
-	report := sweep.New(down, w.rights, w.signin, settle, logging.New(&w.log, slog.LevelDebug)).Run(t.Context(), time.Now())
+	report := sweep.New(down, w.model, w.rights, w.signin, settle, logging.New(&w.log, slog.LevelDebug)).Run(t.Context(), time.Now())
 	for _, s := range report {
 		switch s.Name {
 		case logging.StepChangelog:

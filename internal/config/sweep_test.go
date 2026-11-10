@@ -17,8 +17,11 @@ func TestSweepReadsWhatItOpens(t *testing.T) {
 	}
 	if sweep.DatabaseURL.Reveal() != remote || sweep.OpenFGADatabaseURL.Reveal() != local ||
 		sweep.FirebaseProjectID != "novatrail-test" || sweep.FirebaseCredentials.Reveal() != `{"type":"service_account"}` ||
-		sweep.Deployed() {
+		sweep.Deployed() || sweep.PackagesDir != config.DefaultPackagesDir {
 		t.Errorf("SweepFrom = %+v, want the environment's values", sweep)
+	}
+	if sweep, err := config.SweepFrom(append(serveEnviron, "API_PACKAGES_DIR=/data/packages")); err != nil || sweep.PackagesDir != "/data/packages" {
+		t.Errorf("SweepFrom = %+v, %v; want the folder of the packages named", sweep, err)
 	}
 }
 
@@ -46,9 +49,9 @@ func TestSweepRefusals(t *testing.T) {
 	t.Parallel()
 
 	environ := append(without(without(without(serveEnviron, "API_DATABASE_URL"), "API_FIREBASE_PROJECT_ID"), "API_OPENFGA_DATABASE_URL"),
-		"API_OPENFGA_DATABASE_URL=not a string")
+		"API_OPENFGA_DATABASE_URL=not a string", "API_PACKAGES_DIR=packages")
 	_, err := config.SweepFrom(environ)
-	for _, name := range []string{"API_DATABASE_URL", "API_OPENFGA_DATABASE_URL", "API_FIREBASE_PROJECT_ID"} {
+	for _, name := range []string{"API_DATABASE_URL", "API_OPENFGA_DATABASE_URL", "API_FIREBASE_PROJECT_ID", "API_PACKAGES_DIR"} {
 		if !errors.Is(err, config.ErrInvalid) || !strings.Contains(err.Error(), name) {
 			t.Errorf("SweepFrom error = %v, want it to name %s", err, name)
 		}

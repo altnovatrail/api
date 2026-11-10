@@ -34,3 +34,12 @@ func TestABinaryWithNoModuleKitHasNoVersionOfIt(t *testing.T) {
 		t.Errorf("ModuleKit() = %q in a binary that links no module-kit, want none", got)
 	}
 }
+
+// Nor does it record learner-model, which it links none of either.
+func TestABinaryWithNoLearnerModelHasNoVersionOfIt(t *testing.T) {
+	t.Parallel()
+
+	if got := LearnerModel(); got != "" {
+		t.Errorf("LearnerModel() = %q in a binary that links no learner-model, want none", got)
+	}
+}

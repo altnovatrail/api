@@ -81,6 +81,11 @@ func TestSweepThatCannotOpenIsOneFailure(t *testing.T) {
 	if code != exitFailure || !strings.Contains(out, `"moment":"sweep"`) || strings.Contains(out, `"database"`) {
 		t.Errorf("sweep with no sign-in service = %d, %q; want one failure with no database", code, out)
 	}
+	// The evidence the pass writes is built of the packages, read as serve reads them.
+	code, out, _ = runCommand(t.Context(), serveEnviron(t, "API_PACKAGES_DIR="+t.TempDir()), "sweep")
+	if code != exitFailure || !strings.Contains(out, `"moment":"sweep"`) || strings.Contains(out, `"step"`) {
+		t.Errorf("sweep with no packages = %d, %q; want one failure before any step", code, out)
+	}
 }
 
 func TestSweepRefusesWhatItCannotRun(t *testing.T) {

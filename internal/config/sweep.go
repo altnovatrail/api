@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 )
 
 // VarJob is the name of the Cloud Run job being run, which Cloud Run sets in
@@ -30,6 +31,9 @@ type Sweep struct {
 	FirebaseCredentials Secret
 	// Job is the name of the Cloud Run job, or empty off a deployment.
 	Job string
+	// PackagesDir is the absolute path of the folder of the packages, as serve
+	// reads it: the evidence the job writes is built of them (R49).
+	PackagesDir string
 }
 
 // Deployed reports whether the job runs as a deployed Cloud Run job.
@@ -41,7 +45,8 @@ func SweepFrom(environ []string) (*Sweep, error) {
 	env := read(environ)
 
 	var problems []error
-	cfg := &Sweep{FirebaseProjectID: env[VarFirebaseProjectID], Job: env[VarJob]}
+	cfg := &Sweep{FirebaseProjectID: env[VarFirebaseProjectID], Job: env[VarJob],
+		PackagesDir: env.or(VarPackagesDir, DefaultPackagesDir)}
 	// In this order, so that the refusals read the same on every run.
 	problems = append(problems, databaseURLs(env, []namedSecret{
 		{VarDatabaseURL, &cfg.DatabaseURL},
@@ -52,6 +57,9 @@ func SweepFrom(environ []string) (*Sweep, error) {
 	}
 	if err := firebaseCredentials(env, cfg.Deployed(), VarJob, &cfg.FirebaseCredentials); err != nil {
 		problems = append(problems, err)
+	}
+	if !filepath.IsAbs(cfg.PackagesDir) {
+		problems = append(problems, fmt.Errorf("%w: %s must be an absolute path, got %q", ErrInvalid, VarPackagesDir, cfg.PackagesDir))
 	}
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)

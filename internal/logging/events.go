@@ -155,6 +155,7 @@ const (
 	StepIdleAccounts      = "idle_accounts"
 	StepIdleProfiles      = "idle_profiles"
 	StepAbandonedAttempts = "abandoned_attempts"
+	StepEvidence          = "evidence"
 	StepAbandonedRuns     = "abandoned_runs"
 	StepUsers             = "users"
 	StepTuples            = "tuples"
@@ -164,7 +165,7 @@ const (
 )
 
 // Steps is every step of the daily job, in the order it takes them.
-var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepAbandonedAttempts, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepKeys, StepChangelog}
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepKeys, StepChangelog}
 
 // The databases api migrates: the value set of FieldDatabase.
 const (

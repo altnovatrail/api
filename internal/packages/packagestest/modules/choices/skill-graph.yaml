@@ -2,9 +2,11 @@ skills:
   comparing:
     title: Comparing
     assessability: verdict
+    teaches: [core.multiplication-table]
   adding:
     title: Adding
     assessability: verdict
+    prerequisites: [comparing]
   telling:
     title: Telling
     assessability: rubric
