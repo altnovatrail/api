@@ -152,17 +152,7 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
 	case !suits(pkg, task, category):
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_SUITABLE)
-	case rubric(task):
-		// The path of a task with a rubric is not in this code (R14), so AI may
-		// not assess one.
-		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
-	case !byTap(task) && !sheetRead(task):
-		// AI would read it on a workbook, a zone or the whole sheet, which this
-		// release of tutor does not read (R46).
-		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
-	case !byTap(task) && !s.gate.Handwriting(category, ownKey):
-		// AI would read the handwriting, and the table, the facts, the stage and
-		// the platform's keys of the deployment admit no models for it (R45).
+	case !s.admitted(task, category, ownKey):
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 	}
 	if err := s.leave(ctx, tx, profileID, now); err != nil {
@@ -294,4 +284,22 @@ func startOf(h held) (*v1.AttemptStart, error) {
 		start.Segment = &v1.SegmentPlace{LessonRunId: *h.row.LessonRunID, Segment: int32(*h.row.Segment)}
 	}
 	return start, nil
+}
+
+// admitted says whether this code begins an attempt of the task for a learner
+// of category, by the own key of ownKey when it names a provider: the same rule
+// for a beginning and for the pool the engine chooses from (R50). A task with a
+// rubric is not, as its path is not in this code (R14), so AI may not assess
+// one; nor is one AI would read on a workbook, a zone or the whole sheet, which
+// this release of tutor does not read (R46); nor one of handwriting whose
+// models the table, the facts, the stage and the platform's keys of the
+// deployment do not admit (R45).
+func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ownKey string) bool {
+	switch {
+	case rubric(task):
+		return false
+	case byTap(task):
+		return true
+	}
+	return sheetRead(task) && s.gate.Handwriting(category, ownKey)
 }

@@ -27,6 +27,12 @@ func TaskID(module formatv0.ModuleID, id formatv0.TaskID) string {
 	return string(module) + "/task/" + string(id)
 }
 
+// ModuleOfSkill is the module of a skill's full ID: what comes before its kind.
+func ModuleOfSkill(skill string) string {
+	module, _, _ := strings.Cut(skill, "/skill/")
+	return module
+}
+
 // trapID is the full ID of a trap of a module.
 func trapID(module formatv0.ModuleID, id formatv0.TrapID) string {
 	return string(module) + "/trap/" + string(id)

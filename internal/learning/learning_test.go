@@ -864,9 +864,7 @@ func TestTheMethodsOfLaterTasksAreUnimplemented(t *testing.T) {
 
 	w := newWorld(t)
 	l := w.learner(t)
-	_, err := w.learning.ChooseNext(l.ctx, &v1.ChooseNextRequest{ProfileId: l.child, IdempotencyKey: "c"})
-	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
-	_, err = w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.child, AttemptId: uuid.NewString()})
+	_, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.child, AttemptId: uuid.NewString()})
 	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
 }
 

@@ -212,9 +212,9 @@ func anchorState(a learnermodel.AnchorReadout) *v1.AnchorSkillState {
 // GetProgress is the progress of a profile, which an adult views with the right
 // can_view, which the checks hold (R49): its attempts, newest first, a page at a
 // time, and, on the first page, the traps that repeat in its closed attempts.
-// When the engine chose an attempt's task, and why, come with the engine's
-// choice (T40); an essay's submissions with the path of a task with a rubric
-// (R14).
+// Each attempt has when the engine chose its task, or its run's lesson, and why
+// — but one begun again (R50); an essay's submissions come with the path of a
+// task with a rubric (R14).
 func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRequest) (*v1.GetProgressResponse, error) {
 	s := p.s
 	profileID := req.GetProfileId()
@@ -276,6 +276,9 @@ func attemptRecord(r store.Record) *v1.AttemptRecord {
 	if r.CloseReason != nil {
 		out.CloseReason = closeReasons[*r.CloseReason]
 		out.ClosedAt = timestamppb.New(*r.ClosedAt)
+	}
+	if r.ChosenAt != nil {
+		out.ChosenAt, out.ReasonCode = timestamppb.New(*r.ChosenAt), v1.ReasonCode(*r.ReasonCode)
 	}
 	return out
 }

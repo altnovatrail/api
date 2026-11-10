@@ -9,8 +9,9 @@ import (
 )
 
 // Record is an attempt in the progress of a profile (contract, AttemptRecord):
-// what it was of, the lesson of its run, how it closed and when it began and
-// closed.
+// what it was of, the lesson of its run, how it closed, when it began and
+// closed, and when the engine chose its task — or its run's lesson — and why:
+// none for an attempt begun again, or by a choice written before the codes.
 type Record struct {
 	ID            string
 	TaskID        string
@@ -21,6 +22,8 @@ type Record struct {
 	WrongAnswers  int
 	StartedAt     time.Time
 	ClosedAt      *time.Time
+	ChosenAt      *time.Time
+	ReasonCode    *int
 }
 
 // Cursor is where a page of the progress goes on from: the attempt last on the
@@ -39,8 +42,10 @@ func ProgressPage(ctx context.Context, db Lister, profileID string, after *Curso
 		at, id = &after.StartedAt, &after.ID
 	}
 	rows, err := db.Query(ctx, `SELECT a.id, a.task_id, a.module_id, a.module_version, r.lesson_id, a.close_reason,
-			a.wrong_answers, a.started_at, a.closed_at
+			a.wrong_answers, a.started_at, a.closed_at, c.chosen_at, c.reason_code
 		FROM attempts a LEFT JOIN lesson_runs r ON r.profile_id = a.profile_id AND r.id = a.lesson_run_id
+		LEFT JOIN engine_choices c ON c.profile_id = a.profile_id AND c.id = coalesce(a.choice_id, r.choice_id)
+			AND c.reason_code IS NOT NULL
 		WHERE a.profile_id = $1 AND ($2::timestamptz IS NULL OR (a.started_at, a.id) < ($2, $3::uuid))
 		ORDER BY a.started_at DESC, a.id DESC LIMIT $4`, profileID, at, id, n)
 	if err != nil {

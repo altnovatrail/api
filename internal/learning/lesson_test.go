@@ -56,13 +56,15 @@ func (w *world) endOf(t *testing.T, run string) string {
 	return *reason
 }
 
-// endedAs fails the test unless err is "run ended" by reason.
-func endedAs(t *testing.T, err error, reason v1.RunEndReason) {
+// endedAs fails the test unless err is "run ended" by reason, and gives the
+// engine's choice the end gave.
+func endedAs(t *testing.T, err error, reason v1.RunEndReason) *v1.EngineChoice {
 	t.Helper()
-	if r := refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_RUN_ENDED); r.GetRunEnd().GetReason() != reason ||
-		r.GetRunEnd().GetChoice() != nil {
-		t.Errorf("the run's end = %v, want %v with no choice", r.GetRunEnd(), reason)
+	r := refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_RUN_ENDED)
+	if r.GetRunEnd().GetReason() != reason {
+		t.Errorf("the run's end = %v, want %v", r.GetRunEnd(), reason)
 	}
+	return r.GetRunEnd().GetChoice()
 }
 
 // A choice of a lesson opens one run on the package of the current version,
@@ -235,15 +237,20 @@ func TestTheSegmentsOfALessonGoInOrder(t *testing.T) {
 	if err != nil || solved.GetNext().GetSegment() != 5 {
 		t.Fatalf("the correct answer = %v (%v), want the next segment 5", solved, err)
 	}
+	// "Lesson done" gives the engine's choice, and its repeat the same.
 	done, err := w.complete(l, l.child, run)
-	if err != nil || done.GetEnd().GetReason() != v1.RunEndReason_RUN_END_REASON_PASSED {
-		t.Fatalf("lesson done = %v (%v)", done, err)
+	if err != nil || done.GetEnd().GetReason() != v1.RunEndReason_RUN_END_REASON_PASSED || done.GetEnd().GetChoice().GetChoiceId() == "" {
+		t.Fatalf("lesson done = %v (%v), want the end with a choice", done, err)
 	}
-	if again, err := w.complete(l, l.child, run); err != nil || again.GetEnd().GetReason() != v1.RunEndReason_RUN_END_REASON_PASSED {
+	if again, err := w.complete(l, l.child, run); err != nil || again.GetEnd().GetReason() != v1.RunEndReason_RUN_END_REASON_PASSED ||
+		again.GetEnd().GetChoice().GetChoiceId() != done.GetEnd().GetChoice().GetChoiceId() {
 		t.Errorf("lesson done again = %v (%v), want the same", again, err)
 	}
+	// A run that ended before the request gives no choice: app asks "something else".
 	_, err = w.run(l, l.child, run)
-	endedAs(t, err, v1.RunEndReason_RUN_END_REASON_PASSED)
+	if c := endedAs(t, err, v1.RunEndReason_RUN_END_REASON_PASSED); c != nil {
+		t.Errorf("the run ended before gave the choice %v", c)
+	}
 	_, err = w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.child, ChoiceId: choice})
 	endedAs(t, err, v1.RunEndReason_RUN_END_REASON_PASSED)
 	_, err = w.segment(l, l.child, run, 4)
@@ -290,7 +297,9 @@ func TestARunEndsByItself(t *testing.T) {
 		VALUES ($1, 'example/choices/lesson/basics', $2, '0.9.0', $3, $4) RETURNING id`,
 		l.child, module, string(w.earlier.Digest), w.lessonChoice(t, l.child, "basics"))
 	_, err := w.run(l, l.child, withdrawn)
-	endedAs(t, err, v1.RunEndReason_RUN_END_REASON_UNCHECKED)
+	if c := endedAs(t, err, v1.RunEndReason_RUN_END_REASON_UNCHECKED); c.GetChoiceId() == "" {
+		t.Errorf("the end the request found gave the choice %v, want one", c)
+	}
 	if got := w.endOf(t, withdrawn); got != "unchecked" {
 		t.Errorf("the run ended %q, want unchecked", got)
 	}
@@ -311,7 +320,10 @@ func TestARunEndsByItself(t *testing.T) {
 	}
 	w.exec(t, `DELETE FROM connected_modules WHERE profile_id = $1`, l.child)
 	_, err = w.segment(l, l.child, run, 2)
-	endedAs(t, err, v1.RunEndReason_RUN_END_REASON_NOT_SUITABLE)
+	// No module connected: nothing to give, and no AI to blame for it.
+	if c := endedAs(t, err, v1.RunEndReason_RUN_END_REASON_NOT_SUITABLE); c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || c.GetOutcome() != nil {
+		t.Errorf("the end with no module gave %v, want nothing, with no outcome", c)
+	}
 	if got := w.closeOf(t, a.GetAttemptId()); got != "not_suitable" {
 		t.Errorf("the run's attempt is closed %q, want not_suitable", got)
 	}
@@ -334,7 +346,9 @@ func TestARunEndsByItself(t *testing.T) {
 	}
 	w.clock.move(31 * 24 * time.Hour)
 	_, err = w.complete(l, l.child, run)
-	endedAs(t, err, v1.RunEndReason_RUN_END_REASON_ABANDONED)
+	if c := endedAs(t, err, v1.RunEndReason_RUN_END_REASON_ABANDONED); c.GetChoiceId() == "" {
+		t.Errorf("the end the request found gave the choice %v, want one", c)
+	}
 }
 
 // A database that fails is unavailable, at each step of a lesson.
@@ -411,5 +425,10 @@ func TestALapseDoesNotStopALesson(t *testing.T) {
 	}
 	if got := w.endOf(t, run); got != "abandoned" {
 		t.Errorf("the lapsed run ended %q, want abandoned", got)
+	}
+	// Nobody was given that end, so the engine was asked for nothing.
+	var after int
+	if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM engine_choices WHERE after_lesson_run_id = $1`, run).Scan(&after); err != nil || after != 0 {
+		t.Errorf("the end of another choice's run wrote %d choices (%v), want none", after, err)
 	}
 }
