@@ -189,6 +189,10 @@ func TestAChildsProfileIsMadeOfItsConsent(t *testing.T) {
 	if err != nil || created.AgeCategory != "under_13" || created.Country != "US" || created.Owner {
 		t.Fatalf("CreateChildProfile = %+v, %v; want the consent's category and country", created, err)
 	}
+	var seq int64
+	if err := pool.QueryRow(ctx, `SELECT last_seq FROM skill_states WHERE profile_id = $1`, created.ID).Scan(&seq); err != nil || seq != 0 {
+		t.Errorf("the child's skill state = %d, %v; want a row at 0", seq, err)
+	}
 	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		if c, err := store.ConsentFor(ctx, tx, id, waiting.ID); err != nil || c.ProfileID != created.ID {
 			t.Errorf("ConsentFor after = %+v, %v; want it bound to %s", c, err, created.ID)

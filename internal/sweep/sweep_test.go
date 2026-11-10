@@ -219,12 +219,29 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 		w.ids = append(w.ids, profileID(10+i))
 	}
 
+	// An attempt idle for 8 days, and one of the profile idle for long, which
+	// goes with it; lesson runs idle for 31 days and for a day.
+	for _, profile := range []string{newProfile, oldProfile} {
+		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, 'task') RETURNING id`, profile)
+		w.id(t, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
+			module_kit_version, task_id, seed, choice_id, last_action_at)
+			VALUES ($1, 'sha256:'||repeat('a', 64), 'example/m', '0.1.0', '0.4', 'v0.3.0', 't1', 1, $2, now() - interval '8 days')
+			RETURNING id`, profile, choice)
+	}
+	for i, idleFor := range []string{"31 days", "1 day"} {
+		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, 'lesson') RETURNING id`, newProfile)
+		w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id, last_action_at)
+			VALUES ($1, $2, 'example/m', '0.1.0', 'sha256:'||repeat('a', 64), $3, now() - $4::interval) RETURNING id`,
+			newProfile, fmt.Sprintf("example/m/l%d", i), choice, idleFor)
+	}
+
 	report := w.run(t)
 	if !report.Clean() {
 		t.Fatalf("report = %+v, want a clean pass", report)
 	}
 	for name, want := range map[string]int64{
 		logging.StepMarks: 1, logging.StepIdleAccounts: 1, logging.StepIdleProfiles: 1, logging.StepUsers: 2,
+		logging.StepAbandonedAttempts: 1, logging.StepAbandonedRuns: 1,
 		logging.StepTuples: 2, logging.StepConsentRecords: 1, logging.StepKeys: 1, logging.StepChangelog: 1,
 	} {
 		if got := step(t, report, name).Done; got != want {

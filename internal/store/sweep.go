@@ -160,16 +160,17 @@ func ProfilesThere(ctx context.Context, db Lister, ids []string) (map[string]str
 	return there, nil
 }
 
-// dropBatch is how many rows one DELETE of a term takes, so that no statement
-// holds the table long.
+// dropBatch is how many rows one statement of a term takes — a DELETE, or the
+// UPDATE that closes what was abandoned — so that no statement holds the table
+// long.
 const dropBatch = 1000
 
 // DropKeys deletes the records of idempotency keys made before before, a batch at
 // a time, and says how many went: a key is kept for a day (R17). A stop between
 // batches keeps what went.
 func DropKeys(ctx context.Context, db Querier, before time.Time) (int64, error) {
-	return drop(ctx, db, `DELETE FROM idempotency_keys WHERE ctid IN (
-		SELECT ctid FROM idempotency_keys WHERE created_at < $1 LIMIT $2)`, before, "the keys' records")
+	return inBatches(ctx, db, `DELETE FROM idempotency_keys WHERE ctid IN (
+		SELECT ctid FROM idempotency_keys WHERE created_at < $1 LIMIT $2)`, before, "delete the keys' records")
 }
 
 // DropConsentRecords deletes the minimal records of consents for children whose
@@ -177,18 +178,40 @@ func DropKeys(ctx context.Context, db Querier, before time.Time) (int64, error) 
 // many went: a record is kept 5 years after the deletion and then erased (R117
 // spec; R21). A stop between batches keeps what went.
 func DropConsentRecords(ctx context.Context, db Querier, before time.Time) (int64, error) {
-	return drop(ctx, db, `DELETE FROM child_consent_records WHERE id IN (
-		SELECT id FROM child_consent_records WHERE deleted_at < $1 LIMIT $2)`, before, "the consents' minimal records")
+	return inBatches(ctx, db, `DELETE FROM child_consent_records WHERE id IN (
+		SELECT id FROM child_consent_records WHERE deleted_at < $1 LIMIT $2)`, before, "delete the consents' minimal records")
 }
 
-// drop runs sql, a DELETE of the rows older than its $1, a batch of $2 at a time,
-// until a batch is short.
-func drop(ctx context.Context, db Querier, sql string, before time.Time, what string) (int64, error) {
+// CloseAbandonedAttempts closes "abandoned", at at, the open attempts with no
+// action since before, a batch at a time, and says how many it closed (R10). One
+// clock judges the term and dates the close: the pass's. An attempt a request
+// holds is skipped, and the next pass finds it if it is still idle; the term is
+// checked again on the row the UPDATE takes, so an action that came meanwhile
+// keeps the attempt open. The close moves no date of the profile's activity.
+func CloseAbandonedAttempts(ctx context.Context, db Querier, before, at time.Time) (int64, error) {
+	return inBatches(ctx, db, `UPDATE attempts SET close_reason = 'abandoned', closed_at = $3
+		WHERE id IN (SELECT id FROM attempts WHERE closed_at IS NULL AND last_action_at < $1
+			LIMIT $2 FOR UPDATE SKIP LOCKED)
+		AND closed_at IS NULL AND last_action_at < $1`, before, "close the abandoned attempts", at)
+}
+
+// EndAbandonedRuns ends "abandoned", at at, the open lesson runs with no action
+// since before, a batch at a time, as CloseAbandonedAttempts closes attempts (R13).
+func EndAbandonedRuns(ctx context.Context, db Querier, before, at time.Time) (int64, error) {
+	return inBatches(ctx, db, `UPDATE lesson_runs SET end_reason = 'abandoned', ended_at = $3
+		WHERE id IN (SELECT id FROM lesson_runs WHERE ended_at IS NULL AND last_action_at < $1
+			LIMIT $2 FOR UPDATE SKIP LOCKED)
+		AND ended_at IS NULL AND last_action_at < $1`, before, "end the abandoned lesson runs", at)
+}
+
+// inBatches runs sql, a statement on the rows older than its $1, a batch of $2
+// at a time, with the rest of its arguments after them, until a batch is short.
+func inBatches(ctx context.Context, db Querier, sql string, before time.Time, what string, rest ...any) (int64, error) {
 	var dropped int64
 	for {
-		tag, err := db.Exec(ctx, sql, before, dropBatch)
+		tag, err := db.Exec(ctx, sql, append([]any{before, dropBatch}, rest...)...)
 		if err != nil {
-			return dropped, fmt.Errorf("store: delete %s: %w", what, err)
+			return dropped, fmt.Errorf("store: %s: %w", what, err)
 		}
 		dropped += tag.RowsAffected()
 		if tag.RowsAffected() < dropBatch {
