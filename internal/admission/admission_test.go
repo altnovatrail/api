@@ -1,14 +1,20 @@
 package admission_test
 
 import (
+	"encoding/json"
 	"errors"
+	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/altnovatrail/spec"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"github.com/altnovatrail/tutor"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
@@ -34,6 +40,21 @@ func file(t *testing.T, contents string) string {
 	return path
 }
 
+// keyed is what a deployment declares with the platform's key of Anthropic:
+// the file of facts at path, when not empty, and the stage rung.
+func keyed(t *testing.T, path, rung string) config.Admission {
+	t.Helper()
+	environ := []string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"}
+	if path != "" {
+		environ = append(environ, "API_ADMISSION_FACTS_FILE="+path)
+	}
+	cfg, err := config.AdmissionFrom(environ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
 func load(t *testing.T, cfg config.Admission) *admission.Gate {
 	t.Helper()
 	g, _, err := admission.Load(cfg)
@@ -50,8 +71,9 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 	t.Parallel()
 
 	none := config.Admission{Rung: config.RungAuthor}
-	facts := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungAuthor}
-	full := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungFull}
+	facts := keyed(t, file(t, adultFacts), config.RungAuthor)
+	full := keyed(t, file(t, adultFacts), config.RungFull)
+	unkeyed := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungAuthor}
 	empty := config.Admission{FactsFile: file(t, "# none yet\n"), Rung: config.RungAuthor}
 	for name, tc := range map[string]struct {
 		cfg      config.Admission
@@ -59,17 +81,18 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 		provider string
 		want     bool
 	}{
-		"no facts":                     {none, formatv0.AgeCategoryAdult, "", false},
-		"a file with no facts":         {empty, formatv0.AgeCategoryAdult, "", false},
-		"facts for an adult":           {facts, formatv0.AgeCategoryAdult, "", true},
-		"facts for an adult, a child":  {facts, formatv0.AgeCategoryUnder13, "", false},
-		"facts for an adult, a teen":   {facts, formatv0.AgeCategoryFrom13ToConsent, "", false},
-		"facts at the stage full":      {full, formatv0.AgeCategoryAdult, "", false},
-		"an own key of Anthropic":      {none, formatv0.AgeCategoryAdult, "anthropic", true},
-		"an own key of OpenAI":         {none, formatv0.AgeCategoryAdult, "openai", false},
-		"an own key no table names":    {none, formatv0.AgeCategoryAdult, "acme", false},
-		"an own key of a child":        {none, formatv0.AgeCategoryUnder13, "anthropic", false},
-		"an own key at the stage full": {config.Admission{Rung: config.RungFull}, formatv0.AgeCategoryAdult, "anthropic", false},
+		"no facts":                      {none, formatv0.AgeCategoryAdult, "", false},
+		"a file with no facts":          {empty, formatv0.AgeCategoryAdult, "", false},
+		"facts for an adult":            {facts, formatv0.AgeCategoryAdult, "", true},
+		"facts, no key of the platform": {unkeyed, formatv0.AgeCategoryAdult, "", false},
+		"facts for an adult, a child":   {facts, formatv0.AgeCategoryUnder13, "", false},
+		"facts for an adult, a teen":    {facts, formatv0.AgeCategoryFrom13ToConsent, "", false},
+		"facts at the stage full":       {full, formatv0.AgeCategoryAdult, "", false},
+		"an own key of Anthropic":       {none, formatv0.AgeCategoryAdult, "anthropic", true},
+		"an own key of OpenAI":          {none, formatv0.AgeCategoryAdult, "openai", false},
+		"an own key no table names":     {none, formatv0.AgeCategoryAdult, "acme", false},
+		"an own key of a child":         {none, formatv0.AgeCategoryUnder13, "anthropic", false},
+		"an own key at the stage full":  {config.Admission{Rung: config.RungFull}, formatv0.AgeCategoryAdult, "anthropic", false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := load(t, tc.cfg).Handwriting(tc.category, tc.provider); got != tc.want {
@@ -139,5 +162,44 @@ func TestTheCategoriesAndTheStagesAreOneSet(t *testing.T) {
 	}
 	if got := strings.Join(logging.Rungs, " "); got != config.RungAuthor+" "+config.RungFull {
 		t.Errorf("the log's stages = %q, want config's", got)
+	}
+}
+
+// The report counts the platform's keys, and names none of them; the log's set
+// of providers is the table's.
+func TestTheReportCountsThePlatformsKeys(t *testing.T) {
+	t.Parallel()
+
+	_, r, err := admission.Load(keyed(t, "", config.RungAuthor))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.PlatformKeys != 1 {
+		t.Errorf("Report.PlatformKeys = %d, want 1", r.PlatformKeys)
+	}
+	data, err := fs.ReadFile(spec.Admission, "admission-table.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Providers map[string]json.RawMessage `json:"providers"`
+	}
+	if err := json.Unmarshal(data, &table); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(logging.Providers, " "), strings.Join(slices.Sorted(maps.Keys(table.Providers)), " "); got != want {
+		t.Errorf("the log's providers = %q, want the table's %q", got, want)
+	}
+}
+
+// The gate reads by tutor, which calls no model for a reading with no task.
+func TestTheGateReadsByTutor(t *testing.T) {
+	t.Parallel()
+
+	read := load(t, keyed(t, "", config.RungAuthor)).ReadSheet(t.Context(), tutor.SheetReading{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if read.Outcome.Kind != tutor.Failed || len(read.Observations) != 0 || len(read.Outcome.Usage) != 0 {
+		t.Errorf("ReadSheet with no task = %v, want a failure with no call", read.Outcome.Kind)
 	}
 }

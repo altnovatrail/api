@@ -64,3 +64,31 @@ func Failed(ctx context.Context, err error) error {
 	noteOf(ctx).failure = err
 	return connect.NewError(connect.CodeUnavailable, "").WithCause(err)
 }
+
+// NoteOutcome names, in the request's line of the log, the cause of the outcome
+// of an answer that is no refusal: a call of AI that gave no reading (R46).
+func NoteOutcome(ctx context.Context, cause v1.Cause) { noteOf(ctx).outcome = cause.String() }
+
+// AICall is a call of AI as the log writes it (R12, R46): how it ended, in one
+// word of logging.AIOutcomes, how long it took, and what each model of it took —
+// no content, no key, no identifier.
+type AICall struct {
+	Outcome  string
+	Duration time.Duration
+	Usage    []AIUsage
+}
+
+// AIUsage is what one call of a model took: its provider and model, and its
+// tokens.
+type AIUsage struct {
+	Provider, Model                           string
+	InputTokens, OutputTokens, ThinkingTokens int64
+}
+
+// NoteAICall adds a call of AI to the request's log: a line of each model's
+// usage beside the request's line, or one line of how it ended when no model
+// answered.
+func NoteAICall(ctx context.Context, c AICall) {
+	n := noteOf(ctx)
+	n.calls = append(n.calls, c)
+}

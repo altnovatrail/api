@@ -92,3 +92,25 @@ func TestServeReadsWhatIsDeclaredForAdmission(t *testing.T) {
 		t.Errorf("ServeFrom deployed with the stage author: error = %v, want a refusal of API_ADMISSION_RUNG", err)
 	}
 }
+
+// The platform's keys are secrets, each optional, read from its variable or
+// from the file its twin names, and both at once is refused.
+func TestThePlatformsKeysAreSecrets(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "openai")
+	if err := os.WriteFile(path, []byte("sk-openai\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := config.AdmissionFrom([]string{"API_ANTHROPIC_KEY=sk-anthropic", "API_OPENAI_KEY_FILE=" + path})
+	if err != nil || got.Keys.Anthropic.Reveal() != "sk-anthropic" || got.Keys.OpenAI.Reveal() != "sk-openai" || len(got.Keys.ByProvider()) != 2 {
+		t.Errorf("AdmissionFrom = %d keys, %v; want both", len(got.Keys.ByProvider()), err)
+	}
+	if none, err := config.AdmissionFrom(nil); err != nil || len(none.Keys.ByProvider()) != 0 {
+		t.Errorf("AdmissionFrom of nothing = %d keys, %v; want none", len(none.Keys.ByProvider()), err)
+	}
+	_, err = config.AdmissionFrom([]string{"API_ANTHROPIC_KEY=sk", "API_ANTHROPIC_KEY_FILE=" + path})
+	if !errors.Is(err, config.ErrInvalid) || !strings.Contains(err.Error(), "API_ANTHROPIC_KEY") || strings.Contains(err.Error(), "sk") {
+		t.Errorf("both at once = %v, want a refusal naming the variable and not the key", err)
+	}
+}

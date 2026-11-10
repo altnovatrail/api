@@ -46,5 +46,6 @@ func logAdmission(log *slog.Logger, r admission.Report) {
 		logging.FieldFactsFile, r.FactsFile,
 		logging.FieldRung, r.Rung,
 		logging.FieldRungSet, r.RungSet,
+		logging.FieldPlatformKeys, r.PlatformKeys,
 	)
 }

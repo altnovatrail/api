@@ -78,12 +78,21 @@ func or[H any](set, unimplemented H) H {
 // Mount puts the server's methods on mux, with the contract's codecs: binary
 // protobuf, and JSON for debugging, written with the protobuf names (R18;
 // contracts README, sections 6 and 9). The JSON codec of Connect discards
-// unknown fields already.
+// unknown fields already. A message larger than MaxMessage is refused
+// resource_exhausted before it is decoded.
 func Mount(mux *http.ServeMux, server *connect.Server) {
 	json := connectproto.NewJSONCodec()
 	json.MarshalOptions.UseProtoNames = true
-	connecthttp.Mount(mux, server, connecthttp.WithCodecs(connectproto.NewBinaryCodec(), json))
+	connecthttp.Mount(mux, server, connecthttp.WithCodecs(connectproto.NewBinaryCodec(), json),
+		connecthttp.WithReadMaxBytes(MaxMessage))
 }
+
+// MaxMessage is the largest message of a request the server reads, in bytes
+// (R33, R46): 4 MiB, Connect's own default, named so that it is the server's
+// choice and its README's number. The largest message of the contract is the
+// crop of a handwriting sheet, at most 1568 px a side in grey of 8 bits by the
+// rule of the crop — under 2.5 MB even if PNG compressed nothing.
+const MaxMessage = 4 << 20
 
 // limited cuts a request short at its time limit; a shorter Connect-Timeout-Ms
 // of the client's still holds (R33). No limit given is the default one, never
@@ -106,6 +115,11 @@ type note struct {
 	cause   string
 	class   authn.Class
 	failure error
+	// outcome is the cause of the outcome of an answer that was no refusal: a
+	// call of AI that gave no reading (R46).
+	outcome string
+	// calls are the calls of AI the request made.
+	calls []AICall
 }
 
 type noteKey struct{}
@@ -150,6 +164,23 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 			}
 			if n.class != 0 {
 				attrs = append(attrs, logging.FieldTokenClass, n.class.String())
+			}
+			if n.outcome != "" {
+				attrs = append(attrs, logging.FieldOutcomeCause, n.outcome)
+			}
+			for _, c := range n.calls {
+				if len(c.Usage) == 0 {
+					// A call that no model answered still says how it ended.
+					log.InfoContext(ctx, logging.EventAIUsage, logging.FieldMethod, spec.Procedure,
+						logging.FieldAIOutcome, c.Outcome, logging.FieldDurationMS, c.Duration.Milliseconds())
+				}
+				for _, u := range c.Usage {
+					log.InfoContext(ctx, logging.EventAIUsage, logging.FieldMethod, spec.Procedure,
+						logging.FieldProvider, u.Provider, logging.FieldModel, u.Model,
+						logging.FieldInputTokens, u.InputTokens, logging.FieldOutputTokens, u.OutputTokens,
+						logging.FieldThinkingTokens, u.ThinkingTokens, logging.FieldAIOutcome, c.Outcome,
+						logging.FieldDurationMS, c.Duration.Milliseconds())
+				}
 			}
 			level := slog.LevelInfo
 			switch {

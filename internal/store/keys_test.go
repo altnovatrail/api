@@ -94,3 +94,62 @@ func TestThePINIsWrittenAndReadAsItIs(t *testing.T) {
 		}
 	}
 }
+
+// A record going is made with its target and an age by the database's clock, is
+// finished done by its own fingerprint alone, and dropped while it goes.
+func TestAKeyGoesThenIsDoneOrDropped(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	id := account(t, pool)
+	ctx := t.Context()
+	in := func(fn func(tx pgx.Tx) error) {
+		t.Helper()
+		if err := pgx.BeginFunc(ctx, pool, fn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var made time.Time
+	in(func(tx pgx.Tx) error {
+		var err error
+		if made, err = store.RecordGoing(ctx, tx, id, "g", "/m", "sha256:01", store.KeyTarget{}); err != nil {
+			return err
+		}
+		_, err = store.RecordGoing(ctx, tx, id, "d", "/m", "sha256:02", store.KeyTarget{})
+		return err
+	})
+	in(func(tx pgx.Tx) error {
+		record, found, err := store.RecordOf(ctx, tx, id, "g")
+		if err != nil || !found || record.State != store.KeyGoing || record.Response != nil || record.Age < 0 || record.Age > time.Minute {
+			t.Errorf("RecordOf going = %+v, %v, %v; want it going, young, with no answer", record, found, err)
+		}
+		// Another request's mark finishes nothing: a repeat's record is its own.
+		if err := store.FinishRecord(ctx, tx, id, "g", made.Add(time.Microsecond), store.KeyTarget{Response: []byte{3}}); err != store.ErrRecordGone {
+			t.Errorf("FinishRecord by another mark = %v, want %v", err, store.ErrRecordGone)
+		}
+		if err := store.DropRecord(ctx, tx, id, "g", made.Add(time.Microsecond)); err != nil {
+			return err
+		}
+		if err := store.FinishRecord(ctx, tx, id, "g", made, store.KeyTarget{Response: []byte{3}}); err != nil {
+			return err
+		}
+		return store.DropRecord(ctx, tx, id, "d", time.Time{})
+	})
+	in(func(tx pgx.Tx) error {
+		done, _, err := store.RecordOf(ctx, tx, id, "g")
+		if err != nil || done.State != store.KeyDone || !bytes.Equal(done.Response, []byte{3}) {
+			t.Errorf("RecordOf finished = %+v, %v; want it done with its answer", done, err)
+		}
+		// A record done is no record going: it is not dropped.
+		if err := store.DropRecord(ctx, tx, id, "g", time.Time{}); err != nil {
+			return err
+		}
+		if _, found, err := store.RecordOf(ctx, tx, id, "g"); err != nil || !found {
+			t.Errorf("a record done after DropRecord: found %v, %v", found, err)
+		}
+		if _, found, err := store.RecordOf(ctx, tx, id, "d"); err != nil || found {
+			t.Errorf("a record dropped: found %v, %v", found, err)
+		}
+		return nil
+	})
+}

@@ -65,6 +65,11 @@ const (
 	// was named, so that the operator sees what is missing — never a provider, a
 	// fact or a path.
 	EventAdmission = "admission"
+	// EventAIUsage is the line of what one model of a call of AI took, beside the
+	// line of the request that made the call (R12, R46): the method, the provider
+	// and the model, its tokens, how the call ended and how long it took — never
+	// the work, what was read or what failed in its words.
+	EventAIUsage = "ai_usage"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -112,6 +117,20 @@ const (
 	// FieldRungSet says whether the deployment named the stage, rather than
 	// taking full by default.
 	FieldRungSet = "rung_set"
+	// FieldPlatformKeys is how many providers the platform holds a key of.
+	FieldPlatformKeys = "platform_keys"
+	// FieldOutcomeCause is the cause of the outcome of an answer that was no
+	// refusal: a call of AI that gave no reading.
+	FieldOutcomeCause = "outcome_cause"
+	// FieldProvider is a provider of AI, by its code in the admission table.
+	FieldProvider = "provider"
+	// FieldModel is a model of a provider, by the ID the provider answered with.
+	FieldModel          = "model"
+	FieldInputTokens    = "input_tokens"
+	FieldOutputTokens   = "output_tokens"
+	FieldThinkingTokens = "thinking_tokens"
+	// FieldAIOutcome is how a call of AI ended, in a word of AIOutcomes.
+	FieldAIOutcome = "ai_outcome"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -156,18 +175,20 @@ const (
 // events is every event and the fields it may carry.
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
-		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet},
+		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys},
 	EventStopping:     {},
 	EventStopped:      {FieldCutShort},
 	EventShutdown:     {FieldStarted},
 	EventFailure:      {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
 	EventPanic:        {FieldPanicKind},
 	EventMigrated:     {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
-	EventRequest:      {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind},
+	EventRequest:      {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind, FieldOutcomeCause},
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
-	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet},
+	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys},
+	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
+		FieldAIOutcome, FieldDurationMS},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -215,6 +236,14 @@ var fields = map[string]rule{
 	FieldFactsFile:      {kind: slog.KindBool},
 	FieldRung:           {kind: slog.KindString, values: Rungs},
 	FieldRungSet:        {kind: slog.KindBool},
+	FieldPlatformKeys:   {kind: slog.KindInt64},
+	FieldOutcomeCause:   {kind: slog.KindString, shape: matches(causeShape)},
+	FieldProvider:       {kind: slog.KindString, values: Providers},
+	FieldModel:          {kind: slog.KindString, shape: matches(modelShape)},
+	FieldInputTokens:    {kind: slog.KindInt64},
+	FieldOutputTokens:   {kind: slog.KindInt64},
+	FieldThinkingTokens: {kind: slog.KindInt64},
+	FieldAIOutcome:      {kind: slog.KindString, values: AIOutcomes},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -267,3 +296,15 @@ var TokenClasses = []string{"expired", "invalid", "revoked", "no_user", "disable
 // Rungs is the value set of FieldRung: the stages of tutor's rule of admission
 // of models, in tutor's codes (R25). admission's tests hold the set to config's.
 var Rungs = []string{"author", "full"}
+
+// Providers is the value set of FieldProvider: the providers of the admission
+// table, by their codes (R96 spec). admission's tests hold the set to the table.
+var Providers = []string{"anthropic", "google", "openai"}
+
+// AIOutcomes is the value set of FieldAIOutcome: how a call of tutor ended, in
+// tutor's kinds (R46).
+var AIOutcomes = []string{"answered", "failed", "limit_reached", "not_admitted", "key_refused"}
+
+// modelShape is a model's ID as a provider answers with it: lowercase letters,
+// digits, dots, dashes and underscores, as "claude-opus-5-5" — no free text.
+var modelShape = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)

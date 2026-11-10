@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -518,10 +519,10 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	}
 	later := at.Add(time.Minute)
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
-		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{1}, true, at); err != nil {
+		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{1}, []byte{9}, true, at); err != nil {
 			return err
 		}
-		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{2}, false, later); err != nil {
+		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{2}, nil, false, later); err != nil {
 			return err
 		}
 		if err := store.GiveStepTechniques(ctx, tx, e.profileID, id, at); err != nil {
@@ -532,14 +533,24 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if digest, task, err := store.AttemptTask(ctx, e.pool, e.profileID, id); err != nil || digest == "" || task == "" {
+		t.Errorf("AttemptTask = %q, %q, %v; want the attempt's package and task", digest, task, err)
+	}
+	if _, _, err := store.AttemptTask(ctx, e.pool, e.profileID, "00000000-0000-0000-0000-000000000000"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("AttemptTask of none = %v, want ErrNotFound", err)
+	}
 	if answer, found, err := store.LastSubmission(ctx, e.pool, e.profileID, id); err != nil || !found || answer[0] != 2 {
 		t.Errorf("LastSubmission = %v, %v, %v; want the second", answer, found, err)
 	}
 	var first string
 	var given time.Time
-	if err := e.pool.QueryRow(ctx, `SELECT s.id, a.step_techniques_at FROM submissions s JOIN attempts a ON a.id = s.attempt_id
-		WHERE s.attempt_id = $1 AND s.number = 1`, id).Scan(&first, &given); err != nil {
+	var observation []byte
+	if err := e.pool.QueryRow(ctx, `SELECT s.id, a.step_techniques_at, s.observation FROM submissions s JOIN attempts a ON a.id = s.attempt_id
+		WHERE s.attempt_id = $1 AND s.number = 1`, id).Scan(&first, &given, &observation); err != nil {
 		t.Fatal(err)
+	}
+	if !bytes.Equal(observation, []byte{9}) {
+		t.Errorf("the first submission keeps the observation %v, want its own", observation)
 	}
 	if answer, err := store.SubmissionAnswer(ctx, e.pool, e.profileID, first); err != nil || answer[0] != 1 || !given.Equal(at) {
 		t.Errorf("SubmissionAnswer = %v, %v; techniques given at %v, want the first time", answer, err, given)

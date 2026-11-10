@@ -28,6 +28,9 @@ type KeyRecord struct {
 	State        string
 	Response     []byte
 	SubmissionID string
+	// Age is how long ago the record was made, by the database's clock: a record
+	// still going past the longest a request may run is of a request that fell.
+	Age time.Duration
 }
 
 // KeyTarget is what a request done under a key acted on, and what its record
@@ -44,9 +47,12 @@ type KeyTarget struct {
 // RecordOf is the record of the account's key, and whether there is one.
 func RecordOf(ctx context.Context, tx pgx.Tx, accountID, key string) (KeyRecord, bool, error) {
 	var r KeyRecord
-	err := tx.QueryRow(ctx, `SELECT method, fingerprint, state, response, coalesce(submission_id::text, '')
+	var ageMicros int64
+	err := tx.QueryRow(ctx, `SELECT method, fingerprint, state, response, coalesce(submission_id::text, ''),
+			(extract(epoch FROM now() - created_at) * 1000000)::bigint
 		FROM idempotency_keys WHERE account_id = $1 AND key = $2`, accountID, key).
-		Scan(&r.Method, &r.Fingerprint, &r.State, &r.Response, &r.SubmissionID)
+		Scan(&r.Method, &r.Fingerprint, &r.State, &r.Response, &r.SubmissionID, &ageMicros)
+	r.Age = time.Duration(ageMicros) * time.Microsecond
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return KeyRecord{}, false, nil
@@ -133,4 +139,55 @@ func nullableTime(t time.Time) *time.Time {
 		return nil
 	}
 	return &t
+}
+
+// RecordGoing records a request under the account's key as going, with what it
+// acts on, and commits with the checks before its call of AI: a repeat beside
+// it is "still going" until it is done, or until it outlives the longest a
+// request may run (R17). It gives when the record was made, by the database's
+// clock: the mark by which the request finishes or drops its own record, and
+// never a repeat's that took its place.
+func RecordGoing(ctx context.Context, tx pgx.Tx, accountID, key, method, fingerprint string, target KeyTarget) (time.Time, error) {
+	var made time.Time
+	err := tx.QueryRow(ctx, `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, profile_id, attempt_id)
+		VALUES ($1, $2, $3, $4, 'going', nullif($5, '')::uuid, nullif($6, '')::uuid) RETURNING created_at`,
+		accountID, key, method, fingerprint, target.ProfileID, target.AttemptID).Scan(&made)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("store: record the key going: %w", err)
+	}
+	return made, nil
+}
+
+// ErrRecordGone is a record going that is no longer there, or no longer this
+// request's, when its request comes to finish: a repeat found it fallen and went
+// again.
+var ErrRecordGone = errors.New("store: the key's record going is gone")
+
+// FinishRecord turns the account's record going, the one made at made, into
+// done with its target, in the transaction of what the request writes after its
+// call.
+func FinishRecord(ctx context.Context, tx pgx.Tx, accountID, key string, made time.Time, target KeyTarget) error {
+	tag, err := tx.Exec(ctx, `UPDATE idempotency_keys SET state = 'done', response = $4,
+			profile_id = nullif($5, '')::uuid, attempt_id = nullif($6, '')::uuid, submission_id = nullif($7, '')::uuid
+		WHERE account_id = $1 AND key = $2 AND created_at = $3 AND state = 'going'`,
+		accountID, key, made, target.Response, target.ProfileID, target.AttemptID, target.SubmissionID)
+	switch {
+	case err != nil:
+		return fmt.Errorf("store: finish the key's record: %w", err)
+	case tag.RowsAffected() == 0:
+		return ErrRecordGone
+	}
+	return nil
+}
+
+// DropRecord deletes the account's record going made at made — of a request
+// refused after its call, which records nothing — or, with made zero, whichever
+// is going: of a request that fell, which a repeat runs again.
+func DropRecord(ctx context.Context, tx pgx.Tx, accountID, key string, made time.Time) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM idempotency_keys
+		WHERE account_id = $1 AND key = $2 AND state = 'going' AND ($3::timestamptz IS NULL OR created_at = $3)`,
+		accountID, key, nullableTime(made)); err != nil {
+		return fmt.Errorf("store: drop the key's record: %w", err)
+	}
+	return nil
 }

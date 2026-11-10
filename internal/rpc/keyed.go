@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"time"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
@@ -57,6 +58,10 @@ type Key struct {
 	// answer itself: it reads the submission in the repeat's transaction. Nil
 	// for a method whose records hold their answers.
 	Repeat func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error)
+	// GoingFor is the longest a request may run (R33): a record going older than
+	// that is of a request that fell, and a repeat goes again. Zero for a method
+	// that never records a key going.
+	GoingFor time.Duration
 }
 
 // Once runs act under the request's idempotency key, in one transaction with
@@ -70,8 +75,8 @@ type Key struct {
 // and is recorded nowhere, but one of Keep commits what act wrote: either way a
 // repeat is checked again. The fingerprint is made before the transaction, so
 // that the account's row and a connection of the pool are held for no more than
-// the hash that checks a repeat. Any error but a
-// refusal of the key is given back as it came, for the caller to answer.
+// the hash that checks a repeat. Any error but a refusal of the key is given
+// back as it came, for the caller to answer.
 func Once[Res proto.Message](ctx context.Context, db store.Beginner, k Key, req Keyed,
 	act func(tx pgx.Tx, accountID string) (Res, store.KeyTarget, error)) (Res, error) {
 	var answer, zero Res
@@ -83,27 +88,13 @@ func Once[Res proto.Message](ctx context.Context, db store.Beginner, k Key, req 
 	caller, _ := CallerFrom(ctx)
 	var keptRefusal error
 	err := store.WriteUnderAccount(ctx, db, caller.AccountID, func(tx pgx.Tx) error {
-		if err := store.HoldAccount(ctx, tx, caller.AccountID); err != nil {
-			return err
-		}
-		record, found, err := store.RecordOf(ctx, tx, caller.AccountID, key)
+		repeated, found, err := recorded[Res](ctx, tx, k, req, caller.AccountID, key)
 		switch {
 		case err != nil:
 			return err
-		case found && (record.Method != k.Method || !idem.Same(req, record.Fingerprint)):
-			return errKeyUsed
-		case found && record.State != store.KeyDone:
-			return errStillGoing
-		case found && record.SubmissionID != "":
-			repeated, err := k.Repeat(ctx, tx, record)
-			if err != nil {
-				return err
-			}
-			answer = repeated.(Res)
-			return nil
 		case found:
-			answer = answer.ProtoReflect().New().Interface().(Res)
-			return proto.Unmarshal(record.Response, answer)
+			answer = repeated
+			return nil
 		}
 		var target store.KeyTarget
 		answer, target, err = act(tx, caller.AccountID)
@@ -114,21 +105,171 @@ func Once[Res proto.Message](ctx context.Context, db store.Beginner, k Key, req 
 		if err != nil {
 			return err
 		}
-		if target.SubmissionID == "" {
-			// An answer of the contract always marshals.
-			target.Response, _ = proto.Marshal(answer)
-		}
-		return store.RecordDone(ctx, tx, caller.AccountID, key, k.Method, fingerprint, target)
+		return store.RecordDone(ctx, tx, caller.AccountID, key, k.Method, fingerprint, withResponse(answer, target))
 	})
 	switch {
 	case err == nil && keptRefusal != nil:
 		return zero, keptRefusal
 	case err == nil:
 		return answer, nil
-	case errors.Is(err, errKeyUsed):
-		return zero, Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_ALREADY_USED)
-	case errors.Is(err, errStillGoing):
-		return zero, Refuse(ctx, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
 	}
-	return zero, err
+	return zero, keyRefusal(ctx, err)
+}
+
+// dropTimeout bounds the transaction that drops the record going of a request
+// whose last part failed.
+const dropTimeout = 5 * time.Second
+
+// Phases are the three parts of a request under a key that calls AI between
+// two transactions (R17, R46): Prepare checks what the request acts on and names
+// its target, in the transaction that records the key going; Call calls AI
+// outside any transaction, holding no row and no connection; and Finish writes
+// what came of it, in the transaction that records the key done. S is what one
+// part gives the next.
+type Phases[S any, Res proto.Message] struct {
+	Prepare func(tx pgx.Tx, accountID string) (S, store.KeyTarget, error)
+	Call    func(ctx context.Context, s S) S
+	Finish  func(tx pgx.Tx, s S) (Res, store.KeyTarget, error)
+}
+
+// Across runs the phases of a request under its key, as Once runs one action,
+// with the record going between its two transactions: a repeat beside it is
+// CAUSE_STILL_GOING while it calls AI, and one after it gets its answer, with no
+// call. A record going past k.GoingFor is of a request that fell, and the repeat
+// goes again (R17). A refusal of Prepare records nothing, and one of Keep
+// commits what Prepare wrote, as in Once. A refusal of Finish rolls back what
+// Finish wrote, unless it is one of Keep, and either way drops the record going,
+// so that a repeat is checked again.
+func Across[S any, Res proto.Message](ctx context.Context, db store.Beginner, k Key, req Keyed, p Phases[S, Res]) (Res, error) {
+	var answer, zero Res
+	key := req.GetIdempotencyKey()
+	if !idem.ValidKey(key) {
+		return zero, Malformed("idempotency_key")
+	}
+	fingerprint := idem.Fingerprint(req, k.Slow)
+	caller, _ := CallerFrom(ctx)
+	var state S
+	var made time.Time
+	var repeated bool
+	var keptRefusal error
+	err := store.WriteUnderAccount(ctx, db, caller.AccountID, func(tx pgx.Tx) error {
+		got, found, err := recorded[Res](ctx, tx, k, req, caller.AccountID, key)
+		switch {
+		case err != nil:
+			return err
+		case found:
+			answer, repeated = got, true
+			return nil
+		}
+		var target store.KeyTarget
+		state, target, err = p.Prepare(tx, caller.AccountID)
+		if refusal, ok := Kept(err); ok {
+			keptRefusal = refusal
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		made, err = store.RecordGoing(ctx, tx, caller.AccountID, key, k.Method, fingerprint, target)
+		return err
+	})
+	switch {
+	case err != nil:
+		return zero, keyRefusal(ctx, err)
+	case repeated:
+		return answer, nil
+	case keptRefusal != nil:
+		return zero, keptRefusal
+	}
+
+	state = p.Call(ctx, state)
+
+	err = store.WriteUnderAccount(ctx, db, caller.AccountID, func(tx pgx.Tx) error {
+		if err := store.HoldAccount(ctx, tx, caller.AccountID); err != nil {
+			return err
+		}
+		var target store.KeyTarget
+		var err error
+		answer, target, err = p.Finish(tx, state)
+		if refusal, ok := Kept(err); ok {
+			keptRefusal = refusal
+			return store.DropRecord(ctx, tx, caller.AccountID, key, made)
+		}
+		if err != nil {
+			return err
+		}
+		return store.FinishRecord(ctx, tx, caller.AccountID, key, made, withResponse(answer, target))
+	})
+	switch {
+	case err == nil && keptRefusal != nil:
+		return zero, keptRefusal
+	case err == nil:
+		return answer, nil
+	}
+	// What Finish wrote is rolled back; the record going goes too, in a
+	// transaction of its own — one the request's end does not cut short, since a
+	// deadline passed or a client gone is the likeliest failure here. If that
+	// fails as well, the record outlives the longest a request may run, and a
+	// repeat goes again.
+	dropCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dropTimeout)
+	defer cancel()
+	_ = store.WriteUnderAccount(dropCtx, db, caller.AccountID, func(tx pgx.Tx) error {
+		return store.DropRecord(dropCtx, tx, caller.AccountID, key, made)
+	})
+	return zero, keyRefusal(ctx, err)
+}
+
+// recorded is the answer a repeat gets from the record of key, held under the
+// account's row in tx, and whether there is one to give: a record done of this
+// method and this request. Of another, errKeyUsed; one going, errStillGoing,
+// unless it is older than k.GoingFor, when it is of a request that fell and is
+// dropped for the repeat to go again.
+func recorded[Res proto.Message](ctx context.Context, tx pgx.Tx, k Key, req Keyed, accountID, key string) (Res, bool, error) {
+	var zero Res
+	if err := store.HoldAccount(ctx, tx, accountID); err != nil {
+		return zero, false, err
+	}
+	record, found, err := store.RecordOf(ctx, tx, accountID, key)
+	switch {
+	case err != nil:
+		return zero, false, err
+	case !found:
+		return zero, false, nil
+	case record.Method != k.Method || !idem.Same(req, record.Fingerprint):
+		return zero, false, errKeyUsed
+	case record.State != store.KeyDone && k.GoingFor > 0 && record.Age > k.GoingFor:
+		return zero, false, store.DropRecord(ctx, tx, accountID, key, time.Time{})
+	case record.State != store.KeyDone:
+		return zero, false, errStillGoing
+	case record.SubmissionID != "":
+		repeated, err := k.Repeat(ctx, tx, record)
+		if err != nil {
+			return zero, false, err
+		}
+		return repeated.(Res), true, nil
+	}
+	answer := zero.ProtoReflect().New().Interface().(Res)
+	return answer, true, proto.Unmarshal(record.Response, answer)
+}
+
+// withResponse is target with the answer marshalled into it, unless it names
+// the submission a repeat reads instead.
+func withResponse(answer proto.Message, target store.KeyTarget) store.KeyTarget {
+	if target.SubmissionID == "" {
+		// An answer of the contract always marshals.
+		target.Response, _ = proto.Marshal(answer)
+	}
+	return target
+}
+
+// keyRefusal answers the refusals of a key, and gives any other error back as
+// it came.
+func keyRefusal(ctx context.Context, err error) error {
+	switch {
+	case errors.Is(err, errKeyUsed):
+		return Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_ALREADY_USED)
+	case errors.Is(err, errStillGoing):
+		return Refuse(ctx, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	}
+	return err
 }

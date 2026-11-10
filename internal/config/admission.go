@@ -19,6 +19,13 @@ const (
 	// models, which api hands to Table.Select: "author" only in the first app,
 	// "full" anywhere else.
 	VarAdmissionRung = "API_ADMISSION_RUNG"
+	// VarAnthropicKey is the platform's key of Anthropic, by which platform AI
+	// calls its models: a secret, read from the variable or from the file its
+	// twin with the suffix _FILE names — on Cloud Run, a volume of a secret of
+	// Secret Manager (R11, R46). Unset, platform AI has no route to Anthropic.
+	VarAnthropicKey = "API_ANTHROPIC_KEY"
+	// VarOpenAIKey is the platform's key of OpenAI, read the same way.
+	VarOpenAIKey = "API_OPENAI_KEY"
 )
 
 // The stages of admission, as tutor codes them.
@@ -30,6 +37,10 @@ const (
 func init() {
 	declared[VarAdmissionFactsFile] = struct{}{}
 	declared[VarAdmissionRung] = struct{}{}
+	for _, name := range []string{VarAnthropicKey, VarOpenAIKey} {
+		declared[name] = struct{}{}
+		declared[name+fileSuffix] = struct{}{}
+	}
 }
 
 // Admission is what the deployment declares for the function of admission.
@@ -42,6 +53,8 @@ type Admission struct {
 	// RungSet says whether the deployment named the stage; unset, it is
 	// RungFull, closed by default as the function of admission is.
 	RungSet bool
+	// Keys are the platform's keys of the providers, each empty when unset.
+	Keys PlatformKeys
 }
 
 // AdmissionFrom reads what the deployment declares for admission from a set of
@@ -84,8 +97,43 @@ func AdmissionFrom(environ []string) (Admission, error) {
 		problems = append(problems, fmt.Errorf("%w: %s must not be %s when %s is set: the stage %s is the first app's alone",
 			ErrInvalid, VarAdmissionRung, RungAuthor, deployedBy, RungAuthor))
 	}
+	for _, k := range []struct {
+		name string
+		into *Secret
+	}{{VarAnthropicKey, &cfg.Keys.Anthropic}, {VarOpenAIKey, &cfg.Keys.OpenAI}} {
+		_, inline := env[k.name]
+		_, fromFile := env[k.name+fileSuffix]
+		if !inline && !fromFile {
+			continue
+		}
+		key, err := env.secret(k.name)
+		if err != nil {
+			problems = append(problems, err)
+		}
+		*k.into = key
+	}
 	if len(problems) > 0 {
 		return Admission{}, errors.Join(problems...)
 	}
 	return cfg, nil
+}
+
+// PlatformKeys are the platform's keys of the providers whose models platform AI
+// calls (R11, R46): optional each, since a provider with no key is no route of
+// platform AI — tutor's Choose takes none of its models.
+type PlatformKeys struct {
+	Anthropic Secret
+	OpenAI    Secret
+}
+
+// ByProvider is each key set, by its provider's code in the admission table:
+// the one list of the providers whose keys the platform may hold.
+func (k PlatformKeys) ByProvider() map[string]Secret {
+	keys := map[string]Secret{}
+	for provider, s := range map[string]Secret{"anthropic": k.Anthropic, "openai": k.OpenAI} {
+		if s.Reveal() != "" {
+			keys[provider] = s
+		}
+	}
+	return keys
 }

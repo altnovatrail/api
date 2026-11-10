@@ -275,7 +275,7 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			return store.CloseAttempt(t.Context(), tx, profile, none, "left", time.Now())
 		}},
 		{"INSERT INTO submissions", func(tx pgx.Tx) error {
-			_, err := store.Submit(t.Context(), tx, profile, none, []byte{}, false, time.Now())
+			_, err := store.Submit(t.Context(), tx, profile, none, []byte{}, nil, false, time.Now())
 			return err
 		}},
 		{"FROM submissions", func(tx pgx.Tx) error {
@@ -286,12 +286,26 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			_, err := store.SubmissionAnswer(t.Context(), tx, profile, none)
 			return err
 		}},
+		{"SELECT package_digest, task_id", func(tx pgx.Tx) error {
+			_, _, err := store.AttemptTask(t.Context(), tx, profile, none)
+			return err
+		}},
 		{"SET step_techniques_at", func(tx pgx.Tx) error {
 			return store.GiveStepTechniques(t.Context(), tx, profile, none, time.Now())
 		}},
 		{"FROM connected_modules", func(tx pgx.Tx) error {
 			_, err := store.ModuleConnected(t.Context(), tx, profile, "example/m")
 			return err
+		}},
+		{"'going', nullif", func(tx pgx.Tx) error {
+			_, err := store.RecordGoing(t.Context(), tx, none, "k", "/m", "sha256:00", store.KeyTarget{})
+			return err
+		}},
+		{"SET state = 'done'", func(tx pgx.Tx) error {
+			return store.FinishRecord(t.Context(), tx, none, "k", time.Now(), store.KeyTarget{})
+		}},
+		{"DELETE FROM idempotency_keys", func(tx pgx.Tx) error {
+			return store.DropRecord(t.Context(), tx, none, "k", time.Time{})
 		}},
 	} {
 		err := pgx.BeginFunc(t.Context(), &flaky{Pool: pool, failOn: tc.failOn}, tc.run)

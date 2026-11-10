@@ -60,6 +60,9 @@ type accounts struct {
 	wait bool
 	// bare makes GetAccount fail with an error that is no error of Connect.
 	bare bool
+	// ai makes CreateAccount note an outcome and two calls of AI, as a request
+	// that calls AI does.
+	ai bool
 }
 
 func (a *accounts) let(ctx context.Context) {
@@ -93,6 +96,13 @@ func (a *accounts) GetAccount(ctx context.Context, _ *v1.GetAccountRequest) (*v1
 
 func (a *accounts) CreateAccount(ctx context.Context, _ *v1.CreateAccountRequest) (*v1.CreateAccountResponse, error) {
 	a.let(ctx)
+	if a.ai {
+		rpc.NoteOutcome(ctx, v1.Cause_CAUSE_AI_FAILURE)
+		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "answered", Duration: 1500 * time.Millisecond, Usage: []rpc.AIUsage{
+			{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 1200, OutputTokens: 40, ThinkingTokens: 300},
+		}})
+		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "not_admitted"})
+	}
 	return &v1.CreateAccountResponse{}, nil
 }
 
@@ -671,5 +681,47 @@ func TestADanglingTupleIsNotDroppedWithoutAFreshSignIn(t *testing.T) {
 	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
 	if can, err := w.rights.Can(t.Context(), p.accountID, authz.CanManage, p.profileID); err != nil || !can {
 		t.Errorf("the tuple = %v, %v; want it left for a fresh sign-in or the job", can, err)
+	}
+}
+
+// A message larger than MaxMessage is refused resource_exhausted before it is
+// decoded, whatever its method (R46).
+func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t, time.Second)
+	digest := "sha256:" + strings.Repeat("0", 64)
+	digests := make([]string, rpc.MaxMessage/len(digest)+1)
+	for i := range digests {
+		digests[i] = digest
+	}
+	p := w.person(t, "uid-large")
+	_, err := w.packages.CheckPackages(as(t, p.token), &v1.CheckPackagesRequest{PackageDigests: digests})
+	if connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Errorf("a message of %d digests = %v, want resource_exhausted", len(digests), err)
+	}
+}
+
+// A request that called AI names the cause of its outcome in its line, and
+// each model of each call has a line of its usage — or, when no model
+// answered, one line of how the call ended (R46).
+func TestTheCallsOfAIAreLoggedBesideTheirRequest(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t, time.Second)
+	w.accounts.ai = true
+	p := w.person(t, "uid-ai")
+	if _, err := w.client.CreateAccount(as(t, p.token), &v1.CreateAccountRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	log := w.log.String()
+	for _, want := range []string{
+		`"outcome_cause":"CAUSE_AI_FAILURE"`,
+		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","provider":"anthropic","model":"claude-opus-5-5","input_tokens":1200,"output_tokens":40,"thinking_tokens":300,"ai_outcome":"answered","duration_ms":1500`,
+		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","ai_outcome":"not_admitted","duration_ms":0`,
+	} {
+		if !strings.Contains(log, want) {
+			t.Errorf("the log has no %s:\n%s", want, log)
+		}
 	}
 }

@@ -69,7 +69,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	}
 	// Attempts keep the version of module-kit, which the build records (R44), and
 	// ask the gate before a task that AI checks (R45).
-	attempts, err := learning.New(set, gate)
+	attempts, err := learning.New(set, gate, learning.WithRequestTimeout(cfg.RequestTimeout))
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
@@ -128,6 +128,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldFactsFile, declared.FactsFile,
 		logging.FieldRung, declared.Rung,
 		logging.FieldRungSet, declared.RungSet,
+		logging.FieldPlatformKeys, declared.PlatformKeys,
 	)
 
 	if err := srv.Run(ctx); err != nil {

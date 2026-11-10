@@ -1,6 +1,7 @@
 package learning_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -73,6 +74,8 @@ type world struct {
 	attempts apiv1connect.AttemptServiceClient
 	current  *modulepackage.Package
 	earlier  *modulepackage.Package
+	// log is what the server wrote to its log.
+	log *lockedBuffer
 }
 
 // clock is the service's clock: now, moved on by the test.
@@ -104,6 +107,13 @@ func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 // newGatedWorld is the world whose attempts ask g.
 func newGatedWorld(t *testing.T, g *admission.Gate, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	t.Helper()
+	return worldOf(t, g, nil, wrap...)
+}
+
+// worldOf is the world whose attempts ask g, with opts; its log is written at
+// the level info to w.log.
+func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
+	t.Helper()
 
 	builtOnce.Do(func() {
 		current, earlier = packagestest.Own(t, "choices"), packagestest.Own(t, "choices", "0.9.0")
@@ -118,16 +128,18 @@ func newGatedWorld(t *testing.T, g *admission.Gate, wrap ...func(*pgxpool.Pool) 
 	}
 	t.Cleanup(rights.Close)
 	w := &world{pool: storetest.DB(t), rights: rights, signin: &authntest.Fake{}, clock: &clock{},
-		current: current, earlier: earlier}
+		current: current, earlier: earlier, log: &lockedBuffer{}}
 	var db rpc.DB = w.pool
 	if len(wrap) > 0 {
 		db = wrap[0](w.pool)
 	}
-	s, err := learning.New(set, g, learning.WithClock(w.clock.now))
+	// The record going lives as long as the server lets a request run, as serve sets it.
+	s, err := learning.New(set, g, append([]learning.Option{learning.WithClock(w.clock.now),
+		learning.WithRequestTimeout(10 * time.Second)}, opts...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	log := logging.New(&strings.Builder{}, slog.LevelError)
+	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
 		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Learning: s.Learning(db), Attempt: s.Attempts(db)})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
@@ -590,22 +602,28 @@ func TestASubmissionThatTheTaskDoesNotTakeIsRefused(t *testing.T) {
 	l := w.learner(t)
 	pick := w.begin(t, l, l.child, "pick").GetAttemptId()
 	second := w.child(t, l, "under_13", true)
-	work := &v1.Work{Surface: &v1.Work_Sheet{Sheet: &v1.SheetWork{Crop: []byte{1}}}}
+	work := sheet(crop(t))
+	secondApples := w.attempt(t, second, string(w.current.Digest), "apples")
 	for name, tc := range map[string]struct {
 		req   *v1.SubmitWorkRequest
 		code  connect.Code
 		cause v1.Cause
 	}{
-		"no key":                 {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
-		"a tap of no slot":       {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, TappedChoices: []*v1.TappedChoice{tap(1, 2, "five")}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
-		"a slot tapped twice":    {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, TappedChoices: []*v1.TappedChoice{tap(1, 1, "five"), tap(1, 1, "five")}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
-		"work on a tap's task":   {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, Work: work}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
-		"a child's own key":      {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "k"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE},
-		"an attempt not there":   {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: uuid.NewString()}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
-		"another's attempt":      {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
-		"an ID that is none":     {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: "x"}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
-		"an essay":               {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: w.attempt(t, l.adult, string(w.current.Digest), "story")}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
-		"no work where AI reads": {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: w.attempt(t, second, string(w.current.Digest), "apples")}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"no key":                        {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a tap of no slot":              {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, TappedChoices: []*v1.TappedChoice{tap(1, 2, "five")}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a slot tapped twice":           {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, TappedChoices: []*v1.TappedChoice{tap(1, 1, "five"), tap(1, 1, "five")}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"work on a tap's task":          {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, Work: work}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a child's own key":             {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "k"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE},
+		"an attempt not there":          {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: uuid.NewString()}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
+		"another's attempt":             {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
+		"an ID that is none":            {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: "x"}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
+		"an essay":                      {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: w.attempt(t, l.adult, string(w.current.Digest), "story")}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"no work where AI reads":        {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a crop that is no PNG":         {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples, Work: sheet([]byte{1})}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a crop wider than tutor reads": {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples, Work: sheet(pngOf(t, 4097, 1))}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a crop cut short":              {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples, Work: sheet(crop(t)[:60])}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"a workbook": {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples,
+			Work: &v1.Work{Surface: &v1.Work_Workbook{Workbook: &v1.WorkbookWork{}}}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 	} {
 		if name != "no key" {
 			tc.req.IdempotencyKey = uuid.NewString()
@@ -613,7 +631,8 @@ func TestASubmissionThatTheTaskDoesNotTakeIsRefused(t *testing.T) {
 		_, err := w.attempts.SubmitWork(l.ctx, tc.req)
 		t.Run(name, func(t *testing.T) { refusedAs(t, err, tc.code, tc.cause) })
 	}
-	// Work where AI reads is read by no one: no AI is admitted.
+	// Work where AI reads, with no key of the platform: tutor admits no model, and
+	// the slot is unchecked, not admitted.
 	apples := w.attempt(t, l.adult, string(w.current.Digest), "apples")
 	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: apples,
 		IdempotencyKey: uuid.NewString(), Work: work})
@@ -654,6 +673,9 @@ func TestTheCheckOfARequestClosesWhatCannotGoOn(t *testing.T) {
 	}
 	notKnown := w.attempt(t, l.child, unknown, "pick")
 	_, err = w.learning.GetOpenAttempt(l.ctx, &v1.GetOpenAttemptRequest{ProfileId: l.child, AttemptId: notKnown})
+	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
+	// A submission too: what its task is, the image cannot tell.
+	_, err = w.submit(l, l.child, notKnown, tap(1, 1, "five"))
 	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
 	if got := w.closeOf(t, notKnown); got != "" {
 		t.Errorf("the attempt on a package not known is closed %q, want open", got)
@@ -956,15 +978,20 @@ func TestANewAttemptClosesALapsedOneByItsLapse(t *testing.T) {
 }
 
 // gate is the gate of a deployment that declares facts, YAML in a file of its
-// own when not empty, at the stage rung.
+// own when not empty, at the stage rung, with the platform's key of Anthropic.
 func gate(t *testing.T, facts, rung string) *admission.Gate {
 	t.Helper()
-	cfg := config.Admission{Rung: rung, RungSet: true}
+	environ := []string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"}
 	if facts != "" {
-		cfg.FactsFile = filepath.Join(t.TempDir(), "facts.yaml")
-		if err := os.WriteFile(cfg.FactsFile, []byte(facts), 0o600); err != nil {
+		path := filepath.Join(t.TempDir(), "facts.yaml")
+		if err := os.WriteFile(path, []byte(facts), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		environ = append(environ, "API_ADMISSION_FACTS_FILE="+path)
+	}
+	cfg, err := config.AdmissionFrom(environ)
+	if err != nil {
+		t.Fatal(err)
 	}
 	g, _, err := admission.Load(cfg)
 	if err != nil {
@@ -982,8 +1009,8 @@ const adultFacts = `anthropic:
 
 // A task of handwriting begins only where the gate admits its reading: by the
 // facts of the deployment, its stage and the learner's age category, or by the
-// own key of a provider whose models are admitted. Admitted, it waits for
-// tutor's reading (T36).
+// own key of a provider whose models are admitted, and only in a form tutor
+// reads: one answer slot bound anywhere on a handwriting sheet.
 func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 	t.Parallel()
 
@@ -995,7 +1022,8 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 		provider string
 		code     connect.Code
 	}
-	admitted, refused := connect.CodeUnimplemented, connect.CodeFailedPrecondition
+	// admitted is no refusal: the attempt begins.
+	admitted, refused := connect.Code(0), connect.CodeFailedPrecondition
 	for name, tc := range map[string]struct {
 		facts, rung string
 		cases       map[string]beginning
@@ -1009,9 +1037,11 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 			"an own key of Anthropic": {false, "apples", "anthropic", refused},
 		}},
 		"facts for an adult, the stage author": {adultFacts, config.RungAuthor, map[string]beginning{
-			"an adult": {false, "apples", "", admitted},
-			"a child":  {true, "apples", "", refused},
-			"a rubric": {false, "story", "", refused},
+			"an adult":   {false, "apples", "", admitted},
+			"a child":    {true, "apples", "", refused},
+			"a rubric":   {false, "story", "", refused},
+			"a zone":     {false, "parity", "", refused},
+			"a workbook": {false, "table", "", refused},
 		}},
 		"facts for an adult, the stage full": {adultFacts, config.RungFull, map[string]beginning{
 			"an adult": {false, "apples", "", refused},
@@ -1028,12 +1058,34 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 				}
 				_, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: profile, IdempotencyKey: uuid.NewString(),
 					OwnKeyProvider: b.provider, Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, profile, b.task)}})
-				cause := v1.Cause_CAUSE_UNSPECIFIED
-				if b.code == refused {
-					cause = v1.Cause_CAUSE_NOT_ADMITTED
-				}
-				t.Run(name, func(t *testing.T) { refusedAs(t, err, b.code, cause) })
+				t.Run(name, func(t *testing.T) {
+					if b.code == admitted {
+						if err != nil {
+							t.Errorf("an admitted beginning: %v", err)
+						}
+						return
+					}
+					refusedAs(t, err, b.code, v1.Cause_CAUSE_NOT_ADMITTED)
+				})
 			}
 		})
 	}
+}
+
+// lockedBuffer is a log the server and the test may share.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
