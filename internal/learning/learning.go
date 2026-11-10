@@ -21,9 +21,11 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/altnovatrail/api/internal/admission"
+	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -38,8 +40,13 @@ var (
 
 // Service runs the attempts of the profiles on the packages the image holds.
 type Service struct {
-	set       *packages.Set
-	gate      *admission.Gate
+	set  *packages.Set
+	gate *admission.Gate
+	// reader reads the work of a handwriting sheet: the gate's tutor.
+	reader sheetReader
+	// goingFor is the longest a request may run, past which the record of its
+	// key going is of a request that fell (R17, R33).
+	goingFor  time.Duration
 	db        rpc.DB
 	now       func() time.Time
 	moduleKit string
@@ -51,12 +58,22 @@ type Option func(*Service)
 // WithClock is the clock a Service tells the time of its actions by.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
+// WithRequestTimeout is the longest a request may run, as the server bounds it
+// (R33).
+func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
+
+// sheetReader reads the work of a handwriting sheet, as tutor does.
+type sheetReader interface {
+	ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead
+}
+
 // New is the Service of the packages of set, which asks gate before a task that
 // AI checks; its handlers run on the database they are given. A binary that
 // recorded no version of module-kit is refused, before anything is opened:
 // every attempt keeps it. So is no gate.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, now: time.Now, moduleKit: version.ModuleKit()}
+	s := &Service{set: set, gate: gate, reader: gate, now: time.Now, moduleKit: version.ModuleKit(),
+		goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}

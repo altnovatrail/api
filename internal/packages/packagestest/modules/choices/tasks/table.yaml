@@ -1,0 +1,16 @@
+id: table
+statement:
+  - text: Write the missing number.
+canvas:
+  kind: workbook
+items:
+  - line:
+      - text: "3 +"
+      - binding: box
+        check: {kind: number, key: "4"}
+      - text: "= 7"
+solution:
+  - text: "7 − 3 = 4."
+skills: {primary: [adding]}
+band: grades-1-2
+difficulty: 1

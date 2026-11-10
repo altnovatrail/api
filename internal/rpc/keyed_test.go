@@ -138,3 +138,77 @@ func recorded(t *testing.T, w *world, p person, key string) bool {
 	}
 	return n > 0
 }
+
+// A request across two transactions records its key going while it calls, and
+// done after: a repeat beside it is still going, one after it gets the answer
+// with no call, one after a request that fell goes again, and a refusal of its
+// last part records nothing, so that a repeat goes again.
+func TestARequestAcrossItsCallRecordsItGoing(t *testing.T) {
+	w := newWorld(t, time.Second)
+	p := w.person(t, "uid-across")
+	ctx := rpc.WithCaller(t.Context(), rpc.Caller{AccountID: p.accountID})
+	key := rpc.Key{Method: "/novatrail.api.v1.AttemptService/SubmitWork", GoingFor: time.Minute}
+	calls := 0
+	var stillGoing error
+	phases := func(finish error) rpc.Phases[int, *v1.SubmitWorkResponse] {
+		return rpc.Phases[int, *v1.SubmitWorkResponse]{
+			Prepare: func(pgx.Tx, string) (int, store.KeyTarget, error) {
+				return 1, store.KeyTarget{ProfileID: p.profileID}, nil
+			},
+			Call: func(_ context.Context, n int) int {
+				calls++
+				// A repeat beside it, while it calls.
+				_, stillGoing = rpc.Across(ctx, w.pool, key, &v1.SubmitWorkRequest{IdempotencyKey: "across"},
+					rpc.Phases[int, *v1.SubmitWorkResponse]{})
+				return n + 1
+			},
+			Finish: func(_ pgx.Tx, n int) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
+				if finish != nil {
+					return nil, store.KeyTarget{}, finish
+				}
+				return &v1.SubmitWorkResponse{WrongAnswers: int32(n)}, store.KeyTarget{ProfileID: p.profileID}, nil
+			},
+		}
+	}
+	req := &v1.SubmitWorkRequest{IdempotencyKey: "across"}
+	got, err := rpc.Across(ctx, w.pool, key, req, phases(nil))
+	if err != nil || got.GetWrongAnswers() != 2 {
+		t.Fatalf("Across = %v, %v; want the answer of the last part", got, err)
+	}
+	refusedAs(t, stillGoing, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	again, err := rpc.Across(ctx, w.pool, key, req, phases(nil))
+	if err != nil || !proto.Equal(got, again) || calls != 1 {
+		t.Errorf("the repeat = %v, %v after %d calls; want the answer after one", again, err, calls)
+	}
+
+	// A request that fell left its record going an hour ago: the repeat goes again.
+	fell := &v1.SubmitWorkRequest{IdempotencyKey: "fell"}
+	if _, err := w.pool.Exec(t.Context(), `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, created_at)
+		VALUES ($1, 'fell', $2, $3, 'going', now() - interval '1 hour')`, p.accountID, key.Method, idem.Fingerprint(fell, false)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rpc.Across(ctx, w.pool, key, fell, phases(nil)); err != nil || calls != 2 {
+		t.Errorf("the repeat of a request that fell = %v after %d calls, want it called again", err, calls)
+	}
+
+	// A refusal of the last part, kept or not, leaves no record.
+	errRefused := errors.New("refused")
+	for name, finish := range map[string]error{"refused": errRefused, "kept": rpc.Keep(errRefused)} {
+		_, err := rpc.Across(ctx, w.pool, key, &v1.SubmitWorkRequest{IdempotencyKey: name}, phases(finish))
+		if !errors.Is(err, errRefused) || recorded(t, w, p, name) {
+			t.Errorf("a refusal %s of the last part = %v, recorded %v; want it, recorded nowhere", name, err, recorded(t, w, p, name))
+		}
+	}
+	// A refusal of the first part, kept or not, records nothing and calls nothing:
+	// the two refusals of the last part called.
+	for name, prepare := range map[string]error{"first refused": errRefused, "first kept": rpc.Keep(errRefused)} {
+		ph := phases(nil)
+		ph.Prepare = func(pgx.Tx, string) (int, store.KeyTarget, error) { return 0, store.KeyTarget{}, prepare }
+		_, err := rpc.Across(ctx, w.pool, key, &v1.SubmitWorkRequest{IdempotencyKey: name}, ph)
+		if !errors.Is(err, errRefused) || recorded(t, w, p, name) || calls != 4 {
+			t.Errorf("a refusal %s of the first part = %v, recorded %v, %d calls", name, err, recorded(t, w, p, name), calls)
+		}
+	}
+	_, err = rpc.Across(ctx, w.pool, key, &v1.SubmitWorkRequest{}, phases(nil))
+	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+}

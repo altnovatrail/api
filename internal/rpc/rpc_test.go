@@ -673,3 +673,21 @@ func TestADanglingTupleIsNotDroppedWithoutAFreshSignIn(t *testing.T) {
 		t.Errorf("the tuple = %v, %v; want it left for a fresh sign-in or the job", can, err)
 	}
 }
+
+// A message larger than MaxMessage is refused resource_exhausted before it is
+// decoded, whatever its method (R46).
+func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t, time.Second)
+	digest := "sha256:" + strings.Repeat("0", 64)
+	digests := make([]string, rpc.MaxMessage/len(digest)+1)
+	for i := range digests {
+		digests[i] = digest
+	}
+	p := w.person(t, "uid-large")
+	_, err := w.packages.CheckPackages(as(t, p.token), &v1.CheckPackagesRequest{PackageDigests: digests})
+	if connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Errorf("a message of %d digests = %v, want resource_exhausted", len(digests), err)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/altnovatrail/module-kit/modulepackage"
@@ -149,18 +150,28 @@ func placeOf(i, j int) *observationv1.AnswerSlotPlace {
 }
 
 // itemVerdicts is the verdicts in the contract's words, each answer slot with
-// the text of the option tapped in it as what was read; the trap a value shows
+// what was read in it: the text of the option tapped, or the value AI read and
+// the readers agreed on, in joined; the trap a value shows
 // stays in api (contract, AnswerSlotVerdict). wrong says whether a slot got
 // "not_yet", which makes the submission a wrong answer (R09), and correct
 // whether every item is correct.
-func itemVerdicts(verdicts []verdict.ItemVerdict, tapped map[string]string) (items []*v1.ItemVerdict, wrong, correct bool) {
+func itemVerdicts(verdicts []verdict.ItemVerdict, tapped map[string]string, joined *observationv1.Observation) (items []*v1.ItemVerdict, wrong, correct bool) {
+	read := maps.Clone(tapped)
+	if read == nil {
+		read = map[string]string{}
+	}
+	for _, o := range joined.GetAnswerSlots() {
+		if v, ok := o.GetRead().(*observationv1.AnswerSlotObservation_Value); ok {
+			read[placeKey(o.GetAnswerSlot())] = v.Value
+		}
+	}
 	correct = true
 	for i, item := range verdicts {
 		out := &v1.ItemVerdict{Verdict: string(item.Verdict)}
 		for j, slot := range item.Slots {
 			place := placeOf(i, j)
 			s := &v1.AnswerSlotVerdict{AnswerSlot: place, Verdict: string(slot.Verdict), Reason: string(slot.Reason)}
-			if value, ok := tapped[placeKey(place)]; ok {
+			if value, ok := read[placeKey(place)]; ok {
 				s.Value = &value
 			}
 			out.AnswerSlots = append(out.AnswerSlots, s)
@@ -175,4 +186,27 @@ func itemVerdicts(verdicts []verdict.ItemVerdict, tapped map[string]string) (ite
 // placeKey is a place of an answer slot as a key of a map.
 func placeKey(p *observationv1.AnswerSlotPlace) string {
 	return fmt.Sprintf("%d.%d", p.GetItem(), p.GetSlot())
+}
+
+// sheetRead says whether this release of tutor reads the task: a handwriting
+// sheet with one answer slot bound anywhere, which AI reads, and the others
+// bound choice (tutor's ReadSheet). A workbook, a zone or the whole sheet it
+// does not read yet (row 5.6 of spec's COORDINATION.md).
+func sheetRead(task formatv0.Task) bool {
+	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
+		return false
+	}
+	anywhere := 0
+	for _, item := range task.Items {
+		for _, slot := range verdict.AnswerSlots(item) {
+			switch slot.Binding {
+			case string(formatv0.AnswerSlotBindingAnywhere):
+				anywhere++
+			case string(formatv0.AnswerSlotBindingChoice):
+			default:
+				return false
+			}
+		}
+	}
+	return anywhere == 1
 }

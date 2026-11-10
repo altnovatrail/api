@@ -31,12 +31,13 @@ type begun struct {
 // The module must be connected and have a current version for the learner that
 // holds the task, and the task must suit the age category of the profile (R51
 // spec). A task with a rubric is not admitted: its path is not in this code
-// (R14). A task of handwriting is admitted when the gate of admission chooses
-// models to read it, by platform AI or the own key named (R45), and its
-// attempt begins with tutor's reading (T36): until then it is unimplemented. A
-// task segment of a lesson run comes with the lessons' code; with
-// no such run it is "not found". The answer, the attempt with the open view of
-// its task, is what the key's record holds: it names nothing the learner sent.
+// (R14). A task of handwriting begins when tutor reads its form — a
+// handwriting sheet with one answer slot bound anywhere — and the gate of
+// admission chooses models to read it, by platform AI or the own key named
+// (R45, R46). A task segment of a lesson run comes with the lessons' code;
+// with no such run it is "not found". The answer, the attempt with the open
+// view of its task, is what the key's record holds: it names nothing the
+// learner sent.
 func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttemptRequest) (*v1.BeginAttemptResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -155,13 +156,14 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		// The path of a task with a rubric is not in this code (R14), so AI may
 		// not assess one.
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
-	case !byTap(task) && !s.gate.Handwriting(category, ownKey):
-		// AI would read the handwriting, and the table, the facts and the stage of
-		// the deployment admit no models for it (R45).
+	case !byTap(task) && !sheetRead(task):
+		// AI would read it on a workbook, a zone or the whole sheet, which this
+		// release of tutor does not read (R46).
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
-	case !byTap(task):
-		// Admitted, but the check of handwriting comes with tutor's reading (T36).
-		return nil, connect.NewError(connect.CodeUnimplemented, "handwriting")
+	case !byTap(task) && !s.gate.Handwriting(category, ownKey):
+		// AI would read the handwriting, and the table, the facts, the stage and
+		// the platform's keys of the deployment admit no models for it (R45).
+		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 	}
 	if err := s.leave(ctx, tx, profileID, now); err != nil {
 		return nil, err

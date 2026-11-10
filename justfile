@@ -93,8 +93,9 @@ release-files version:
 # license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
 # NOTICE, as module-kit names them (R38 module-kit): pgx and goose (R29), OpenFGA and the modules
 # they take (R31), the Admin SDK for Go and the modules it takes (R32), Connect and spec's module
-# of contracts (R33), module-kit and spec's own module (R41), and tutor (R45). A module the binary takes beyond
-# these fails release-licenses, and ci-lint with it, until it is named here. Each entry is
+# of contracts (R33), module-kit and spec's own module (R41), tutor (R45), and the SDKs of its
+# adapters with the modules they take (R46). A module the binary takes beyond these fails
+# release-licenses, and ci-lint with it, until it is named here. Each entry is
 # <module path>=<name>, one a line, the name the path without its host, its slashes dashes; where
 # that name would read as a license the release has of its own — go, Go's, and api, api's — the
 # host stays in front of it, and release-licenses refuses a name twice or either of those.
@@ -122,12 +123,16 @@ THIRD_PARTY := """
     github.com/altnovatrail/spec=altnovatrail-spec
     github.com/altnovatrail/spec/contracts=altnovatrail-spec-contracts
     github.com/altnovatrail/tutor=altnovatrail-tutor
+    github.com/anthropics/anthropic-sdk-go=anthropics-anthropic-sdk-go
     github.com/antlr4-go/antlr/v4=antlr4-go-antlr-v4
+    github.com/bahlo/generic-list-go=bahlo-generic-list-go
     github.com/beorn7/perks=beorn7-perks
+    github.com/buger/jsonparser=buger-jsonparser
     github.com/cenkalti/backoff/v4=cenkalti-backoff-v4
     github.com/cenkalti/backoff/v5=cenkalti-backoff-v5
     github.com/cespare/xxhash/v2=cespare-xxhash-v2
     github.com/cncf/xds/go=cncf-xds-go
+    github.com/coder/websocket=coder-websocket
     github.com/emirpasic/gods=emirpasic-gods
     github.com/envoyproxy/go-control-plane/envoy=envoyproxy-go-control-plane-envoy
     github.com/envoyproxy/protoc-gen-validate=envoyproxy-protoc-gen-validate
@@ -146,6 +151,7 @@ THIRD_PARTY := """
     github.com/grpc-ecosystem/go-grpc-middleware=grpc-ecosystem-go-grpc-middleware
     github.com/grpc-ecosystem/go-grpc-middleware/v2=grpc-ecosystem-go-grpc-middleware-v2
     github.com/grpc-ecosystem/grpc-gateway/v2=grpc-ecosystem-grpc-gateway-v2
+    github.com/invopop/jsonschema=invopop-jsonschema
     github.com/jackc/pgpassfile=jackc-pgpassfile
     github.com/jackc/pgservicefile=jackc-pgservicefile
     github.com/jackc/pgx/v5=jackc-pgx-v5
@@ -157,9 +163,11 @@ THIRD_PARTY := """
     github.com/munnerz/goautoneg=munnerz-goautoneg
     github.com/natefinch/wrap=natefinch-wrap
     github.com/oklog/ulid/v2=oklog-ulid-v2
+    github.com/openai/openai-go/v3=openai-openai-go-v3
     github.com/openfga/api/proto=openfga-api-proto
     github.com/openfga/language/pkg/go=openfga-language-pkg-go
     github.com/openfga/openfga=openfga-openfga
+    github.com/pb33f/ordered-map/v2=pb33f-ordered-map-v2
     github.com/pelletier/go-toml/v2=pelletier-go-toml-v2
     github.com/pressly/goose/v3=pressly-goose-v3
     github.com/prometheus/client_golang=prometheus-client_golang
@@ -175,8 +183,13 @@ THIRD_PARTY := """
     github.com/spf13/pflag=spf13-pflag
     github.com/spf13/viper=spf13-viper
     github.com/spiffe/go-spiffe/v2=spiffe-go-spiffe-v2
+    github.com/standard-webhooks/standard-webhooks/libraries=standard-webhooks-standard-webhooks-libraries
     github.com/stretchr/testify=stretchr-testify
     github.com/subosito/gotenv=subosito-gotenv
+    github.com/tidwall/gjson=tidwall-gjson
+    github.com/tidwall/match=tidwall-match
+    github.com/tidwall/pretty=tidwall-pretty
+    github.com/tidwall/sjson=tidwall-sjson
     github.com/zeebo/xxh3=zeebo-xxh3
     go.opentelemetry.io/auto/sdk=auto-sdk
     go.opentelemetry.io/contrib/detectors/gcp=contrib-detectors-gcp
@@ -246,16 +259,16 @@ release-licenses folder:
     mkdir -p "$folder"
     for entry in $entries; do
         dir="$(go list -m -f '{{{{.Dir}}' "${entry%%=*}")"
-        # The license is LICENSE, or LICENSE.txt or LICENSE.md as some modules name it.
+        # The license is LICENSE, or LICENSE.txt, LICENSE.md or COPYING as some modules name it.
         license=""
-        for name in LICENSE LICENSE.txt LICENSE.md; do
+        for name in LICENSE LICENSE.txt LICENSE.md COPYING; do
             if [ -f "$dir/$name" ]; then
                 license="$dir/$name"
                 break
             fi
         done
         if [ -z "$license" ]; then
-            echo "release-licenses: ${entry%%=*} has no LICENSE, LICENSE.txt or LICENSE.md" >&2
+            echo "release-licenses: ${entry%%=*} has no LICENSE, LICENSE.txt, LICENSE.md or COPYING" >&2
             exit 1
         fi
         cp "$license" "$folder/LICENSE-${entry#*=}"

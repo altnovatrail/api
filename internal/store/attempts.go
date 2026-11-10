@@ -121,6 +121,21 @@ func HoldAttempt(ctx context.Context, tx pgx.Tx, profileID, attemptID string) (A
 	return a, nil
 }
 
+// AttemptTask is the package and the task of the profile's attempt, read with
+// no lock: what an attempt is of never changes, so a request may choose its way
+// by it before it holds the attempt.
+func AttemptTask(ctx context.Context, db Querier, profileID, attemptID string) (digest, taskID string, err error) {
+	err = db.QueryRow(ctx, `SELECT package_digest, task_id FROM attempts WHERE profile_id = $1 AND id = $2`,
+		profileID, attemptID).Scan(&digest, &taskID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return "", "", ErrNotFound
+	case err != nil:
+		return "", "", fmt.Errorf("store: read the attempt's task: %w", err)
+	}
+	return digest, taskID, nil
+}
+
 // NewAttempt is what an attempt begins with: its package, the versions its
 // verdict repeats by, its task, seed and instance, and one of the three ways it
 // begins.
@@ -193,14 +208,15 @@ func CloseAttempt(ctx context.Context, tx pgx.Tx, profileID, attemptID, reason s
 	return nil
 }
 
-// Submit records a submission with a verdict of the attempt, by its answer, as
-// the attempt's next, and counts it a wrong answer when wrong: the attempt's
-// last action is at. It gives the submission's ID.
-func Submit(ctx context.Context, tx pgx.Tx, profileID, attemptID string, answer []byte, wrong bool, at time.Time) (string, error) {
+// Submit records a submission with a verdict of the attempt, by its answer and
+// the observation of its work, as the attempt's next, and counts it a wrong
+// answer when wrong: the attempt's last action is at. It gives the submission's
+// ID.
+func Submit(ctx context.Context, tx pgx.Tx, profileID, attemptID string, answer, observation []byte, wrong bool, at time.Time) (string, error) {
 	var id string
-	err := tx.QueryRow(ctx, `INSERT INTO submissions (profile_id, attempt_id, number, submitted_at, answer)
-		SELECT $1, $2, coalesce(max(number), 0) + 1, $3, $4 FROM submissions WHERE profile_id = $1 AND attempt_id = $2
-		RETURNING id`, profileID, attemptID, at, answer).Scan(&id)
+	err := tx.QueryRow(ctx, `INSERT INTO submissions (profile_id, attempt_id, number, submitted_at, answer, observation)
+		SELECT $1, $2, coalesce(max(number), 0) + 1, $3, $4, $5 FROM submissions WHERE profile_id = $1 AND attempt_id = $2
+		RETURNING id`, profileID, attemptID, at, answer, observation).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("store: record the submission: %w", err)
 	}

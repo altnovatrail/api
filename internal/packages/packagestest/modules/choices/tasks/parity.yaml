@@ -1,0 +1,18 @@
+id: parity
+statement:
+  - text: Is 3 + 4 even or odd? Write even or odd in the box.
+canvas:
+  kind: handwriting_sheet
+items:
+  - answer_slots:
+      - binding: zone
+        zone: {left: 300, top: 1100, width: 400, height: 200}
+        check:
+          kind: choice
+          options: [even, odd]
+          key: odd
+solution:
+  - text: "3 + 4 = 7, and 7 is odd."
+skills: {primary: [adding]}
+band: grades-1-2
+difficulty: 1
