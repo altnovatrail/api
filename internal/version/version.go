@@ -73,3 +73,10 @@ func dependency(path string) string {
 	}
 	return moduleVersion(info.Deps, path)
 }
+
+// engine is the path of engine's module.
+const engine = "github.com/altnovatrail/engine"
+
+// Engine is the version of engine the binary is built with, which every
+// engine's choice keeps (R06): engine has no constant of its version either.
+func Engine() string { return dependency(engine) }

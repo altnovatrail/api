@@ -82,11 +82,13 @@ func New(set *packages.Set, learnerModel string) (*Model, error) {
 
 // Settled is a profile's state once its owed evidence is in its journal: the
 // state, the graphs it was computed on, the learner's grade, which reading it
-// needs, and how many pieces of evidence the settling wrote.
+// needs, the number of the last evidence of the journal, which an engine's
+// choice keeps (R06), and how many pieces of evidence the settling wrote.
 type Settled struct {
 	State   learnermodel.State
 	Graphs  learnermodel.Graphs
 	Grade   learnermodel.Grade
+	LastSeq int64
 	Written int
 }
 
@@ -176,6 +178,7 @@ func (m *Model) Settle(ctx context.Context, tx pgx.Tx, profileID string, at time
 		}
 		out.Written++
 	}
+	out.LastSeq = lastSeq
 	if newer(held.Mark, m.mark) {
 		return out, nil
 	}
@@ -271,3 +274,7 @@ func numbers(v string) ([]int, bool) {
 	}
 	return out, len(out) > 0
 }
+
+// Mark is the mark this image computes the cache on: the version of
+// learner-model, the release of modules and the window of the format.
+func (m *Model) Mark() store.Mark { return m.mark }

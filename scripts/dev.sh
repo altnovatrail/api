@@ -216,6 +216,15 @@ check() {
     expect GetProgress
     echo "dev-check: the progress of the owner's profile is there"
 
+    # "Something else" asks the engine on the database itself (R50): with no module of format 0.4
+    # in the pinned release, there is nothing to give.
+    call LearningService/ChooseNext < <(PROFILE=$owner KEY=$(cat /proc/sys/kernel/random/uuid) \
+        jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY}')
+    expect ChooseNext
+    jq -e '.choice.kind == "CHOICE_KIND_NOTHING"' "$work/answer.json" > /dev/null ||
+        die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want nothing to give"
+    echo "dev-check: the engine has nothing to give yet"
+
     stop_serve
     echo "dev-check: the logs"
     clean "$work/serve.log"

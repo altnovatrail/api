@@ -47,7 +47,7 @@ const finishReserve = 3 * time.Second
 // second. An attempt closed meanwhile — by another device that began another —
 // is "closed", and nothing is written. An answer that closes the attempt says
 // what comes next in a lesson: the next segment, or that none is left (R48);
-// outside a lesson, what comes next comes with the engine's choice (T40).
+// outside a lesson, the engine's choice (R50).
 func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkRequest) (*v1.SubmitWorkResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -75,7 +75,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			if err != nil {
 				return nil, err
 			}
-			answer.Next, err = s.nextOf(ctx, tx, profileID, row)
+			answer.Next, err = s.nextAfter(ctx, tx, profileID, row, category, s.clock(), true)
 			return answer, err
 		},
 	}
@@ -101,7 +101,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 				if err != nil {
 					return nil, store.KeyTarget{}, err
 				}
-				return s.record(ctx, tx, profileID, h, out)
+				return s.record(ctx, tx, profileID, category, h, out)
 			},
 		})
 	} else {
@@ -110,7 +110,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			return s.record(ctx, tx, profileID, h, out)
+			return s.record(ctx, tx, profileID, category, h, out)
 		})
 	}
 	if err != nil {
@@ -145,7 +145,7 @@ func (s *Service) readsAI(ctx context.Context, profileID, attemptID string) bool
 // record writes the submission out on the profile's attempt h: its verdict, the close of
 // a task solved, and the submission with its answer and observation, which the
 // key's record names.
-func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, h held, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
+func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, h held, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
 	now := s.clock()
 	answer, observed, err := s.verdict(ctx, h, out)
 	if err != nil {
@@ -173,7 +173,7 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, h hel
 		if err := s.settle(ctx, tx, profileID, now); err != nil {
 			return nil, store.KeyTarget{}, err
 		}
-		if answer.Next, err = s.nextOf(ctx, tx, profileID, h.row); err != nil {
+		if answer.Next, err = s.nextAfter(ctx, tx, profileID, h.row, category, now, false); err != nil {
 			return nil, store.KeyTarget{}, err
 		}
 	}

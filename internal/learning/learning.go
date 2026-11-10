@@ -58,6 +58,8 @@ type Service struct {
 	// model is the learner model, which a close owes the evidence of the
 	// attempt (R49).
 	model *model.Model
+	// engine is the version of engine, which every choice keeps (R50).
+	engine string
 }
 
 // Option sets what a Service runs on, for the tests.
@@ -79,9 +81,10 @@ type sheetReader interface {
 // AI checks; its handlers run on the database they are given. A binary that
 // recorded no version of module-kit is refused, before anything is opened:
 // every attempt keeps it. So is no gate, and a binary that recorded no version
-// of learner-model, which the mark of the learner model's cache names.
+// of learner-model, which the mark of the learner model's cache names, or of
+// engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gate, teller: gate, now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, gate: gate, reader: gate, teller: gate, now: time.Now, moduleKit: version.ModuleKit(), engine: version.Engine(),
 		goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
@@ -91,6 +94,9 @@ func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, err
 	}
 	if s.moduleKit == "" {
 		return nil, errors.New("learning: the build recorded no version of module-kit")
+	}
+	if s.engine == "" {
+		return nil, errors.New("learning: the build recorded no version of engine")
 	}
 	m, err := model.New(set, version.LearnerModel())
 	if err != nil {
@@ -297,7 +303,7 @@ func refused(ctx context.Context, err error) error {
 		return err
 	case errors.As(err, &ended):
 		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_RUN_ENDED, func(r *v1.Refusal) {
-			r.Data = &v1.Refusal_RunEnd{RunEnd: runEnd(ended.reason)}
+			r.Data = &v1.Refusal_RunEnd{RunEnd: runEnd(ended.reason, ended.choice)}
 		})
 	case errors.As(err, &closed):
 		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED, func(r *v1.Refusal) {

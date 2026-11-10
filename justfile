@@ -94,11 +94,12 @@ release-files version:
 # NOTICE, as module-kit names them (R38 module-kit): pgx and goose (R29), OpenFGA and the modules
 # they take (R31), the Admin SDK for Go and the modules it takes (R32), Connect and spec's module
 # of contracts (R33), module-kit and spec's own module (R41), tutor (R45), the SDKs of its
-# adapters with the modules they take (R46), and learner-model (R49). A module the binary takes
-# beyond these fails release-licenses, and ci-lint with it, until it is named here. Each entry is
-# <module path>=<name>, one a line, the name the path without its host, its slashes dashes; where
-# that name would read as a license the release has of its own — go, Go's, and api, api's — the
-# host stays in front of it, and release-licenses refuses a name twice or either of those.
+# adapters with the modules they take (R46), learner-model (R49) and engine (R50). A module the
+# binary takes beyond these fails release-licenses, and ci-lint with it, until it is named here.
+# Each entry is <module path>=<name>, one a line, the name the path without its host, its slashes
+# dashes; where that name would read as a license the release has of its own — go, Go's, and api,
+# api's — the host stays in front of it, and release-licenses refuses a name twice or either of
+# those.
 THIRD_PARTY := """
     cel.dev/expr=expr
     cloud.google.com/go=cloud.google.com-go
@@ -119,6 +120,7 @@ THIRD_PARTY := """
     github.com/Masterminds/squirrel=Masterminds-squirrel
     github.com/MicahParks/keyfunc=MicahParks-keyfunc
     github.com/Yiling-J/theine-go=Yiling-J-theine-go
+    github.com/altnovatrail/engine=altnovatrail-engine
     github.com/altnovatrail/learner-model=altnovatrail-learner-model
     github.com/altnovatrail/module-kit=altnovatrail-module-kit
     github.com/altnovatrail/spec=altnovatrail-spec

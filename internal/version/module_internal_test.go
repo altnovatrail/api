@@ -43,3 +43,12 @@ func TestABinaryWithNoLearnerModelHasNoVersionOfIt(t *testing.T) {
 		t.Errorf("LearnerModel() = %q in a binary that links no learner-model, want none", got)
 	}
 }
+
+// Nor engine.
+func TestABinaryWithNoEngineHasNoVersionOfIt(t *testing.T) {
+	t.Parallel()
+
+	if got := Engine(); got != "" {
+		t.Errorf("Engine() = %q in a binary that links no engine, want none", got)
+	}
+}

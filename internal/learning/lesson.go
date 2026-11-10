@@ -28,15 +28,21 @@ var runEnds = map[string]v1.RunEndReason{
 	store.RunAbandoned:   v1.RunEndReason_RUN_END_REASON_ABANDONED,
 }
 
-// runEndedError is a lesson run ended, by its reason.
-type runEndedError struct{ reason string }
+// runEndedError is a lesson run ended, by its reason, with the engine's choice
+// that the end gave when the request ended it (R50).
+type runEndedError struct {
+	reason string
+	choice *v1.EngineChoice
+}
 
 func (e *runEndedError) Error() string { return "learning: the lesson run has ended " + e.reason }
 
-// runEnd is how a run ended, in the contract's words. The engine's choice that
-// the end gives comes with the engine's code (T40): until then app asks
-// ChooseNext.
-func runEnd(reason string) *v1.RunEnd { return &v1.RunEnd{Reason: runEnds[reason]} }
+// runEnd is how a run ended, in the contract's words, with the engine's choice
+// that the end gave: none when the run had ended before the request, and app
+// then asks ChooseNext.
+func runEnd(reason string, choice *v1.EngineChoice) *v1.RunEnd {
+	return &v1.RunEnd{Reason: runEnds[reason], Choice: choice}
+}
 
 // lessonID is the full ID of a module's lesson (§ 8 of the format's text).
 func lessonID(module formatv0.ModuleID, lesson formatv0.LessonID) string {
@@ -94,6 +100,13 @@ func lessonSuits(pkg *modulepackage.Package, lesson formatv0.Lesson, category fo
 // attempt; the end commits, and the request is refused "run ended" after it.
 // The checks passed, the request is an action on the run.
 func (s *Service) checkRun(ctx context.Context, tx pgx.Tx, profileID string, row store.LessonRun, category formatv0.AgeCategory, now time.Time, full bool) (heldRun, error) {
+	return s.checkRunGiving(ctx, tx, profileID, row, category, now, full, true)
+}
+
+// checkRunGiving is checkRun, whose end found asks the engine what comes next
+// only when give says the request gives the end to its learner: a run of another
+// choice that OpenLesson ends gives none, since nobody would be given it.
+func (s *Service) checkRunGiving(ctx context.Context, tx pgx.Tx, profileID string, row store.LessonRun, category formatv0.AgeCategory, now time.Time, full, give bool) (heldRun, error) {
 	if row.EndReason != nil {
 		return heldRun{}, &runEndedError{reason: *row.EndReason}
 	}
@@ -102,10 +115,10 @@ func (s *Service) checkRun(ctx context.Context, tx pgx.Tx, profileID string, row
 	case packages.Unknown:
 		return heldRun{}, errPackageUnknown
 	case packages.NotGiven:
-		return heldRun{}, s.endRun(ctx, tx, profileID, row.ID, store.RunUnchecked, now)
+		return heldRun{}, s.endRun(ctx, tx, profileID, row.ID, store.RunUnchecked, category, now, give)
 	}
 	if now.After(row.LastActionAt.Add(store.RunAbandonedAfter)) {
-		return heldRun{}, s.endRun(ctx, tx, profileID, row.ID, store.RunAbandoned, now)
+		return heldRun{}, s.endRun(ctx, tx, profileID, row.ID, store.RunAbandoned, category, now, give)
 	}
 	pkg := s.set.Packages[digest]
 	module := pkg.View.Manifest.ID
@@ -119,7 +132,7 @@ func (s *Service) checkRun(ctx context.Context, tx pgx.Tx, profileID string, row
 		ok = connected && current && lessonSuits(pkg, lesson, category)
 	}
 	if !ok {
-		return heldRun{}, s.endRun(ctx, tx, profileID, row.ID, store.RunNotSuitable, now)
+		return heldRun{}, s.endRun(ctx, tx, profileID, row.ID, store.RunNotSuitable, category, now, give)
 	}
 	if err := store.TouchLessonRun(ctx, tx, profileID, row.ID, now); err != nil {
 		return heldRun{}, err
@@ -127,19 +140,27 @@ func (s *Service) checkRun(ctx context.Context, tx pgx.Tx, profileID string, row
 	return heldRun{row: row, pkg: pkg, lesson: lesson}, nil
 }
 
-// endRun ends the run with reason at now, and refuses the request "run ended"
-// after the end commits.
-func (s *Service) endRun(ctx context.Context, tx pgx.Tx, profileID, runID, reason string, now time.Time) error {
+// endRun ends the run with reason at now and refuses the request "run ended"
+// after the end commits; when give says the request gives the end, with the
+// engine's choice of what comes next for a learner of category (R50). Either way
+// the evidence the profile owes is settled: "not suitable" closed the run's open
+// attempt with it.
+func (s *Service) endRun(ctx context.Context, tx pgx.Tx, profileID, runID, reason string, category formatv0.AgeCategory, now time.Time, give bool) error {
 	if err := store.EndLessonRun(ctx, tx, profileID, runID, reason, now); err != nil {
 		return err
 	}
-	// "Not suitable" closed the run's open attempt with it.
-	if reason == store.RunNotSuitable {
+	if !give {
+		// "Not suitable" closed the run's open attempt with it.
 		if err := s.settle(ctx, tx, profileID, now); err != nil {
 			return err
 		}
+		return rpc.Keep(refused(ctx, &runEndedError{reason: reason}))
 	}
-	return rpc.Keep(refused(ctx, &runEndedError{reason: reason}))
+	choice, err := s.nextChoice(ctx, tx, profileID, category, now, after{runID: &runID})
+	if err != nil {
+		return err
+	}
+	return rpc.Keep(refused(ctx, &runEndedError{reason: reason, choice: choice}))
 }
 
 // holdRun is the profile's lesson run by its ID, held in tx and checked.
@@ -213,7 +234,7 @@ func (s *Service) openRun(ctx context.Context, tx pgx.Tx, profileID string, cate
 			return heldRun{}, err
 		}
 		if found {
-			h, err := s.checkRun(ctx, tx, profileID, row, category, now, true)
+			h, err := s.checkRunGiving(ctx, tx, profileID, row, category, now, true, false)
 			if _, ended := rpc.Kept(err); !ended {
 				return h, err
 			}
@@ -319,8 +340,9 @@ func (l *LearningService) GetLessonRun(ctx context.Context, req *v1.GetLessonRun
 // CompleteLesson is "lesson done": it ends the run "passed" once every task
 // segment of the lesson has ended, and earlier refuses "segments not ended" with
 // the places of those that have. A run that ended "passed" gets the same answer
-// again; one that ended otherwise, "run ended". It is no check of the lesson:
-// only of its package and its term (R13). It repeats by the state of the run.
+// again, the engine's choice that the end gave with it (R50); one that ended
+// otherwise, "run ended". It is no check of the lesson: only of its package and
+// its term (R13). It repeats by the state of the run.
 func (l *LearningService) CompleteLesson(ctx context.Context, req *v1.CompleteLessonRequest) (*v1.CompleteLessonResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -328,6 +350,7 @@ func (l *LearningService) CompleteLesson(ctx context.Context, req *v1.CompleteLe
 		return nil, err
 	}
 	profileID, runID := req.GetProfileId(), req.GetLessonRunId()
+	var choice *v1.EngineChoice
 	err = s.write(ctx, func(tx pgx.Tx, now time.Time) error {
 		if !store.CanonicalID(runID) {
 			return store.ErrNotFound
@@ -337,7 +360,10 @@ func (l *LearningService) CompleteLesson(ctx context.Context, req *v1.CompleteLe
 		case err != nil:
 			return err
 		case row.EndReason != nil && *row.EndReason == store.RunPassed:
-			return nil
+			// A repeat: the choice the end gave.
+			made, found, err := store.ChoiceAfterRun(ctx, tx, profileID, runID)
+			choice = madeChoice(made, found)
+			return err
 		}
 		h, err := s.checkRun(ctx, tx, profileID, row, category, now, false)
 		if err != nil {
@@ -354,12 +380,16 @@ func (l *LearningService) CompleteLesson(ctx context.Context, req *v1.CompleteLe
 				})
 			}
 		}
-		return store.EndLessonRun(ctx, tx, profileID, h.row.ID, store.RunPassed, now)
+		if err := store.EndLessonRun(ctx, tx, profileID, h.row.ID, store.RunPassed, now); err != nil {
+			return err
+		}
+		choice, err = s.nextChoice(ctx, tx, profileID, category, now, after{runID: &runID})
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &v1.CompleteLessonResponse{End: runEnd(store.RunPassed)}, nil
+	return &v1.CompleteLessonResponse{End: runEnd(store.RunPassed, choice)}, nil
 }
 
 // segmentBegun checks the beginning of an attempt on the task segment at place
@@ -397,10 +427,10 @@ func (s *Service) segmentBegun(ctx context.Context, tx pgx.Tx, profileID, runID 
 	return b, nil
 }
 
-// nextOf is what comes next once the attempt row is closed by a correct answer
-// or by the solution shown: in a lesson, the place of the segment after its own,
-// of any kind, or that no segment is left after it; outside a lesson, the
-// engine's choice, which comes with the engine's code (T40).
+// nextOf is what comes next in a lesson once the attempt row is closed by a
+// correct answer or by the solution shown: the place of the segment after its
+// own, of any kind, or that no segment is left after it; none outside a lesson,
+// where nextAfter gives the engine's choice.
 func (s *Service) nextOf(ctx context.Context, db store.Querier, profileID string, row store.Attempt) (*v1.Next, error) {
 	if row.LessonRunID == nil {
 		return nil, nil
@@ -423,4 +453,29 @@ func (s *Service) nextOf(ctx context.Context, db store.Querier, profileID string
 		return &v1.Next{Next: &v1.Next_Segment{Segment: int32(*row.Segment + 1)}}, nil
 	}
 	return &v1.Next{Next: &v1.Next_SegmentsEnded{SegmentsEnded: true}}, nil
+}
+
+// nextAfter is what comes next once the attempt row is closed by a correct
+// answer or by the solution shown, for a learner of category at now: in a lesson
+// as nextOf gives it; outside a lesson, the engine's choice, which the close gave
+// (R50). A repeat gives the choice the close gave — nothing to give, when it gave
+// none — and asks the engine nothing.
+func (s *Service) nextAfter(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, now time.Time, repeat bool) (*v1.Next, error) {
+	if row.LessonRunID != nil {
+		return s.nextOf(ctx, tx, profileID, row)
+	}
+	var choice *v1.EngineChoice
+	if repeat {
+		made, found, err := store.ChoiceAfterAttempt(ctx, tx, profileID, row.ID)
+		if err != nil {
+			return nil, err
+		}
+		choice = madeChoice(made, found)
+	} else {
+		var err error
+		if choice, err = s.nextChoice(ctx, tx, profileID, category, now, after{attemptID: &row.ID}); err != nil || choice == nil {
+			return nil, err
+		}
+	}
+	return &v1.Next{Next: &v1.Next_Choice{Choice: choice}}, nil
 }
