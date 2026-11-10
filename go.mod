@@ -8,6 +8,7 @@ require (
 	github.com/altnovatrail/module-kit v0.3.0
 	github.com/altnovatrail/spec v0.12.0
 	github.com/altnovatrail/spec/contracts v0.12.0
+	github.com/altnovatrail/tutor v0.1.21
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.12.0

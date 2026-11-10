@@ -30,8 +30,11 @@ type begun struct {
 // transaction: "left", or as the check of a request would have closed it (R10).
 // The module must be connected and have a current version for the learner that
 // holds the task, and the task must suit the age category of the profile (R51
-// spec). A task that AI checks is not admitted: no AI is admitted in this code
-// yet (R44). A task segment of a lesson run comes with the lessons' code; with
+// spec). A task with a rubric is not admitted: its path is not in this code
+// (R14). A task of handwriting is admitted when the gate of admission chooses
+// models to read it, by platform AI or the own key named (R45), and its
+// attempt begins with tutor's reading (T36): until then it is unimplemented. A
+// task segment of a lesson run comes with the lessons' code; with
 // no such run it is "not found". The answer, the attempt with the open view of
 // its task, is what the key's record holds: it names nothing the learner sent.
 func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttemptRequest) (*v1.BeginAttemptResponse, error) {
@@ -53,7 +56,7 @@ func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttempt
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			start, err := s.begin(ctx, tx, profileID, category, b, s.clock())
+			start, err := s.begin(ctx, tx, profileID, category, req.GetOwnKeyProvider(), b, s.clock())
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
@@ -127,9 +130,10 @@ func firstOf(err, refusal error) error {
 	return refusal
 }
 
-// begin begins the attempt of b for a learner of category, at now: the checks
-// of the module and the task, then the close of the open attempt and the row.
-func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, b begun, now time.Time) (*v1.AttemptStart, error) {
+// begin begins the attempt of b for a learner of category, by the own key of
+// ownKey when it names a provider, at now: the checks of the module and the
+// task and its admission, then the close of the open attempt and the row.
+func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, b begun, now time.Time) (*v1.AttemptStart, error) {
 	connected, err := store.ModuleConnected(ctx, tx, profileID, string(b.module))
 	switch {
 	case err != nil:
@@ -147,9 +151,17 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
 	case !suits(pkg, task, category):
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_SUITABLE)
-	case rubric(task) || !byTap(task):
-		// AI would check it, and no admission is in this code yet.
+	case rubric(task):
+		// The path of a task with a rubric is not in this code (R14), so AI may
+		// not assess one.
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+	case !byTap(task) && !s.gate.Handwriting(category, ownKey):
+		// AI would read the handwriting, and the table, the facts and the stage of
+		// the deployment admit no models for it (R45).
+		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+	case !byTap(task):
+		// Admitted, but the check of handwriting comes with tutor's reading (T36).
+		return nil, connect.NewError(connect.CodeUnimplemented, "handwriting")
 	}
 	if err := s.leave(ctx, tx, profileID, now); err != nil {
 		return nil, err

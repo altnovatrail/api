@@ -146,6 +146,12 @@ check() {
     echo "dev-check: build"
     build
 
+    # What the dev file declares for admission, checked before the migrations as the rollout of
+    # infra checks a deployment's (R45).
+    echo "dev-check: check"
+    "$binary" check > "$work/check.log" 2>&1 || die "check failed: $(cat "$work/check.log")"
+    clean "$work/check.log"
+
     echo "dev-check: migrate"
     "$binary" migrate > "$work/migrate.log" || die "migrate failed: $(cat "$work/migrate.log")"
     clean "$work/migrate.log"

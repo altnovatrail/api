@@ -63,6 +63,8 @@ type Serve struct {
 	AppOrigin string
 	// PackagesDir is the absolute path of the folder of the packages (R41).
 	PackagesDir string
+	// Admission is what the deployment declares for admission to AI (R25, R45).
+	Admission Admission
 }
 
 // ServeFrom reads what serve opens from a set of KEY=VALUE strings, as
@@ -92,6 +94,11 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 	if !filepath.IsAbs(serve.PackagesDir) {
 		problems = append(problems, fmt.Errorf("%w: %s must be an absolute path, got %q", ErrInvalid, VarPackagesDir, serve.PackagesDir))
 	}
+	admission, err := AdmissionFrom(environ)
+	if err != nil {
+		problems = append(problems, err)
+	}
+	serve.Admission = admission
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)
 	}
