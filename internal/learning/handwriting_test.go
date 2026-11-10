@@ -214,7 +214,7 @@ func TestASubmissionUnderItsKeyIsReadOnce(t *testing.T) {
 	}
 	first := make(chan error, 1)
 	go func() {
-		_, err := w.attempts.SubmitWork(l.ctx, req)
+		_, err := w.attempts.SubmitWork(l.alone(t), req)
 		first <- err
 	}()
 	<-reading

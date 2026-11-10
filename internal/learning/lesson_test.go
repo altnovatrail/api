@@ -118,7 +118,7 @@ func TestAChoiceOfALessonOpensOneRun(t *testing.T) {
 	ids := make([]string, 2)
 	for i := range ids {
 		wg.Go(func() {
-			res, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: w.lessonChoice(t, l.adult, "grown")})
+			res, err := w.learning.OpenLesson(l.alone(t), &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: w.lessonChoice(t, l.adult, "grown")})
 			if err != nil {
 				t.Errorf("an opening at once: %v", err)
 			}
@@ -353,7 +353,7 @@ func TestALessonOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 			l := w.learner(t)
 			var errs []error
 			note := func(_ any, err error) { errs = append(errs, err) }
-			res, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: w.lessonChoice(t, l.adult, "grown")})
+			res, err := w.learning.OpenLesson(l.alone(t), &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: w.lessonChoice(t, l.adult, "grown")})
 			errs = append(errs, err)
 			run := res.GetRun().GetLessonRunId()
 			if run == "" {

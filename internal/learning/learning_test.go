@@ -172,6 +172,16 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 type learner struct {
 	ctx                     context.Context
 	accountID, adult, child string
+	// bearer is the header of the owner's token, for a context of a request of its
+	// own: one request at a time goes on a context of the client.
+	bearer string
+}
+
+// alone is a context of the owner's requests for one request beside others.
+func (l learner) alone(t *testing.T) context.Context {
+	ctx, info := connect.NewClientContext(t.Context())
+	info.RequestHeader().Set("Authorization", l.bearer)
+	return ctx
 }
 
 func (w *world) learner(t *testing.T) learner {
@@ -196,7 +206,8 @@ func (w *world) learner(t *testing.T) learner {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := learner{ctx: ctx, accountID: created.GetAccount().GetAccountId(), adult: owner.GetProfile().GetProfileId()}
+	l := learner{ctx: ctx, accountID: created.GetAccount().GetAccountId(), adult: owner.GetProfile().GetProfileId(),
+		bearer: "Bearer token-" + uid}
 	l.child = w.child(t, l, "under_13", true)
 	w.exec(t, `INSERT INTO connected_modules (profile_id, module_id) VALUES ($1, $3), ($2, $3)`, l.adult, l.child, module)
 	return l
