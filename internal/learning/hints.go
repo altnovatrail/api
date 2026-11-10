@@ -655,8 +655,8 @@ type canner interface {
 // while the child's setting "ask before showing" is on, by an adult's alone; a
 // learner of the category adult from the beginning. The close deletes the
 // words of the rungs (R05). The answer, the task solved, is what the key's
-// record holds; what comes next comes with the engine's choice and the lessons'
-// code.
+// record holds, with what comes next in a lesson (R48); outside a lesson, what
+// comes next comes with the engine's choice (T40).
 func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionRequest) (*v1.ShowSolutionResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -695,7 +695,11 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 			if err := store.CloseAttempt(ctx, tx, profileID, h.row.ID, closeShown, now); err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			return &v1.ShowSolutionResponse{Solved: out}, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, nil
+			next, err := s.nextOf(ctx, tx, profileID, h.row)
+			if err != nil {
+				return nil, store.KeyTarget{}, err
+			}
+			return &v1.ShowSolutionResponse{Solved: out, Next: next}, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, nil
 		})
 	if err != nil {
 		return nil, refused(ctx, err)

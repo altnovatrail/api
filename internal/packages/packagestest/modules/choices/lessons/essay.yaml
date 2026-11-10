@@ -1,0 +1,7 @@
+id: essay
+title: Telling a story
+skills: [telling]
+segments:
+  - explanation:
+      - text: A story about sharing tells who gets what.
+  - task: story

@@ -29,44 +29,29 @@ var (
 )
 
 // Choice is what an engine's choice names, as far as the beginning of an
-// attempt reads it: its kind, and the module and task of a choice of a task.
+// attempt or a lesson run reads it: its kind, its module, and the task of a
+// choice of a task or the lesson's local ID of a choice of a lesson.
 type Choice struct {
 	Kind     string
 	ModuleID string
 	TaskID   string
+	LessonID string
 }
 
 // ChoiceOf is the profile's engine's choice by its ID, or ErrNotFound.
 func ChoiceOf(ctx context.Context, db Querier, profileID, choiceID string) (Choice, error) {
 	var c Choice
-	var module, task *string
-	err := db.QueryRow(ctx, `SELECT kind, module_id, task_id FROM engine_choices WHERE profile_id = $1 AND id = $2`,
-		profileID, choiceID).Scan(&c.Kind, &module, &task)
+	var module, task, lesson *string
+	err := db.QueryRow(ctx, `SELECT kind, module_id, task_id, lesson_id FROM engine_choices WHERE profile_id = $1 AND id = $2`,
+		profileID, choiceID).Scan(&c.Kind, &module, &task, &lesson)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return Choice{}, ErrNotFound
 	case err != nil:
 		return Choice{}, fmt.Errorf("store: read the choice: %w", err)
 	}
-	// Either may be there without the other on a choice of a lesson.
-	if module != nil {
-		c.ModuleID = *module
-	}
-	if task != nil {
-		c.TaskID = *task
-	}
+	c.ModuleID, c.TaskID, c.LessonID = deref(module), deref(task), deref(lesson)
 	return c, nil
-}
-
-// LessonRunThere says whether the profile has the lesson run, open or ended.
-func LessonRunThere(ctx context.Context, db Querier, profileID, runID string) (bool, error) {
-	var there bool
-	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM lesson_runs WHERE profile_id = $1 AND id = $2)`,
-		profileID, runID).Scan(&there)
-	if err != nil {
-		return false, fmt.Errorf("store: read the lesson run: %w", err)
-	}
-	return there, nil
 }
 
 // Attempt is an attempt's row, as the requests on it read it.
@@ -155,6 +140,10 @@ type NewAttempt struct {
 	Instance      *int
 	ChoiceID      *string
 	PreviousID    *string
+	// LessonRunID and Segment are the run and the place of the segment of an
+	// attempt of a lesson's task.
+	LessonRunID *string
+	Segment     *int
 }
 
 // HoldOpenAttempt is the profile's open attempt, its row held FOR UPDATE in tx,
@@ -178,10 +167,10 @@ func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt
 	var id string
 	err := tx.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version,
 			module_format_version, module_kit_version, task_id, seed, instance, choice_id, previous_attempt_id,
-			started_at, last_action_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12) RETURNING id`,
+			lesson_run_id, segment, started_at, last_action_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14) RETURNING id`,
 		profileID, a.PackageDigest, a.ModuleID, a.ModuleVersion, a.FormatVersion, a.ModuleKit, a.TaskID,
-		int64(a.Seed), a.Instance, a.ChoiceID, a.PreviousID, at).Scan(&id)
+		int64(a.Seed), a.Instance, a.ChoiceID, a.PreviousID, a.LessonRunID, a.Segment, at).Scan(&id)
 	var pgErr *pgconn.PgError
 	switch {
 	case errors.As(err, &pgErr) && pgErr.Code == uniqueViolation && pgErr.ConstraintName == "attempts_choice_id_key":

@@ -38,12 +38,13 @@ func newE3(t *testing.T) *e3 {
 }
 
 // choice is a new engine's choice of the profile, of a task, which names its
-// module and task, or of a lesson.
+// module and task, or of a lesson, which names its module and lesson.
 func (e *e3) choice(t *testing.T, kind string) string {
 	t.Helper()
 	var id string
-	if err := e.pool.QueryRow(t.Context(), `INSERT INTO engine_choices (profile_id, kind, module_id, task_id)
-		SELECT $1, $2, m, m FROM (SELECT CASE WHEN $2 = 'task' THEN 'example/m' END AS m) AS task RETURNING id`,
+	if err := e.pool.QueryRow(t.Context(), `INSERT INTO engine_choices (profile_id, kind, module_id, task_id, lesson_id)
+		VALUES ($1, $2, 'example/m', CASE WHEN $2 = 'task' THEN 'example/m' END, CASE WHEN $2 = 'lesson' THEN 'l1' END)
+		RETURNING id`,
 		e.profileID, kind).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
@@ -593,8 +594,8 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if there, err := store.LessonRunThere(ctx, e.pool, e.profileID, run); err != nil || !there {
-		t.Errorf("LessonRunThere = %v, %v; want true", there, err)
+	if lesson, err := store.RunLesson(ctx, e.pool, e.profileID, run); err != nil || lesson != "example/m/l1" {
+		t.Errorf("RunLesson = %q, %v; want the run's lesson", lesson, err)
 	}
 	if connected, err := store.ModuleConnected(ctx, e.pool, e.profileID, "example/m"); err != nil || connected {
 		t.Errorf("ModuleConnected = %v, %v; want false", connected, err)

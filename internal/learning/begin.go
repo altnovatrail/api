@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
@@ -16,12 +17,17 @@ import (
 )
 
 // begun is the task a beginning names: its module and its local ID, and the
-// engine's choice or the earlier attempt it begins by.
+// engine's choice, the earlier attempt or the lesson run's segment it begins by —
+// the run held, on whose package the attempt goes, and the open attempt of the
+// segment, when it has one.
 type begun struct {
-	module     formatv0.ModuleID
-	task       formatv0.TaskID
-	choiceID   *string
-	previousID *string
+	module      formatv0.ModuleID
+	task        formatv0.TaskID
+	choiceID    *string
+	previousID  *string
+	run         *heldRun
+	segment     int
+	openAttempt string
 }
 
 // BeginAttempt begins an attempt, under its idempotency key: by an engine's
@@ -34,10 +40,11 @@ type begun struct {
 // (R14). A task of handwriting begins when tutor reads its form — a
 // handwriting sheet with one answer slot bound anywhere — and the gate of
 // admission chooses models to read it, by platform AI or the own key named
-// (R45, R46). A task segment of a lesson run comes with the lessons' code;
-// with no such run it is "not found". The answer, the attempt with the open
-// view of its task, is what the key's record holds: it names nothing the
-// learner sent.
+// (R45, R46). A task segment of a lesson run begins on the run's package, once
+// the run is checked whole and every task segment before it has ended, and it
+// has not; its open attempt is given as it is (R13, R48). A refusal of the
+// admission leaves the run open. The answer, the attempt with the open view of
+// its task, is what the key's record holds: it names nothing the learner sent.
 func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttemptRequest) (*v1.BeginAttemptResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -53,11 +60,12 @@ func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttempt
 	profileID := req.GetProfileId()
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.LearningServiceBeginAttemptProcedure}, req,
 		func(tx pgx.Tx, _ string) (*v1.BeginAttemptResponse, store.KeyTarget, error) {
-			b, err := s.started(ctx, tx, req)
+			now := s.clock()
+			b, err := s.started(ctx, tx, req, category, now)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			start, err := s.begin(ctx, tx, profileID, category, req.GetOwnKeyProvider(), b, s.clock())
+			start, err := s.begin(ctx, tx, profileID, category, req.GetOwnKeyProvider(), b, now)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
@@ -71,7 +79,7 @@ func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttempt
 }
 
 // started is the task the beginning names, by what it begins by.
-func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRequest) (begun, error) {
+func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRequest, category formatv0.AgeCategory, now time.Time) (begun, error) {
 	profileID := req.GetProfileId()
 	switch start := req.GetStart().(type) {
 	case *v1.BeginAttemptRequest_ChoiceId:
@@ -107,19 +115,7 @@ func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRe
 		if segment.GetSegment() < 1 {
 			return begun{}, rpc.Malformed("segment")
 		}
-		if !store.CanonicalID(segment.GetLessonRunId()) {
-			return begun{}, store.ErrNotFound
-		}
-		there, err := store.LessonRunThere(ctx, tx, profileID, segment.GetLessonRunId())
-		switch {
-		case err != nil:
-			return begun{}, err
-		case !there:
-			return begun{}, store.ErrNotFound
-		}
-		// Lesson runs begin with the lessons' code, and with them the attempts of
-		// their segments.
-		return begun{}, connect.NewError(connect.CodeUnimplemented, "segment")
+		return s.segmentBegun(ctx, tx, profileID, segment.GetLessonRunId(), int(segment.GetSegment()), category, now)
 	}
 }
 
@@ -135,16 +131,20 @@ func firstOf(err, refusal error) error {
 // ownKey when it names a provider, at now: the checks of the module and the
 // task and its admission, then the close of the open attempt and the row.
 func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, b begun, now time.Time) (*v1.AttemptStart, error) {
-	connected, err := store.ModuleConnected(ctx, tx, profileID, string(b.module))
-	switch {
-	case err != nil:
-		return nil, err
-	case !connected:
-		return nil, store.ErrNotFound
+	if b.openAttempt != "" {
+		// The segment's open attempt goes on as it is; one that lapsed is closed by
+		// its check, and a new attempt begins.
+		h, err := s.hold(ctx, tx, profileID, b.openAttempt, now)
+		if _, lapsed := rpc.Kept(err); !lapsed {
+			if err != nil {
+				return nil, err
+			}
+			return startOf(h)
+		}
 	}
-	pkg, ok := s.set.CurrentFor(b.module, category)
-	if !ok {
-		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	pkg, err := s.packageOf(ctx, tx, profileID, category, b)
+	if err != nil {
+		return nil, err
 	}
 	task, ok := pkg.View.Tasks[b.task]
 	switch {
@@ -178,21 +178,50 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		return nil, err
 	}
 	m := pkg.View.Manifest
-	id, err := store.BeginAttempt(ctx, tx, profileID, store.NewAttempt{
+	a := store.NewAttempt{
 		PackageDigest: string(pkg.Digest), ModuleID: string(m.ID), ModuleVersion: string(m.Version),
 		FormatVersion: string(m.ModuleFormatVersion), ModuleKit: s.moduleKit, TaskID: string(task.ID),
 		Seed: seed, Instance: picked, ChoiceID: b.choiceID, PreviousID: b.previousID,
-	}, now)
-	if err != nil {
+	}
+	start := &v1.AttemptStart{Task: view, PackageDigest: string(pkg.Digest)}
+	if b.run != nil {
+		a.LessonRunID, a.Segment = &b.run.row.ID, &b.segment
+		start.Segment = &v1.SegmentPlace{LessonRunId: b.run.row.ID, Segment: int32(b.segment)}
+	}
+	if start.AttemptId, err = store.BeginAttempt(ctx, tx, profileID, a, now); err != nil {
 		return nil, err
 	}
-	return &v1.AttemptStart{AttemptId: id, Task: view, PackageDigest: string(pkg.Digest)}, nil
+	return start, nil
+}
+
+// packageOf is the package the attempt of b goes on: the run's, whose check
+// held the module and the lesson's tasks already, or the current version of its
+// connected module for the learner (R07).
+func (s *Service) packageOf(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, b begun) (*modulepackage.Package, error) {
+	if b.run != nil {
+		return b.run.pkg, nil
+	}
+	connected, err := store.ModuleConnected(ctx, tx, profileID, string(b.module))
+	switch {
+	case err != nil:
+		return nil, err
+	case !connected:
+		return nil, store.ErrNotFound
+	}
+	pkg, ok := s.set.CurrentFor(b.module, category)
+	if !ok {
+		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	}
+	return pkg, nil
 }
 
 // leave closes the profile's open attempt, when it has one, for the attempt
 // that begins: "left", unless it lapsed already and is closed as the check of
 // a request would close it (R07, R10).
 func (s *Service) leave(ctx context.Context, tx pgx.Tx, profileID string, now time.Time) error {
+	if err := store.HoldAttemptRun(ctx, tx, profileID, ""); err != nil {
+		return err
+	}
 	open, found, err := store.HoldOpenAttempt(ctx, tx, profileID)
 	if err != nil || !found {
 		return err

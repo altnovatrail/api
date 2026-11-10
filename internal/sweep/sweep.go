@@ -34,7 +34,7 @@ import (
 // (R10, R13).
 const (
 	attemptsTerm       = store.AbandonedAfter
-	runsTerm           = 30 * 24 * time.Hour
+	runsTerm           = store.RunAbandonedAfter
 	usersTerm          = 30 * 24 * time.Hour
 	consentRecordYears = 5
 	keysTerm           = 24 * time.Hour

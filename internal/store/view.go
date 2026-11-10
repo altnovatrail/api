@@ -43,6 +43,9 @@ type Profile struct {
 	// OpenAttempt is the profile's open attempt, which the view of the account
 	// alone reads: nil when it has none.
 	OpenAttempt *OpenAttempt
+	// OpenLessonRuns are the profile's open lesson runs, one at most for each
+	// lesson, which the view of the account alone reads.
+	OpenLessonRuns []OpenLessonRun
 }
 
 // ChildConsent is a consent for a child that waits for its profile.
@@ -80,10 +83,15 @@ func AccountView(ctx context.Context, db TxBeginner, accountID string) (View, er
 		if err != nil {
 			return err
 		}
+		runs, err := openLessonRuns(ctx, tx, accountID)
+		if err != nil {
+			return err
+		}
 		for i, p := range view.Profiles {
 			if a, ok := open[p.ID]; ok {
 				view.Profiles[i].OpenAttempt = &a
 			}
+			view.Profiles[i].OpenLessonRuns = runs[p.ID]
 		}
 		view.ChildConsents, err = childConsents(ctx, tx, accountID)
 		return err

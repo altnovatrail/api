@@ -45,8 +45,9 @@ const finishReserve = 3 * time.Second
 // work, and the key's record going, in one transaction; the reading, in none;
 // and the attempt held again with the verdict and the record done, in a
 // second. An attempt closed meanwhile — by another device that began another —
-// is "closed", and nothing is written. What comes next comes with the engine's
-// choice and the lessons' code.
+// is "closed", and nothing is written. An answer that closes the attempt says
+// what comes next in a lesson: the next segment, or that none is left (R48);
+// outside a lesson, what comes next comes with the engine's choice (T40).
 func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkRequest) (*v1.SubmitWorkResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -66,7 +67,16 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 				return nil, err
 			}
 			answer := &v1.SubmitWorkResponse{}
-			return answer, proto.Unmarshal(written, answer)
+			if err := proto.Unmarshal(written, answer); err != nil || answer.GetSolved() == nil {
+				return answer, err
+			}
+			// The answer is kept without what comes next, which the attempt gives again.
+			row, err := store.HoldAttempt(ctx, tx, profileID, req.GetAttemptId())
+			if err != nil {
+				return nil, err
+			}
+			answer.Next, err = s.nextOf(ctx, tx, profileID, row)
+			return answer, err
 		},
 	}
 	prepare := func(tx pgx.Tx) (held, sending, error) {
@@ -146,7 +156,8 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, h hel
 			return nil, store.KeyTarget{}, err
 		}
 	}
-	// An answer and an observation of the contract always marshal.
+	// An answer and an observation of the contract always marshal; the answer is
+	// kept without what comes next.
 	written, _ := proto.Marshal(answer)
 	var kept []byte
 	if observed != nil {
@@ -156,6 +167,11 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, h hel
 	id, err := store.Submit(ctx, tx, profileID, h.row.ID, written, kept, wrong, now)
 	if err != nil {
 		return nil, store.KeyTarget{}, err
+	}
+	if answer.GetSolved() != nil {
+		if answer.Next, err = s.nextOf(ctx, tx, profileID, h.row); err != nil {
+			return nil, store.KeyTarget{}, err
+		}
 	}
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID, SubmissionID: id}, nil
 }

@@ -229,7 +229,7 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 			RETURNING id`, profile, choice)
 	}
 	for i, idleFor := range []string{"31 days", "1 day"} {
-		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, 'lesson') RETURNING id`, newProfile)
+		choice := w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id) VALUES ($1, 'lesson', 'example/m', 'l1') RETURNING id`, newProfile)
 		w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id, last_action_at)
 			VALUES ($1, $2, 'example/m', '0.1.0', 'sha256:'||repeat('a', 64), $3, now() - $4::interval) RETURNING id`,
 			newProfile, fmt.Sprintf("example/m/l%d", i), choice, idleFor)

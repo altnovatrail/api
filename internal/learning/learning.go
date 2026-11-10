@@ -2,10 +2,10 @@
 // open attempt, the submission of the work and its verdict by module-kit, on
 // the options tapped and on what tutor read, the techniques a solving step
 // gives, "Done", the hint ladder with the tutor's words and their fallback
-// texts, and the showing of the solution. It answers the methods of
-// LearningService and AttemptService that it has; the others answer
-// unimplemented, until the tasks of epic E3 that build them — the engine's
-// choice and lessons.
+// texts, the showing of the solution, and lesson runs with their segments
+// (R48). It answers the methods of LearningService and AttemptService that it
+// has; the others answer unimplemented, until the tasks of epic E3 that build
+// them — the engine's choice.
 //
 // Every request is a learning request on a profile, whose right the checks hold
 // before it (R33), and a profile whose consent is not confirmed is refused. An
@@ -173,6 +173,10 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 	if !store.CanonicalID(attemptID) {
 		return held{}, store.ErrNotFound
 	}
+	// The run first, as the requests on the run hold it: a close here may end it.
+	if err := store.HoldAttemptRun(ctx, tx, profileID, attemptID); err != nil {
+		return held{}, err
+	}
 	row, err := store.HoldAttempt(ctx, tx, profileID, attemptID)
 	if err != nil {
 		return held{}, err
@@ -199,25 +203,35 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 }
 
 // act runs fn on the profile's open attempt, held, under the caller's account,
-// which a deletion marks (R21). A close by the check commits, and the request
-// is refused after it, as rpc.Once does for a request with a key.
+// as write does.
 func (s *Service) act(ctx context.Context, profileID, attemptID string, fn func(tx pgx.Tx, h held, now time.Time) error) error {
-	caller, _ := rpc.CallerFrom(ctx)
-	now := s.clock()
-	var closedNow error
-	err := store.WriteUnderAccount(ctx, s.db, caller.AccountID, func(tx pgx.Tx) error {
+	return s.write(ctx, func(tx pgx.Tx, now time.Time) error {
 		h, err := s.hold(ctx, tx, profileID, attemptID, now)
-		if refusal, ok := rpc.Kept(err); ok {
-			closedNow = refusal
-			return nil
-		}
 		if err != nil {
 			return err
 		}
 		return fn(tx, h, now)
 	})
+}
+
+// write runs fn, a request with no key, under the caller's account, which a
+// deletion marks (R21), at one time. What a refusal of rpc.Keep keeps — a close
+// or an end by the check of the request — commits, and the request is refused
+// after it, as rpc.Once does for a request with a key.
+func (s *Service) write(ctx context.Context, fn func(tx pgx.Tx, now time.Time) error) error {
+	caller, _ := rpc.CallerFrom(ctx)
+	now := s.clock()
+	var keptRefusal error
+	err := store.WriteUnderAccount(ctx, s.db, caller.AccountID, func(tx pgx.Tx) error {
+		err := fn(tx, now)
+		if refusal, ok := rpc.Kept(err); ok {
+			keptRefusal = refusal
+			return nil
+		}
+		return err
+	})
 	if err == nil {
-		err = closedNow
+		err = keptRefusal
 	}
 	if err != nil {
 		return refused(ctx, err)
@@ -245,14 +259,20 @@ var closeReasons = map[string]v1.CloseReason{
 }
 
 // refused answers what a request met: a refusal of the contract as it is, the
-// attempt or the choice not found, the attempt closed with its reason, the
+// attempt, the run or the choice not found, the run ended with its end, the
+// attempt closed with its reason, the
 // package unknown, the profile or the account gone meanwhile, or a failure.
 func refused(ctx context.Context, err error) error {
 	var refusal *connect.Error
 	var closed *closedError
+	var ended *runEndedError
 	switch {
 	case errors.As(err, &refusal):
 		return err
+	case errors.As(err, &ended):
+		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_RUN_ENDED, func(r *v1.Refusal) {
+			r.Data = &v1.Refusal_RunEnd{RunEnd: runEnd(ended.reason)}
+		})
 	case errors.As(err, &closed):
 		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED, func(r *v1.Refusal) {
 			r.Data = &v1.Refusal_CloseReason{CloseReason: closeReasons[closed.reason]}
