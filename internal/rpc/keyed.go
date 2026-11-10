@@ -54,9 +54,10 @@ type Key struct {
 	// Slow is a fingerprint by argon2id, of a request that carries a PIN or an
 	// age; SHA-256 otherwise (R35).
 	Slow bool
-	// Repeat is the answer of a repeat whose record names a submission, not the
-	// answer itself: it reads the submission in the repeat's transaction. Nil
-	// for a method whose records hold their answers.
+	// Repeat is the answer of a repeat, read in the repeat's transaction, when
+	// the record does not hold the answer itself: the submission it names, or the
+	// words the attempt keeps, which the record does not (R47). Nil for a method
+	// whose records hold their answers.
 	Repeat func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error)
 	// GoingFor is the longest a request may run (R33): a record going older than
 	// that is of a request that fell, and a repeat goes again. Zero for a method
@@ -241,7 +242,7 @@ func recorded[Res proto.Message](ctx context.Context, tx pgx.Tx, k Key, req Keye
 		return zero, false, store.DropRecord(ctx, tx, accountID, key, time.Time{})
 	case record.State != store.KeyDone:
 		return zero, false, errStillGoing
-	case record.SubmissionID != "":
+	case k.Repeat != nil:
 		repeated, err := k.Repeat(ctx, tx, record)
 		if err != nil {
 			return zero, false, err
@@ -253,9 +254,10 @@ func recorded[Res proto.Message](ctx context.Context, tx pgx.Tx, k Key, req Keye
 }
 
 // withResponse is target with the answer marshalled into it, unless it names
-// the submission a repeat reads instead.
+// the submission a repeat reads instead, or holds what of the answer the
+// record keeps already.
 func withResponse(answer proto.Message, target store.KeyTarget) store.KeyTarget {
-	if target.SubmissionID == "" {
+	if target.SubmissionID == "" && target.Response == nil {
 		// An answer of the contract always marshals.
 		target.Response, _ = proto.Marshal(answer)
 	}

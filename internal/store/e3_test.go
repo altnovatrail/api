@@ -298,10 +298,14 @@ func TestWhatE3KeepsGoesWithTheProfile(t *testing.T) {
 				e.accountID, e.profileID, attempt, submission); err != nil {
 				t.Fatal(err)
 			}
+			if _, err := e.pool.Exec(ctx, `INSERT INTO attempt_rungs (profile_id, attempt_id, rung, source, words)
+				VALUES ($1, $2, 1, 'fallback', 'w')`, e.profileID, attempt); err != nil {
+				t.Fatal(err)
+			}
 			if err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return del(ctx, tx, e) }); err != nil {
 				t.Fatal(err)
 			}
-			for _, table := range []string{"engine_choices", "lesson_runs", "attempts", "evidence", "skill_states", "submissions", "idempotency_keys"} {
+			for _, table := range []string{"engine_choices", "lesson_runs", "attempts", "evidence", "skill_states", "submissions", "idempotency_keys", "attempt_rungs"} {
 				if n := count(t, e.pool, table); n != 0 {
 					t.Errorf("%d rows of %s left", n, table)
 				}

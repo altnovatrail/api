@@ -8,7 +8,14 @@ items:
     answer_slots:
       - binding: choice
         options: ["12", "21"]
-        check: {kind: choice, key: "21"}
+        check:
+          kind: choice
+          key: "21"
+          trap_values:
+            - value: "12"
+              trap: first-seen
+              text: Look at the tens of both numbers first.
+    simpler_case: Which is more, two tens or one ten?
   - text: b) 30 or 13?
     answer_slots:
       - binding: choice
