@@ -53,8 +53,8 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	if err != nil {
 		return nil, err
 	}
-	if req.GetOwnKey() != nil && category != formatv0.AgeCategoryAdult {
-		return nil, rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
+	if err := ownKeyFits(ctx, category, req.GetOwnKey() != nil); err != nil {
+		return nil, err
 	}
 	profileID := req.GetProfileId()
 	key := rpc.Key{
@@ -198,11 +198,7 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 			// recorded as a failure of AI under the key for good.
 			return sending{}, connect.NewError(connect.CodeDeadlineExceeded, "too little time to read the work")
 		}
-		out.route = tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(category)}
-		if own := req.GetOwnKey(); own != nil {
-			out.route.AI = admissionv0.AiRouteOwnKey
-			out.route.Own = tutor.NewOwnKey(admissionv0.Provider(own.GetProvider()), own.GetKey())
-		}
+		out.route = routeOf(category, req.GetOwnKey())
 	}
 	for _, c := range req.GetTappedChoices() {
 		out.tapped = append(out.tapped, observation.Tapped{Place: c.GetAnswerSlot(), Value: c.GetValue()})
@@ -245,12 +241,7 @@ func (s *Service) read(ctx context.Context, out sending) sending {
 	}
 	// The crop goes no further than the reading.
 	out.crop = nil
-	call := rpc.AICall{Outcome: aiOutcomes[out.read.Outcome.Kind], Duration: time.Since(start)}
-	for _, u := range out.read.Outcome.Usage {
-		call.Usage = append(call.Usage, rpc.AIUsage{Provider: string(u.Provider), Model: u.Model,
-			InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, ThinkingTokens: u.ThinkingTokens})
-	}
-	rpc.NoteAICall(ctx, call)
+	noteCall(ctx, out.read.Outcome, time.Since(start))
 	return out
 }
 

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,6 +77,20 @@ type world struct {
 	earlier  *modulepackage.Package
 	// log is what the server wrote to its log.
 	log *lockedBuffer
+	// denyManage takes the right can_manage away from every account, for the
+	// action of an adult; the checks before a handler still see the rights.
+	denyManage atomic.Bool
+}
+
+// adultRights is the rights the action of an adult is asked of: the world's,
+// unless the test takes can_manage away.
+type adultRights struct{ w *world }
+
+func (r adultRights) Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error) {
+	if right == authz.CanManage && r.w.denyManage.Load() {
+		return false, nil
+	}
+	return r.w.rights.Can(ctx, accountID, right, profileID)
 }
 
 // clock is the service's clock: now, moved on by the test.
@@ -141,7 +156,7 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 	}
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Learning: s.Learning(db), Attempt: s.Attempts(db)})
+		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Learning: s.Learning(db), Attempt: s.Attempts(db, adultRights{w})})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL))
@@ -791,6 +806,26 @@ func TestAProfileWithNoConsentIsRefused(t *testing.T) {
 			_, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: waiting, AttemptId: id})
 			return err
 		},
+		"GetHint": func() error {
+			_, err := w.attempts.GetHint(l.ctx, &v1.GetHintRequest{ProfileId: waiting, AttemptId: id})
+			return err
+		},
+		"GetRungWords": func() error {
+			_, err := w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
+			return err
+		},
+		"ExplainDifferently": func() error {
+			_, err := w.attempts.ExplainDifferently(l.ctx, &v1.ExplainDifferentlyRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
+			return err
+		},
+		"GetCorrectAnswerWords": func() error {
+			_, err := w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
+			return err
+		},
+		"ShowSolution": func() error {
+			_, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
+			return err
+		},
 	} {
 		err := call()
 		t.Run(name, func(t *testing.T) { refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT) })
@@ -805,7 +840,7 @@ func TestTheMethodsOfLaterTasksAreUnimplemented(t *testing.T) {
 	l := w.learner(t)
 	_, err := w.learning.ChooseNext(l.ctx, &v1.ChooseNextRequest{ProfileId: l.child, IdempotencyKey: "c"})
 	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
-	_, err = w.attempts.GetHint(l.ctx, &v1.GetHintRequest{ProfileId: l.child, AttemptId: uuid.NewString()})
+	_, err = w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.child, AttemptId: uuid.NewString()})
 	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
@@ -855,6 +890,13 @@ func (f *failingTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.R
 		return failedRow{}
 	}
 	return f.Tx.QueryRow(ctx, sql, args...)
+}
+
+func (f *failingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	if strings.Contains(sql, f.failOn) {
+		return nil, errDown
+	}
+	return f.Tx.Query(ctx, sql, args...)
 }
 
 // A database that fails is unavailable, at each step of each request.

@@ -203,3 +203,27 @@ func TestTheGateReadsByTutor(t *testing.T) {
 		t.Errorf("ReadSheet with no task = %v, want a failure with no call", read.Outcome.Kind)
 	}
 }
+
+// No model is admitted for the tutor's words in this release of tutor, on any
+// route, even where the reading is (T127 of tutor): the gate says so, and the
+// call of words asks no model.
+func TestTheGateAdmitsNoWordsYet(t *testing.T) {
+	t.Parallel()
+
+	g := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
+	if !g.Handwriting(formatv0.AgeCategoryAdult, "") {
+		t.Fatal("the reading of an adult's handwriting is not admitted")
+	}
+	for _, withWork := range []bool{false, true} {
+		for _, own := range []string{"", "anthropic"} {
+			if g.Words(withWork, formatv0.AgeCategoryAdult, own) {
+				t.Errorf("Words(%v, adult, %q) = true, want no model admitted", withWork, own)
+			}
+		}
+	}
+	told := g.TellWords(t.Context(), tutor.WordsRequest{Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi,
+		Category: admissionv0.AgeCategoryAdult}})
+	if told.Outcome.Kind != tutor.Failed || len(told.Outcome.Usage) != 0 {
+		t.Errorf("TellWords with no task = %v, want a failure with no call", told.Outcome.Kind)
+	}
+}

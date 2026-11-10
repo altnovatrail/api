@@ -1,9 +1,11 @@
-// Package learning runs attempts of tasks (R44): their beginning, the open
-// attempt, the submission of the options tapped and its verdict by module-kit,
-// the techniques a solving step gives, and "Done". It answers the methods of
+// Package learning runs attempts of tasks (R44, R46, R47): their beginning, the
+// open attempt, the submission of the work and its verdict by module-kit, on
+// the options tapped and on what tutor read, the techniques a solving step
+// gives, "Done", the hint ladder with the tutor's words and their fallback
+// texts, and the showing of the solution. It answers the methods of
 // LearningService and AttemptService that it has; the others answer
 // unimplemented, until the tasks of epic E3 that build them — the engine's
-// choice, lessons, hints, and the checks that AI reads.
+// choice and lessons.
 //
 // Every request is a learning request on a profile, whose right the checks hold
 // before it (R33), and a profile whose consent is not confirmed is refused. An
@@ -42,8 +44,10 @@ var (
 type Service struct {
 	set  *packages.Set
 	gate *admission.Gate
-	// reader reads the work of a handwriting sheet: the gate's tutor.
+	// reader reads the work of a handwriting sheet, and teller words the
+	// tutor's words: the gate's tutor.
 	reader sheetReader
+	teller wordsTeller
 	// goingFor is the longest a request may run, past which the record of its
 	// key going is of a request that fell (R17, R33).
 	goingFor  time.Duration
@@ -72,7 +76,7 @@ type sheetReader interface {
 // recorded no version of module-kit is refused, before anything is opened:
 // every attempt keeps it. So is no gate.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gate, now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, gate: gate, reader: gate, teller: gate, now: time.Now, moduleKit: version.ModuleKit(),
 		goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
@@ -96,15 +100,20 @@ type LearningService struct {
 // Learning is the LearningService of s, on db.
 func (s *Service) Learning(db rpc.DB) *LearningService { return &LearningService{s: s.on(db)} }
 
-// AttemptService is the requests on an attempt: here, the submission of the
-// options tapped, the beginning of a step and "Done".
+// AttemptService is the requests on an attempt: the submission of the work,
+// the beginning of a step and "Done", the hint ladder and the showing of the
+// solution.
 type AttemptService struct {
 	apiv1connect.UnimplementedAttemptServiceHandler
-	s *Service
+	s      *Service
+	rights canner
 }
 
-// Attempts is the AttemptService of s, on db.
-func (s *Service) Attempts(db rpc.DB) *AttemptService { return &AttemptService{s: s.on(db)} }
+// Attempts is the AttemptService of s, on db, which asks rights of an adult's
+// action.
+func (s *Service) Attempts(db rpc.DB, rights canner) *AttemptService {
+	return &AttemptService{s: s.on(db), rights: rights}
+}
 
 // on is s on db.
 func (s *Service) on(db rpc.DB) *Service {
@@ -226,13 +235,13 @@ const (
 
 // closeReasons is each close reason of the schema in the contract's words.
 var closeReasons = map[string]v1.CloseReason{
-	closeCorrect:     v1.CloseReason_CLOSE_REASON_CORRECT,
-	"solution_shown": v1.CloseReason_CLOSE_REASON_SOLUTION_SHOWN,
-	closeLeft:        v1.CloseReason_CLOSE_REASON_LEFT,
-	closeAbandoned:   v1.CloseReason_CLOSE_REASON_ABANDONED,
-	closeUnchecked:   v1.CloseReason_CLOSE_REASON_UNCHECKED,
-	"not_suitable":   v1.CloseReason_CLOSE_REASON_NOT_SUITABLE,
-	"done":           v1.CloseReason_CLOSE_REASON_DONE,
+	closeCorrect:   v1.CloseReason_CLOSE_REASON_CORRECT,
+	closeShown:     v1.CloseReason_CLOSE_REASON_SOLUTION_SHOWN,
+	closeLeft:      v1.CloseReason_CLOSE_REASON_LEFT,
+	closeAbandoned: v1.CloseReason_CLOSE_REASON_ABANDONED,
+	closeUnchecked: v1.CloseReason_CLOSE_REASON_UNCHECKED,
+	"not_suitable": v1.CloseReason_CLOSE_REASON_NOT_SUITABLE,
+	"done":         v1.CloseReason_CLOSE_REASON_DONE,
 }
 
 // refused answers what a request met: a refusal of the contract as it is, the

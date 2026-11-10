@@ -94,12 +94,28 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 // platform AI only the providers the platform holds a key of serve, as tutor's
 // Choose has it; the reading asks again (R46).
 func (g *Gate) Handwriting(category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return g.admits(admissionv0.CapabilityHandwritingReading, category, ownKeyProvider)
+}
+
+// Words says whether the tutor's words are admitted for a learner of category,
+// on the route Handwriting takes: the hint of a rung, and, with the work, the
+// analysis of its steps too, which the one call of words serves (R47). tutor
+// asks again, of the very model.
+func (g *Gate) Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	if withWork && !g.admits(admissionv0.CapabilitySolutionAnalysis, category, ownKeyProvider) {
+		return false
+	}
+	return g.admits(admissionv0.CapabilityHint, category, ownKeyProvider)
+}
+
+// admits says whether capability is admitted for a learner of category, by
+// platform AI or the own key of ownKeyProvider.
+func (g *Gate) admits(capability admissionv0.Capability, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	route, providers := admissionv0.AiRoutePlatformAi, g.keyed
 	if ownKeyProvider != "" {
 		route, providers = admissionv0.AiRouteOwnKey, []admissionv0.Provider{admissionv0.Provider(ownKeyProvider)}
 	}
-	entry, _ := g.table.Select(g.facts, admissionv0.CapabilityHandwritingReading, route,
-		admissionv0.AgeCategory(category), g.stage, providers)
+	entry, _ := g.table.Select(g.facts, capability, route, admissionv0.AgeCategory(category), g.stage, providers)
 	return len(entry.Models) > 0
 }
 
@@ -107,4 +123,10 @@ func (g *Gate) Handwriting(category formatv0.AgeCategory, ownKeyProvider string)
 // observation of each, or the outcome of a call that gave none.
 func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead {
 	return g.tutor.ReadSheet(ctx, r)
+}
+
+// TellWords asks tutor for the words of a rung: its question, with the box of
+// the first mistake when the work went, or the outcome of a call that gave none.
+func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
+	return g.tutor.Words(ctx, w)
 }

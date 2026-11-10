@@ -131,6 +131,40 @@ func TestARepeatOfASubmissionReadsItsAnswer(t *testing.T) {
 	}
 }
 
+// A record may hold less than the answer, what its target names: a repeat then
+// gets the answer that the method's Repeat reads elsewhere, from the record.
+func TestARepeatReadsWhatTheRecordDoesNotHold(t *testing.T) {
+	w := newWorld(t, time.Second)
+	p := w.person(t, "uid-words")
+	ctx := rpc.WithCaller(t.Context(), rpc.Caller{AccountID: p.accountID})
+	held, _ := proto.Marshal(&v1.GetRungWordsResponse{Rung: 2})
+	key := rpc.Key{Method: "/novatrail.api.v1.AttemptService/GetRungWords",
+		Repeat: func(_ context.Context, _ pgx.Tx, record store.KeyRecord) (proto.Message, error) {
+			kept := &v1.GetRungWordsResponse{}
+			if err := proto.Unmarshal(record.Response, kept); err != nil {
+				return nil, err
+			}
+			kept.Words, kept.Repeated = "kept elsewhere", true
+			return kept, nil
+		}}
+	req := &v1.GetRungWordsRequest{ProfileId: p.profileID, IdempotencyKey: "w"}
+	act := func(pgx.Tx, string) (*v1.GetRungWordsResponse, store.KeyTarget, error) {
+		return &v1.GetRungWordsResponse{Rung: 2, Words: "the words"}, store.KeyTarget{ProfileID: p.profileID, Response: held}, nil
+	}
+	if _, err := rpc.Once(ctx, w.pool, key, req, act); err != nil {
+		t.Fatal(err)
+	}
+	var response []byte
+	if err := w.pool.QueryRow(t.Context(), `SELECT response FROM idempotency_keys WHERE key = 'w'`).Scan(&response); err != nil ||
+		strings.Contains(string(response), "the words") {
+		t.Errorf("the record holds %q (%v), want what the target named", response, err)
+	}
+	got, err := rpc.Once(ctx, w.pool, key, req, act)
+	if err != nil || got.GetRung() != 2 || got.GetWords() != "kept elsewhere" || !got.GetRepeated() {
+		t.Errorf("the repeat = %v, %v; want what Repeat read", got, err)
+	}
+}
+
 // recorded says whether the person's account has a record of key.
 func recorded(t *testing.T, w *world, p person, key string) bool {
 	t.Helper()

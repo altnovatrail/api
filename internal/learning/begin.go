@@ -47,8 +47,8 @@ func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttempt
 	if req.GetStart() == nil {
 		return nil, rpc.Malformed("start")
 	}
-	if req.GetOwnKeyProvider() != "" && category != formatv0.AgeCategoryAdult {
-		return nil, rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
+	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
+		return nil, err
 	}
 	profileID := req.GetProfileId()
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.LearningServiceBeginAttemptProcedure}, req,
@@ -206,9 +206,11 @@ func (s *Service) leave(ctx context.Context, tx pgx.Tx, profileID string, now ti
 
 // GetOpenAttempt is the open attempt, by which the learner goes on with it on
 // another device too: its beginning, the verdicts of its last submission, how
-// many wrong answers it has, and the techniques given at a step. The rung and
-// what a hint gives come with the ladder's code. It reads, and so it is no
-// action on the attempt: its last action stays.
+// many wrong answers it has, the current rung with the words the attempt keeps
+// for it or its fallback text, and whether "explain differently" was asked for
+// on it, and the techniques given at a step and on request, with the leading
+// question given on request (R47). It reads, and so it is no action on the
+// attempt: its last action stays.
 func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAttemptRequest) (*v1.GetOpenAttemptResponse, error) {
 	s := l.s
 	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
@@ -235,7 +237,16 @@ func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAtt
 		if h.row.StepTechniques {
 			open.StepTechniqueIds = techniques(h.task)
 		}
-		return nil
+		if h.row.RequestedTechniques {
+			open.RequestedTechniqueIds = techniques(h.task)
+		}
+		if h.row.LeadingQuestion {
+			open.RequestedLeadingQuestion = leadingQuestion(h.task)
+		}
+		if h.row.WrongAnswers > 0 && !rubric(h.task) {
+			open.Rung, open.ExplainedDifferently, err = rungHint(ctx, tx, req.GetProfileId(), h)
+		}
+		return err
 	})
 	if err != nil {
 		return nil, err
