@@ -169,6 +169,10 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, h hel
 		return nil, store.KeyTarget{}, err
 	}
 	if answer.GetSolved() != nil {
+		// The evidence of the attempt is owed once its last submission is written.
+		if err := s.settle(ctx, tx, profileID, now); err != nil {
+			return nil, store.KeyTarget{}, err
+		}
 		if answer.Next, err = s.nextOf(ctx, tx, profileID, h.row); err != nil {
 			return nil, store.KeyTarget{}, err
 		}

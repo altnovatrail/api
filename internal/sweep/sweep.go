@@ -17,10 +17,13 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -67,6 +70,7 @@ type Signin interface {
 // Sweeper runs the passes of the job.
 type Sweeper struct {
 	db      DB
+	model   *model.Model
 	rights  Rights
 	signin  Signin
 	deleter *deletion.Deleter
@@ -74,12 +78,13 @@ type Sweeper struct {
 	log     *slog.Logger
 }
 
-// New is the job on db, rights and signin. settle is the longest a request may
+// New is the job on db, rights and signin, with the learner model, which
+// writes the evidence the closed attempts owe (R49). settle is the longest a request may
 // run: a mark or a tuple younger than that may be a request's still going, and
 // the job leaves it.
-func New(db DB, rights Rights, signin Signin, settle time.Duration, log *slog.Logger) *Sweeper {
+func New(db DB, m *model.Model, rights Rights, signin Signin, settle time.Duration, log *slog.Logger) *Sweeper {
 	return &Sweeper{
-		db: db, rights: rights, signin: signin, deleter: deletion.New(db, rights, signin),
+		db: db, model: m, rights: rights, signin: signin, deleter: deletion.New(db, rights, signin),
 		settle: settle, log: log,
 	}
 }
@@ -120,6 +125,7 @@ func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 		{logging.StepIdleAccounts, s.idleAccounts},
 		{logging.StepIdleProfiles, s.idleProfiles},
 		{logging.StepAbandonedAttempts, s.abandonedAttempts},
+		{logging.StepEvidence, s.evidence},
 		{logging.StepAbandonedRuns, s.abandonedRuns},
 		{logging.StepUsers, s.users},
 		{logging.StepTuples, s.tuples},
@@ -355,9 +361,9 @@ func (s *Sweeper) consentRecords(ctx context.Context, now time.Time, step *Step)
 	step.Finished = true
 }
 
-// abandonedAttempts closes the attempts with no action for 7 days (R10). The
-// words of their hints, and the evidence of one with wrong answers, are what the
-// tasks that keep them add to the close (T37, T39).
+// abandonedAttempts closes the attempts with no action for 7 days (R10). A
+// trigger deletes the words of their hints with the close (R47), and the next
+// step writes the evidence of those with wrong answers (R49).
 func (s *Sweeper) abandonedAttempts(ctx context.Context, now time.Time, step *Step) {
 	closed, err := store.CloseAbandonedAttempts(ctx, s.db, now.Add(-attemptsTerm), now)
 	step.Done = closed
@@ -366,6 +372,28 @@ func (s *Sweeper) abandonedAttempts(ctx context.Context, now time.Time, step *St
 		return
 	}
 	step.Finished = true
+}
+
+// evidence writes the evidence the closed attempts owe — those of the attempts
+// this pass closed "abandoned" among them —, each profile's in a transaction of
+// its own, as a request writes it (R49). A profile counts as done when evidence
+// of it was written; one deleted since it was chosen counts as nothing done.
+func (s *Sweeper) evidence(ctx context.Context, now time.Time, step *Step) {
+	step.Finished = pages(ctx, s, step,
+		func(after string) ([]string, error) { return s.model.Owing(ctx, s.db, after, batch) },
+		func(id string) string { return id },
+		func(id string) (bool, error) {
+			written := 0
+			err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+				settled, err := s.model.Settle(ctx, tx, id, now)
+				written = settled.Written
+				return err
+			})
+			if errors.Is(err, store.ErrNoProfile) {
+				return false, nil
+			}
+			return written > 0, err
+		})
 }
 
 // abandonedRuns ends the lesson runs with no action for 30 days (R13).

@@ -10,7 +10,9 @@ import (
 
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/sweep"
+	"github.com/altnovatrail/api/internal/version"
 )
 
 // defaultFor is how long a pass of sweep may run: under the 10 minutes Cloud Run
@@ -18,8 +20,9 @@ import (
 // says so, rather than being stopped in one (R38).
 const defaultFor = 9 * time.Minute
 
-// sweepPass runs one pass of the daily job (R21, R38): it finishes the deletions
-// the requests left and deletes what is past its term, then exits. A deployment
+// sweepPass runs one pass of the daily job (R21, R38, R49): it finishes the deletions
+// the requests left and deletes what is past its term, writes the evidence the closed
+// attempts owe, then exits. A deployment
 // runs it on a schedule as a Cloud Run job; here it is run by hand. The log goes
 // to stdout, a line for each step with its counts; the process exits 1 unless the
 // pass was clean, since a term that depends on the job runs to its next clean
@@ -54,6 +57,16 @@ func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Wr
 		return err
 	}
 	log := logging.New(stdout, cfg.LogLevel)
+	// The packages, read as serve reads them at its start: the evidence the pass
+	// writes is built of them (R49).
+	pkgs, err := readPackages(opens.PackagesDir)
+	if err != nil {
+		return logged(log, logging.MomentSweep, err)
+	}
+	m, err := model.New(pkgs, version.LearnerModel())
+	if err != nil {
+		return logged(log, logging.MomentSweep, err)
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, *within)
 	defer cancel()
@@ -69,7 +82,7 @@ func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Wr
 	// would wait for: the close is bounded as serve's is.
 	defer closeWithin(cfg.CloseTimeout(), p.close)
 
-	report := sweep.New(p.pool, p.rights, p.signin, cfg.RequestTimeout, log).Run(ctx, time.Now())
+	report := sweep.New(p.pool, m, p.rights, p.signin, cfg.RequestTimeout, log).Run(ctx, time.Now())
 	if !report.Clean() {
 		// Each step's line has said what it did and failed.
 		return fmt.Errorf("%w: the pass was not clean", errLogged)

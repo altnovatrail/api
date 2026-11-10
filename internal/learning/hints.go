@@ -692,7 +692,7 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			if err := store.CloseAttempt(ctx, tx, profileID, h.row.ID, closeShown, now); err != nil {
+			if err := s.close(ctx, tx, profileID, h.row.ID, closeShown, now); err != nil {
 				return nil, store.KeyTarget{}, err
 			}
 			next, err := s.nextOf(ctx, tx, profileID, h.row)

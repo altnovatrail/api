@@ -91,12 +91,15 @@ id_token() {
         jq -er .idToken || die "the sign-in service did not exchange the custom token"
 }
 
-# call posts the body on stdin to the method $1 of AccountService as JSON with the token; the answer
-# goes to $work/answer.json and its HTTP status to $status.
+# call posts the body on stdin to the method $1 as JSON with the token — of AccountService, or
+# Service/Method of another service; the answer goes to $work/answer.json and its HTTP status to
+# $status.
 call() {
+    local method=$1
+    [[ $method == */* ]] || method=AccountService/$method
     status=$(curl -sS -o "$work/answer.json" -w '%{http_code}' \
         -H 'Content-Type: application/json' -H @<(printf 'Authorization: Bearer %s\n' "$token") \
-        -d @- "$base/novatrail.api.v1.AccountService/$1") || die "$1: api did not answer"
+        -d @- "$base/novatrail.api.v1.$method") || die "$1: api did not answer"
 }
 
 # expect fails the check, naming the step, unless the last call answered 200.
@@ -204,6 +207,14 @@ check() {
         ([.account.profiles[]? | select(.owner and .age_category == "adult")] | length) == 1' \
         "$work/answer.json" > /dev/null || die "GetAccount does not hold the account with the owner's profile, adult"
     echo "dev-check: the account and the owner's profile are there"
+
+    # The progress of the owner's profile settles its evidence first, under the lock of its row of
+    # the cache, on the database itself (R49).
+    local owner
+    owner=$(jq -r '.account.profiles[] | select(.owner) | .profile_id' "$work/answer.json")
+    call ProgressService/GetProgress < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
+    expect GetProgress
+    echo "dev-check: the progress of the owner's profile is there"
 
     stop_serve
     echo "dev-check: the logs"

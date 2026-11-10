@@ -28,6 +28,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -54,6 +55,9 @@ type Service struct {
 	db        rpc.DB
 	now       func() time.Time
 	moduleKit string
+	// model is the learner model, which a close owes the evidence of the
+	// attempt (R49).
+	model *model.Model
 }
 
 // Option sets what a Service runs on, for the tests.
@@ -74,7 +78,8 @@ type sheetReader interface {
 // New is the Service of the packages of set, which asks gate before a task that
 // AI checks; its handlers run on the database they are given. A binary that
 // recorded no version of module-kit is refused, before anything is opened:
-// every attempt keeps it. So is no gate.
+// every attempt keeps it. So is no gate, and a binary that recorded no version
+// of learner-model, which the mark of the learner model's cache names.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
 	s := &Service{set: set, gate: gate, reader: gate, teller: gate, now: time.Now, moduleKit: version.ModuleKit(),
 		goingFor: config.DefaultRequestTimeout}
@@ -87,6 +92,11 @@ func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, err
 	if s.moduleKit == "" {
 		return nil, errors.New("learning: the build recorded no version of module-kit")
 	}
+	m, err := model.New(set, version.LearnerModel())
+	if err != nil {
+		return nil, err
+	}
+	s.model = m
 	return s, nil
 }
 
@@ -189,7 +199,7 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 		return held{}, errPackageUnknown
 	}
 	if reason := s.lapsed(row, now); reason != "" {
-		if err := store.CloseAttempt(ctx, tx, profileID, attemptID, reason, now); err != nil {
+		if err := s.close(ctx, tx, profileID, attemptID, reason, now); err != nil {
 			return held{}, err
 		}
 		return held{}, rpc.Keep(refused(ctx, &closedError{reason: reason}))
@@ -200,6 +210,22 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 		return held{}, err
 	}
 	return held{row: row, pkg: pkg, task: task}, nil
+}
+
+// close closes the profile's attempt with reason at now, and writes the
+// evidence its closed attempts owe — this one's among them — in the same
+// transaction (R49).
+func (s *Service) close(ctx context.Context, tx pgx.Tx, profileID, attemptID, reason string, now time.Time) error {
+	if err := store.CloseAttempt(ctx, tx, profileID, attemptID, reason, now); err != nil {
+		return err
+	}
+	return s.settle(ctx, tx, profileID, now)
+}
+
+// settle writes the evidence the profile's closed attempts owe, in tx (R49).
+func (s *Service) settle(ctx context.Context, tx pgx.Tx, profileID string, now time.Time) error {
+	_, err := s.model.Settle(ctx, tx, profileID, now)
+	return err
 }
 
 // act runs fn on the profile's open attempt, held, under the caller's account,

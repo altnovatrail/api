@@ -133,6 +133,12 @@ func (s *Service) endRun(ctx context.Context, tx pgx.Tx, profileID, runID, reaso
 	if err := store.EndLessonRun(ctx, tx, profileID, runID, reason, now); err != nil {
 		return err
 	}
+	// "Not suitable" closed the run's open attempt with it.
+	if reason == store.RunNotSuitable {
+		if err := s.settle(ctx, tx, profileID, now); err != nil {
+			return err
+		}
+	}
 	return rpc.Keep(refused(ctx, &runEndedError{reason: reason}))
 }
 

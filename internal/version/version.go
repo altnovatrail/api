@@ -32,13 +32,7 @@ const moduleKit = "github.com/altnovatrail/module-kit"
 // (architecture 3.2). It is read from the list of modules the build records, as
 // go.mod pins it, and is empty in a binary that recorded none or links no
 // module-kit.
-func ModuleKit() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	return moduleVersion(info.Deps, moduleKit)
-}
+func ModuleKit() string { return dependency(moduleKit) }
 
 // moduleVersion is the version of the module path among deps, as replaced
 // when it is — "(devel)" for a folder, which has none; empty when deps do not
@@ -59,4 +53,23 @@ func moduleVersion(deps []*debug.Module, path string) string {
 		return dep.Version
 	}
 	return ""
+}
+
+// learnerModel is the path of learner-model's module.
+const learnerModel = "github.com/altnovatrail/learner-model"
+
+// LearnerModel is the version of learner-model the binary is built with, which
+// the mark of the cache of the skill state names (R06): learner-model has no
+// constant of its version. It is read as ModuleKit is, and is empty in a binary
+// that recorded none.
+func LearnerModel() string { return dependency(learnerModel) }
+
+// dependency is the version of the module path among the modules the build
+// records, empty when it records none.
+func dependency(path string) string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return moduleVersion(info.Deps, path)
 }

@@ -67,11 +67,28 @@ func Own(t testing.TB, name string, version ...string) *modulepackage.Package {
 	return build(t, name, module, version)
 }
 
+// OwnEdited is the package of this package's own module name at version, with
+// each of its files as edit gives it back: a later version that changes the
+// module, as one with retired skills.
+func OwnEdited(t testing.TB, name, version string, edit func(path string, data []byte) []byte) *modulepackage.Package {
+	t.Helper()
+	module, err := fs.Sub(own, "modules/"+name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return build(t, name, edited(t, module, edit), []string{version})
+}
+
 // build is the package module-kit builds of module, at version when given.
 func build(t testing.TB, name string, module fs.FS, version []string) *modulepackage.Package {
 	t.Helper()
 	if len(version) > 0 {
-		module = withVersion(t, module, version[0])
+		module = edited(t, module, func(path string, data []byte) []byte {
+			if path == "manifest.yaml" {
+				data = versionLine.ReplaceAll(data, []byte(`version: "`+version[0]+`"`))
+			}
+			return data
+		})
 	}
 	pkg, err := modulepackage.Build(context.Background(), module)
 	if err != nil {
@@ -80,8 +97,8 @@ func build(t testing.TB, name string, module fs.FS, version []string) *modulepac
 	return pkg
 }
 
-// withVersion is a copy of module whose manifest names version.
-func withVersion(t testing.TB, module fs.FS, version string) fs.FS {
+// edited is a copy of module with each of its files as edit gives it back.
+func edited(t testing.TB, module fs.FS, edit func(path string, data []byte) []byte) fs.FS {
 	t.Helper()
 	files := fstest.MapFS{}
 	err := fs.WalkDir(module, ".", func(path string, d fs.DirEntry, err error) error {
@@ -92,10 +109,7 @@ func withVersion(t testing.TB, module fs.FS, version string) fs.FS {
 		if err != nil {
 			return err
 		}
-		if path == "manifest.yaml" {
-			data = versionLine.ReplaceAll(data, []byte(`version: "`+version+`"`))
-		}
-		files[path] = &fstest.MapFile{Data: data, Mode: 0o644}
+		files[path] = &fstest.MapFile{Data: edit(path, data), Mode: 0o644}
 		return nil
 	})
 	if err != nil {

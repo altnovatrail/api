@@ -265,6 +265,7 @@ func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attemp
 		Package:  cat.Packages(),
 		Learning: attempts.Learning(p.pool),
 		Attempt:  attempts.Attempts(p.pool, p.rights),
+		Progress: attempts.Progress(p.pool, p.rights),
 	}
 	return rpc.Deps{Signin: p.signin, DB: p.pool, Rights: p.rights}, handlers, p.close, nil
 }
