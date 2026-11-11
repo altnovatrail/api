@@ -9,7 +9,8 @@ import (
 // rule is what the checks of architecture 3.1 ask of a method before its handler
 // runs (R33).
 type rule struct {
-	// open is a method that goes with no token: an open view of a package.
+	// open is a method that goes with no token: an open view of a package, and
+	// the legal texts.
 	open bool
 	// noAccount is the one method a UID with no account may call: it makes the
 	// account.
@@ -41,11 +42,11 @@ var (
 // registers and this table lacks is served by no one: the checks refuse it, and
 // a test holds the table to the server's methods.
 //
-// Two methods take one of two rights, by who asks: the showing of a solution
-// is the learner's can_learn or the adult's can_manage, and the skill map the
-// learner's can_learn or the adult's can_view. The owner holds every right in
-// the first slice; the table checks can_learn, and the handler of E3 the right
-// its request names.
+// Four methods take one of two rights, by who asks: the showing of a solution,
+// the export of a profile and the storage of works are the learner's can_learn
+// or the adult's can_manage, and the skill map the learner's can_learn or the
+// adult's can_view. The owner holds every right in the first slice; the table
+// checks can_learn, and the handler the right its request names.
 var methods = map[string]rule{
 	apiv1connect.AccountServiceGetAccountProcedure:          ofAccount,
 	apiv1connect.AccountServiceCreateAccountProcedure:       makeAnew,
@@ -60,10 +61,16 @@ var methods = map[string]rule{
 	apiv1connect.AccountServiceSetVoicingProcedure:          toLearn,
 	apiv1connect.AccountServiceDeleteProfileProcedure:       deleting,
 	apiv1connect.AccountServiceDeleteAccountProcedure:       freshly,
-	apiv1connect.AccountServiceExportProfileProcedure:       toManage,
+	apiv1connect.AccountServiceExportProfileProcedure:       toLearn,
 	apiv1connect.AccountServiceExportAccountProcedure:       ofAccount,
 	apiv1connect.AccountServiceCheckOwnKeyProcedure:         toManage,
 	apiv1connect.AccountServiceListOwnKeyProvidersProcedure: toManage,
+	apiv1connect.AccountServiceSendConsentFormProcedure:     ofAccount,
+	apiv1connect.AccountServiceCancelChildConsentProcedure:  ofAccount,
+	apiv1connect.AccountServiceGiveOwnConsentProcedure:      toLearn,
+	apiv1connect.AccountServiceWithdrawOwnConsentProcedure:  toLearn,
+	apiv1connect.AccountServiceRestateAgeProcedure:          toManage,
+	apiv1connect.AccountServiceSetWorkStorageProcedure:      toLearn,
 
 	apiv1connect.AttemptServiceSubmitWorkProcedure:            toLearn,
 	apiv1connect.AttemptServiceSubmitEssayProcedure:           toLearn,
@@ -74,6 +81,7 @@ var methods = map[string]rule{
 	apiv1connect.AttemptServiceGetHintProcedure:               toLearn,
 	apiv1connect.AttemptServiceBeginStepProcedure:             toLearn,
 	apiv1connect.AttemptServiceShowSolutionProcedure:          toLearn,
+	apiv1connect.AttemptServiceReportProblemProcedure:         toLearn,
 
 	apiv1connect.LearningServiceChooseNextProcedure:     toLearn,
 	apiv1connect.LearningServiceBeginAttemptProcedure:   toLearn,
@@ -95,4 +103,6 @@ var methods = map[string]rule{
 
 	apiv1connect.ProgressServiceGetSkillMapProcedure: toLearn,
 	apiv1connect.ProgressServiceGetProgressProcedure: toView,
+
+	apiv1connect.LegalServiceGetLegalTextsProcedure: openView,
 }

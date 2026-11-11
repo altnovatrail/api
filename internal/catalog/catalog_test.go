@@ -31,6 +31,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/invite"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -162,7 +163,8 @@ func (w *world) learner(t *testing.T, uid string) learner {
 	if err := store.CreateInvite(t.Context(), w.pool, hash[:], invite.ClosedSlice); err != nil {
 		t.Fatal(err)
 	}
-	created, err := w.accounts.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true})
+	created, err := w.accounts.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true,
+		AcceptedTexts: legal.Spec().Refs(legal.PrivacyPolicy, legal.TermsOfUse)})
 	if err != nil {
 		t.Fatal(err)
 	}

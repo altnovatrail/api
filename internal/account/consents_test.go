@@ -16,6 +16,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/rpc"
 )
 
@@ -23,6 +24,7 @@ func (w *world) askConsent(t *testing.T, ctx context.Context, key string, age in
 	t.Helper()
 	res, err := w.client.RequestChildConsent(ctx, &v1.RequestChildConsentRequest{
 		IdempotencyKey: key, AgeYears: ptr(age), Country: country,
+		ParentConsentText: legal.Spec().Refs(legal.ParentConsent)[0],
 	})
 	return res.GetConsent(), err
 }
@@ -45,13 +47,21 @@ func TestAConsentForAChildWaitsWithItsCategoryAndCountryAlone(t *testing.T) {
 	for _, tc := range []struct {
 		age      int32
 		category string
-	}{{0, "under_13"}, {12, "under_13"}, {13, "from_consent_to_18"}, {17, "from_consent_to_18"}} {
+		giver    v1.ConsentGiver
+	}{{0, "under_13", v1.ConsentGiver_CONSENT_GIVER_PARENT}, {12, "under_13", v1.ConsentGiver_CONSENT_GIVER_PARENT},
+		{13, "from_consent_to_18", v1.ConsentGiver_CONSENT_GIVER_LEARNER}, {17, "from_consent_to_18", v1.ConsentGiver_CONSENT_GIVER_LEARNER}} {
 		got, err := w.askConsent(t, ctx, "key-"+tc.category+string(rune('a'+tc.age)), tc.age, "US")
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := &v1.ChildConsent{ConsentId: got.GetConsentId(), AgeCategory: tc.category, Country: "US",
-			State: v1.ConsentState_CONSENT_STATE_WAITING}
+			State: v1.ConsentState_CONSENT_STATE_WAITING, Giver: tc.giver, RequestCode: got.GetRequestCode()}
+		if tc.giver == v1.ConsentGiver_CONSENT_GIVER_PARENT {
+			want.Form = v1.FormState_FORM_STATE_NOT_SENT
+			if len(got.GetRequestCode()) != 11 || got.GetRequestCode()[5] != '-' {
+				t.Errorf("a parent's consent has the code %q, want ABCDE-FGHJK", got.GetRequestCode())
+			}
+		}
 		if !proto.Equal(got, want) {
 			t.Errorf("a consent at %d = %v, want %v", tc.age, got, want)
 		}
@@ -164,6 +174,7 @@ func TestAChildsProfileIsMadeByItsConfirmedConsent(t *testing.T) {
 		ProfileId: got.GetProfileId(), Pseudonym: "Fox", AgeCategory: "under_13", Country: "US",
 		PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &on, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
 		DefaultMode:       v1.Mode_MODE_BY_STEPS, AskBeforeShowing: true,
+		Consent: &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_PARENT, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
 	}
 	if !proto.Equal(got, want) {
 		t.Errorf("CreateChildProfile = %v\nwant %v", got, want)
@@ -255,9 +266,7 @@ func TestConsentsWaitUpToTheLimit(t *testing.T) {
 		last = consent
 	}
 	_, err := w.askConsent(t, ctx, "key-over", 8, "US")
-	if refusal := refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED); refusal != nil {
-		t.Errorf("the refusal over the limit carries %v, want none", refusal)
-	}
+	refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_TOO_MANY_CONSENTS)
 	again, err := w.askConsent(t, ctx, fmt.Sprintf("key-%d", consentsLimit), 8, "US")
 	if err != nil || !proto.Equal(again, last) {
 		t.Errorf("the repeat at the limit = %v, %v; want the same consent, %v", again, err, last)
@@ -301,7 +310,7 @@ func TestConsentsAskedTogetherKeepToTheLimit(t *testing.T) {
 			taken++
 			continue
 		}
-		refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+		refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_TOO_MANY_CONSENTS)
 	}
 	if n := w.count(t, "consents"); taken != 1 || n != consentsLimit {
 		t.Errorf("%d took a place and %d consents wait, want 1 and %d", taken, n, consentsLimit)

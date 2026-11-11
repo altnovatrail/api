@@ -33,6 +33,9 @@ type Sweep struct {
 	// PackagesDir is the absolute path of the folder of the packages, as serve
 	// reads it: the evidence the job writes is built of them (R49).
 	PackagesDir string
+	// Agreements is where the scans of the forms of consent lie, which the job
+	// erases past their term (R52).
+	Agreements Agreements
 }
 
 // Deployed reports whether the job runs as a deployed Cloud Run job.
@@ -58,6 +61,9 @@ func SweepFrom(environ []string) (*Sweep, error) {
 	}
 	var err error
 	if cfg.PackagesDir, err = packagesDir(env); err != nil {
+		problems = append(problems, err)
+	}
+	if cfg.Agreements, err = AgreementsFrom(environ); err != nil {
 		problems = append(problems, err)
 	}
 	if len(problems) > 0 {

@@ -69,7 +69,11 @@ func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Wr
 	// would wait for: the close is bounded as serve's is.
 	defer closeWithin(cfg.CloseTimeout(), p.close)
 
-	report := sweep.New(p.pool, pkgs, m, p.rights, p.signin, cfg.RequestTimeout, log).Run(ctx, time.Now())
+	store, err := formsStore(ctx, opens.Agreements)
+	if err != nil {
+		return logged(log, logging.MomentSweep, err)
+	}
+	report := sweep.New(p.pool, pkgs, m, p.rights, p.signin, cfg.RequestTimeout, log).WithForms(store).Run(ctx, time.Now())
 	if !report.Clean() {
 		// Each step's line has said what it did and failed.
 		return fmt.Errorf("%w: the pass was not clean", errLogged)

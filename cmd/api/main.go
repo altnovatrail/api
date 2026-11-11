@@ -1,10 +1,11 @@
 // Command api is NovaTrail's platform service, one binary with a command for
 // each thing it is run for: serve, migrate, invite, countries, sweep, packages,
-// check, after and version. The image it runs in has no shell, so whatever an
-// operator or its build runs — the migrations as a job, an invite code from a
-// terminal of their own (R34), the list of countries (R36), the daily job (R38),
-// the packages of modules laid into the image (R41), the check of the
-// configuration before the migrations (R45), the job after a rollout (R51) — is
+// check, after, consents, reports and version. The image it runs in has no shell,
+// so whatever an operator or its build runs — the migrations as a job, an invite
+// code from a terminal of their own (R34), the list of countries (R36), the daily
+// job (R38), the packages of modules laid into the image (R41), the check of the
+// configuration before the migrations (R45), the job after a rollout (R51), the
+// check of the parents' forms and the reading of the problem reports (R52) — is
 // a command of this binary too (R105 spec).
 package main
 
@@ -40,6 +41,8 @@ Commands:
   packages  lay the packages of the pinned release of modules into a folder
   check     check what the deployment declares for admission to AI
   after     close what the image no longer gives, once, after a rollout
+  consents  list, confirm or reject the signed forms of parents' consents
+  reports   list or review the problem reports on the tutor's replies
   version   print the build of this binary
 `
 
@@ -76,6 +79,8 @@ var commands = map[string]func(ctx context.Context, args, environ []string, stdo
 	"sweep":     sweepPass,
 	"packages":  layPackages,
 	"after":     afterPass,
+	"consents":  judgeConsents,
+	"reports":   reviewReports,
 	"version":   printVersion,
 }
 

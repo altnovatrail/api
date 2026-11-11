@@ -178,16 +178,3 @@ func TestAWriteUnderAMarkedAccountIsRefused(t *testing.T) {
 		t.Error("a PIN was written under the marked account")
 	}
 }
-
-func TestAnExportIsNotGivenUntilItsFormatIs(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	w.allow(t, "US")
-	ctx := w.owner(t, "uid-owner")
-	id := w.ownerProfile(t, ctx).GetProfileId()
-	_, err := w.client.ExportProfile(ctx, &v1.ExportProfileRequest{ProfileId: id})
-	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
-	_, err = w.client.ExportAccount(ctx, &v1.ExportAccountRequest{})
-	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
-}

@@ -33,13 +33,14 @@ func CreateInvite(ctx context.Context, db Querier, codeSHA256 []byte, tariff str
 // ErrAccountExists — or ErrAccountDeleting, when it is marked — before the code
 // is looked at, so that a repeat is not refused for the code it redeemed; then a
 // code not there or redeemed is ErrCodeNotAccepted, and no account is left. The
-// code is bound to the account, and its tariff passes to it.
+// code is bound to the account, and its tariff passes to it, and the texts the
+// owner accepted are recorded with it (R136 spec).
 //
 // Two creations race safely. Two by one UID: the second waits on the UID's
 // unique index and finds the first's account. Two for one code: the second waits
 // on the code's row and finds it redeemed. Either way, a first one that rolls
 // back leaves the second to go on.
-func CreateAccount(ctx context.Context, db Beginner, uid string, codeSHA256 []byte) (string, error) {
+func CreateAccount(ctx context.Context, db Beginner, uid string, codeSHA256 []byte, texts []TextRef) (string, error) {
 	var id string
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `INSERT INTO accounts (auth_uid, adult_stated_at, last_request_on)
@@ -65,7 +66,7 @@ func CreateAccount(ctx context.Context, db Beginner, uid string, codeSHA256 []by
 		case err != nil:
 			return fmt.Errorf("store: redeem the code: %w", err)
 		}
-		return nil
+		return AcceptTexts(ctx, tx, id, texts, time.Now())
 	})
 	if err != nil {
 		return "", err

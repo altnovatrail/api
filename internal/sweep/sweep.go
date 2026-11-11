@@ -24,6 +24,7 @@ import (
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/deletion"
+	"github.com/altnovatrail/api/internal/forms"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
@@ -91,6 +92,8 @@ type Sweeper struct {
 	signin  Signin
 	deleter *deletion.Deleter
 	settle  time.Duration
+	// forms is the store of the scans of the forms of consent, or none.
+	forms forms.Store
 }
 
 // New is the daily job on db, rights and signin, with the packages of the image,
@@ -150,6 +153,8 @@ func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 		logging.StepUsers:             s.users,
 		logging.StepTuples:            s.tuples,
 		logging.StepConsentRecords:    s.consentRecords,
+		logging.StepConsentForms:      s.consentForms,
+		logging.StepProblemReports:    s.problemReports,
 		logging.StepKeys:              s.keys,
 		logging.StepChangelog:         s.changelog,
 	})
@@ -453,3 +458,59 @@ func (s *Sweeper) changelog(ctx context.Context, now time.Time, step *Step) {
 	}
 	step.Finished = true
 }
+
+// WithForms is the job with the store of the scans of the forms of consent,
+// whose scans past their term it erases (R116, R117 spec).
+func (s *Sweeper) WithForms(store forms.Store) *Sweeper {
+	s.forms = store
+	return s
+}
+
+// reportsTerm is how long a problem report is kept after it was reviewed
+// (R123 spec).
+const reportsTerm = 365 * 24 * time.Hour
+
+// consentForms erases the scans whose consent is gone and whose term ended: at
+// once for one that waited, 5 years after for one confirmed (R117 spec), a page
+// at a time; the store first, then the row, so that a failure leaves the row to
+// the next pass. With no store configured, a scan past its term is a failure:
+// the job is configured with another store than the service that sent it.
+func (s *Sweeper) consentForms(ctx context.Context, now time.Time, step *Step) {
+	if s.forms == nil {
+		past, err := store.FormsPastTerm(ctx, s.db, now, "", 1)
+		switch {
+		case err != nil:
+			s.failed(ctx, step, err)
+		case len(past) > 0:
+			s.failed(ctx, step, errNoForms)
+		default:
+			step.Finished = true
+		}
+		return
+	}
+	step.Finished = pages(ctx, &s.job, step,
+		func(after string) ([]string, error) { return store.FormsPastTerm(ctx, s.db, now, after, batch) },
+		func(object string) string { return object },
+		func(object string) (bool, error) {
+			if err := s.forms.Delete(ctx, object); err != nil {
+				return false, err
+			}
+			return true, store.DropForm(ctx, s.db, object)
+		})
+}
+
+// problemReports deletes the problem reports reviewed more than a year ago
+// (R123 spec).
+func (s *Sweeper) problemReports(ctx context.Context, now time.Time, step *Step) {
+	dropped, err := store.DropReports(ctx, s.db, now.Add(-reportsTerm))
+	step.Done = dropped
+	if err != nil {
+		s.failed(ctx, step, err)
+		return
+	}
+	step.Finished = true
+}
+
+// errNoForms is a scan past its term with no store of the forms to erase it
+// from.
+var errNoForms = errors.New("sweep: a scan of a form is past its term, and no store of the forms is configured")

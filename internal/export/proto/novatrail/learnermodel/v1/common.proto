@@ -1,0 +1,73 @@
+// What the evidence and the state of the learner model share: places of bands, answer slots and
+// the values both name. The bytes of these messages are written by learner-model's own codec,
+// canonically, and this schema describes them (docs/architecture.md, section 3.7, of
+// learner-model). A field is never renumbered or removed: the schema only grows.
+syntax = "proto3";
+
+package novatrail.learnermodel.v1;
+
+// A band of the module's difficulty scale, as a task or a start names it.
+message BandRef {
+  // The band's place in the `bands` of the module version the attempt was on, from 1. The model
+  // reads the place: the places of earlier bands are the same in every version of a module.
+  optional int32 place = 1;
+  // The band's ID in the manifest. The model does not read it; it is kept for a table that would
+  // map the bands of one version to another, should one ever be needed.
+  optional string band_id = 2;
+}
+
+// An answer slot of an item, as the model needs it to know how likely a guess is.
+message AnswerSlot {
+  // How the answer in the slot is checked.
+  optional CheckKind check_kind = 1;
+  // For a choice, the number of its options, the k of a guess of 1/k; absent for the other kinds.
+  optional int32 option_count = 2;
+}
+
+// The check kind of an answer slot, of those that give a verdict (the format's section 15).
+enum CheckKind {
+  // Not given. A kind that a later version adds reads as an item with no answer.
+  CHECK_KIND_UNSPECIFIED = 0;
+  // `number`: a number of the key's value; no guessing.
+  CHECK_KIND_NUMBER = 1;
+  // `fraction`: a fraction of the key's value; no guessing.
+  CHECK_KIND_FRACTION = 2;
+  // `choice`: the option that is the key; a guess is right one time in the number of options.
+  CHECK_KIND_CHOICE = 3;
+  // `predicate`: a whole number the predicate holds for; no guessing.
+  CHECK_KIND_PREDICATE = 4;
+}
+
+// The verdict of an item: what a program found of the answer, without AI.
+enum Verdict {
+  // Not given. A verdict that a later version adds reads as an item with no answer.
+  VERDICT_UNSPECIFIED = 0;
+  // `correct`: the answer is right.
+  VERDICT_CORRECT = 1;
+  // `not_yet`: the answer is not right yet.
+  VERDICT_NOT_YET = 2;
+}
+
+// Where a key or the skill tags of a task came from (concepts 9.4 of spec).
+enum Provenance {
+  // Not given.
+  PROVENANCE_UNSPECIFIED = 0;
+  // From the module's author.
+  PROVENANCE_AUTHOR = 1;
+  // Computed by the solver or an expression of a task template.
+  PROVENANCE_SOLVER = 2;
+  // Entered by an adult, as the key of a task from paper.
+  PROVENANCE_ADULT = 3;
+  // Inferred by AI: no verdict rests on it, and the evidence weighs nothing.
+  PROVENANCE_AI = 4;
+}
+
+// A trap of the module's trap catalog, with how often the program found it.
+message TrapCount {
+  // The full ID of the trap.
+  optional string trap_id = 1;
+  // The number of pieces of evidence the program found the trap in, once for each.
+  optional int64 evidence_count = 2;
+  // The practice time of the latest of them, in whole seconds of Unix time, UTC.
+  optional int64 last_found_time = 3;
+}

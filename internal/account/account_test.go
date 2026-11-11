@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/connect/v2/connectproto"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
+	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/proto"
@@ -27,8 +28,13 @@ import (
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authn/authntest"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/export"
+	"github.com/altnovatrail/api/internal/forms"
 	"github.com/altnovatrail/api/internal/invite"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
 	"github.com/altnovatrail/api/internal/store"
@@ -46,6 +52,8 @@ type world struct {
 	client apiv1connect.AccountServiceClient
 	clock  *clock
 	log    *syncBuffer
+	// forms is the folder the scans of the forms of the world lie in.
+	forms string
 	// ownerFails makes the writing of a tuple fail, and deleteFails its deletion.
 	ownerFails, deleteFails atomic.Bool
 }
@@ -125,20 +133,33 @@ func (b *syncBuffer) String() string {
 // database, which the checks see as it is.
 func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	t.Helper()
+	return newWorldWith(t, []account.Option{account.WithExport(exporter(t))}, wrap...)
+}
+
+// newWorldWith is the world with options of its own, beside its clock and the
+// folder of its forms when options is not nil.
+func newWorldWith(t *testing.T, options []account.Option, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
+	t.Helper()
 
 	rights, err := authz.Open(t.Context(), storetest.OpenFGAURL(t, true))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(rights.Close)
-	w := &world{pool: storetest.DB(t), signin: &authntest.Fake{}, clock: &clock{now: time.Now()}, log: &syncBuffer{}}
+	w := &world{pool: storetest.DB(t), signin: &authntest.Fake{}, clock: &clock{now: time.Now()}, log: &syncBuffer{},
+		forms: t.TempDir()}
 	var db rpc.DB = w.pool
 	if len(wrap) > 0 {
 		db = wrap[0](w.pool)
 	}
 	log := logging.New(w.log, slog.LevelInfo)
+	if options != nil {
+		options = append([]account.Option{account.WithForms(forms.Dir(w.forms))}, options...)
+	}
+	options = append(options, account.WithClock(w.clock.Now))
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(db, w.owners(rights), w.signin, account.WithClock(w.clock.Now))})
+		rpc.Handlers{Account: account.New(db, w.owners(rights), w.signin,
+			options...)})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	w.client = apiv1connect.NewAccountServiceClient(connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL)))
@@ -198,7 +219,8 @@ func refusedAs(t *testing.T, err error, code connect.Code, cause v1.Cause) *v1.R
 }
 
 func create(ctx context.Context, w *world, code string) (*v1.CreateAccountResponse, error) {
-	return w.client.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true})
+	return w.client.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true,
+		AcceptedTexts: legal.Spec().Refs(legal.PrivacyPolicy, legal.TermsOfUse)})
 }
 
 func TestAnOwnerWithACodeCreatesTheAccountAndReadsIt(t *testing.T) {
@@ -370,6 +392,8 @@ func TestTheAccountGivesItsProfilesAndConsentsInTheContractsWords(t *testing.T) 
 		}},
 		ChildConsents: []*v1.ChildConsent{{
 			ConsentId: consent, AgeCategory: "from_13_to_consent", Country: "US", State: v1.ConsentState_CONSENT_STATE_WAITING,
+			Giver: v1.ConsentGiver_CONSENT_GIVER_PARENT, RequestCode: got.GetAccount().GetChildConsents()[0].GetRequestCode(),
+			Form: v1.FormState_FORM_STATE_NOT_SENT,
 		}},
 	}
 	if !proto.Equal(got.GetAccount(), want) {
@@ -444,4 +468,21 @@ func TestAnAccountMadeBesideComesBeforeTheForm(t *testing.T) {
 			refusedAs(t, err, tc.code, tc.cause)
 		})
 	}
+}
+
+// exporter is the export of the tests, on a set of packages with none: what a
+// package tells of an attempt, the tests of the package export check.
+func exporter(t *testing.T) *export.Exporter {
+	t.Helper()
+	set := packagestest.Set(t, packagestest.Entry{ID: "example/old", Version: "0.1.0", Format: "0.3",
+		Digest: formatv0.Digest("sha256:" + strings.Repeat("b", 64)), Release: "v0.1.0"})
+	m, err := model.New(set, "v0.1.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, err := export.New(set, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return x
 }

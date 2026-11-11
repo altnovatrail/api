@@ -167,7 +167,7 @@ func TestAChildsProfileIsMadeOfItsConsent(t *testing.T) {
 	var waiting store.ChildConsent
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		var err error
-		waiting, err = store.CreateChildConsent(ctx, tx, id, "under_13", "US")
+		waiting, err = store.AskChildConsent(ctx, tx, id, store.NewConsent{AgeCategory: "under_13", Country: "US", Applied: 13, Giver: store.GiverParent, RequestCode: "ABCDE-FGHJK"})
 		return err
 	})
 	if err != nil || waiting.ID == "" || waiting.State != store.ConsentWaiting {

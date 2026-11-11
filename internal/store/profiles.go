@@ -24,12 +24,12 @@ const ConsentByOwnerStatement = "owner_statement"
 
 // profileColumns are the columns of a Profile, in scanProfile's order.
 const profileColumns = `id, owner, pseudonym, avatar, age_category, country, voicing_enabled,
-	voicing_speed, default_mode, interface_language, grade, ask_before_showing`
+	voicing_speed, default_mode, interface_language, grade, ask_before_showing, work_storage, age_stated_on`
 
 func scanProfile(row pgx.Row) (Profile, error) {
 	var p Profile
 	err := row.Scan(&p.ID, &p.Owner, &p.Pseudonym, &p.Avatar, &p.AgeCategory, &p.Country, &p.VoicingEnabled,
-		&p.VoicingSpeed, &p.DefaultMode, &p.InterfaceLanguage, &p.Grade, &p.AskBeforeShowing)
+		&p.VoicingSpeed, &p.DefaultMode, &p.InterfaceLanguage, &p.Grade, &p.AskBeforeShowing, &p.WorkStorage, &p.AgeStatedOn)
 	return p, err
 }
 
@@ -60,8 +60,8 @@ func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Prof
 		return Profile{}, fmt.Errorf("store: create the owner's profile: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO consents (account_id, profile_id, subject, state, age_category, country,
-			method, confirmed_at)
-		VALUES ($1, $2, 'adult', 'confirmed', 'adult', $3, $4, now())`,
+			method, confirmed_at, giver)
+		VALUES ($1, $2, 'adult', 'confirmed', 'adult', $3, $4, now(), 'owner')`,
 		accountID, created.ID, created.Country, ConsentByOwnerStatement); err != nil {
 		return Profile{}, fmt.Errorf("store: record the owner's consent: %w", err)
 	}

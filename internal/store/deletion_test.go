@@ -26,6 +26,13 @@ func TestTheRowsOfAnAccountGoAndTheMinimalRecordsStay(t *testing.T) {
 		VALUES ($1, $2, 'child', 'confirmed', 'under_13', 'US', now()) RETURNING id`, id, profileID).Scan(&consentID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO account_texts (account_id, text_id, version, accepted_at) VALUES ($1, 'terms-of-use', 1, now())`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO problem_reports (account_id, reply, words, kind, text, created_at)
+		VALUES ($1, 'correct_answer', 'w', 'other', '', now())`, id); err != nil {
+		t.Fatal(err)
+	}
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		if err := store.MarkDeleting(ctx, tx, id); err != nil {
 			return err
@@ -41,6 +48,9 @@ func TestTheRowsOfAnAccountGoAndTheMinimalRecordsStay(t *testing.T) {
 	}
 	if n := count(t, pool, "profiles"); n != 0 {
 		t.Errorf("profiles = %d after the clearing, want none", n)
+	}
+	if count(t, pool, "account_texts") != 0 || count(t, pool, "problem_reports WHERE account_id IS NULL") != 1 {
+		t.Error("want the texts gone and the report kept with no account")
 	}
 	// The last step deletes the row, and a repeat finds it gone; the record stays.
 	for range 2 {

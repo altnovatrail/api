@@ -14,8 +14,13 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 
+	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/consentage"
 	"github.com/altnovatrail/api/internal/deletion"
+	"github.com/altnovatrail/api/internal/export"
+	"github.com/altnovatrail/api/internal/forms"
 	"github.com/altnovatrail/api/internal/invite"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -26,6 +31,10 @@ type Service struct {
 	db      rpc.DB
 	rights  Rights
 	deleter *deletion.Deleter
+	texts   *legal.Texts
+	ages    *consentage.Table
+	forms   forms.Store
+	export  *export.Exporter
 	now     func() time.Time
 }
 
@@ -33,6 +42,7 @@ type Service struct {
 // of what it deletes: authz.Rights.
 type Rights interface {
 	WriteOwner(ctx context.Context, accountID, profileID string) error
+	Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error)
 	deletion.Rights
 }
 
@@ -42,10 +52,23 @@ type Option func(*Service)
 // WithClock is the clock the PIN's count goes by, the system's by default.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
+// WithTexts is the legal texts the requests of a consent name, those of the
+// tag by default (legal.Spec): a self-hosted copy's folder.
+func WithTexts(texts *legal.Texts) Option { return func(s *Service) { s.texts = texts } }
+
+// WithForms is the store of the scans of the forms of a parent's consent; with
+// none, SendConsentForm is refused unavailable.
+func WithForms(store forms.Store) Option { return func(s *Service) { s.forms = store } }
+
+// WithExport is the exporter of the profiles and the account; with none, the
+// export is refused unimplemented.
+func WithExport(x *export.Exporter) Option { return func(s *Service) { s.export = x } }
+
 // New is the AccountService on db, with the tuples of the profiles in rights
 // and the users at signin.
 func New(db rpc.DB, rights Rights, signin deletion.Signin, options ...Option) *Service {
-	s := &Service{db: db, rights: rights, deleter: deletion.New(db, rights, signin), now: time.Now}
+	s := &Service{db: db, rights: rights, deleter: deletion.New(db, rights, signin), now: time.Now,
+		texts: legal.Spec(), ages: consentage.Spec()}
 	for _, option := range options {
 		option(s)
 	}
@@ -61,11 +84,13 @@ func (s *Service) GetAccount(ctx context.Context, _ *v1.GetAccountRequest) (*v1.
 	if err != nil {
 		return nil, refused(ctx, err)
 	}
-	return &v1.GetAccountResponse{Account: account(view)}, nil
+	return &v1.GetAccountResponse{Account: s.account(view)}, nil
 }
 
-// CreateAccount creates the caller's account by an invite code and the owner's
-// statement that they are 18 or older. A caller with an account already gets
+// CreateAccount creates the caller's account by an invite code, the owner's
+// statement that they are 18 or older and the current versions of
+// privacy-policy and terms-of-use, which it records (R130, R136 spec): a text in
+// force left out, or a version not current, is CAUSE_TEXT_NOT_CURRENT. A caller with an account already gets
 // CAUSE_ALREADY_EXISTS before the statement and the code are looked at, so that
 // a repeat after a lost answer gets that rather than a code redeemed (contract,
 // CreateAccount).
@@ -78,7 +103,14 @@ func (s *Service) CreateAccount(ctx context.Context, req *v1.CreateAccountReques
 	if !req.GetAdultStated() || !ok {
 		return nil, s.malformed(ctx, caller.UID, req.GetAdultStated())
 	}
-	id, err := store.CreateAccount(ctx, s.db, caller.UID, code[:])
+	if !s.texts.Names(req.GetAcceptedTexts(), legal.PrivacyPolicy, legal.TermsOfUse) {
+		return nil, textNotCurrent(ctx)
+	}
+	var texts []store.TextRef
+	for _, ref := range req.GetAcceptedTexts() {
+		texts = append(texts, store.TextRef{ID: ref.GetId(), Version: ref.GetVersion()})
+	}
+	id, err := store.CreateAccount(ctx, s.db, caller.UID, code[:], texts)
 	if err != nil {
 		return nil, refused(ctx, err)
 	}
@@ -127,10 +159,10 @@ func codeNotAccepted(ctx context.Context) error {
 }
 
 // account is the view in the contract's words.
-func account(view store.View) *v1.Account {
+func (s *Service) account(view store.View) *v1.Account {
 	out := &v1.Account{AccountId: view.ID, PinSet: view.PinSet}
 	for _, p := range view.Profiles {
-		out.Profiles = append(out.Profiles, profile(p))
+		out.Profiles = append(out.Profiles, s.profile(p))
 	}
 	for _, c := range view.ChildConsents {
 		out.ChildConsents = append(out.ChildConsents, childConsent(c))
@@ -138,7 +170,7 @@ func account(view store.View) *v1.Account {
 	return out
 }
 
-func profile(p store.Profile) *v1.Profile {
+func (s *Service) profile(p store.Profile) *v1.Profile {
 	out := &v1.Profile{
 		ProfileId:   p.ID,
 		Owner:       p.Owner,
@@ -153,6 +185,7 @@ func profile(p store.Profile) *v1.Profile {
 		DefaultMode:       modes[p.DefaultMode],
 		InterfaceLanguage: p.InterfaceLanguage,
 		AskBeforeShowing:  p.AskBeforeShowing,
+		WorkStorage:       p.WorkStorage,
 	}
 	if p.Grade != nil {
 		grade := int32(*p.Grade)
@@ -168,6 +201,16 @@ func profile(p store.Profile) *v1.Profile {
 		out.OpenLessonRuns = append(out.OpenLessonRuns, &v1.LessonRunRef{LessonRunId: r.ID, Lesson: r.LessonID,
 			PackageDigest: r.PackageDigest})
 	}
+	now := s.now()
+	if p.Consent.Giver != "" {
+		out.Consent = &v1.ProfileConsent{Giver: givers[p.Consent.Giver], Need: s.need(p.Consent, now)}
+		if out.Consent.Need == v1.ConsentNeed_CONSENT_NEED_PARENT {
+			out.Consent.Waiting = childConsent(p.Consent.ChildConsent)
+		}
+	}
+	// The category of a child is refined a year after its age was given; the
+	// owner's is their statement (privacy 3.3 spec).
+	out.AgeCheckDue = !p.Owner && p.AgeStatedOn != nil && !now.UTC().Before(p.AgeStatedOn.AddDate(1, 0, 0))
 	return out
 }
 

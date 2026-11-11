@@ -281,15 +281,10 @@ func TestTheSchemaRefuses(t *testing.T) {
 				VALUES ($1, true, 'Owl', 'adult', 'usa', false, 'self', false)`, id)
 			return err
 		}, "23514"},
-		{"a waiting consent with a profile", func(ctx context.Context, pool *pgxpool.Pool, id string) error {
-			return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-				if err := profile(ctx, tx, id); err != nil {
-					return err
-				}
-				_, err := tx.Exec(ctx, `INSERT INTO consents (account_id, profile_id, subject, state, age_category, country)
-					SELECT $1, id, 'child', 'waiting', 'under_13', 'US' FROM profiles WHERE account_id = $1`, id)
-				return err
-			})
+		{"a learner's consent with the code of a parent's request", func(ctx context.Context, pool *pgxpool.Pool, id string) error {
+			_, err := pool.Exec(ctx, `INSERT INTO consents (account_id, subject, state, age_category, country, giver, request_code)
+				VALUES ($1, 'child', 'waiting', 'from_consent_to_18', 'US', 'learner', 'ABCDE-FGHJK')`, id)
+			return err
 		}, "23514"},
 		{"a module of no ID", func(ctx context.Context, pool *pgxpool.Pool, id string) error {
 			return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {

@@ -120,6 +120,12 @@ const (
 	FieldRungSet = "rung_set"
 	// FieldPlatformKeys is how many providers the platform holds a key of.
 	FieldPlatformKeys = "platform_keys"
+	// FieldLegalDir says whether the deployment names a folder of its own legal
+	// texts, rather than serving those of spec's tag.
+	FieldLegalDir = "legal_dir"
+	// FieldConsentForms is the store of the scans of the forms of consent: a
+	// word of FormsStores.
+	FieldConsentForms = "consent_forms"
 	// FieldOutcomeCause is the cause of the outcome of an answer that was no
 	// refusal: a call of AI that gave no reading.
 	FieldOutcomeCause = "outcome_cause"
@@ -149,6 +155,8 @@ const (
 	MomentSweep     = "sweep"
 	MomentPackages  = "packages"
 	MomentAfter     = "after"
+	MomentConsents  = "consents"
+	MomentReports   = "reports"
 )
 
 // The steps of the daily job and of the job after a rollout: the value set of
@@ -165,12 +173,14 @@ const (
 	StepUsers             = "users"
 	StepTuples            = "tuples"
 	StepConsentRecords    = "consent_records"
+	StepConsentForms      = "consent_forms"
+	StepProblemReports    = "problem_reports"
 	StepKeys              = "keys"
 	StepChangelog         = "changelog"
 )
 
 // Steps is every step of the daily job, in the order it takes them.
-var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepKeys, StepChangelog}
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepConsentForms, StepProblemReports, StepKeys, StepChangelog}
 
 // AfterSteps is every step of the job after a rollout, in the order it takes
 // them: the steps of the daily job that close what the image no longer gives
@@ -186,7 +196,7 @@ const (
 // events is every event and the fields it may carry.
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
-		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys},
+		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
 	EventStopping:     {},
 	EventStopped:      {FieldCutShort},
 	EventShutdown:     {FieldStarted},
@@ -197,7 +207,7 @@ var events = map[string][]string{
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
-	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys},
+	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
 		FieldAIOutcome, FieldDurationMS},
 }
@@ -222,7 +232,7 @@ var fields = map[string]rule{
 	FieldDeployed:       {kind: slog.KindBool},
 	FieldStarted:        {kind: slog.KindBool},
 	FieldCutShort:       {kind: slog.KindBool},
-	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter}},
+	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports}},
 	FieldErrorKind:      {kind: slog.KindLogValuer},
 	FieldPanicKind:      {kind: slog.KindLogValuer},
 	FieldApplied:        {kind: slog.KindInt64},
@@ -248,6 +258,8 @@ var fields = map[string]rule{
 	FieldRung:           {kind: slog.KindString, values: Rungs},
 	FieldRungSet:        {kind: slog.KindBool},
 	FieldPlatformKeys:   {kind: slog.KindInt64},
+	FieldLegalDir:       {kind: slog.KindBool},
+	FieldConsentForms:   {kind: slog.KindString, values: FormsStores},
 	FieldOutcomeCause:   {kind: slog.KindString, shape: matches(causeShape)},
 	FieldProvider:       {kind: slog.KindString, values: Providers},
 	FieldModel:          {kind: slog.KindString, shape: matches(modelShape)},
@@ -319,3 +331,7 @@ var AIOutcomes = []string{"answered", "failed", "limit_reached", "not_admitted",
 // modelShape is a model's ID as a provider answers with it: lowercase letters,
 // digits, dots, dashes and underscores, as "claude-opus-5-5" — no free text.
 var modelShape = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+
+// FormsStores is every store of the scans of the forms of consent: the value
+// set of FieldConsentForms.
+var FormsStores = []string{"none", "bucket", "folder"}

@@ -22,20 +22,27 @@ type ConnectedModule struct {
 
 // Learner is what a learning request reads of its profile, in one query: the
 // age category, by which a module's audience suits it (R07), and whether its
-// consent is confirmed: a profile has one consent at most, and a consent that
-// waits has no profile (architecture 3.1, step 5; R116 spec).
+// consent is confirmed: a profile has one consent at most, which a learner who
+// consents themselves, or whose age was given again, waits for (architecture
+// 3.1, step 5; R116, R136 spec).
 type Learner struct {
 	AgeCategory string
 	Consented   bool
+	// Country and Applied are the country of the learner and the age of digital
+	// consent their category was given by, by which their age may be asked again
+	// (consent-age/README.md of spec, section 6).
+	Country string
+	Applied int
 }
 
 // LearnerOf is the learner of the account's profile; ErrNoProfile when the
 // account has no such profile.
 func LearnerOf(ctx context.Context, db Querier, accountID, profileID string) (Learner, error) {
 	var l Learner
-	err := db.QueryRow(ctx, `SELECT p.age_category,
-		EXISTS (SELECT 1 FROM consents c WHERE c.profile_id = p.id AND c.state = 'confirmed')
-		FROM profiles p WHERE p.id = $1 AND p.account_id = $2`, profileID, accountID).Scan(&l.AgeCategory, &l.Consented)
+	err := db.QueryRow(ctx, `SELECT p.age_category, p.country, coalesce(c.state = 'confirmed', false),
+		coalesce(c.applied, 0)
+		FROM profiles p LEFT JOIN consents c ON c.profile_id = p.id
+		WHERE p.id = $1 AND p.account_id = $2`, profileID, accountID).Scan(&l.AgeCategory, &l.Country, &l.Consented, &l.Applied)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return Learner{}, ErrNoProfile

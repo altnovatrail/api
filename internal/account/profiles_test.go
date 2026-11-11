@@ -47,6 +47,7 @@ func TestTheOwnersProfileIsAnAdultsWithItsConsentAndTuple(t *testing.T) {
 		ProfileId: got.GetProfileId(), Owner: true, Pseudonym: "Owl", AgeCategory: "adult", Country: "US",
 		PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &off, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
 		DefaultMode:       v1.Mode_MODE_BY_STEPS,
+		Consent:           &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_OWNER, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
 	}
 	if !proto.Equal(got, want) {
 		t.Errorf("CreateOwnerProfile = %v\nwant %v", got, want)
