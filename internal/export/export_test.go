@@ -7,6 +7,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -224,8 +226,9 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	_ = run
 }
 
-// The .proto of the observation the export carries is that of the contracts of
-// spec's tag.
+// The .proto of the observation the export carries is that of the contracts at
+// the version go.mod takes. It is read from that module, which every build has
+// in its module cache, and not from the submodule: CI checks out none.
 func TestTheObservationsProtoIsTheContracts(t *testing.T) {
 	t.Parallel()
 
@@ -233,12 +236,16 @@ func TestTheObservationsProtoIsTheContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := os.ReadFile("../../spec/contracts/novatrail/observation/v1/observation.proto")
+	dir, err := exec.CommandContext(t.Context(), "go", "list", "-m", "-f", "{{.Dir}}", "github.com/altnovatrail/spec/contracts").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(dir)), "novatrail", "observation", "v1", "observation.proto"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(ours, theirs) {
-		t.Error("internal/export/proto/novatrail/observation/v1/observation.proto is not that of the contracts of spec's tag: copy it again")
+		t.Error("internal/export/proto/novatrail/observation/v1/observation.proto is not that of the contracts go.mod takes: copy it again")
 	}
 }
 

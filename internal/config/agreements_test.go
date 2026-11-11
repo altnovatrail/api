@@ -2,6 +2,8 @@ package config_test
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,12 +36,16 @@ func TestTheAgreementsAreRead(t *testing.T) {
 func TestTheAgreementsRefusals(t *testing.T) {
 	t.Parallel()
 
+	tree := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tree, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		environ []string
 		names   string
 	}{
 		{[]string{"API_LEGAL_DIR=texts"}, "API_LEGAL_DIR"},
-		{[]string{"API_CONSENT_FORMS_DIR=/workspaces/api/forms"}, "API_CONSENT_FORMS_DIR"},
+		{[]string{"API_CONSENT_FORMS_DIR=" + filepath.Join(tree, "forms")}, "API_CONSENT_FORMS_DIR"},
 		{[]string{"API_CONSENT_FORMS_BUCKET=b", "API_CONSENT_FORMS_PREFIX=p/"}, "API_CONSENT_FORMS_BUCKET"},
 		{[]string{"K_SERVICE=api", "API_CONSENT_FORMS_BUCKET=b"}, "API_CONSENT_FORMS_PREFIX"},
 		{[]string{"K_SERVICE=api", "API_CONSENT_FORMS_BUCKET=b", "API_CONSENT_FORMS_PREFIX=p"}, "API_CONSENT_FORMS_PREFIX"},

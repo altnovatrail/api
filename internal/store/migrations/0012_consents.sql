@@ -35,7 +35,8 @@ UPDATE consents SET giver = CASE WHEN subject = 'adult' THEN 'owner' ELSE 'paren
     form_state = CASE WHEN subject = 'child' THEN 'not_sent' END,
     request_code = CASE WHEN subject = 'child' THEN
         upper(substr(md5(random()::text), 1, 5)) || '-' ||
-        upper(substr(md5(random()::text), 1, 5)) END;
+        upper(substr(md5(random()::text), 1, 5)) END
+    WHERE giver IS NULL;
 
 ALTER TABLE consents ALTER COLUMN giver SET NOT NULL;
 
@@ -70,7 +71,7 @@ CREATE UNIQUE INDEX consents_request_code ON consents (request_code) WHERE state
 -- after, as its minimal record is (R117 spec), and the scan of one that waited goes at once — the
 -- daily job erases both by keep_until.
 CREATE TABLE consent_forms (
-    object text PRIMARY KEY CHECK (object <> ''),
+    object text PRIMARY KEY CHECK (char_length(object) >= 1),
     consent_id uuid UNIQUE REFERENCES consents (id) ON DELETE SET NULL,
     media_type text NOT NULL CHECK (media_type IN ('image/jpeg', 'image/png', 'application/pdf')),
     sent_at timestamptz NOT NULL,
