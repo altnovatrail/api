@@ -56,6 +56,8 @@ github.com/altnovatrail/engine v0.1.6 h1:rcYD/ZAYFHltvLWEkv9L9AICnee4V4XpqVecRxB
 github.com/altnovatrail/engine v0.1.6/go.mod h1:o5Foq6+10V1ivAwePpuaJC0B1VQ1q8tqkEdw/Q5ywt4=
 github.com/altnovatrail/learner-model v0.1.4 h1:GBUPnVDE/GVMTB9CWq4fOIyPc9tyL/U4F27mLNvIwXo=
 github.com/altnovatrail/learner-model v0.1.4/go.mod h1:RXiblPvAomqm/gZw1jRhGO7Ns8dI7m1uk5g9zmUkxEU=
+github.com/altnovatrail/learner-model v0.1.6 h1:xoifdkdFlXvTSgjFu939p2Ol2oB7s6G6pCO3h2GxfxU=
+github.com/altnovatrail/learner-model v0.1.6/go.mod h1:RXiblPvAomqm/gZw1jRhGO7Ns8dI7m1uk5g9zmUkxEU=
 github.com/altnovatrail/module-kit v0.3.0 h1:ydpXXqh5gTmBFy5TmaKUhvd+QjCVnG0zWiJVPJ4BsmQ=
 github.com/altnovatrail/module-kit v0.3.0/go.mod h1:ZKr2asx1/A1Z1e0Wq2uqS3r5eMZtgY+WsHFMjmaV0qc=
 github.com/altnovatrail/spec v0.15.0 h1:HHYATSizc0DyBNqPpShOfS+ABuZNVooi1V9tLoC9/DI=

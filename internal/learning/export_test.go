@@ -3,6 +3,8 @@ package learning
 import (
 	"context"
 
+	learnermodel "github.com/altnovatrail/learner-model"
+	"github.com/altnovatrail/module-kit/modulepackage"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 )
@@ -38,4 +40,15 @@ func (f tellerFunc) Words(bool, formatv0.AgeCategory, string) bool { return true
 
 func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
 	return f(ctx, w)
+}
+
+// Candidates is the full IDs of the tasks of pkg the engine's pool holds for a
+// learner of category, and how many of its lessons it gets: those this code
+// begins.
+func (s *Service) Candidates(pkg *modulepackage.Package, category formatv0.AgeCategory) (pool []string, lessons int, err error) {
+	m, _, err := s.candidates(pkg, learnermodel.Graph{}, category)
+	for _, c := range m.Pool {
+		pool = append(pool, c.Task.ID)
+	}
+	return pool, len(m.Lessons), err
 }

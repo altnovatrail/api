@@ -114,14 +114,14 @@ func graphOf(pkg *modulepackage.Package) (learnermodel.Graph, error) {
 }
 
 // checkKinds is each check kind of the format that learner-model knows, in its
-// words. A time of day it does not know yet, and an answer slot of one is
-// written as a kind not given, whose item it reads as one with no answer (Д28):
-// the kind comes with the release that knows it.
+// words: a time of day too, from format 0.4. A rubric it does not know: its
+// slot is a kind not given, and no evidence holds a task with one (О-17).
 var checkKinds = map[formatv0.CheckKind]learnermodel.CheckKind{
 	formatv0.CheckKindNumber:    learnermodel.CheckKindNumber,
 	formatv0.CheckKindFraction:  learnermodel.CheckKindFraction,
 	formatv0.CheckKindChoice:    learnermodel.CheckKindChoice,
 	formatv0.CheckKindPredicate: learnermodel.CheckKindPredicate,
+	formatv0.CheckKindTime:      learnermodel.CheckKindTime,
 }
 
 // Describe is the task of the package as learner-model describes it, for the

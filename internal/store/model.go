@@ -71,11 +71,10 @@ func WriteSkillState(ctx context.Context, tx pgx.Tx, profileID string, s SkillSt
 
 // Owed is a closed attempt whose evidence is not in the journal yet, with what
 // its evidence is built of (R06, R10): what it was of, how it closed, its last
-// action, the techniques given at a step and on request, how many times
-// "explain differently" was asked for, whether the solution of its task reached
-// the device before it began, and the answers of its submissions, in order. The
-// leading question is not among them: its field comes with a later release of
-// learner-model (Д17).
+// action, the techniques given at a step and on request, whether a hint asked
+// for gave the task's leading question, how many times "explain differently"
+// was asked for, whether the solution of its task reached the device before it
+// began, and the answers of its submissions, in order.
 type Owed struct {
 	ID                  string
 	PackageDigest       string
@@ -87,6 +86,7 @@ type Owed struct {
 	LastActionAt        time.Time
 	StepTechniques      bool
 	RequestedTechniques bool
+	LeadingQuestion     bool
 	ExplainedAgain      int
 	SolutionSeenBefore  bool
 	Answers             [][]byte
@@ -110,6 +110,7 @@ func owedWhere(digests string) string {
 func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []string) ([]Owed, error) {
 	rows, err := tx.Query(ctx, `SELECT a.id, a.package_digest, a.module_id, a.task_id, a.instance, a.close_reason,
 			a.wrong_answers, a.last_action_at, a.step_techniques_at IS NOT NULL, a.requested_techniques_at IS NOT NULL,
+			a.leading_question_at IS NOT NULL,
 			(SELECT count(*) FROM attempt_rungs r WHERE r.profile_id = a.profile_id AND r.attempt_id = a.id
 				AND r.explained_at IS NOT NULL),
 			EXISTS (SELECT 1 FROM attempts p WHERE p.profile_id = a.profile_id AND p.module_id = a.module_id
@@ -124,7 +125,7 @@ func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []st
 	owed, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Owed, error) {
 		var o Owed
 		err := row.Scan(&o.ID, &o.PackageDigest, &o.ModuleID, &o.TaskID, &o.Instance, &o.CloseReason, &o.WrongAnswers,
-			&o.LastActionAt, &o.StepTechniques, &o.RequestedTechniques, &o.ExplainedAgain, &o.SolutionSeenBefore,
+			&o.LastActionAt, &o.StepTechniques, &o.RequestedTechniques, &o.LeadingQuestion, &o.ExplainedAgain, &o.SolutionSeenBefore,
 			&o.Answers)
 		return o, err
 	})

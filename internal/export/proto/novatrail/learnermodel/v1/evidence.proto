@@ -1,7 +1,7 @@
 // The evidence of one finished attempt, as the learner model reads it: what happened in the
 // attempt, observed rather than concluded, so that a later version of the model can read it by its
 // own rule when it recomputes the state from the log (docs/architecture.md, section 3.5, of
-// learner-model). api keeps the bytes as they are, in an append-only log.
+// github.com/altnovatrail/learner-model). api keeps the bytes as they are, in an append-only log.
 syntax = "proto3";
 
 package novatrail.learnermodel.v1;
@@ -11,7 +11,8 @@ import "novatrail/learnermodel/v1/common.proto";
 // One piece of evidence: one finished attempt of one task.
 message Evidence {
   // The kind of the evidence, from 1: what fields it carries. Every version of the model reads
-  // every kind; a field a later kind adds is "not recorded" in an earlier one.
+  // every kind; a field a later kind adds is "not recorded" in an earlier one, and absent there.
+  // Kind 2, from format 0.4, adds `leading_question_on_request`.
   optional int32 kind = 1;
   // The full ID of the task; of a template, the ID of the template. The module is read from it.
   optional string task_id = 2;
@@ -39,14 +40,20 @@ message Evidence {
   optional int32 hint_rung = 12;
   // The time of the attempt's last action, in whole seconds of Unix time, UTC.
   optional int64 practice_time = 13;
-  // Whether the learner took the task's technique on the step of the solution.
+  // Whether the learner took the task's technique on the step of the solution. It is no help, and
+  // the model does not read it.
   optional bool technique_on_step = 14;
-  // Whether the learner asked for the task's technique.
+  // Whether the learner asked for the task's technique. Every answer of the attempt is then given
+  // with help: it moves the estimates as it is, but masters nothing.
   optional bool technique_on_request = 15;
+  // Whether a hint the learner asked for gave the task's leading question, which a hint gives only
+  // before the first wrong answer. Every answer of the attempt is then given with help: it moves
+  // the estimates as it is, but masters nothing. Not recorded in kind 1, where it is absent.
+  optional bool leading_question_on_request = 20;
   // How many times the learner asked to explain otherwise. The model does not read it.
   optional int32 explain_again_count = 16;
-  // Whether the solution of this task had gone to the learner's device before; absent for a
-  // template, whose instances differ.
+  // Whether the solution of this task had gone to the learner's device before, so that every
+  // answer of the attempt is given with help; absent for a template, whose instances differ.
   optional bool solution_seen_before = 17;
   // The items of the task, by place, from 1.
   repeated ItemEvidence items = 18;
@@ -62,7 +69,8 @@ enum Outcome {
   OUTCOME_FIRST_SUBMISSION = 1;
   // After the hint of rung k, `hint_rung`.
   OUTCOME_AFTER_HINT = 2;
-  // After a sketch of how to start, as a hint. Format v0 has no sketch.
+  // After a sketch of how to start, as a hint: every answer is given with help. Format v0 has no
+  // sketch.
   OUTCOME_WITH_SKETCH = 3;
   // The solution was shown.
   OUTCOME_SOLUTION_SHOWN = 4;
@@ -91,6 +99,7 @@ message ItemEvidence {
   // The item's first verdict in the attempt; absent when it had none.
   optional Verdict first_verdict = 8;
   // The number of wrong answers in the attempt before the submission that gave the first verdict.
+  // An answer after one is given with help: a rung of the hint ladder came between them.
   optional int32 wrong_answers_before_first_verdict = 9;
   // The item's verdict at the end of the attempt; absent when it had none.
   optional Verdict final_verdict = 10;

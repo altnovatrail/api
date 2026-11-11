@@ -372,7 +372,8 @@ ci-licenses:
 # shared release.yml of .github, v0.1.7 or later, at the tag's commit (R77 spec); then
 # cmd/modules-check, against main's modules.json when main has one: the index by its digest, a
 # release no older than main's, no current version lost but by a withdrawal, and each module's
-# current version printed.
+# current version printed; then the packages laid, and the test of the first app's path on them
+# (R53).
 # Check modules.json: the signature of its index and the rules of R07.
 ci-modules:
     #!/usr/bin/env bash
@@ -400,6 +401,14 @@ ci-modules:
         main=(-main-config "$work/main.json" -main-index "$work/main/module-index.json")
     fi
     go run ./cmd/modules-check -config modules.json -index "$work/current/module-index.json" "${main[@]}"
+    # The packages of the pinned release, laid as the image's build lays them, and the path of the
+    # first app on them, which ci-test skips with no folder named (R53).
+    go run ./cmd/api packages "$work/packages"
+    # -v and the line of its pass: a test renamed would leave go test with nothing to run, and green.
+    API_RELEASE_PACKAGES="$work/packages" go test -count=1 -v -run '^TestThePinnedReleaseIsLearnedOn$' ./internal/learning \
+        | tee "$work/release-test.log"
+    grep -q '^--- PASS: TestThePinnedReleaseIsLearnedOn ' "$work/release-test.log" \
+        || { echo "ci-modules: the test of the pinned release did not pass" >&2; exit 1; }
     # The .proto files of learner-model that the export carries are those of its release file,
     # which release-verify accepts (R52; export/README.md of spec, section 9).
     {{ quote(just_executable()) }} learner-model-proto check

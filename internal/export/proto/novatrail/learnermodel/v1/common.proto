@@ -1,7 +1,9 @@
 // What the evidence and the state of the learner model share: places of bands, answer slots and
 // the values both name. The bytes of these messages are written by learner-model's own codec,
 // canonically, and this schema describes them (docs/architecture.md, section 3.7, of
-// learner-model). A field is never renumbered or removed: the schema only grows.
+// github.com/altnovatrail/learner-model). A field is never renumbered or removed: the schema only
+// grows. A learner's export holds the evidence log and the state as the JSON of these messages,
+// with the fields' names as here, beside this file (export/README.md of spec, R135 of spec).
 syntax = "proto3";
 
 package novatrail.learnermodel.v1;
@@ -36,6 +38,9 @@ enum CheckKind {
   CHECK_KIND_CHOICE = 3;
   // `predicate`: a whole number the predicate holds for; no guessing.
   CHECK_KIND_PREDICATE = 4;
+  // `time`, from format 0.4: a time of day, whose hours and minutes are compared with the key's,
+  // each as a number; no guessing.
+  CHECK_KIND_TIME = 5;
 }
 
 // The verdict of an item: what a program found of the answer, without AI.
