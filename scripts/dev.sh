@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
 # of the binary with the configuration of the dev file, and `just dev-check` goes the whole way —
-# migrations, an invite code, a country, the packages of modules, the server, an ID token, the
-# account, the owner's profile, its progress and "something else", then the job after a rollout —
-# and checks the answers and the logs.
+# migrations, an invite code, a country, the packages of modules, the server, an ID token, the legal
+# texts, the account, the owner's profile, its progress and "something else", a parent's consent by
+# its form, then the job after a rollout — and checks the answers and the logs.
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
@@ -169,7 +169,8 @@ check() {
     clean "$work/packages.log"
 
     echo "dev-check: serve"
-    API_PACKAGES_DIR="$work/packages" PORT=0 "$binary" serve > "$work/serve.log" 2>&1 &
+    mkdir -p "$work/forms"
+    API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=0 "$binary" serve > "$work/serve.log" 2>&1 &
     serve_pid=$!
     local port=""
     for _ in $(seq 60); do
@@ -184,13 +185,23 @@ check() {
     echo "dev-check: ID token"
     token=$(id_token)
 
+    # The legal texts, which go with no token, and a new account names the current versions of the policy
+    # and the terms (R52; R130, R136 spec).
+    call LegalService/GetLegalTexts <<< '{}'
+    expect GetLegalTexts
+    jq -e '[.texts[]?.id] | index("privacy-policy") != null and index("terms-of-use") != null' "$work/answer.json" > /dev/null ||
+        die "GetLegalTexts gave $(jq -c '[.texts[]?.id]' "$work/answer.json"), want the policy and the terms"
+    cp "$work/answer.json" "$work/texts.json"
+    echo "dev-check: the legal texts are there"
+
     call GetAccount <<< '{}'
     # A UID with no account is refused as permission_denied, CAUSE_NO_ACCESS (R04).
     if [[ $status == 403 ]] && [[ $(jq -r .code "$work/answer.json") == permission_denied ]]; then
         echo "dev-check: no account yet: an invite code and CreateAccount"
         local code
         code=$("$binary" invite 2> "$work/invite.log") || die "invite failed: $(cat "$work/invite.log")"
-        call CreateAccount < <(CODE=$code jq -cn '{invite_code: env.CODE, adult_stated: true}')
+        call CreateAccount < <(CODE=$code jq -c '{invite_code: env.CODE, adult_stated: true,
+            accepted_texts: [.texts[] | select(.id == "privacy-policy" or .id == "terms-of-use") | {id, version}]}' "$work/texts.json")
         expect CreateAccount
         call GetAccount <<< '{}'
     fi
@@ -225,6 +236,26 @@ check() {
     jq -e '.choice.kind == "CHOICE_KIND_NOTHING"' "$work/answer.json" > /dev/null ||
         die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want nothing to give"
     echo "dev-check: the engine has nothing to give yet"
+
+    # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
+    # the folder of the forms, the form among those the operator checks, then the consent taken back,
+    # so that nothing of it is left (R52; R116 spec).
+    call RequestChildConsent < <(KEY=$(cat /proc/sys/kernel/random/uuid) jq -c '{idempotency_key: env.KEY, age_years: 9,
+        country: "US", parent_consent_text: (.texts[] | select(.id == "parent-consent") | {id, version})}' "$work/texts.json")
+    expect RequestChildConsent
+    local consent request
+    consent=$(jq -r .consent.consent_id "$work/answer.json")
+    request=$(jq -r .consent.request_code "$work/answer.json")
+    call SendConsentForm < <(CONSENT=$consent KEY=$(cat /proc/sys/kernel/random/uuid) jq -cn '{consent_id: env.CONSENT,
+        idempotency_key: env.KEY, form: ("synthetic scan" | @base64), media_type: "image/png"}')
+    expect SendConsentForm
+    local scans=("$work/forms/$consent"-*)
+    [[ -f ${scans[0]} ]] || die "SendConsentForm laid no scan in the folder of the forms"
+    "$binary" consents list > "$work/consents.out" 2> "$work/consents.log" || die "consents list failed: $(cat "$work/consents.log")"
+    grep -q "^$request" "$work/consents.out" || die "consents list does not name the form sent"
+    call CancelChildConsent < <(CONSENT=$consent jq -cn '{consent_id: env.CONSENT}')
+    expect CancelChildConsent
+    echo "dev-check: a parent's consent goes by its form, and is taken back"
 
     stop_serve
     echo "dev-check: the logs"

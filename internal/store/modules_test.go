@@ -32,7 +32,7 @@ func TestTheModulesOfAProfileAreConnectedOnceAndGoWithIt(t *testing.T) {
 
 	// The owner's profile of this test has no consent: one is written.
 	learner, err := store.LearnerOf(ctx, pool, accountID, profileID)
-	if err != nil || learner != (store.Learner{AgeCategory: "adult"}) {
+	if err != nil || learner != (store.Learner{AgeCategory: "adult", Country: "US"}) {
 		t.Errorf("LearnerOf with no consent = %+v, %v", learner, err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO consents (account_id, profile_id, subject, state, age_category, country, confirmed_at)
@@ -40,7 +40,7 @@ func TestTheModulesOfAProfileAreConnectedOnceAndGoWithIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	learner, err = store.LearnerOf(ctx, pool, accountID, profileID)
-	if err != nil || learner != (store.Learner{AgeCategory: "adult", Consented: true}) {
+	if err != nil || learner != (store.Learner{AgeCategory: "adult", Consented: true, Country: "US"}) {
 		t.Errorf("LearnerOf = %+v, %v; want an adult with the consent", learner, err)
 	}
 	if _, err := store.LearnerOf(ctx, pool, account(t, pool), profileID); !errors.Is(err, store.ErrNoProfile) {

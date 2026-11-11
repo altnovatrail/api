@@ -54,7 +54,7 @@ func TestAnAccountIsCreatedByItsCode(t *testing.T) {
 	hash := code(t, pool, "SYNTHETIC-CODE")
 
 	before := time.Now()
-	id, err := store.CreateAccount(t.Context(), pool, "uid-owner", hash)
+	id, err := store.CreateAccount(t.Context(), pool, "uid-owner", hash, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,13 +85,13 @@ func TestARepeatOfTheCreationFindsTheAccountBeforeTheCode(t *testing.T) {
 
 	pool := storetest.DB(t)
 	hash := code(t, pool, "SYNTHETIC-CODE")
-	if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", hash); err != nil {
+	if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", hash, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The code it redeemed, and one that is no code at all: either way the account
 	// is there, which is what a repeat after a lost answer is told.
 	for _, again := range [][]byte{hash, make([]byte, sha256.Size)} {
-		if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", again); !errors.Is(err, store.ErrAccountExists) {
+		if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", again, nil); !errors.Is(err, store.ErrAccountExists) {
 			t.Errorf("CreateAccount again = %v, want ErrAccountExists", err)
 		}
 	}
@@ -105,12 +105,12 @@ func TestACodeNotThereOrRedeemedIsNotAccepted(t *testing.T) {
 
 	pool := storetest.DB(t)
 	hash := code(t, pool, "SYNTHETIC-CODE")
-	if _, err := store.CreateAccount(t.Context(), pool, "uid-first", hash); err != nil {
+	if _, err := store.CreateAccount(t.Context(), pool, "uid-first", hash, nil); err != nil {
 		t.Fatal(err)
 	}
 	other := sha256.Sum256([]byte("NO-SUCH-CODE"))
 	for name, given := range map[string][]byte{"redeemed": hash, "not there": other[:]} {
-		if _, err := store.CreateAccount(t.Context(), pool, "uid-second", given); !errors.Is(err, store.ErrCodeNotAccepted) {
+		if _, err := store.CreateAccount(t.Context(), pool, "uid-second", given, nil); !errors.Is(err, store.ErrCodeNotAccepted) {
 			t.Errorf("CreateAccount by a code %s = %v, want ErrCodeNotAccepted", name, err)
 		}
 	}
@@ -125,13 +125,13 @@ func TestAMarkedAccountIsNotCreatedAgain(t *testing.T) {
 
 	pool := storetest.DB(t)
 	hash := code(t, pool, "SYNTHETIC-CODE")
-	id, err := store.CreateAccount(t.Context(), pool, "uid-owner", hash)
+	id, err := store.CreateAccount(t.Context(), pool, "uid-owner", hash, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	mark(t, pool, id)
 	fresh := code(t, pool, "ANOTHER-CODE")
-	if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", fresh); !errors.Is(err, store.ErrAccountDeleting) {
+	if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", fresh, nil); !errors.Is(err, store.ErrAccountDeleting) {
 		t.Errorf("CreateAccount of a marked account = %v, want ErrAccountDeleting", err)
 	}
 	var redeemed bool
@@ -166,7 +166,7 @@ func TestTwoAccountsRacingForOneCodeGetOneAccount(t *testing.T) {
 	hash := code(t, pool, "SYNTHETIC-CODE")
 	uids := []string{"uid-a", "uid-b", "uid-c", "uid-d"}
 	errs := race(t, pool, len(uids), func(i int) error {
-		_, err := store.CreateAccount(t.Context(), pool, uids[i], hash)
+		_, err := store.CreateAccount(t.Context(), pool, uids[i], hash, nil)
 		return err
 	})
 	created := 0
@@ -189,7 +189,7 @@ func TestOneUserRacingWithTwoCodesGetsOneAccount(t *testing.T) {
 	pool := storetest.DB(t)
 	hashes := [][]byte{code(t, pool, "FIRST-CODE"), code(t, pool, "SECOND-CODE")}
 	errs := race(t, pool, len(hashes), func(i int) error {
-		_, err := store.CreateAccount(t.Context(), pool, "uid-owner", hashes[i])
+		_, err := store.CreateAccount(t.Context(), pool, "uid-owner", hashes[i], nil)
 		return err
 	})
 	created := 0
@@ -272,8 +272,11 @@ func TestTheViewIsTheAccountItsProfilesAndItsWaitingConsents(t *testing.T) {
 		got.InterfaceLanguage == nil || *got.InterfaceLanguage != "en-US" || got.Grade == nil || *got.Grade != 3 || !got.AskBeforeShowing {
 		t.Errorf("second profile = %+v; want the child's, field by field", got)
 	}
-	if view.ChildConsents[0] != (store.ChildConsent{ID: waiting, AgeCategory: "from_13_to_consent", Country: "US", State: "waiting"}) ||
-		view.ChildConsents[1] != (store.ChildConsent{ID: confirmed, AgeCategory: "under_13", Country: "MX", State: "confirmed"}) {
+	first, second := view.ChildConsents[0], view.ChildConsents[1]
+	if first != (store.ChildConsent{ID: waiting, AgeCategory: "from_13_to_consent", Country: "US", State: "waiting",
+		Giver: "parent", RequestCode: first.RequestCode, FormState: "not_sent", Applied: 13}) ||
+		second != (store.ChildConsent{ID: confirmed, AgeCategory: "under_13", Country: "MX", State: "confirmed",
+			Giver: "parent", RequestCode: second.RequestCode, FormState: "not_sent", Applied: 13}) {
 		t.Errorf("consents = %+v; want the waiting one, then the confirmed one", view.ChildConsents)
 	}
 

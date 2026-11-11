@@ -8,7 +8,6 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/altnovatrail/api/internal/countries"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -22,7 +21,7 @@ var errCountry = errors.New("account: the country is not accepted")
 // R36; architecture 3.1). A profile of the owner there already comes before the
 // country, so that a repeat is told it is there.
 func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerProfileRequest) (*v1.CreateOwnerProfileResponse, error) {
-	if !countries.Valid(req.GetCountry()) {
+	if !s.ages.Country(req.GetCountry()) {
 		return nil, rpc.Malformed("country")
 	}
 	p := newProfile("adult", req.GetCountry())
@@ -41,13 +40,15 @@ func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerPro
 		if err != nil {
 			return err
 		}
-		p = created
+		if p, err = store.ProfileWithConsent(ctx, tx, caller.AccountID, created.ID); err != nil {
+			return err
+		}
 		return s.rights.WriteOwner(ctx, caller.AccountID, created.ID)
 	})
 	if err != nil {
 		return nil, refusedProfile(ctx, err)
 	}
-	return &v1.CreateOwnerProfileResponse{Profile: profile(p)}, nil
+	return &v1.CreateOwnerProfileResponse{Profile: s.profile(p)}, nil
 }
 
 // UpdateProfile changes the settings sent, and leaves the others (contract,
@@ -57,7 +58,7 @@ func (s *Service) UpdateProfile(ctx context.Context, req *v1.UpdateProfileReques
 	if err != nil {
 		return nil, err
 	}
-	return &v1.UpdateProfileResponse{Profile: profile(p)}, nil
+	return &v1.UpdateProfileResponse{Profile: s.profile(p)}, nil
 }
 
 // SetVoicing sets the voicing alone, from the screen of a task: the checks have
@@ -67,7 +68,7 @@ func (s *Service) SetVoicing(ctx context.Context, req *v1.SetVoicingRequest) (*v
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SetVoicingResponse{Profile: profile(p)}, nil
+	return &v1.SetVoicingResponse{Profile: s.profile(p)}, nil
 }
 
 // change applies settings to the account's profile, held FOR UPDATE under the
@@ -83,7 +84,11 @@ func (s *Service) change(ctx context.Context, profileID string, settings *v1.Pro
 		if err := apply(&p, settings, false); err != nil {
 			return err
 		}
-		return store.WriteProfile(ctx, tx, p)
+		if err := store.WriteProfile(ctx, tx, p); err != nil {
+			return err
+		}
+		p, err = store.ProfileWithConsent(ctx, tx, caller.AccountID, profileID)
+		return err
 	})
 	if err != nil {
 		return store.Profile{}, refusedProfile(ctx, err)

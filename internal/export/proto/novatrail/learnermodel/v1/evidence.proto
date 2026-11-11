@@ -1,0 +1,123 @@
+// The evidence of one finished attempt, as the learner model reads it: what happened in the
+// attempt, observed rather than concluded, so that a later version of the model can read it by its
+// own rule when it recomputes the state from the log (docs/architecture.md, section 3.5, of
+// learner-model). api keeps the bytes as they are, in an append-only log.
+syntax = "proto3";
+
+package novatrail.learnermodel.v1;
+
+import "novatrail/learnermodel/v1/common.proto";
+
+// One piece of evidence: one finished attempt of one task.
+message Evidence {
+  // The kind of the evidence, from 1: what fields it carries. Every version of the model reads
+  // every kind; a field a later kind adds is "not recorded" in an earlier one.
+  optional int32 kind = 1;
+  // The full ID of the task; of a template, the ID of the template. The module is read from it.
+  optional string task_id = 2;
+  // Whether the task is a template, of which the attempt solved one instance.
+  optional bool template = 3;
+  // The band of the task, in the module version the attempt was on.
+  BandRef task_band = 4;
+  // How hard the task is within its band, from 1 to 5.
+  optional int32 difficulty = 5;
+  // The band the module's level starts from, as the rule of the band by grade gave it, or as
+  // appending took it from the state.
+  BandRef start_band = 6;
+  // The primary skills of the task, by full ID, ordered byte by byte.
+  repeated string primary_skills = 7;
+  // The supporting skills of the task, by full ID or as anchor skills, `core.<name>`, ordered byte
+  // by byte. The model does not read them yet.
+  repeated string supporting_skills = 8;
+  // Where the key of the task came from.
+  optional Provenance key_provenance = 9;
+  // Where the skill tags of the task came from.
+  optional Provenance skill_tags_provenance = 10;
+  // How the attempt ended.
+  optional Outcome outcome = 11;
+  // For an attempt that ended after a hint, the hint's rung, k, from 1; absent otherwise.
+  optional int32 hint_rung = 12;
+  // The time of the attempt's last action, in whole seconds of Unix time, UTC.
+  optional int64 practice_time = 13;
+  // Whether the learner took the task's technique on the step of the solution.
+  optional bool technique_on_step = 14;
+  // Whether the learner asked for the task's technique.
+  optional bool technique_on_request = 15;
+  // How many times the learner asked to explain otherwise. The model does not read it.
+  optional int32 explain_again_count = 16;
+  // Whether the solution of this task had gone to the learner's device before; absent for a
+  // template, whose instances differ.
+  optional bool solution_seen_before = 17;
+  // The items of the task, by place, from 1.
+  repeated ItemEvidence items = 18;
+  // The traps the program found in the attempt, once each, ordered by ID byte by byte.
+  repeated FoundTrap traps = 19;
+}
+
+// How an attempt ended (concepts 11 of spec).
+enum Outcome {
+  // Not given. An outcome that a later version adds weighs nothing; the verdicts before it count.
+  OUTCOME_UNSPECIFIED = 0;
+  // Right at the first submission.
+  OUTCOME_FIRST_SUBMISSION = 1;
+  // After the hint of rung k, `hint_rung`.
+  OUTCOME_AFTER_HINT = 2;
+  // After a sketch of how to start, as a hint. Format v0 has no sketch.
+  OUTCOME_WITH_SKETCH = 3;
+  // The solution was shown.
+  OUTCOME_SOLUTION_SHOWN = 4;
+  // Left unfinished, with wrong answers in it.
+  OUTCOME_LEFT_UNFINISHED = 5;
+  // Closed without a check.
+  OUTCOME_UNCHECKED = 6;
+}
+
+// One item of the task in the attempt.
+message ItemEvidence {
+  // The item's place in the task, from 1.
+  optional int32 place = 1;
+  // Whether the item names skills of its own, which take the place of the task's for it.
+  optional bool own_skills = 2;
+  // The item's own primary skills, by full ID, ordered byte by byte; empty without own skills.
+  repeated string primary_skills = 3;
+  // The item's own supporting skills, by full ID or `core.<name>`, ordered byte by byte.
+  repeated string supporting_skills = 4;
+  // The item's answer slots, in their order.
+  repeated AnswerSlot answer_slots = 5;
+  // Whether the item was submitted at all in the attempt.
+  optional bool submitted = 6;
+  // Why each submission of the item before its first verdict gave no verdict, in their order.
+  repeated UnverdictedReason unverdicted_reasons = 7;
+  // The item's first verdict in the attempt; absent when it had none.
+  optional Verdict first_verdict = 8;
+  // The number of wrong answers in the attempt before the submission that gave the first verdict.
+  optional int32 wrong_answers_before_first_verdict = 9;
+  // The item's verdict at the end of the attempt; absent when it had none.
+  optional Verdict final_verdict = 10;
+  // The number of wrong answers in the attempt before the item's first `correct`; absent when it
+  // was never correct. The model does not read it yet: it is kept for partial credit.
+  optional int32 wrong_answers_before_first_correct = 11;
+}
+
+// Why a submission gave no verdict (concepts 9.1 of spec).
+enum UnverdictedReason {
+  // Not given.
+  UNVERDICTED_REASON_UNSPECIFIED = 0;
+  // `unreadable` with the reason `blank`: nothing was written.
+  UNVERDICTED_REASON_UNREADABLE_BLANK = 1;
+  // `unreadable` with another reason.
+  UNVERDICTED_REASON_UNREADABLE_OTHER = 2;
+  // `unchecked`: the answer was not checked.
+  UNVERDICTED_REASON_UNCHECKED = 3;
+}
+
+// A trap the program found in the attempt by a wrong value.
+message FoundTrap {
+  // The full ID of the trap.
+  optional string trap_id = 1;
+  // The skills of the trap in the trap catalog of the attempt's version, by full ID, ordered byte
+  // by byte.
+  repeated string skills = 2;
+  // The places of the items where it was found, in ascending order. The model does not read them.
+  repeated int32 item_places = 3;
+}

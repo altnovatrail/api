@@ -89,7 +89,7 @@ func TestAFailedStatementIsAFailure(t *testing.T) {
 	pool := storetest.DB(t)
 	for _, failOn := range []string{"INSERT INTO accounts", "UPDATE invite_codes"} {
 		hash := code(t, pool, "CODE-"+failOn)
-		if _, err := store.CreateAccount(t.Context(), &flaky{Pool: pool, failOn: failOn}, "uid-owner", hash); !errors.Is(err, errDown) {
+		if _, err := store.CreateAccount(t.Context(), &flaky{Pool: pool, failOn: failOn}, "uid-owner", hash, nil); !errors.Is(err, errDown) {
 			t.Errorf("CreateAccount failing on %q = %v, want the failure", failOn, err)
 		}
 	}
@@ -97,10 +97,10 @@ func TestAFailedStatementIsAFailure(t *testing.T) {
 		t.Errorf("accounts = %d after failures, want none", n)
 	}
 	hash := sha256.Sum256([]byte("ANOTHER-CODE"))
-	if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", code(t, pool, "FIRST")); err != nil {
+	if _, err := store.CreateAccount(t.Context(), pool, "uid-owner", code(t, pool, "FIRST"), nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateAccount(t.Context(), &flaky{Pool: pool, failOn: "SELECT deleting_at"}, "uid-owner", hash[:]); !errors.Is(err, errDown) {
+	if _, err := store.CreateAccount(t.Context(), &flaky{Pool: pool, failOn: "SELECT deleting_at"}, "uid-owner", hash[:], nil); !errors.Is(err, errDown) {
 		t.Errorf("CreateAccount failing to find the account there = %v, want the failure", err)
 	}
 
@@ -197,7 +197,7 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 		}},
 		{"SET active_on", func(tx pgx.Tx) error { return store.TouchProfile(t.Context(), tx, id) }},
 		{"INSERT INTO consents", func(tx pgx.Tx) error {
-			_, err := store.CreateChildConsent(t.Context(), tx, id, "under_13", "US")
+			_, err := store.AskChildConsent(t.Context(), tx, id, store.NewConsent{AgeCategory: "under_13", Country: "US", Applied: 13, Giver: store.GiverParent, RequestCode: "ABCDE-FGHJK"})
 			return err
 		}},
 		{"FROM consents", func(tx pgx.Tx) error {
@@ -209,7 +209,7 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 			return err
 		}},
 		{"UPDATE consents", func(tx pgx.Tx) error {
-			c, err := store.CreateChildConsent(t.Context(), tx, id, "under_13", "US")
+			c, err := store.AskChildConsent(t.Context(), tx, id, store.NewConsent{AgeCategory: "under_13", Country: "US", Applied: 13, Giver: store.GiverParent, RequestCode: "ABCDE-FGHJK"})
 			if err != nil {
 				return err
 			}
@@ -222,7 +222,7 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 			return err
 		}},
 		{"INSERT INTO skill_states", func(tx pgx.Tx) error {
-			c, err := store.CreateChildConsent(t.Context(), tx, id, "under_13", "US")
+			c, err := store.AskChildConsent(t.Context(), tx, id, store.NewConsent{AgeCategory: "under_13", Country: "US", Applied: 13, Giver: store.GiverParent, RequestCode: "ABCDE-FGHJK"})
 			if err != nil {
 				return err
 			}

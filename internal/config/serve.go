@@ -74,6 +74,9 @@ type Serve struct {
 	AppOrigin string
 	// PackagesDir is the absolute path of the folder of the packages (R41).
 	PackagesDir string
+	// Agreements is where the legal texts come from and where the scans of the
+	// forms of consent go (R52).
+	Agreements Agreements
 	// Admission is what the deployment declares for admission to AI (R25, R45).
 	Admission Admission
 }
@@ -110,6 +113,9 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 		problems = append(problems, err)
 	}
 	serve.Admission = admission
+	if serve.Agreements, err = AgreementsFrom(environ); err != nil {
+		problems = append(problems, err)
+	}
 	if len(problems) > 0 {
 		return nil, errors.Join(problems...)
 	}

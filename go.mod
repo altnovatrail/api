@@ -1,15 +1,15 @@
 module github.com/altnovatrail/api
 
-go 1.27.3
+go 1.27.4
 
 require (
 	connectrpc.com/connect/v2 v2.0.2
 	firebase.google.com/go/v4 v4.22.0
-	github.com/altnovatrail/engine v0.1.4
+	github.com/altnovatrail/engine v0.1.6
 	github.com/altnovatrail/learner-model v0.1.4
 	github.com/altnovatrail/module-kit v0.3.0
-	github.com/altnovatrail/spec v0.12.0
-	github.com/altnovatrail/spec/contracts v0.12.0
+	github.com/altnovatrail/spec v0.15.0
+	github.com/altnovatrail/spec/contracts v0.15.0
 	github.com/altnovatrail/tutor v0.1.21
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
@@ -18,6 +18,7 @@ require (
 	github.com/openfga/language/pkg/go v0.3.2
 	github.com/openfga/openfga v1.22.1
 	github.com/pressly/goose/v3 v3.29.0
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.43.0
@@ -106,6 +107,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/yuin/goldmark v1.8.7 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect
@@ -124,7 +126,6 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0 // indirect
 	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
 	golang.org/x/net v0.62.0 // indirect

@@ -193,6 +193,7 @@ THIRD_PARTY := """
     github.com/tidwall/match=tidwall-match
     github.com/tidwall/pretty=tidwall-pretty
     github.com/tidwall/sjson=tidwall-sjson
+    github.com/yuin/goldmark=yuin-goldmark
     github.com/zeebo/xxh3=zeebo-xxh3
     go.opentelemetry.io/auto/sdk=auto-sdk
     go.opentelemetry.io/contrib/detectors/gcp=contrib-detectors-gcp
@@ -399,6 +400,42 @@ ci-modules:
         main=(-main-config "$work/main.json" -main-index "$work/main/module-index.json")
     fi
     go run ./cmd/modules-check -config modules.json -index "$work/current/module-index.json" "${main[@]}"
+    # The .proto files of learner-model that the export carries are those of its release file,
+    # which release-verify accepts (R52; export/README.md of spec, section 9).
+    {{ quote(just_executable()) }} learner-model-proto check
+
+# The .proto files of learner-model that the export of a profile carries (R52; R135 spec): those of
+# the release file of the version go.mod names, which release-verify accepts. "lay" lays them in
+# internal/export/proto/, with the descriptors built of them; "check" refuses files or descriptors that
+# differ from the release's.
+# Lay or check the .proto files of learner-model the export carries.
+learner-model-proto action="lay":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="$(go list -m -f '{{ "{{" }}.Version{{ "}}" }}' github.com/altnovatrail/learner-model)"
+    file="learner-model-proto-${version}.tar.gz"
+    base="https://github.com/altnovatrail/learner-model/releases/download/${version}"
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    for name in "$file" "$file.sigstore.json"; do
+        curl --fail --silent --show-error --location --retry 3 --output "$work/$name" "$base/$name"
+    done
+    {{ quote(just_executable()) }} -f spec/justfile release-verify learner-model "$version" "$work/$file"
+    tar -xzf "$work/$file" -C "$work"
+    from="$work/learner-model-proto-${version}/proto/novatrail/learnermodel/v1"
+    to=internal/export/proto/novatrail/learnermodel/v1
+    case {{ quote(action) }} in
+        lay) mkdir -p "$to" && cp "$from"/*.proto "$to"/ ;;
+        check) diff -r "$from" "$to" || { echo "learner-model-proto: $to differs from the release of ${version}: run just learner-model-proto" >&2; exit 1; } ;;
+        *) echo "learner-model-proto: lay or check, not {{ action }}" >&2; exit 1 ;;
+    esac
+    # The descriptors the export writes the JSON of the evidence and the state by, built of those
+    # files: the same bytes every time, with no source information.
+    buf build internal/export/proto --path "$to" --exclude-source-info --as-file-descriptor-set -o "$work/learnermodel.binpb"
+    case {{ quote(action) }} in
+        lay) cp "$work/learnermodel.binpb" internal/export/learnermodel.binpb ;;
+        check) cmp "$work/learnermodel.binpb" internal/export/learnermodel.binpb || { echo "learner-model-proto: internal/export/learnermodel.binpb is not built of the files: run just learner-model-proto" >&2; exit 1; } ;;
+    esac
 
 # The packages of modules for the first app (R07, R41): the command the image's build runs,
 # into a folder outside any git working tree, which serve then takes as API_PACKAGES_DIR. The

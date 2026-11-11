@@ -567,7 +567,18 @@ func TestALearningRequestNeedsItsConsent(t *testing.T) {
 	if category, err := rpc.Learner(ctx, w.pool, p.profileID); err != nil || category != "adult" {
 		t.Errorf("Learner with a confirmed consent = %q, %v; want adult", category, err)
 	}
-	down := &flaky{DB: w.pool, failOn: "FROM consents"}
+	// A learner who consents themselves in a country whose age rose above the one
+	// the category was given by gives the age again first (R134 spec).
+	if _, err := w.pool.Exec(t.Context(), `UPDATE profiles SET age_category = 'from_consent_to_18', country = 'AT', owner = false, ask_before_showing = true
+		WHERE id = $1`, p.profileID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(t.Context(), `UPDATE consents SET applied = 13 WHERE profile_id = $1`, p.profileID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = rpc.Learner(ctx, w.pool, p.profileID)
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_AGE_NEEDED)
+	down := &flaky{DB: w.pool, failOn: "JOIN consents"}
 	_, err = rpc.Learner(ctx, down, p.profileID)
 	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
 }

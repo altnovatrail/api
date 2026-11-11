@@ -11,6 +11,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/consentage"
 	"github.com/altnovatrail/api/internal/deletion"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -230,7 +231,9 @@ func (s *checked) Receive(msg any) error {
 
 // Learner is step 5 of architecture 3.1, for the handlers of the learning
 // requests: the profile's consent is confirmed, or the request is refused "no
-// consent" (R116 spec). It gives the profile's age category, read with the
+// consent" (R116 spec), and its age is not to be given again, or it is refused
+// "age needed": its country raised its age of digital consent above the one its
+// category was given by (R134 spec). It gives the profile's age category, read with the
 // consent in one query, by which a module and a task suit the learner (R07). It
 // runs after the checks, on the profile they let through: one gone meanwhile is
 // "no profile".
@@ -244,6 +247,8 @@ func Learner(ctx context.Context, db store.Querier, profileID string) (string, e
 		return "", Failed(ctx, err)
 	case !l.Consented:
 		return "", Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
+	case consentage.Spec().AskAgain(l.AgeCategory, l.Applied, l.Country, time.Now()):
+		return "", Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_AGE_NEEDED)
 	}
 	return l.AgeCategory, nil
 }

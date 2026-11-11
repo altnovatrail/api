@@ -105,7 +105,7 @@ func try(ctx context.Context, state *pin.State, given string, now time.Time) (*v
 // fingerprint is slow, as the request carries a PIN.
 func once[Res proto.Message](ctx context.Context, s *Service, method string, req rpc.Keyed,
 	act func(state *pin.State, now time.Time) (Res, error)) (Res, error) {
-	return keyedOnce(ctx, s, method, req, func(tx pgx.Tx, accountID string, now time.Time) (Res, error) {
+	return keyedOnce(ctx, s, method, req, true, func(tx pgx.Tx, accountID string, now time.Time) (Res, error) {
 		var zero Res
 		state, err := store.HoldPin(ctx, tx, accountID)
 		if err != nil {

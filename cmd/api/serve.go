@@ -19,8 +19,11 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/export"
 	"github.com/altnovatrail/api/internal/learning"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
@@ -67,6 +70,26 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
+	// The legal texts are read before anything is opened too: a copy's folder
+	// that breaks the rules of the part is a failed start (R52).
+	texts, err := legalTexts(opens.Agreements)
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
+	// The export writes the evidence and the state by the model of the packages
+	// (R52).
+	m, err := model.New(set, version.LearnerModel())
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
+	exporter, err := export.New(set, m)
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
+	store, err := formsStore(ctx, opens.Agreements)
+	if err != nil {
+		return startupFailed(ctx, log, err)
+	}
 	// Attempts keep the version of module-kit, which the build records (R44), and
 	// ask the gate before a task that AI checks (R45).
 	attempts, err := learning.New(set, gate, learning.WithRequestTimeout(cfg.RequestTimeout))
@@ -76,7 +99,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
-	deps, handlers, closeDeps, err := open(ctx, opens, cat, attempts)
+	deps, handlers, closeDeps, err := open(ctx, opens, cat, attempts, account.WithTexts(texts), account.WithForms(store),
+		account.WithExport(exporter))
 	if err != nil {
 		var fields []any
 		if failed := (*openFailed)(nil); errors.As(err, &failed) {
@@ -84,6 +108,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		}
 		return startupFailed(ctx, log, err, fields...)
 	}
+	handlers.Legal = legal.NewService(texts)
 	// Closed in the part of the way out kept for it: a request the drain cut short
 	// may still hold a connection, and the pool's Close waits for it, past the
 	// platform's grace if nothing bounded it.
@@ -128,6 +153,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldFactsFile, declared.FactsFile,
 		logging.FieldRung, declared.Rung,
 		logging.FieldRungSet, declared.RungSet,
+		logging.FieldLegalDir, opens.Agreements.LegalDir != "",
+		logging.FieldConsentForms, opens.Agreements.Forms(),
 		logging.FieldPlatformKeys, declared.PlatformKeys,
 	)
 
@@ -253,14 +280,15 @@ func openPorts(ctx context.Context, database, openfga config.Secret, projectID s
 
 // open opens what the requests run on, with the handlers on it and on the
 // catalog of the packages; close closes it.
-func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attempts *learning.Service) (rpc.Deps, rpc.Handlers, func(), error) {
+func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attempts *learning.Service,
+	options ...account.Option) (rpc.Deps, rpc.Handlers, func(), error) {
 	p, err := openPorts(ctx, opens.DatabaseURL, opens.OpenFGADatabaseURL, opens.FirebaseProjectID, opens.FirebaseCredentials)
 	if err != nil {
 		return rpc.Deps{}, rpc.Handlers{}, nil, err
 	}
 	// The handlers write the tuples of the profiles they make (R31).
 	handlers := rpc.Handlers{
-		Account:  account.New(p.pool, p.rights, p.signin),
+		Account:  account.New(p.pool, p.rights, p.signin, options...),
 		Module:   cat.Modules(p.pool),
 		Package:  cat.Packages(),
 		Learning: attempts.Learning(p.pool),

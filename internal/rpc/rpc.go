@@ -45,6 +45,7 @@ type Handlers struct {
 	Module   apiv1connect.ModuleServiceHandler
 	Package  apiv1connect.PackageServiceHandler
 	Progress apiv1connect.ProgressServiceHandler
+	Legal    apiv1connect.LegalServiceHandler
 }
 
 // NewServer is the server of the contract, with every method registered and
@@ -65,6 +66,7 @@ func register(server *connect.Server, h Handlers) {
 	apiv1connect.RegisterModuleServiceHandler(server, or[apiv1connect.ModuleServiceHandler](h.Module, apiv1connect.UnimplementedModuleServiceHandler{}))
 	apiv1connect.RegisterPackageServiceHandler(server, or[apiv1connect.PackageServiceHandler](h.Package, apiv1connect.UnimplementedPackageServiceHandler{}))
 	apiv1connect.RegisterProgressServiceHandler(server, or[apiv1connect.ProgressServiceHandler](h.Progress, apiv1connect.UnimplementedProgressServiceHandler{}))
+	apiv1connect.RegisterLegalServiceHandler(server, or[apiv1connect.LegalServiceHandler](h.Legal, apiv1connect.UnimplementedLegalServiceHandler{}))
 }
 
 // or is the handler set, or the one that answers unimplemented.
@@ -88,11 +90,13 @@ func Mount(mux *http.ServeMux, server *connect.Server) {
 }
 
 // MaxMessage is the largest message of a request the server reads, in bytes
-// (R33, R46): 4 MiB, Connect's own default, named so that it is the server's
-// choice and its README's number. The largest message of the contract is the
-// crop of a handwriting sheet, at most 1568 px a side in grey of 8 bits by the
-// rule of the crop — under 2.5 MB even if PNG compressed nothing.
-const MaxMessage = 4 << 20
+// (R33, R46, R52): 11 MiB. The largest message of the contract is the scan of a
+// parent's form of consent, up to 10 MiB by the contract (section 15), with the
+// rest of its request; the crop of a handwriting sheet, at most 1568 px a side
+// in grey of 8 bits, is under 2.5 MB even if PNG compressed nothing. The JSON
+// of debugging writes the scan in base64, a third larger, and is no way to send
+// one.
+const MaxMessage = 11 << 20
 
 // limited cuts a request short at its time limit; a shorter Connect-Timeout-Ms
 // of the client's still holds (R33). No limit given is the default one, never

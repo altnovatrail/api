@@ -20,6 +20,7 @@ import (
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authn/authntest"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/forms"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
@@ -53,6 +54,8 @@ type world struct {
 	log     bytes.Buffer
 	ids     []string
 	devices []string
+	// forms is the folder the scans of the forms of the world lie in.
+	forms forms.Dir
 }
 
 // old is the digest of a version out of the window, which the index of every
@@ -88,12 +91,13 @@ func newWorldOn(t *testing.T, withdrawn string) *world {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &world{pool: storetest.DB(t), fga: fga, rights: rights, signin: &authntest.Fake{}, set: set, model: m}
+	return &world{pool: storetest.DB(t), fga: fga, rights: rights, signin: &authntest.Fake{}, set: set, model: m,
+		forms: forms.Dir(t.TempDir())}
 }
 
 // sweeper is the job on the world, with rights and signin as given.
 func (w *world) sweeper(rights sweep.Rights, signin sweep.Signin) *sweep.Sweeper {
-	return sweep.New(w.pool, w.set, w.model, rights, signin, settle, logging.New(&w.log, slog.LevelDebug))
+	return sweep.New(w.pool, w.set, w.model, rights, signin, settle, logging.New(&w.log, slog.LevelDebug)).WithForms(w.forms)
 }
 
 func (w *world) run(t *testing.T) sweep.Report {
@@ -447,7 +451,7 @@ func TestAStepWhoseQueryFailsEndsThere(t *testing.T) {
 	down.Close()
 	w.signin.AddUser(authn.User{UID: "uid-gone"})
 	w.tuple(t, profileID(1), profileID(2), time.Hour)
-	report := sweep.New(down, w.set, w.model, w.rights, w.signin, settle, logging.New(&w.log, slog.LevelDebug)).Run(t.Context(), time.Now())
+	report := sweep.New(down, w.set, w.model, w.rights, w.signin, settle, logging.New(&w.log, slog.LevelDebug)).WithForms(w.forms).Run(t.Context(), time.Now())
 	for _, s := range report {
 		switch s.Name {
 		case logging.StepChangelog:
