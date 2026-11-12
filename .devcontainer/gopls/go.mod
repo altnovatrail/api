@@ -5,7 +5,7 @@
 // and a repository takes it with its next move to a tag of spec.
 module devcontainer/gopls
 
-go 1.27.3
+go 1.27.4
 
 tool golang.org/x/tools/gopls
 
