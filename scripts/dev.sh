@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
 # of the binary with the configuration of the dev file, and `just dev-check` goes the whole way —
-# migrations, an invite code, a country, the packages of modules, the server, an ID token, the legal
-# texts, the account, the owner's profile, its progress and "something else", a parent's consent by
-# its form, then the job after a rollout — and checks the answers and the logs.
+# migrations, an invite code, a country, the packages of modules, the opening of platform AI, the
+# server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
+# else", a reading of handwriting with its reserve and settlement of the quota, a parent's consent by
+# its form, then the job after a rollout — and checks the answers and the logs. The server's key of
+# platform AI is one Anthropic refuses, so that no call of the check reaches a model.
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
@@ -12,7 +14,7 @@
 # binary ignores. No secret goes on a command line, where any process could read it: they go
 # through the environment, files and pipes.
 #
-# scripts/dev_test.go tests the loader and the custom token in CI.
+# scripts/dev_test.go tests the loader, the custom token, the task AI reads and the counters in CI.
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -23,6 +25,12 @@ uid_default=dev-author
 country=US
 # The binary both recipes run, built as `just build` builds it; bin/ is ignored by git.
 binary=bin/api
+# The key of platform AI the check's server has instead of the dev file's: one Anthropic refuses,
+# so that a reading of handwriting goes to the provider and back, free, before any model reads it,
+# and no call of the check costs anything (R39).
+refused_key=sk-ant-dev-check-refused
+# The work the check sends to be read: a synthetic PNG of one white pixel.
+pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQJnLD7dAAAAAElFTkSuQmCC
 
 die() {
     echo "dev: $*" >&2
@@ -126,11 +134,72 @@ clean() {
     ! grep -qE '[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}' "$1" || die "$(basename "$1") holds an email"
     local name value
     for name in API_DATABASE_URL API_OPENFGA_DATABASE_URL API_MIGRATE_DATABASE_URL API_MIGRATE_OPENFGA_DATABASE_URL \
-        API_DEV_WEB_API_KEY; do
+        API_DEV_WEB_API_KEY API_ANTHROPIC_KEY; do
         value=$(secret "$name")
         [[ -z $value ]] || ! grep -qF -- "$value" "$1" || die "$(basename "$1") holds $name"
     done
+    ! grep -qF -- "$refused_key" "$1" || die "$(basename "$1") holds the key of platform AI"
     [[ -z ${token:-} ]] || ! grep -qF -- "$token" "$1" || die "$(basename "$1") holds the token"
+}
+
+# handwritten says whether the attempt $1, an AttemptStart as JSON, is on a task that AI reads: one
+# with an answer slot written anywhere on the sheet.
+handwritten() {
+    jq -e '.task.json | @base64d | fromjson | any(.. | objects; .binding? == "anywhere")' "$1" > /dev/null
+}
+
+# counted prints what the export's file $1 holds of the quota of platform AI, over all its family
+# days: the micro-dollars spent and those in reserve, "0 0" when it holds no counter (R57).
+counted() {
+    jq -er '.quota_counters // [] | "\(map(.spent_micro_usd) | add // 0) \(map(.reserved_micro_usd) | add // 0)"' "$1"
+}
+
+# exported unpacks the account's export into the folder $1 (R52).
+exported() {
+    call ExportAccount <<< '{}'
+    expect ExportAccount
+    mkdir -p "$1"
+    jq -r .part "$work/answer.json" | base64 -d > "$1.zip" || die "ExportAccount gave a part that is not base64"
+    unzip -q -o "$1.zip" -d "$1" || die "ExportAccount gave a part that is not a zip"
+}
+
+# handwriting begins an attempt of the profile $1 on a task that AI reads and leaves its
+# AttemptStart in $work/attempt.json: the engine's task, or the next segment of the lesson it gives,
+# asking it again while what begins is checked by tap or is not admitted.
+handwriting() {
+    local profile=$1 try kind choice run segment
+    for try in $(seq 8); do
+        call LearningService/ChooseNext < <(PROFILE=$profile KEY=$(cat /proc/sys/kernel/random/uuid) \
+            jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY}')
+        expect ChooseNext
+        kind=$(jq -r .choice.kind "$work/answer.json")
+        choice=$(jq -r .choice.choice_id "$work/answer.json")
+        case $kind in
+        CHOICE_KIND_TASK)
+            call LearningService/BeginAttempt < <(PROFILE=$profile CHOICE=$choice KEY=$(cat /proc/sys/kernel/random/uuid) \
+                jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY, choice_id: env.CHOICE}')
+            ;;
+        CHOICE_KIND_LESSON)
+            call LearningService/OpenLesson < <(PROFILE=$profile CHOICE=$choice jq -cn '{profile_id: env.PROFILE, choice_id: env.CHOICE}')
+            expect OpenLesson
+            run=$(jq -r .run.lesson_run_id "$work/answer.json")
+            # Segments begin in their order: the first task segment the run has not ended (R48).
+            segment=$(jq -r '(.run.ended_segments // []) as $ended | .run.lesson.json | @base64d | fromjson |
+                [.segments | to_entries[] | select(.value.task != null) | .key + 1 | select(. as $p | $ended | index($p) | not)] |
+                first // empty' "$work/answer.json")
+            [[ -n $segment ]] || continue
+            call LearningService/BeginAttempt < <(PROFILE=$profile RUN=$run SEGMENT=$segment KEY=$(cat /proc/sys/kernel/random/uuid) \
+                jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY, segment: {lesson_run_id: env.RUN, segment: (env.SEGMENT | tonumber)}}')
+            ;;
+        *)
+            die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want a lesson or a task"
+            ;;
+        esac
+        [[ $status == 200 ]] || continue
+        jq .attempt "$work/answer.json" > "$work/attempt.json"
+        handwritten "$work/attempt.json" && return 0
+    done
+    die "the engine gave no task that AI reads in 8 choices; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
 }
 
 stop_serve() {
@@ -168,9 +237,18 @@ check() {
     "$binary" packages "$work/packages" > "$work/packages.log" || die "packages failed: $(cat "$work/packages.log")"
     clean "$work/packages.log"
 
+    # The operator's command that opens platform AI again (R59), before the server: a flag the
+    # provider's limit left set would answer the reading below "platform limit" with no call.
+    echo "dev-check: reopen"
+    "$binary" reopen > "$work/reopen.out" 2> "$work/reopen.log" || die "reopen failed: $(cat "$work/reopen.log")"
+    clean "$work/reopen.log"
+    echo "dev-check: $(cat "$work/reopen.out")"
+
+    # The server has the key Anthropic refuses, not the dev file's: an empty _FILE is one not set.
     echo "dev-check: serve"
     mkdir -p "$work/forms"
-    API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=0 "$binary" serve > "$work/serve.log" 2>&1 &
+    API_ANTHROPIC_KEY_FILE='' API_ANTHROPIC_KEY=$refused_key \
+        API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=0 "$binary" serve > "$work/serve.log" 2>&1 &
     serve_pid=$!
     local port=""
     for _ in $(seq 60); do
@@ -248,6 +326,35 @@ check() {
         die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want a lesson or a task"
     echo "dev-check: olympiad-math is connected, and the engine gives a $(jq -r '.choice.kind | ltrimstr("CHOICE_KIND_") | ascii_downcase' "$work/answer.json")"
 
+    # The quota of platform AI on the database itself (R58): a reading of handwriting takes its
+    # reserve before the call and settles it after. The provider refuses the key, the answer has no
+    # record of usage, and the reserve is kept as spent (R12): the export shows more spent and the
+    # same in reserve.
+    local before after attempt spent_before reserved_before spent_after reserved_after
+    exported "$work/before"
+    before=$(counted "$work/before/profiles/$owner.json")
+    handwriting "$owner"
+    attempt=$(jq -r .attempt_id "$work/attempt.json")
+    call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$pixel \
+        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, work: {sheet: {crop: env.PIXEL}},
+            clock_offset_minutes: 0}')
+    expect SubmitWork
+    jq -e '.outcome.cause == "CAUSE_KEY_REFUSED"' "$work/answer.json" > /dev/null ||
+        die "SubmitWork gave the outcome $(jq -c .outcome "$work/answer.json"), want CAUSE_KEY_REFUSED"
+    exported "$work/after"
+    after=$(counted "$work/after/profiles/$owner.json")
+    read -r spent_before reserved_before <<< "$before"
+    read -r spent_after reserved_after <<< "$after"
+    ((spent_after > spent_before && reserved_after == reserved_before)) ||
+        die "the profile's counters went from spent and reserved $before to $after, want more spent and the same reserved"
+    before=$(counted "$work/before/account.json")
+    after=$(counted "$work/after/account.json")
+    read -r spent_before reserved_before <<< "$before"
+    read -r spent_after reserved_after <<< "$after"
+    ((spent_after > spent_before && reserved_after == reserved_before)) ||
+        die "the account's counters went from spent and reserved $before to $after, want more spent and the same reserved"
+    echo "dev-check: a reading of handwriting takes its reserve and settles it, on both counters"
+
     # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
     # the folder of the forms, the form among those the operator checks, then the consent taken back,
     # so that nothing of it is left (R52; R116 spec).
@@ -271,6 +378,11 @@ check() {
     stop_serve
     echo "dev-check: the logs"
     clean "$work/serve.log"
+    # The reading went to the provider, which refused the key: no model read it.
+    jq -se 'any(.[]; .message == "ai_usage" and .method == "/novatrail.api.v1.AttemptService/SubmitWork" and .ai_outcome == "key_refused")' "$work/serve.log" > /dev/null ||
+        die "serve.log has no line ai_usage of SubmitWork with the outcome key_refused"
+    ! jq -se 'any(.[]; .message == "ai_usage" and .ai_outcome == "answered")' "$work/serve.log" > /dev/null ||
+        die "a model answered a call of the check"
 
     # The job after a rollout, on the database itself (R51): it asks what is open on the versions
     # the image no longer gives, of the pinned release, and closes it.
