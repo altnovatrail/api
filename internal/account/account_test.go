@@ -425,6 +425,22 @@ func TestADatabaseThatFailsIsUnavailable(t *testing.T) {
 	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
+// The share of the quota passes its checks and answers unimplemented, until
+// epic E9 of RUN.md builds it.
+func TestTheShareOfTheQuotaIsNotBuiltYet(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	p := w.ownerProfile(t, ctx)
+	_, err := w.client.GetQuota(ctx, &v1.GetQuotaRequest{ProfileId: p.GetProfileId(), Action: v1.Action_ACTION_LEARNING})
+	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
+	// The checks come first: no profile is told so before the handler.
+	_, err = w.client.GetQuota(ctx, &v1.GetQuotaRequest{ProfileId: "00000000-0000-0000-0000-000000000000", Action: v1.Action_ACTION_LEARNING})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+}
+
 // racing is the handlers' database, which lets a request beside this one make
 // the account between the checks and the handler.
 type racing struct {

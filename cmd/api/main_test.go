@@ -139,7 +139,7 @@ func TestServeStartsServesAndStops(t *testing.T) {
 		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
 			port = fmt.Sprint(lines[0]["port"])
 			// With nothing declared for admission: no facts, the stage full, unnamed.
-			if lines[0]["admission_table"] != "0.2" || lines[0]["facts_file"] != false || lines[0]["rung"] != "full" ||
+			if lines[0]["admission_table"] != "0.3" || lines[0]["facts_file"] != false || lines[0]["rung"] != "full" ||
 				lines[0]["rung_set"] != false || lines[0]["platform_keys"] != float64(0) {
 				t.Errorf("the startup line %v does not say that nothing was declared for admission", lines[0])
 			}

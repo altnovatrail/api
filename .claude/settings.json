@@ -1,7 +1,8 @@
 {
   "claudeMdExcludes": [
     "**/api/spec/CLAUDE.md",
-    "**/api/spec/**/CLAUDE.md"
+    "**/api/spec/**/CLAUDE.md",
+    "**/api/spec/.claude/rules/**"
   ],
   "autoCompactWindow": 400000,
   "disableClaudeAiConnectors": true,
@@ -17,5 +18,16 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "novatrail": {
+      "source": {
+        "source": "directory",
+        "path": "./spec/claude-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "gopls-lsp@novatrail": true
   }
 }
