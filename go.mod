@@ -5,9 +5,9 @@ go 1.27.4
 require (
 	connectrpc.com/connect/v2 v2.0.2
 	firebase.google.com/go/v4 v4.22.0
-	github.com/altnovatrail/engine v0.1.6
+	github.com/altnovatrail/engine v0.1.8
 	github.com/altnovatrail/learner-model v0.1.6
-	github.com/altnovatrail/module-kit v0.3.0
+	github.com/altnovatrail/module-kit v0.3.1
 	github.com/altnovatrail/spec v0.15.1
 	github.com/altnovatrail/spec/contracts v0.15.1
 	github.com/altnovatrail/tutor v0.1.24
