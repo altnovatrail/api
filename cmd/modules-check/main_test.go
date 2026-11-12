@@ -59,3 +59,39 @@ func TestTheCheckPrintsTheCurrentVersionsAndRefuses(t *testing.T) {
 		}
 	}
 }
+
+// pinned is an index of two versions of a module in api's window, the newer
+// current; withdrawn, the same with both withdrawn by a later release.
+const (
+	pinned    = `{"module_format_version":"0.4","modules":{"example/smallest":{"0.1.0":{"module_format_version":"0.4","package_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000001","release":"v0.1.0"},"0.2.0":{"module_format_version":"0.4","package_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000002","release":"v0.2.0"}}}}`
+	withdrawn = `{"module_format_version":"0.4","modules":{"example/smallest":{"0.1.0":{"module_format_version":"0.4","package_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000001","release":"v0.1.0","withdrawn":"answer_leak"},"0.2.0":{"module_format_version":"0.4","package_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000002","release":"v0.2.0","withdrawn":"wrong_key"}}}}`
+)
+
+func TestTheCheckOfTheNewestReleasePrintsItsWithdrawalsAndRefuses(t *testing.T) {
+	t.Parallel()
+
+	config, idx := files(t, "v0.2.0", pinned)
+	later, newest := files(t, "v0.3.0", withdrawn)
+	mainConfig, mainIdx := files(t, "v0.2.0", pinned)
+	for _, tc := range []struct {
+		args   []string
+		code   int
+		stdout string
+	}{
+		{[]string{"-config", config, "-index", idx, "-latest", idx}, 0, "no version that v0.2.0 gives is withdrawn\n"},
+		{[]string{"-config", config, "-index", idx, "-latest", newest}, 1, "example/smallest 0.1.0: withdrawn, answer_leak\nexample/smallest 0.2.0: withdrawn, wrong_key, the current version\n"},
+		// The newest of an older release, which does not keep the withdrawals.
+		{[]string{"-config", later, "-index", newest, "-latest", idx}, 1, ""},
+		{[]string{"-config", config, "-index", newest, "-latest", newest}, 1, ""},
+		{[]string{"-config", config, "-index", idx, "-latest", newest + ".missing"}, 1, ""},
+		{[]string{"-config", config + ".missing", "-index", idx, "-latest", newest}, 1, ""},
+		{[]string{"-config", config, "-index", idx, "-latest", config}, 1, ""},
+		{[]string{"-config", config, "-index", idx, "-latest", newest, "-main-config", mainConfig, "-main-index", mainIdx}, 2, ""},
+		{[]string{"-config", config, "-index", idx, "-latest", ""}, 2, ""},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := run(tc.args, &stdout, &stderr); code != tc.code || stdout.String() != tc.stdout {
+			t.Errorf("%s: exit code %d, stdout %q, stderr %q; want %d and %q", strings.Join(tc.args, " "), code, stdout.String(), stderr.String(), tc.code, tc.stdout)
+		}
+	}
+}

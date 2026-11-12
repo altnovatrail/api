@@ -412,6 +412,47 @@ ci-modules:
     # which release-verify accepts (R52; export/README.md of spec, section 9).
     {{ quote(just_executable()) }} learner-model-proto check
 
+# The check of the scheduled job Withdrawals of withdrawals.yml (R61), in the toolchain stage, with
+# the network: the newest release of modules is the one the public address releases/latest leads
+# to, with no token; its index and its signature, which release-verify checks on every run, even
+# when it is the pinned release; the pinned release's index, which its digest holds (R77 spec); then
+# cmd/modules-check with -latest, which fails while the newest index withdraws a version that the
+# pinned one gives, until modules.json pins a release that marks it (R07).
+# Fail when the newest release of modules withdraws a version modules.json's release gives.
+ci-withdrawals:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repository=https://github.com/altnovatrail/modules/releases
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    # GitHub leads releases/latest to the page of the newest release's tag.
+    location="$(curl --fail --silent --show-error --retry 3 --output /dev/null --write-out '%{redirect_url}' "${repository}/latest")"
+    newest="${location#"${repository}/tag/"}"
+    if [ "$newest" = "$location" ] || ! [[ "$newest" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "ci-withdrawals: ${repository}/latest leads to ${location:-nowhere}, not to the tag of a release" >&2
+        exit 1
+    fi
+    release="$(jq --exit-status --raw-output .release modules.json)"
+    # A release below the pinned one marked latest by hand would fail every run, as the index of an
+    # older release: the pinned release is then the newest there is.
+    if [ "$(printf '%s\n' "$newest" "$release" | sort --version-sort | tail -n 1)" != "$newest" ]; then
+        echo "${repository}/latest leads to ${newest}, older than the pinned ${release}: the newest is ${release}"
+        newest="$release"
+    fi
+    echo "modules ${newest} is the newest release; modules.json pins ${release}"
+    mkdir -p "$work/newest" "$work/pinned"
+    for name in module-index.json module-index.json.sigstore.json; do
+        curl --fail --silent --show-error --location --retry 3 --output "$work/newest/$name" "${repository}/download/${newest}/$name"
+    done
+    {{ quote(just_executable()) }} -f spec/justfile release-verify modules "$newest" "$work/newest/module-index.json"
+    # The pinned release's index is the same file when it is the newest, as on most days.
+    if [ "$newest" = "$release" ]; then
+        cp "$work/newest/module-index.json" "$work/pinned/module-index.json"
+    else
+        curl --fail --silent --show-error --location --retry 3 --output "$work/pinned/module-index.json" "${repository}/download/${release}/module-index.json"
+    fi
+    go run ./cmd/modules-check -config modules.json -index "$work/pinned/module-index.json" -latest "$work/newest/module-index.json"
+
 # The .proto files of learner-model that the export of a profile carries (R52; R135 spec): those of
 # the release file of the version go.mod names, which release-verify accepts. "lay" lays them in
 # internal/export/proto/, with the descriptors built of them; "check" refuses files or descriptors that
