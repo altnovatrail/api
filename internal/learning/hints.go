@@ -234,6 +234,17 @@ func ownKeyFits(ctx context.Context, category formatv0.AgeCategory, sent bool) e
 	return nil
 }
 
+// ownKeySent is ownKeyFits of a request that sends an own key whole, and
+// refuses one with no provider or no key: the gate asks the route of the key's
+// provider, and the call takes the key too, so a key short of either would pass
+// the one and fail the other (R54).
+func ownKeySent(ctx context.Context, category formatv0.AgeCategory, own *v1.OwnKey) error {
+	if own != nil && (own.GetProvider() == "" || own.GetKey() == "") {
+		return rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+	}
+	return ownKeyFits(ctx, category, own != nil)
+}
+
 // GetRungWords gives the words of the rung a wrong answer gave, which the
 // request names by the count of wrong answers of its submission's answer and
 // sends the work of again (R10, R47): the tutor's question, once it passed the
@@ -250,7 +261,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 	if err != nil {
 		return nil, err
 	}
-	if err := ownKeyFits(ctx, category, req.GetOwnKey() != nil); err != nil {
+	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
 	profileID, attemptID := req.GetProfileId(), req.GetAttemptId()
@@ -438,7 +449,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 	if err != nil {
 		return nil, err
 	}
-	if err := ownKeyFits(ctx, category, req.GetOwnKey() != nil); err != nil {
+	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
 	profileID, attemptID := req.GetProfileId(), req.GetAttemptId()
@@ -590,7 +601,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 	if err != nil {
 		return nil, err
 	}
-	if err := ownKeyFits(ctx, category, req.GetOwnKey() != nil); err != nil {
+	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
 	profileID := req.GetProfileId()

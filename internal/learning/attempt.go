@@ -54,7 +54,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	if err != nil {
 		return nil, err
 	}
-	if err := ownKeyFits(ctx, category, req.GetOwnKey() != nil); err != nil {
+	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
 	profileID := req.GetProfileId()

@@ -93,9 +93,10 @@ release-files version:
 # license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
 # NOTICE, as module-kit names them (R38 module-kit): pgx and goose (R29), OpenFGA and the modules
 # they take (R31), the Admin SDK for Go and the modules it takes (R32), Connect and spec's module
-# of contracts (R33), module-kit and spec's own module (R41), tutor (R45), the SDKs of its
-# adapters with the modules they take (R46), learner-model (R49) and engine (R50). A module the
-# binary takes beyond these fails release-licenses, and ci-lint with it, until it is named here.
+# of contracts (R33), module-kit and spec's own module (R41), tutor (R45), the SDK of the one
+# adapter api gives it, Anthropic's, with the modules it takes (R46, R54), learner-model (R49) and
+# engine (R50). A module the binary takes beyond these fails release-licenses, and ci-lint with it,
+# until it is named here.
 # Each entry is <module path>=<name>, one a line, the name the path without its host, its slashes
 # dashes; where that name would read as a license the release has of its own — go, Go's, and api,
 # api's — the host stays in front of it, and release-licenses refuses a name twice or either of
@@ -135,7 +136,6 @@ THIRD_PARTY := """
     github.com/cenkalti/backoff/v5=cenkalti-backoff-v5
     github.com/cespare/xxhash/v2=cespare-xxhash-v2
     github.com/cncf/xds/go=cncf-xds-go
-    github.com/coder/websocket=coder-websocket
     github.com/emirpasic/gods=emirpasic-gods
     github.com/envoyproxy/go-control-plane/envoy=envoyproxy-go-control-plane-envoy
     github.com/envoyproxy/protoc-gen-validate=envoyproxy-protoc-gen-validate
@@ -166,7 +166,6 @@ THIRD_PARTY := """
     github.com/munnerz/goautoneg=munnerz-goautoneg
     github.com/natefinch/wrap=natefinch-wrap
     github.com/oklog/ulid/v2=oklog-ulid-v2
-    github.com/openai/openai-go/v3=openai-openai-go-v3
     github.com/openfga/api/proto=openfga-api-proto
     github.com/openfga/language/pkg/go=openfga-language-pkg-go
     github.com/openfga/openfga=openfga-openfga

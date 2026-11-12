@@ -26,9 +26,10 @@ func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.S
 	return f(ctx, r)
 }
 
-// WithWords is what words the tutor's words, in place of tutor, which admits
-// no model for them yet: a test's own, admitted for every learner and route,
-// for want of a provider.
+// WithWords is what words the tutor's words, in place of tutor: a test's own,
+// admitted for every learner and route, so that no test calls a provider. The
+// real gate admits the words at the author's stage since tutor v0.1.24 (R54), so
+// a test on it must not ask for them.
 func WithWords(tell func(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer) Option {
 	return func(s *Service) { s.teller = tellerFunc(tell) }
 }

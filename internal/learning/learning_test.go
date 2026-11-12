@@ -687,6 +687,8 @@ func TestASubmissionThatTheTaskDoesNotTakeIsRefused(t *testing.T) {
 		"a slot tapped twice":           {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, TappedChoices: []*v1.TappedChoice{tap(1, 1, "five"), tap(1, 1, "five")}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"work on a tap's task":          {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, Work: work}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"a child's own key":             {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "k"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE},
+		"an own key of no provider":     {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick, OwnKey: &v1.OwnKey{Key: "k"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"an own key with no key":        {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick, OwnKey: &v1.OwnKey{Provider: "anthropic"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"an attempt not there":          {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: uuid.NewString()}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
 		"another's attempt":             {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
 		"an ID that is none":            {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: "x"}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
