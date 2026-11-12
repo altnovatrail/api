@@ -79,7 +79,7 @@ func TestAChoiceIsWrittenAndRead(t *testing.T) {
 		t.Errorf("ClosedAttempts = %+v, %v; want the attempt, its test's choice with no code", attempts, err)
 	}
 	runs, err := store.ProfileRuns(ctx, e.pool, e.profileID)
-	if err != nil || len(runs) != 1 || runs[0].LessonID != "example/m/lesson/l1" || runs[0].EndReason != nil {
+	if err != nil || len(runs) != 1 || runs[0].ID != run || runs[0].LessonID != "example/m/lesson/l1" || runs[0].EndReason != nil {
 		t.Errorf("ProfileRuns = %+v, %v", runs, err)
 	}
 

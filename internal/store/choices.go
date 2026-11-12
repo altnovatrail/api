@@ -226,9 +226,10 @@ func ClosedAttempts(ctx context.Context, db Lister, profileID string) ([]ClosedA
 	return closed, nil
 }
 
-// Run is a lesson run of the profile as the engine's input reads it: its
+// Run is a lesson run of the profile as the engine's input reads it: its ID, its
 // lesson, its package, and how and when it ended, while it has.
 type Run struct {
+	ID            string
 	LessonID      string
 	ModuleID      string
 	PackageDigest string
@@ -238,7 +239,7 @@ type Run struct {
 
 // ProfileRuns is the profile's lesson runs, in the order they began.
 func ProfileRuns(ctx context.Context, db Lister, profileID string) ([]Run, error) {
-	rows, err := db.Query(ctx, `SELECT lesson_id, module_id, package_digest, end_reason, ended_at FROM lesson_runs
+	rows, err := db.Query(ctx, `SELECT id, lesson_id, module_id, package_digest, end_reason, ended_at FROM lesson_runs
 		WHERE profile_id = $1 ORDER BY started_at, id`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the lesson runs: %w", err)

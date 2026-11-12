@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -79,8 +80,9 @@ func (e *errNoChoice) Unwrap() error { return e.err }
 // pool and the lessons the learner may begin, the runs, the attempts closed and
 // the summary of what was handed out, and its choice is written with all a
 // replay needs — nothing to give too, so that what it holds holds after it.
-// Nothing to give says "not admitted" when AI that is not admitted left a task
-// out of the pool, and nothing for another reason (contract, EngineChoice).
+// Nothing to give says why when AI that is not admitted or closed left a task
+// out of the pool or kept an open run waiting, and nothing for another reason
+// (contract, EngineChoice).
 func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, pkgs []*modulepackage.Package, mapSkill string, now time.Time, by after) (*v1.EngineChoice, error) {
 	settled, err := s.model.Settle(ctx, tx, profileID, now)
 	if err != nil {
@@ -117,9 +119,11 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 		}
 		in.Modules, narrowed = append(in.Modules, m), narrowed || left
 	}
-	if err := s.history(ctx, tx, profileID, current, graphs, &in); err != nil {
+	held, err := s.history(ctx, tx, profileID, category, closed == nil, current, graphs, &in)
+	if err != nil {
 		return nil, err
 	}
+	narrowed = narrowed || held
 	c, err := engine.Choose(in)
 	if err != nil {
 		return nil, &errNoChoice{err}
@@ -150,17 +154,15 @@ var choiceKinds = map[string]v1.ChoiceKind{
 // begins, each with the traps of its items' checks — and its lessons that suit
 // the learner whole and whose every task segment this code begins, so that the
 // engine gives nothing a beginning refuses (Д26). It says too whether a task
-// was left out of the pool only for AI that is not admitted to read it.
+// was left out of the pool only for AI that is not admitted or closed to read
+// it; an open run that waits says so in history.
 func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Graph, category formatv0.AgeCategory, aiOpen bool) (engine.Module, bool, error) {
 	m := engine.Module{Graph: graph}
-	begins := func(task formatv0.Task) bool {
-		return suits(pkg, task, category) && s.admitted(task, category, "") && (aiOpen || byTap(task))
-	}
 	narrowed := false
 	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
 		task := pkg.View.Tasks[id]
-		if !begins(task) {
-			narrowed = narrowed || suits(pkg, task, category) && !rubric(task) && sheetRead(task)
+		if !s.begins(pkg, task, category, aiOpen) {
+			narrowed = narrowed || forAI(pkg, task, category)
 			continue
 		}
 		described, err := model.Describe(pkg, task)
@@ -182,7 +184,7 @@ func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Grap
 				continue
 			}
 			task := pkg.View.Tasks[*seg.Task]
-			if !begins(task) {
+			if !s.begins(pkg, task, category, aiOpen) {
 				whole = false
 				break
 			}
@@ -197,6 +199,70 @@ func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Grap
 		}
 	}
 	return m, narrowed, nil
+}
+
+// begins says whether this code begins the task of pkg for a learner of
+// category now, as a beginning would: one that suits the learner and that AI
+// may check, and, while the AI is closed to a new task, only one a tap checks
+// (R11, R59). The pool, the lessons and the open runs the engine gets all go by
+// it (R50).
+func (s *Service) begins(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory, aiOpen bool) bool {
+	return suits(pkg, task, category) && s.admitted(task, category, "") && (aiOpen || byTap(task))
+}
+
+// forAI says whether a task that does not begin is left out only for AI that is
+// not admitted or closed to read it: one that suits the learner, with no rubric,
+// on a sheet this release of tutor reads.
+func forAI(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory) bool {
+	return suits(pkg, task, category) && !rubric(task) && sheetRead(task)
+}
+
+// nextTask is the task of the first task segment of the lesson that has not
+// ended, by the places of those that have; none when every one has, and the run
+// waits only for "lesson done".
+func nextTask(lesson formatv0.Lesson, ended []int) (formatv0.TaskID, bool) {
+	for i, seg := range lesson.Segments {
+		if seg.Task != nil && !slices.Contains(ended, i+1) {
+			return *seg.Task, true
+		}
+	}
+	return "", false
+}
+
+// waits says whether the open run runID of the lesson of pkg waits, for a
+// learner of category with the AI open or not: whether this code does not begin
+// the task of its next task segment now; and whether that is only for AI that
+// is not admitted or closed. A lesson whose every task segment begins asks the
+// database nothing.
+func (s *Service) waits(ctx context.Context, tx pgx.Tx, profileID, runID string, pkg *modulepackage.Package, lesson formatv0.Lesson, category formatv0.AgeCategory, aiOpen bool) (wait, byAI bool, err error) {
+	if !slices.ContainsFunc(lesson.Segments, func(seg formatv0.Segment) bool {
+		return seg.Task != nil && !s.begins(pkg, pkg.View.Tasks[*seg.Task], category, aiOpen)
+	}) {
+		return false, false, nil
+	}
+	ended, err := store.EndedSegments(ctx, tx, profileID, runID)
+	if err != nil {
+		return false, false, err
+	}
+	id, ok := nextTask(lesson, ended)
+	if !ok {
+		return false, false, nil
+	}
+	task := pkg.View.Tasks[id]
+	wait = !s.begins(pkg, task, category, aiOpen)
+	return wait, wait && forAI(pkg, task, category), nil
+}
+
+// withoutLesson leaves the lesson of a run that waits out of the lessons the
+// engine gets, so that it gives the lesson by none of its branches: one on the
+// current version whose every segment begins would give the run that waits, on
+// a package before, again (R13). Out of the lessons, it holds back none of the
+// author's order that come after it, as the engine reads them: the run on a
+// package before is a rare case, and its lesson waits with it.
+func withoutLesson(in *engine.Input, lesson string) {
+	for i := range in.Modules {
+		in.Modules[i].Lessons = slices.DeleteFunc(in.Modules[i].Lessons, func(l engine.Lesson) bool { return l.ID == lesson })
+	}
 }
 
 // itemTraps is the traps of the trap values of each item's checks, by full ID.
@@ -264,11 +330,20 @@ var runEndsOf = map[string]engine.RunEnd{
 // handed out (R104, R107 spec). Skills of a package before are named as the
 // current versions name them, and a run whose package left the image takes its
 // lesson's skills from the current version, which holds the lesson by its ID.
-func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, current map[string]*modulepackage.Package, graphs learnermodel.Graphs, in *engine.Input) error {
+//
+// An open run whose next task segment this code does not begin now, for a
+// learner of category with the AI open or not (begins), waits: the engine gets
+// neither it nor its lesson, which it would give by its first branch however
+// the lessons it got leave it out (В59 RUN.md). Once the segment begins again,
+// the engine gets the run again. A run on a package the image no longer gives
+// is no such run: opened, it ends "unchecked". history says too whether a run waits only for
+// AI that is not admitted or closed, so that nothing to give says why.
+func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, aiOpen bool, current map[string]*modulepackage.Package, graphs learnermodel.Graphs, in *engine.Input) (bool, error) {
 	runs, err := store.ProfileRuns(ctx, tx, profileID)
 	if err != nil {
-		return err
+		return false, err
 	}
+	held := false
 	for _, r := range runs {
 		if current[r.ModuleID] == nil {
 			continue
@@ -284,13 +359,25 @@ func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, curr
 		run := engine.Run{Lesson: r.LessonID, Skills: translated(graphs, skillsOf(pkg.View.Manifest.ID, lesson.Skills))}
 		if r.EndReason != nil {
 			run.End, run.EndedAt = runEndsOf[*r.EndReason], r.EndedAt.Unix()
+		} else if s.set.Status(formatv0.Digest(r.PackageDigest)) == packages.Given {
+			// A run on a package the image no longer gives goes to the engine as it is:
+			// opened, it ends "unchecked" (R13).
+			wait, byAI, err := s.waits(ctx, tx, profileID, r.ID, pkg, lesson, category, aiOpen)
+			if err != nil {
+				return false, err
+			}
+			if wait {
+				held = held || byAI
+				withoutLesson(in, r.LessonID)
+				continue
+			}
 		}
 		in.Runs = append(in.Runs, run)
 	}
 
 	closed, err := store.ClosedAttempts(ctx, tx, profileID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	last := map[string]engine.SkillIssue{}
 	for i, a := range closed {
@@ -317,7 +404,7 @@ func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, curr
 	}
 	issued, err := store.IssuedSkills(ctx, tx, profileID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, is := range issued {
 		for _, skill := range translated(graphs, []string{is.Skill}) {
@@ -334,20 +421,20 @@ func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, curr
 	}
 	counts, err := store.ChoicesByModule(ctx, tx, profileID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, c := range counts {
 		in.Summary.Modules = append(in.Summary.Modules, engine.ModuleChoices{Module: c.ModuleID, Choices: c.Choices})
 	}
 	solutions, err := store.SolutionsSent(ctx, tx, profileID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, sol := range solutions {
 		in.Summary.Tasks = append(in.Summary.Tasks, engine.TaskSolution{
 			Task: model.TaskID(formatv0.ModuleID(sol.ModuleID), formatv0.TaskID(sol.TaskID)), SolutionSentAt: sol.At.Unix()})
 	}
-	return nil
+	return held, nil
 }
 
 // results is the closed attempt's result on each of its primary skills, by its
@@ -549,7 +636,8 @@ func chosenIn(pkgs []*modulepackage.Package, c engine.Choice) (pkg *modulepackag
 }
 
 // nothing is the choice c of nothing to give: when the closed AI left a task the
-// code would begin with it out of the pool, with the outcome that says why —
+// code would begin with it out of the pool, or kept an open run waiting, with
+// the outcome that says why —
 // "not admitted", "quota" with when the next family day begins, or "platform
 // limit"; with none for another reason (contract, EngineChoice). A choice
 // written before the causes were kept is "not admitted".
