@@ -123,3 +123,35 @@ func Reserve(call tutor.Call, price tutor.CallPrice, crops int) Micro {
 	}
 	return reserves[call] * Micro(max(crops, 1))
 }
+
+// Spent is why a reserve does not fit, in the words of the log's line of an
+// exhausted quota: the cap of the profile or of the account has too little
+// left, or the account has no tariff with caps. Fits is none: it fits.
+type Spent string
+
+// The reasons a reserve does not fit.
+const (
+	Fits       Spent = ""
+	ProfileCap Spent = "profile"
+	AccountCap Spent = "account"
+	NoTariff   Spent = "tariff"
+)
+
+// Counter is what a counter of a family day holds: spent, and in reserve.
+type Counter struct {
+	Spent, Reserved Micro
+}
+
+// Room says whether a reserve of amount fits under caps beside the counters of
+// the profile and of its account: on each, what is spent, what is in reserve
+// and amount together are no more than its cap (R12). The profile's cap is
+// asked first.
+func Room(caps Caps, profile, account Counter, amount Micro) Spent {
+	switch {
+	case profile.Spent+profile.Reserved+amount > caps.Profile:
+		return ProfileCap
+	case account.Spent+account.Reserved+amount > caps.Account:
+		return AccountCap
+	}
+	return Fits
+}

@@ -179,12 +179,13 @@ const (
 	StepConsentRecords    = "consent_records"
 	StepConsentForms      = "consent_forms"
 	StepProblemReports    = "problem_reports"
+	StepQuota             = "quota"
 	StepKeys              = "keys"
 	StepChangelog         = "changelog"
 )
 
 // Steps is every step of the daily job, in the order it takes them.
-var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepConsentForms, StepProblemReports, StepKeys, StepChangelog}
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepConsentForms, StepProblemReports, StepQuota, StepKeys, StepChangelog}
 
 // AfterSteps is every step of the job after a rollout, in the order it takes
 // them: the steps of the daily job that close what the image no longer gives

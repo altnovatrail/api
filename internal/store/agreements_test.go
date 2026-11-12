@@ -88,6 +88,10 @@ func newRich(t *testing.T) rich {
 		t.Fatal(err)
 	}
 	exec(`INSERT INTO work_storage_consents (profile_id, giver, text_version, on_at, off_at) VALUES ($1, 'owner', 1, now(), now())`, r.profile)
+	exec(`INSERT INTO account_quota (account_id, day_start, day_end, spent_micro_usd, reserved_micro_usd)
+		VALUES ($1, '2026-11-12T05:00:00Z', '2026-11-13T05:00:00Z', 21000, 9343)`, r.account)
+	exec(`INSERT INTO profile_quota (profile_id, day_start, day_end, spent_micro_usd) VALUES ($1, '2026-11-12T05:00:00Z', '2026-11-13T05:00:00Z', 21000)`,
+		r.profile)
 	exec(`INSERT INTO problem_reports (account_id, profile_id, attempt_id, reply, rung, words, kind, text, created_at, reviewed_at)
 		VALUES ($1, $2, $3, 'rung', 1, 'Words.', 'unclear', '', now(), now())`, r.account, r.profile, r.attempt)
 	return r
@@ -140,7 +144,9 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		t.Errorf("the records of protobuf = %d observations, %d evidence, state %q, %+v", len(e.Observations[r.attempt]), len(e.Evidence), e.State, p.State)
 	}
 	if a.AccountID != exportv1.ID(r.account) || a.Tariff != "closed_slice" || a.UtcOffsetMinutes == nil || a.DayEndsAt == nil ||
-		len(a.ProfileIds) != 1 || len(a.Consents) != 3 {
+		len(a.ProfileIds) != 1 || len(a.Consents) != 3 || len(a.QuotaCounters) != 1 || a.QuotaCounters[0].DayStart != "2026-11-12T05:00:00Z" ||
+		a.QuotaCounters[0].SpentMicroUsd != 21000 || a.QuotaCounters[0].ReservedMicroUsd != 9343 || len(p.QuotaCounters) != 1 ||
+		p.QuotaCounters[0].SpentMicroUsd != 21000 {
 		t.Errorf("the account = %+v", a)
 	}
 	var parent, learner bool

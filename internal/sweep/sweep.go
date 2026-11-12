@@ -2,14 +2,15 @@
 // it finishes the deletions the requests left unfinished and deletes what is
 // kept past its term — accounts and profiles idle for 12 months, users of the
 // sign-in service with no account for 30 days, dangling tuples, the minimal
-// records of consents for children 5 years after the deletion, and the records
-// of keys and OpenFGA's changelog after a day — and closes what a learner
-// abandoned: an attempt with no action for 7 days, and a lesson run with none
-// for 30 (R10, R13). Before them it closes "unchecked" the attempts and lesson
-// runs on the packages the image no longer gives, which are the two steps of the
-// job after a rollout too (R07). A pass keeps no state for the next: each step
-// chooses its work again by a query, so a pass cut short is taken up by the next
-// one. Its log is counts alone.
+// records of consents for children 5 years after the deletion, the counters of
+// the quota a day after their day, and the records of keys and OpenFGA's
+// changelog after a day — and closes what a learner abandoned: an attempt with
+// no action for 7 days, and a lesson run with none for 30 (R10, R13). Before
+// them it closes "unchecked" the attempts and lesson runs on the packages the
+// image no longer gives, which are the two steps of the job after a rollout too
+// (R07). A pass keeps no state for the next: each step chooses its work again
+// by a query, so a pass cut short is taken up by the next one. Its log is
+// counts alone.
 package sweep
 
 import (
@@ -45,7 +46,11 @@ const (
 	usersTerm          = 30 * 24 * time.Hour
 	consentRecordYears = 5
 	keysTerm           = 24 * time.Hour
-	changelogTerm      = 24 * time.Hour
+	// quotaTerm is how long a counter of the quota is kept after its day ends:
+	// a day, to settle the requests that went over midnight, so that by the daily
+	// pass it lives no more than 2 days after its day (R12).
+	quotaTerm     = 24 * time.Hour
+	changelogTerm = 24 * time.Hour
 )
 
 // batch is how many accounts, profiles and tuples a step takes at a time (R38).
@@ -155,6 +160,7 @@ func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 		logging.StepConsentRecords:    s.consentRecords,
 		logging.StepConsentForms:      s.consentForms,
 		logging.StepProblemReports:    s.problemReports,
+		logging.StepQuota:             s.quota,
 		logging.StepKeys:              s.keys,
 		logging.StepChangelog:         s.changelog,
 	})
@@ -440,6 +446,18 @@ func (s *Sweeper) abandonedRuns(ctx context.Context, now time.Time, step *Step) 
 // keys deletes the records of idempotency keys older than a day (R17).
 func (s *Sweeper) keys(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropKeys(ctx, s.db, now.Add(-keysTerm))
+	step.Done = dropped
+	if err != nil {
+		s.failed(ctx, step, err)
+		return
+	}
+	step.Finished = true
+}
+
+// quota deletes the counters of the quota whose day ended more than a day ago
+// (R12).
+func (s *Sweeper) quota(ctx context.Context, now time.Time, step *Step) {
+	dropped, err := store.DropQuotaCounters(ctx, s.db, now.Add(-quotaTerm))
 	step.Done = dropped
 	if err != nil {
 		s.failed(ctx, step, err)
