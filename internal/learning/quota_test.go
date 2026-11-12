@@ -213,11 +213,13 @@ func TestASpentQuotaMakesNoCall(t *testing.T) {
 	l := w.learner(t)
 	ts.say("Which of the two numbers has more tens?", nil)
 	trapped := []*v1.TappedChoice{tap(1, 1, "12"), tap(2, 1, "30")}
+	// The attempt of handwriting begins with room for a typical task, and waits
+	// once the quota is spent.
+	sheetAttempt := w.begin(t, l, l.adult, "apples").GetAttemptId()
 	day := w.spend(t, l.accountID, 1_500_000)
 	calls := ts.count()
 
 	rs.give(answered(read("7"), read("7")))
-	sheetAttempt := w.begin(t, l, l.adult, "apples").GetAttemptId()
 	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: sheetAttempt,
 		IdempotencyKey: uuid.NewString(), Work: sheet(crop(t))})
 	if err != nil {
@@ -244,6 +246,24 @@ func TestASpentQuotaMakesNoCall(t *testing.T) {
 	if log := w.log.String(); strings.Count(log, `"message":"quota_exhausted"`) != 3 || !strings.Contains(log, `"quota_cap":"account"`) ||
 		strings.Contains(log, l.accountID) || strings.Contains(log, l.child) {
 		t.Errorf("the log = %s, want three lines of the quota spent, with the cap and no ID", log)
+	}
+
+	// A new task of handwriting does not begin; the engine gives what a tap checks.
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_PreviousAttemptId{PreviousAttemptId: sheetAttempt}})
+	if r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_QUOTA); !r.GetNextFamilyDay().AsTime().Equal(day.End) {
+		t.Errorf("the beginning's refusal = %v, want the next day", r)
+	}
+	if open, err := w.learning.GetOpenAttempt(l.ctx, &v1.GetOpenAttemptRequest{ProfileId: l.adult, AttemptId: sheetAttempt}); err != nil || open == nil {
+		t.Errorf("the attempt that waits = %v (%v), want it open", open, err)
+	}
+	choice, err := w.learning.ChooseNext(l.ctx, &v1.ChooseNextRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString()})
+	var limited bool
+	if err == nil {
+		err = w.pool.QueryRow(t.Context(), `SELECT pool_limited FROM engine_choices WHERE profile_id = $1 ORDER BY chosen_at DESC LIMIT 1`, l.adult).Scan(&limited)
+	}
+	if err != nil || !limited || choice.GetChoice().GetKind() == v1.ChoiceKind_CHOICE_KIND_UNSPECIFIED {
+		t.Errorf("the choice on a spent quota = %v (%v), limited %v; want a pool of taps", choice, err, limited)
 	}
 
 	// The next day the right is there still.
@@ -298,5 +318,63 @@ func TestAnOwnKeyARepeatAndNoTariff(t *testing.T) {
 	}
 	if !strings.Contains(w.log.String(), `"quota_cap":"tariff"`) {
 		t.Error("the log does not say the tariff had no caps")
+	}
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, l.adult, "apples")}})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+}
+
+// A refusal of the provider by its limit on the platform's key closes platform
+// AI to all, and says so once in the log: then no call goes — the words are the
+// fallback text with the outcome "platform limit", "explain differently" and a
+// new task of handwriting are refused so, and the engine's pool is of taps —
+// until the operator opens it again. An own key goes on.
+func TestThePlatformsLimitClosesPlatformAIToAll(t *testing.T) {
+	t.Parallel()
+
+	ts, rs := &tellers{}, &readers{}
+	w := newQuotaWorld(t, ts, rs)
+	l := w.learner(t)
+	trapped := []*v1.TappedChoice{tap(1, 1, "12"), tap(2, 1, "30")}
+	sheetAttempt := w.begin(t, l, l.adult, "apples").GetAttemptId()
+	ts.give(tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.LimitReached}})
+	a := w.begin(t, l, l.child, "pairs").GetAttemptId()
+	w.wrongs(t, l, l.child, a, trapped)
+	if words, err := w.rungWords(l, l.child, a, 1); err != nil || words.GetOutcome().GetCause() != v1.Cause_CAUSE_PLATFORM_LIMIT {
+		t.Fatalf("the words the provider refused = %v (%v)", words, err)
+	}
+	if log := w.log.String(); strings.Count(log, `"message":"platform_limit"`) != 1 || !strings.Contains(log, `"severity":"WARNING","message":"platform_limit"`) {
+		t.Errorf("the log = %s, want one warning of the platform's limit", log)
+	}
+	calls := ts.count()
+
+	ts.say("Which of the two numbers has more tens?", nil)
+	b := w.begin(t, l, l.child, "pairs").GetAttemptId()
+	w.wrongs(t, l, l.child, b, trapped)
+	words, err := w.rungWords(l, l.child, b, 1)
+	if err != nil || words.GetOutcome().GetCause() != v1.Cause_CAUSE_PLATFORM_LIMIT || words.GetWords() != trapText || ts.count() != calls {
+		t.Errorf("the words with platform AI closed = %v (%v); want the fallback text and no call", words, err)
+	}
+	_, err = w.explain(l, l.child, b, 1)
+	refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_PLATFORM_LIMIT)
+	rs.give(answered(read("7"), read("7")))
+	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: sheetAttempt,
+		IdempotencyKey: uuid.NewString(), Work: sheet(crop(t))})
+	if err != nil || res.GetOutcome().GetCause() != v1.Cause_CAUSE_PLATFORM_LIMIT || rs.count() != 0 {
+		t.Errorf("a reading with platform AI closed = %v (%v), read %d times", res, err, rs.count())
+	}
+	// An own key is not platform AI.
+	res, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: sheetAttempt,
+		IdempotencyKey: uuid.NewString(), Work: sheet(crop(t)), OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "k"}})
+	if err != nil || res.GetSolved() == nil || rs.count() != 1 {
+		t.Errorf("a reading by an own key = %v (%v)", res, err)
+	}
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_PreviousAttemptId{PreviousAttemptId: sheetAttempt}})
+	refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_PLATFORM_LIMIT)
+
+	w.exec(t, `UPDATE platform_ai SET closed_at = NULL`)
+	if again := w.begin(t, l, l.adult, "apples"); again.GetAttemptId() == "" {
+		t.Error("a new task of handwriting did not begin once platform AI was opened")
 	}
 }

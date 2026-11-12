@@ -76,6 +76,13 @@ const (
 	// method and the cap it met — never an ID, a sum or an offset. The unit
 	// economics count them by the day.
 	EventQuotaExhausted = "quota_exhausted"
+	// EventPlatformLimit is the line of a refusal of the provider by its limit on
+	// the platform's key, which closed platform AI to all until the operator opens
+	// it again (R11): the method alone. It is the operator's signal.
+	EventPlatformLimit = "platform_limit"
+	// EventPlatformAIOpened is the line of api reopen, which opened platform AI
+	// again: whether it was closed.
+	EventPlatformAIOpened = "platform_ai_opened"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -153,6 +160,8 @@ const (
 	FieldBilled = "billed"
 	// FieldQuotaCap is the cap of the quota a call met: a word of QuotaCaps.
 	FieldQuotaCap = "quota_cap"
+	// FieldWasClosed says platform AI was closed when the operator opened it.
+	FieldWasClosed = "was_closed"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -173,6 +182,7 @@ const (
 	MomentConsents  = "consents"
 	MomentReports   = "reports"
 	MomentTariff    = "tariff"
+	MomentReopen    = "reopen"
 )
 
 // The steps of the daily job and of the job after a rollout: the value set of
@@ -228,7 +238,9 @@ var events = map[string][]string{
 	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
 		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled},
-	EventQuotaExhausted: {FieldMethod, FieldQuotaCap},
+	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
+	EventPlatformLimit:    {FieldMethod},
+	EventPlatformAIOpened: {FieldWasClosed},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -251,7 +263,7 @@ var fields = map[string]rule{
 	FieldDeployed:       {kind: slog.KindBool},
 	FieldStarted:        {kind: slog.KindBool},
 	FieldCutShort:       {kind: slog.KindBool},
-	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff}},
+	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen}},
 	FieldErrorKind:      {kind: slog.KindLogValuer},
 	FieldPanicKind:      {kind: slog.KindLogValuer},
 	FieldApplied:        {kind: slog.KindInt64},
@@ -290,6 +302,7 @@ var fields = map[string]rule{
 	FieldCostMicroUSD:   {kind: slog.KindInt64},
 	FieldBilled:         {kind: slog.KindBool},
 	FieldQuotaCap:       {kind: slog.KindString, values: QuotaCaps},
+	FieldWasClosed:      {kind: slog.KindBool},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a

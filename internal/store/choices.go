@@ -18,11 +18,16 @@ import (
 // the last evidence read, and the digests of the graphs —, with the close or the
 // end of a run whose next it is, when it is one.
 type NewChoice struct {
-	Kind          string
-	ModuleID      string
-	TaskID        string
-	LessonID      string
-	NotAdmitted   bool
+	Kind        string
+	ModuleID    string
+	TaskID      string
+	LessonID    string
+	NotAdmitted bool
+	// Closed is why the AI that checks the tasks was closed, beside nothing to give
+	// when it left a task out: a word of NothingCauses, with NextDay beside the
+	// quota (R59).
+	Closed        string
+	NextDay       *time.Time
 	ReasonCode    int
 	IssuedSkills  []string
 	PackageDigest string
@@ -47,12 +52,12 @@ func WriteChoice(ctx context.Context, tx pgx.Tx, profileID string, c NewChoice, 
 	err := tx.QueryRow(ctx, `INSERT INTO engine_choices (profile_id, kind, chosen_at, module_id, task_id, lesson_id,
 			reason_code, issued_skills, package_digest, map_skill, age_category, grade, pool_limited, engine_version,
 			learner_model_version, modules_release, format_window, last_seq, digests, engine_digests,
-			after_attempt_id, after_lesson_run_id, not_admitted)
+			after_attempt_id, after_lesson_run_id, not_admitted, nothing_cause, next_family_day)
 		VALUES ($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), $7, $8, nullif($9, ''), nullif($10, ''), $11, $12,
-			$13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id`,
+			$13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, nullif($24, ''), $25) RETURNING id`,
 		profileID, c.Kind, at, c.ModuleID, c.TaskID, c.LessonID, c.ReasonCode, c.IssuedSkills, c.PackageDigest,
 		c.MapSkill, c.AgeCategory, c.Grade, c.PoolLimited, c.EngineVersion, c.Mark.LearnerModel, c.Mark.Release,
-		c.Mark.Window, c.LastSeq, c.Digests, c.EngineDigests, c.AfterAttemptID, c.AfterLessonRunID, c.NotAdmitted).Scan(&id)
+		c.Mark.Window, c.LastSeq, c.Digests, c.EngineDigests, c.AfterAttemptID, c.AfterLessonRunID, c.NotAdmitted, c.Closed, c.NextDay).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("store: write the choice: %w", err)
 	}
@@ -60,12 +65,22 @@ func WriteChoice(ctx context.Context, tx pgx.Tx, profileID string, c NewChoice, 
 }
 
 // MadeChoice is a choice written: its ID and kind, and, beside nothing to give,
-// whether its answer said "not admitted".
+// whether its answer said the AI was closed — and why, by a word of
+// NothingCauses, with when the next family day begins beside the quota.
 type MadeChoice struct {
 	ID          string
 	Kind        string
 	NotAdmitted bool
+	Closed      string
+	NextDay     *time.Time
 }
+
+// The causes of a choice of nothing to give whose pool the closed AI narrowed.
+const (
+	NothingNotAdmitted   = "not_admitted"
+	NothingQuota         = "quota"
+	NothingPlatformLimit = "platform_limit"
+)
 
 // ChoiceAfterAttempt is the choice the close of the profile's attempt gave as
 // what comes next, and whether it gave one: a repeat of the request that closed
@@ -82,8 +97,10 @@ func ChoiceAfterRun(ctx context.Context, db Querier, profileID, runID string) (M
 
 func madeChoice(ctx context.Context, db Querier, column, profileID, id string) (MadeChoice, bool, error) {
 	var c MadeChoice
-	err := db.QueryRow(ctx, `SELECT id, kind, coalesce(not_admitted, false) FROM engine_choices
-		WHERE profile_id = $1 AND `+column+` = $2`, profileID, id).Scan(&c.ID, &c.Kind, &c.NotAdmitted)
+	var closed *string
+	err := db.QueryRow(ctx, `SELECT id, kind, coalesce(not_admitted, false), nothing_cause, next_family_day FROM engine_choices
+		WHERE profile_id = $1 AND `+column+` = $2`, profileID, id).Scan(&c.ID, &c.Kind, &c.NotAdmitted, &closed, &c.NextDay)
+	c.Closed = deref(closed)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return MadeChoice{}, false, nil

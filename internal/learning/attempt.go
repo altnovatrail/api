@@ -86,11 +86,6 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			return held{}, sending{}, err
 		}
 		out, err := s.sent(ctx, h, req, category)
-		if err == nil && out.ai {
-			if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err == nil {
-				out.reserve, err = s.reserveFor(ctx, tx, profileID, out.route, tutor.CallSheet, out.day)
-			}
-		}
 		return h, out, err
 	}
 	var answer *v1.SubmitWorkResponse
@@ -98,6 +93,13 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[sending, *v1.SubmitWorkResponse]{
 			Prepare: func(tx pgx.Tx, _ string) (sending, store.KeyTarget, error) {
 				h, out, err := prepare(tx)
+				if err == nil && out.ai {
+					// The reading takes its reserve here, beside the record going, and
+					// settles it after the call (R58).
+					if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err == nil {
+						out.reserve, err = s.reserveFor(ctx, tx, profileID, out.route, tutor.CallSheet, out.day)
+					}
+				}
 				return out, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, err
 			},
 			Call: func(ctx context.Context, out sending) sending { return s.read(ctx, out) },
@@ -277,7 +279,7 @@ func (s *Service) read(ctx context.Context, out sending) sending {
 	// The crop goes no further than the reading.
 	out.crop = nil
 	noteCall(ctx, out.read.Outcome, time.Since(start))
-	s.settleQuota(ctx, out.reserve, out.read.Outcome)
+	s.afterCall(ctx, out.reserve, out.read.Outcome)
 	return out
 }
 

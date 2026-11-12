@@ -132,7 +132,7 @@ func (s *Service) call(ctx context.Context, t telling) telling {
 	t.answer, t.called = s.teller.TellWords(ctx, t.request), true
 	t.request.Crop = nil
 	noteCall(ctx, t.answer.Outcome, time.Since(start))
-	s.settleQuota(ctx, t.reserve, t.answer.Outcome)
+	s.afterCall(ctx, t.reserve, t.answer.Outcome)
 	return t
 }
 

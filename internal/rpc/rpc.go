@@ -126,6 +126,8 @@ type note struct {
 	wordsCheck string
 	// quotaSpent is the cap a call of platform AI met, which made no call (R12).
 	quotaSpent string
+	// platformLimit says the request closed platform AI for its provider's limit.
+	platformLimit bool
 	// calls are the calls of AI the request made.
 	calls []AICall
 }
@@ -178,6 +180,9 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 			}
 			if n.wordsCheck != "" {
 				attrs = append(attrs, logging.FieldWordsCheck, n.wordsCheck)
+			}
+			if n.platformLimit {
+				log.WarnContext(ctx, logging.EventPlatformLimit, logging.FieldMethod, spec.Procedure)
 			}
 			if n.quotaSpent != "" {
 				log.InfoContext(ctx, logging.EventQuotaExhausted, logging.FieldMethod, spec.Procedure, logging.FieldQuotaCap, n.quotaSpent)

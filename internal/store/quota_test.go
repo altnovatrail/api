@@ -1,11 +1,15 @@
 package store_test
 
 import (
+	"context"
+	"crypto/sha256"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/altnovatrail/api/internal/quota"
@@ -345,4 +349,87 @@ func TestTheCountersPastTheirTermAreDropped(t *testing.T) {
 	if n, err := store.DropQuotaCounters(t.Context(), w.pool, w.day.End.Add(time.Second)); err != nil || n != 2 {
 		t.Errorf("a drop after the day's end = %d, %v; want the profile's and the account's", n, err)
 	}
+}
+
+// SetTariff gives the account of the code the tariff, and an account that no
+// code is bound to, or one being deleted, is none.
+func TestTheTariffOfAnAccountIsSetByItsCode(t *testing.T) {
+	t.Parallel()
+
+	pool := storetest.DB(t)
+	hash := sha256.Sum256([]byte("a code"))
+	if err := store.CreateInvite(t.Context(), pool, hash[:], quota.ClosedSlice); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTariff(t.Context(), pool, hash[:], quota.Probe); !errors.Is(err, store.ErrNoAccount) {
+		t.Errorf("the tariff of a code no account redeemed = %v, want ErrNoAccount", err)
+	}
+	id, err := store.CreateAccount(t.Context(), pool, "uid-tariff", hash[:], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTariff(t.Context(), pool, hash[:], quota.Probe); err != nil {
+		t.Fatal(err)
+	}
+	var tariff string
+	if err := pool.QueryRow(t.Context(), `SELECT tariff FROM accounts WHERE id = $1`, id).Scan(&tariff); err != nil || tariff != quota.Probe {
+		t.Errorf("the tariff = %q (%v), want the probe", tariff, err)
+	}
+	mark(t, pool, id)
+	if err := store.SetTariff(t.Context(), pool, hash[:], quota.ClosedSlice); !errors.Is(err, store.ErrNoAccount) {
+		t.Errorf("the tariff of an account being deleted = %v, want ErrNoAccount", err)
+	}
+}
+
+// A statement of the quota that fails is a failure, never a fit or a day.
+func TestAFailedStatementOfTheQuotaIsAFailure(t *testing.T) {
+	t.Parallel()
+
+	w := newQuotaWorld(t, quota.ClosedSlice)
+	now := w.day.Start.Add(time.Hour)
+	c := w.charge(w.child, 9000)
+	for _, tc := range []struct {
+		failOn string
+		run    func(tx pgx.Tx) error
+	}{
+		{"SELECT utc_offset_minutes", func(tx pgx.Tx) error {
+			_, err := store.FamilyDay(t.Context(), tx, w.account, nil, now)
+			return err
+		}},
+		{"UPDATE accounts SET utc_offset_minutes", func(tx pgx.Tx) error {
+			_, err := store.FamilyDay(t.Context(), tx, w.account, nil, now)
+			return err
+		}},
+		{"SELECT tariff", func(tx pgx.Tx) error { _, err := store.ReserveQuota(t.Context(), tx, c); return err }},
+		{"FROM profile_quota", func(tx pgx.Tx) error { _, err := store.ReserveQuota(t.Context(), tx, c); return err }},
+		{"INSERT INTO account_quota", func(tx pgx.Tx) error { _, err := store.ReserveQuota(t.Context(), tx, c); return err }},
+		{"SELECT closed_at", func(tx pgx.Tx) error { _, err := store.PlatformAIClosed(t.Context(), tx); return err }},
+		{"UPDATE platform_ai SET closed_at = $1", func(tx pgx.Tx) error { _, err := store.ClosePlatformAI(t.Context(), tx, now); return err }},
+		{"UPDATE platform_ai SET closed_at = NULL", func(tx pgx.Tx) error { _, err := store.OpenPlatformAI(t.Context(), tx); return err }},
+		{"DELETE FROM account_quota", func(tx pgx.Tx) error { _, err := store.DropQuotaCounters(t.Context(), tx, now); return err }},
+		{"DELETE FROM profile_quota", func(tx pgx.Tx) error { _, err := store.DropQuotaCounters(t.Context(), tx, now); return err }},
+	} {
+		if err := pgx.BeginFunc(t.Context(), &flaky{Pool: w.pool, failOn: tc.failOn}, tc.run); !errors.Is(err, errDown) {
+			t.Errorf("a failed %q = %v, want the failure", tc.failOn, err)
+		}
+	}
+	if err := store.SettleQuota(t.Context(), &flaky{Pool: w.pool, failOn: "UPDATE profile_quota"}, c, 1); !errors.Is(err, errDown) {
+		t.Errorf("a failed settlement = %v, want the failure", err)
+	}
+	if err := store.SetTariff(t.Context(), &flakyQuerier{w.pool, "UPDATE accounts SET tariff"}, []byte("x"), quota.Probe); !errors.Is(err, errDown) {
+		t.Errorf("a failed tariff = %v, want the failure", err)
+	}
+}
+
+// flakyQuerier is a pool whose statements that hold failOn fail.
+type flakyQuerier struct {
+	*pgxpool.Pool
+	failOn string
+}
+
+func (f *flakyQuerier) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if strings.Contains(sql, f.failOn) {
+		return pgconn.CommandTag{}, errDown
+	}
+	return f.Pool.Exec(ctx, sql, args...)
 }

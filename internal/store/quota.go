@@ -76,7 +76,10 @@ type Charge struct {
 // room is whether the charge c fits under the caps of the account's tariff
 // beside the counters of its day, read in q, and FOR UPDATE when lock: a
 // reserve holds them until it writes. A day with no counter yet has spent
-// nothing.
+// nothing. Every statement of the quota takes the counters of a
+// profile before those of its account, as the deletion of an account does — its
+// profiles, and theirs with them, then its own —, so that two of them never wait
+// for each other.
 func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, error) {
 	var tariff *string
 	err := q.QueryRow(ctx, `SELECT tariff FROM accounts WHERE id = $1`, c.AccountID).Scan(&tariff)
@@ -99,8 +102,8 @@ func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, err
 		table, column, id string
 		into              *quota.Counter
 	}{
-		{"account_quota", "account_id", c.AccountID, &account},
 		{"profile_quota", "profile_id", c.ProfileID, &profile},
+		{"account_quota", "account_id", c.AccountID, &account},
 	} {
 		err := q.QueryRow(ctx, `SELECT spent_micro_usd, reserved_micro_usd FROM `+read.table+`
 			WHERE `+read.column+` = $1 AND day_start = $2`+suffix, read.id, c.Day.Start).Scan(&read.into.Spent, &read.into.Reserved)
@@ -130,8 +133,8 @@ func ReserveQuota(ctx context.Context, tx pgx.Tx, c Charge) (quota.Spent, error)
 		return spent, err
 	}
 	for _, add := range []struct{ table, column, id string }{
-		{"account_quota", "account_id", c.AccountID},
 		{"profile_quota", "profile_id", c.ProfileID},
+		{"account_quota", "account_id", c.AccountID},
 	} {
 		if _, err := tx.Exec(ctx, `INSERT INTO `+add.table+` (`+add.column+`, day_start, day_end, reserved_micro_usd)
 			VALUES ($1, $2, $3, $4)
@@ -151,8 +154,8 @@ func ReserveQuota(ctx context.Context, tx pgx.Tx, c Charge) (quota.Spent, error)
 func SettleQuota(ctx context.Context, db Beginner, c Charge, spent quota.Micro) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		for _, settle := range []struct{ table, column, id string }{
-			{"account_quota", "account_id", c.AccountID},
 			{"profile_quota", "profile_id", c.ProfileID},
+			{"account_quota", "account_id", c.AccountID},
 		} {
 			if _, err := tx.Exec(ctx, `UPDATE `+settle.table+`
 				SET reserved_micro_usd = greatest(reserved_micro_usd - $3, 0), spent_micro_usd = spent_micro_usd + $4

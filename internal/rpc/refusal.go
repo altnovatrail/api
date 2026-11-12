@@ -107,3 +107,8 @@ func NoteAICall(ctx context.Context, c AICall) {
 // own beside the request's, with the method and no ID, which the unit economics
 // count by the day (R12).
 func NoteQuotaSpent(ctx context.Context, spent string) { noteOf(ctx).quotaSpent = spent }
+
+// NotePlatformLimit names, in the request's log, the refusal of the provider by
+// its limit on the platform's key that closed platform AI to all: a line of its
+// own, with the method and no ID, which is the operator's signal (R11).
+func NotePlatformLimit(ctx context.Context) { noteOf(ctx).platformLimit = true }

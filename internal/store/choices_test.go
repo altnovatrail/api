@@ -152,7 +152,8 @@ func TestTheStatementsOfTheChoiceFail(t *testing.T) {
 	}
 }
 
-// A choice of nothing to give is written with no module and its outcome, and
+// A choice of nothing to give is written with no module and its outcome — why
+// the AI was closed, and when the next family day begins (migration 0016) —, and
 // read back after the close it came after; a kind the schema does not name is
 // refused (migration 0011).
 func TestNothingToGiveIsWrittenToo(t *testing.T) {
@@ -160,12 +161,14 @@ func TestNothingToGiveIsWrittenToo(t *testing.T) {
 
 	e := newE3(t)
 	ctx := t.Context()
+	next := time.Date(2026, 11, 13, 5, 0, 0, 0, time.UTC)
 	closed, err := e.attempt(t, "choice_id, close_reason, closed_at", e.choice(t, "task"), "correct", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		_, err := store.WriteChoice(ctx, tx, e.profileID, store.NewChoice{Kind: "nothing", NotAdmitted: true,
+			Closed: store.NothingQuota, NextDay: &next,
 			MapSkill: "example/m/skill/a", AgeCategory: "adult", EngineVersion: "v0.1.4", AfterAttemptID: &closed,
 			Mark: store.Mark{LearnerModel: "v0.1.4", Release: "v0.1.0", Window: "0.4"}}, time.Now())
 		return err
@@ -173,7 +176,8 @@ func TestNothingToGiveIsWrittenToo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, found, err := store.ChoiceAfterAttempt(ctx, e.pool, e.profileID, closed); err != nil || !found || got.Kind != "nothing" || !got.NotAdmitted {
+	if got, found, err := store.ChoiceAfterAttempt(ctx, e.pool, e.profileID, closed); err != nil || !found || got.Kind != "nothing" || !got.NotAdmitted ||
+		got.Closed != store.NothingQuota || got.NextDay == nil || !got.NextDay.Equal(next) {
 		t.Errorf("the choice of nothing = %+v, %v, %v", got, found, err)
 	}
 	if held, err := store.HeldMapSkill(ctx, e.pool, e.profileID); err != nil || held != "example/m/skill/a" {
