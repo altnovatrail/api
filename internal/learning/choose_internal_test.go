@@ -174,3 +174,40 @@ func TestNothingToGiveSaysWhyOnlyForAI(t *testing.T) {
 		t.Errorf("the lesson chosen = %v %q %q %v", got != nil, kind, local, skills)
 	}
 }
+
+// The next task segment of a run is its first task segment that has not ended:
+// an explanation is none, and a run whose every task segment has ended has none.
+func TestTheNextTaskOfARunIsItsFirstNotEnded(t *testing.T) {
+	t.Parallel()
+
+	lesson := packagestest.Own(t, "choices").View.Lessons["basics"]
+	for _, c := range []struct {
+		ended []int
+		want  formatv0.TaskID
+		found bool
+	}{
+		{nil, "pick", true},
+		{[]int{2}, "pairs", true},
+		{[]int{4}, "pick", true},
+		{[]int{2, 4}, "", false},
+	} {
+		if got, found := nextTask(lesson, c.ended); got != c.want || found != c.found {
+			t.Errorf("the next task after %v = %q (%v), want %q (%v)", c.ended, got, found, c.want, c.found)
+		}
+	}
+}
+
+// The lesson of a run that waits leaves the lessons of every module of the
+// engine, and the others stay.
+func TestTheLessonOfARunThatWaitsLeavesTheEngine(t *testing.T) {
+	t.Parallel()
+
+	in := engine.Input{Modules: []engine.Module{
+		{Lessons: []engine.Lesson{{ID: "example/a/lesson/one"}, {ID: "example/a/lesson/two"}}},
+		{Lessons: []engine.Lesson{{ID: "example/b/lesson/one"}}},
+	}}
+	withoutLesson(&in, "example/a/lesson/one")
+	if l := in.Modules[0].Lessons; len(l) != 1 || l[0].ID != "example/a/lesson/two" || len(in.Modules[1].Lessons) != 1 {
+		t.Errorf("the lessons = %+v, want all but example/a/lesson/one", in.Modules)
+	}
+}

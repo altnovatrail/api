@@ -1,6 +1,7 @@
 package learning_test
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/learning"
+	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/quota"
 )
 
@@ -377,4 +379,139 @@ func TestThePlatformsLimitClosesPlatformAIToAll(t *testing.T) {
 	if again := w.begin(t, l, l.adult, "apples"); again.GetAttemptId() == "" {
 		t.Error("a new task of handwriting did not begin once platform AI was opened")
 	}
+}
+
+// A lesson run whose next task segment a beginning refuses — of handwriting,
+// with platform AI closed by the quota or the platform's limit, or not admitted
+// for the learner — is not what comes next: the engine gives a task that
+// begins, or nothing to give with why, and the run waits, open, until the
+// segment begins again, when the engine gives it again (В59 RUN.md).
+func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
+	t.Parallel()
+
+	built(t)
+	// basics on a sheet of a tap, then of handwriting; grown, the adult's other
+	// lesson, of handwriting, so that no new lesson begins with platform AI closed.
+	edit := func(path string, data []byte) []byte {
+		switch path {
+		case "lessons/basics.yaml":
+			return bytes.Replace(data, []byte("task: pairs"), []byte("task: apples"), 1)
+		case "lessons/grown.yaml":
+			data = bytes.Replace(data, []byte("skills: [comparing]"), []byte("skills: [adding]"), 1)
+			return bytes.Replace(data, []byte("task: grown-ups"), []byte("task: apples"), 1)
+		}
+		return data
+	}
+	handwritten, withdrawn := packagestest.OwnEdited(t, "choices", "1.1.0", edit), packagestest.OwnEdited(t, "choices", "1.0.5", edit)
+	w := worldOn(t, packagestest.Set(t, packagestest.Entry{Pkg: handwritten, Release: "v0.2.0"},
+		packagestest.Entry{Pkg: withdrawn, Release: "v0.1.0", Withdrawn: "wrong_key"}), gate(t, adultFacts, config.RungAuthor), nil)
+	w.current, w.earlier, w.connected = handwritten, withdrawn, []string{module}
+	l := w.learner(t)
+	// begun opens the run of the lesson for the profile and ends its first task
+	// segment, of a tap.
+	begun := func(profile string) string {
+		t.Helper()
+		run := w.open(t, l, profile, "basics").GetLessonRunId()
+		pick, err := w.segment(l, profile, run, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res, err := w.submit(l, profile, pick.GetAttemptId(), tap(1, 1, "three and four")); err != nil || res.GetSolved() == nil {
+			t.Fatalf("the segment of a tap = %v (%v), want it solved", res, err)
+		}
+		return run
+	}
+	// gives says that what comes next for the profile is the run, by OpenLesson.
+	gives := func(profile, run string) {
+		t.Helper()
+		c, err := w.chooseNext(l, profile)
+		if err != nil || c.GetKind() != v1.ChoiceKind_CHOICE_KIND_LESSON {
+			t.Fatalf("what comes next = %v (%v), want the lesson of the run", c, err)
+		}
+		res, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: profile, ChoiceId: c.GetChoiceId()})
+		if err != nil || res.GetRun().GetLessonRunId() != run {
+			t.Fatalf("the lesson opened = %v (%v), want the run %s", res.GetRun(), err, run)
+		}
+	}
+	// waits says, twice, that what comes next for the profile is no lesson: a
+	// task that begins, or nothing to give for cause.
+	waits := func(profile string, cause v1.Cause) {
+		t.Helper()
+		for range 2 {
+			c, err := w.chooseNext(l, profile)
+			switch {
+			case err != nil:
+				t.Fatal(err)
+			case c.GetKind() == v1.ChoiceKind_CHOICE_KIND_TASK:
+				if _, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: profile, IdempotencyKey: uuid.NewString(),
+					Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: c.GetChoiceId()}}); err != nil {
+					t.Fatalf("the task chosen does not begin: %v", err)
+				}
+				if limited := w.choiceRow(t, c.GetChoiceId()).poolLimited; limited == nil || !*limited {
+					t.Error("the choice of a task with the AI closed does not say its pool was limited")
+				}
+			case c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || c.GetOutcome().GetCause() != cause:
+				t.Fatalf("what comes next = %v, want a task that begins or nothing to give for %v", c, cause)
+			}
+		}
+	}
+
+	run := begun(l.adult)
+	gives(l.adult, run)
+	day := w.spend(t, l.accountID, 1_500_000)
+	waits(l.adult, v1.Cause_CAUSE_QUOTA)
+	if w.endOf(t, run) != "" {
+		t.Error("the run that waits has ended")
+	}
+	w.clock.move(day.End.Sub(w.clock.now()) + time.Minute)
+	gives(l.adult, run)
+
+	w.exec(t, `UPDATE platform_ai SET closed_at = now()`)
+	waits(l.adult, v1.Cause_CAUSE_PLATFORM_LIMIT)
+	w.exec(t, `UPDATE platform_ai SET closed_at = NULL`)
+	gives(l.adult, run)
+
+	// A run whose every task segment has ended waits only for "lesson done", which
+	// no AI checks.
+	apples, err := w.segment(l, l.adult, run, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: apples.GetAttemptId(),
+		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING}); err != nil {
+		t.Fatal(err)
+	}
+	w.exec(t, `UPDATE platform_ai SET closed_at = now()`)
+	gives(l.adult, run)
+	if _, err := w.complete(l, l.adult, run); err != nil {
+		t.Errorf("lesson done with platform AI closed: %v", err)
+	}
+	w.exec(t, `UPDATE platform_ai SET closed_at = NULL`)
+
+	// No AI is admitted to read a child's handwriting. A run on a package the
+	// image no longer gives does not wait: the lesson opened, it ends "unchecked",
+	// and a new run begins.
+	stale := w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
+		VALUES ($1, $2, $3, '1.0.5', $4, $5) RETURNING id`, l.child, module+"/lesson/basics", module, string(withdrawn.Digest), w.lessonChoice(t, l.child, "basics"))
+	w.exec(t, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
+			module_kit_version, task_id, seed, lesson_run_id, segment, close_reason, closed_at)
+		VALUES ($1, $2, $3, '1.0.5', '0.4', 'v0.3.0', 'pick', 7, $4, 2, 'correct', now())`, l.child, string(withdrawn.Digest), module, stale)
+	c, err := w.chooseNext(l, l.child)
+	if err != nil || c.GetKind() != v1.ChoiceKind_CHOICE_KIND_LESSON {
+		t.Fatalf("what comes next = %v (%v), want the lesson of the run on a package withdrawn", c, err)
+	}
+	res, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.child, ChoiceId: c.GetChoiceId()})
+	if err != nil || res.GetRun().GetLessonRunId() == stale || w.endOf(t, stale) != "unchecked" {
+		t.Fatalf("the lesson opened = %v (%v), the run on a package withdrawn ended %q; want a new run, and it unchecked",
+			res.GetRun(), err, w.endOf(t, stale))
+	}
+	fresh := res.GetRun().GetLessonRunId()
+	pick, err := w.segment(l, l.child, fresh, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, err := w.submit(l, l.child, pick.GetAttemptId(), tap(1, 1, "three and four")); err != nil || res.GetSolved() == nil {
+		t.Fatalf("the segment of a tap = %v (%v), want it solved", res, err)
+	}
+	waits(l.child, v1.Cause_CAUSE_NOT_ADMITTED)
 }

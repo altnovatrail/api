@@ -273,13 +273,18 @@ func TestAChoiceOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 	for _, failOn := range []string{
 		"INSERT INTO engine_choices", "unnest(c.issued_skills)", "GROUP BY module_id ORDER BY", "GROUP BY module_id, task_id",
 		"LEFT JOIN evidence e", "WHERE profile_id = $1 ORDER BY started_at, id", "SELECT map_skill", "FROM connected_modules",
-		"SET close_reason",
+		"SET close_reason", "SELECT DISTINCT segment",
 	} {
 		t.Run(failOn, func(t *testing.T) {
 			t.Parallel()
 
 			w := newWorld(t, func(p *pgxpool.Pool) rpc.DB { return &failing{Pool: p, failOn: failOn} })
 			l := w.learner(t)
+			// An open run of a lesson whose task with a rubric does not begin, whose
+			// ended segments the choice reads.
+			w.exec(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
+				VALUES ($1, $2, $3, '1.0.0', $4, $5)`, l.adult, module+"/lesson/essay", module, string(w.current.Digest),
+				w.lessonChoice(t, l.adult, "essay"))
 			pick := w.attempt(t, l.adult, string(w.current.Digest), "pick")
 			_, submitErr := w.submit(l, l.adult, pick, tap(1, 1, "three and four"))
 			w.attempt(t, l.adult, string(w.current.Digest), "pick")
