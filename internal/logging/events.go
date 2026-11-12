@@ -160,6 +160,7 @@ const (
 	MomentAfter     = "after"
 	MomentConsents  = "consents"
 	MomentReports   = "reports"
+	MomentTariff    = "tariff"
 )
 
 // The steps of the daily job and of the job after a rollout: the value set of
@@ -236,7 +237,7 @@ var fields = map[string]rule{
 	FieldDeployed:       {kind: slog.KindBool},
 	FieldStarted:        {kind: slog.KindBool},
 	FieldCutShort:       {kind: slog.KindBool},
-	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports}},
+	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff}},
 	FieldErrorKind:      {kind: slog.KindLogValuer},
 	FieldPanicKind:      {kind: slog.KindLogValuer},
 	FieldApplied:        {kind: slog.KindInt64},

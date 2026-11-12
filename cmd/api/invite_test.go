@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/altnovatrail/api/internal/invite"
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/store/storetest"
 )
 
@@ -38,8 +39,8 @@ func TestInvitePrintsACodeTheDatabaseKeepsOnlyTheHashOf(t *testing.T) {
 	if err := conn.QueryRow(t.Context(), `SELECT code_sha256, tariff FROM invite_codes`).Scan(&kept, &tariff); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(kept, hash[:]) || tariff != invite.ClosedSlice {
-		t.Errorf("row = %x %q, want the code's hash and %q", kept, tariff, invite.ClosedSlice)
+	if !bytes.Equal(kept, hash[:]) || tariff != quota.ClosedSlice {
+		t.Errorf("row = %x %q, want the code's hash and %q", kept, tariff, quota.ClosedSlice)
 	}
 	// The code, as it is printed or as its symbols alone, is nowhere in the row.
 	var row string
@@ -58,7 +59,7 @@ func TestEachInviteIsANewCodeWithItsTariff(t *testing.T) {
 	environ := []string{"API_DATABASE_URL=" + storetest.URL(t, true)}
 	codes := map[string]bool{}
 	for range 2 {
-		code, stdout, stderr := runCommand(t.Context(), environ, "invite", "-tariff", invite.ClosedSlice)
+		code, stdout, stderr := runCommand(t.Context(), environ, "invite", "-tariff", quota.ClosedSlice)
 		if code != exitOK || codes[stdout] {
 			t.Fatalf("invite = %d, %q, %q; want a new code", code, stdout, stderr)
 		}

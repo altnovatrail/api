@@ -70,16 +70,3 @@ func TestWhatIsNoCodeIsNotRead(t *testing.T) {
 		}
 	}
 }
-
-func TestTheTariffOfTheClosedSliceIsKnown(t *testing.T) {
-	t.Parallel()
-
-	if !invite.Known(invite.ClosedSlice) {
-		t.Errorf("Known(%q) = false", invite.ClosedSlice)
-	}
-	for _, tariff := range []string{"", "plus", "Closed_Slice"} {
-		if invite.Known(tariff) {
-			t.Errorf("Known(%q) = true", tariff)
-		}
-	}
-}

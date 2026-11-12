@@ -26,6 +26,23 @@ func CreateInvite(ctx context.Context, db Querier, codeSHA256 []byte, tariff str
 	return nil
 }
 
+// SetTariff gives the account that redeemed the code of codeSHA256 the tariff
+// (R11): one statement finds the account by the code it is bound to, and an
+// account marked "deleting", whose code is unbound already or soon, is none —
+// ErrNoAccount, as is a code that no account redeemed. The code keeps the tariff
+// it was made with: it passes on only when redeemed, which it is already.
+func SetTariff(ctx context.Context, db Querier, codeSHA256 []byte, tariff string) error {
+	tag, err := db.Exec(ctx, `UPDATE accounts SET tariff = $2 FROM invite_codes c
+		WHERE c.code_sha256 = $1 AND c.account_id = accounts.id AND accounts.deleting_at IS NULL`, codeSHA256, tariff)
+	switch {
+	case err != nil:
+		return fmt.Errorf("store: set the tariff: %w", err)
+	case tag.RowsAffected() == 0:
+		return ErrNoAccount
+	}
+	return nil
+}
+
 // CreateAccount creates the account of the sign-in service's UID by the code of
 // codeSHA256, with the owner's statement that they are 18 or older dated now,
 // and returns its ID (R04; architecture 3.1, steps 2 and 3). It is one
