@@ -2,5 +2,20 @@
   "claudeMdExcludes": [
     "**/api/spec/CLAUDE.md",
     "**/api/spec/**/CLAUDE.md"
-  ]
+  ],
+  "autoCompactWindow": 400000,
+  "disableClaudeAiConnectors": true,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/spec/tools/session/main.mjs"]
+          }
+        ]
+      }
+    ]
+  }
 }

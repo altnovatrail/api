@@ -54,10 +54,10 @@ github.com/altnovatrail/learner-model v0.1.6 h1:xoifdkdFlXvTSgjFu939p2Ol2oB7s6G6
 github.com/altnovatrail/learner-model v0.1.6/go.mod h1:RXiblPvAomqm/gZw1jRhGO7Ns8dI7m1uk5g9zmUkxEU=
 github.com/altnovatrail/module-kit v0.3.0 h1:ydpXXqh5gTmBFy5TmaKUhvd+QjCVnG0zWiJVPJ4BsmQ=
 github.com/altnovatrail/module-kit v0.3.0/go.mod h1:ZKr2asx1/A1Z1e0Wq2uqS3r5eMZtgY+WsHFMjmaV0qc=
-github.com/altnovatrail/spec v0.15.0 h1:HHYATSizc0DyBNqPpShOfS+ABuZNVooi1V9tLoC9/DI=
-github.com/altnovatrail/spec v0.15.0/go.mod h1:/JG4n8d9/3wY4DZg8V7PLoB1Y48uPjAyIBqoH/rwxXE=
-github.com/altnovatrail/spec/contracts v0.15.0 h1:4Kr8ur2OE6HQgBOc0hsu/OGX2sDe8GjO3JzOOdsGqQ4=
-github.com/altnovatrail/spec/contracts v0.15.0/go.mod h1:omw6CYiQyGSNSQq+AlnKB6M18GNeWda+OPU1f2RyI8s=
+github.com/altnovatrail/spec v0.15.1 h1:BkFssifoNUPLPXXdbTzjsb7caJ3qNqI7esbZmRwTTW8=
+github.com/altnovatrail/spec v0.15.1/go.mod h1:/JG4n8d9/3wY4DZg8V7PLoB1Y48uPjAyIBqoH/rwxXE=
+github.com/altnovatrail/spec/contracts v0.15.1 h1:73Y7/O/gZBUlmcrUMSSQqRhfsHFpRWYjQ9TbGr6iwu0=
+github.com/altnovatrail/spec/contracts v0.15.1/go.mod h1:omw6CYiQyGSNSQq+AlnKB6M18GNeWda+OPU1f2RyI8s=
 github.com/altnovatrail/tutor v0.1.24 h1:iulFyVplABrLGsGzlqLG5Thj4D70yYetXm3YgJkjxnA=
 github.com/altnovatrail/tutor v0.1.24/go.mod h1:++XE6OLc97CV4bW3T6itPWacxC4ufioMTblA0nUjihI=
 github.com/anthropics/anthropic-sdk-go v1.84.0 h1:mnAhggc5H5A98JYmhQELT+j4J89PYBFKnnSvUTNwNd8=
