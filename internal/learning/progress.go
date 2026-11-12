@@ -48,7 +48,8 @@ func (s *Service) Progress(db rpc.DB, rights canner) *ProgressService {
 // action, whose profile's consent is confirmed, or by an adult's view, with the
 // right can_view, which the handler checks — the checks before it hold
 // can_learn alone. A module not connected is "not found", and one with no
-// current version for the learner says so.
+// current version for the learner says so. Each anchor skill has the modules
+// of the index that teach it, suit the learner and are not connected (R63 spec).
 func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRequest) (*v1.GetSkillMapResponse, error) {
 	s := p.s
 	profileID := req.GetProfileId()
@@ -77,6 +78,8 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 	default:
 		return nil, rpc.Malformed("action")
 	}
+	// The index does not change while serve runs: no need to read it in the transaction.
+	teachers := s.set.Teachers(category)
 	var answer *v1.GetSkillMapResponse
 	err := s.write(ctx, func(tx pgx.Tx, now time.Time) error {
 		connected, err := store.ConnectedModules(ctx, tx, profileID)
@@ -106,7 +109,7 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 		if err != nil {
 			return err
 		}
-		answer = skillMap(pkg.View, string(pkg.Digest), read)
+		answer = skillMap(pkg.View, string(pkg.Digest), read, offered(teachers, connected))
 		return nil
 	})
 	if err != nil {
@@ -115,11 +118,31 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 	return answer, nil
 }
 
+// offered gives, of an anchor skill, the modules of teachers that teach it and
+// are not connected, in their order: those the skill map offers beside it
+// (R63 spec; contract, AnchorSkillState).
+func offered(teachers map[formatv0.AnchorSkillID][]formatv0.ModuleID, connected []store.ConnectedModule) func(anchor string) []string {
+	ids := map[string]bool{}
+	for _, c := range connected {
+		ids[c.ModuleID] = true
+	}
+	return func(anchor string) []string {
+		var out []string
+		for _, id := range teachers[formatv0.AnchorSkillID(anchor)] {
+			if !ids[string(id)] {
+				out = append(out, string(id))
+			}
+		}
+		return out
+	}
+}
+
 // skillMap is the map of the module of view, of the package digest: the state
 // of each skill of its graph with a verdict, by local ID — with no practice, the
 // count of its evidence alone —, and of each anchor skill its graph names as a
-// prerequisite or a skill it teaches (contract, GetSkillMapResponse).
-func skillMap(view formatv0.CanonicalView, digest string, read learnermodel.Readout) *v1.GetSkillMapResponse {
+// prerequisite or a skill it teaches, with the modules offered that teach it
+// (contract, GetSkillMapResponse).
+func skillMap(view formatv0.CanonicalView, digest string, read learnermodel.Readout, offers func(anchor string) []string) *v1.GetSkillMapResponse {
 	out := &v1.GetSkillMapResponse{PackageDigest: digest}
 	graph := view.SkillGraph
 	if graph == nil {
@@ -156,7 +179,7 @@ func skillMap(view formatv0.CanonicalView, digest string, read learnermodel.Read
 	}
 	for _, a := range read.Anchors {
 		if anchors[a.Anchor] {
-			out.AnchorSkills = append(out.AnchorSkills, anchorState(a))
+			out.AnchorSkills = append(out.AnchorSkills, anchorState(a, offers(a.Anchor)))
 		}
 	}
 	return out
@@ -200,9 +223,11 @@ var (
 	}
 )
 
-// anchorState is the state of an anchor skill, as reading gave it.
-func anchorState(a learnermodel.AnchorReadout) *v1.AnchorSkillState {
-	out := &v1.AnchorSkillState{AnchorSkill: a.Anchor, Holding: holdings[a.Status], Reason: anchorReasons[a.Reason]}
+// anchorState is the state of an anchor skill, as reading gave it, with the
+// modules offered that teach it, whatever its holding.
+func anchorState(a learnermodel.AnchorReadout, offered []string) *v1.AnchorSkillState {
+	out := &v1.AnchorSkillState{AnchorSkill: a.Anchor, Holding: holdings[a.Status], Reason: anchorReasons[a.Reason],
+		TeachingModules: offered}
 	for _, t := range a.Teachers {
 		out.TeachingSkills = append(out.TeachingSkills, t.Skill)
 	}

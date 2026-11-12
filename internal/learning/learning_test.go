@@ -67,6 +67,14 @@ var (
 	current, earlier *modulepackage.Package
 )
 
+// built builds the packages of the module choices, current and earlier, once.
+func built(t *testing.T) {
+	t.Helper()
+	builtOnce.Do(func() {
+		current, earlier = packagestest.Own(t, "choices"), packagestest.Own(t, "choices", "0.9.0")
+	})
+}
+
 // world is the server of the contract with attempts on the module choices:
 // 1.0.0, current, and 0.9.0, withdrawn.
 type world struct {
@@ -143,9 +151,7 @@ func newGatedWorld(t *testing.T, g *admission.Gate, wrap ...func(*pgxpool.Pool) 
 func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	t.Helper()
 
-	builtOnce.Do(func() {
-		current, earlier = packagestest.Own(t, "choices"), packagestest.Own(t, "choices", "0.9.0")
-	})
+	built(t)
 	set := packagestest.Set(t,
 		packagestest.Entry{Pkg: current, Release: "v0.2.0"},
 		packagestest.Entry{Pkg: earlier, Release: "v0.1.0", Withdrawn: "wrong_key"},

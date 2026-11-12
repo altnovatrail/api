@@ -1,6 +1,7 @@
 package learning
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 )
 
 // A mastered skill has its band, its cautious probability and its review date,
-// or its review due; an anchor skill held, and each reason, read in the
-// contract's words.
+// or its review due; an anchor skill of each holding, with the modules
+// offered whatever it is, and each reason, read in the contract's words.
 func TestAMasteredSkillHasItsReview(t *testing.T) {
 	t.Parallel()
 
@@ -35,8 +36,9 @@ func TestAMasteredSkillHasItsReview(t *testing.T) {
 		learnermodel.AnchorHas: v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_HELD, learnermodel.AnchorHasNot: v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_NOT_HELD,
 		learnermodel.AnchorUnknown: v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_UNKNOWN,
 	} {
-		if got := anchorState(learnermodel.AnchorReadout{Anchor: "core.multiplication-table", Status: status}); got.GetHolding() != want {
-			t.Errorf("the holding of %v = %v, want %v", status, got.GetHolding(), want)
+		got := anchorState(learnermodel.AnchorReadout{Anchor: "core.multiplication-table", Status: status}, []string{"example/young"})
+		if got.GetHolding() != want || !slices.Equal(got.GetTeachingModules(), []string{"example/young"}) {
+			t.Errorf("the holding of %v = %v, offering %v; want %v, offering example/young", status, got.GetHolding(), got.GetTeachingModules(), want)
 		}
 	}
 	for reason, want := range map[learnermodel.AnchorReason]v1.AnchorSkillReason{
@@ -44,13 +46,13 @@ func TestAMasteredSkillHasItsReview(t *testing.T) {
 		learnermodel.AnchorReasonNoTeacher:        v1.AnchorSkillReason_ANCHOR_SKILL_REASON_NOBODY_TEACHES,
 		learnermodel.AnchorReasonNoVerdictTeacher: v1.AnchorSkillReason_ANCHOR_SKILL_REASON_ONLY_UNASSESSABLE,
 	} {
-		if got := anchorState(learnermodel.AnchorReadout{Status: learnermodel.AnchorUnknown, Reason: reason}); got.GetReason() != want {
+		if got := anchorState(learnermodel.AnchorReadout{Status: learnermodel.AnchorUnknown, Reason: reason}, nil); got.GetReason() != want {
 			t.Errorf("the reason %v = %v, want %v", reason, got.GetReason(), want)
 		}
 	}
 
 	// A module with no graph has no skills on its map.
-	if m := skillMap(formatv0.CanonicalView{}, "sha256:x", learnermodel.Readout{}); len(m.GetSkills()) != 0 || m.GetPackageDigest() != "sha256:x" {
+	if m := skillMap(formatv0.CanonicalView{}, "sha256:x", learnermodel.Readout{}, nil); len(m.GetSkills()) != 0 || m.GetPackageDigest() != "sha256:x" {
 		t.Errorf("the map of a module with no graph = %v", m)
 	}
 }

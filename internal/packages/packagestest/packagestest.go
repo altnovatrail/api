@@ -79,6 +79,26 @@ func OwnEdited(t testing.TB, name, version string, edit func(path string, data [
 	return build(t, name, edited(t, module, edit), []string{version})
 }
 
+// The lines of a manifest that name the module's ID and its audience's age
+// categories.
+var (
+	idLine   = regexp.MustCompile(`(?m)^id: .*$`)
+	agesLine = regexp.MustCompile(`(?m)^  age_categories: .*$`)
+)
+
+// As is an edit for OwnEdited: the manifest names the module id, for the age
+// categories ages, a list as YAML writes it, "[adult]" — another module of the
+// same graph.
+func As(id, ages string) func(path string, data []byte) []byte {
+	return func(path string, data []byte) []byte {
+		if path == "manifest.yaml" {
+			data = idLine.ReplaceAllLiteral(data, []byte("id: "+id))
+			data = agesLine.ReplaceAllLiteral(data, []byte("  age_categories: "+ages))
+		}
+		return data
+	}
+}
+
 // build is the package module-kit builds of module, at version when given.
 func build(t testing.TB, name string, module fs.FS, version []string) *modulepackage.Package {
 	t.Helper()
@@ -249,6 +269,11 @@ func Index(t testing.TB, entries ...Entry) []byte {
 			format = string(e.Pkg.Inventory.ModuleFormatVersion)
 		}
 		value := map[string]any{"module_format_version": format, "package_digest": digest, "release": e.Release}
+		if e.Pkg != nil {
+			if teaches := teachesOf(e.Pkg.View); len(teaches) > 0 {
+				value["teaches"] = teaches
+			}
+		}
 		if e.Withdrawn != "" {
 			value["withdrawn"] = e.Withdrawn
 		}
@@ -262,6 +287,23 @@ func Index(t testing.TB, entries ...Entry) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+// teachesOf is the anchor skills the skills of view's graph teach, each once, in
+// the order of their bytes: the teaches of its entry, as a release of modules
+// writes it (format/README.md, section 26).
+func teachesOf(view formatv0.CanonicalView) []string {
+	if view.SkillGraph == nil {
+		return nil
+	}
+	var teaches []string
+	for _, skill := range view.SkillGraph.Skills {
+		for _, anchor := range skill.Teaches {
+			teaches = append(teaches, string(anchor))
+		}
+	}
+	slices.Sort(teaches)
+	return slices.Compact(teaches)
 }
 
 // Set is the folder of the entries, laid by Lay from a release that serves
