@@ -2,10 +2,12 @@ package quota_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/altnovatrail/tutor"
 
+	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/quota"
 )
 
@@ -83,5 +85,36 @@ func TestACallReservesTheExpectedPriceOrItsKindsValue(t *testing.T) {
 	}
 	if quota.TypicalHandwriting <= 2*quota.Reserve(tutor.CallSheet, expected, 1) || quota.TypicalRubric <= 0 {
 		t.Errorf("a typical task (%d, %d) holds less than its checks", quota.TypicalHandwriting, quota.TypicalRubric)
+	}
+}
+
+// The words of the log's cap are those of the reasons a reserve does not fit.
+func TestTheLogNamesTheCapsByTheirWords(t *testing.T) {
+	t.Parallel()
+
+	want := []string{string(quota.ProfileCap), string(quota.AccountCap), string(quota.NoTariff)}
+	if !slices.Equal(logging.QuotaCaps, want) {
+		t.Errorf("logging.QuotaCaps = %v, want %v", logging.QuotaCaps, want)
+	}
+}
+
+// A reserve fits under both caps, and is refused by the profile's first.
+func TestRoomAsksTheProfileFirst(t *testing.T) {
+	t.Parallel()
+
+	caps := quota.Caps{Profile: 100, Account: 150}
+	for _, tc := range []struct {
+		profile, account quota.Counter
+		amount           quota.Micro
+		want             quota.Spent
+	}{
+		{quota.Counter{}, quota.Counter{}, 100, quota.Fits},
+		{quota.Counter{Spent: 50, Reserved: 10}, quota.Counter{Spent: 50, Reserved: 10}, 41, quota.ProfileCap},
+		{quota.Counter{Spent: 50}, quota.Counter{Spent: 120}, 40, quota.AccountCap},
+		{quota.Counter{Spent: 90}, quota.Counter{Spent: 140}, 20, quota.ProfileCap},
+	} {
+		if got := quota.Room(caps, tc.profile, tc.account, tc.amount); got != tc.want {
+			t.Errorf("Room(%+v, %+v, %d) = %q, want %q", tc.profile, tc.account, tc.amount, got, tc.want)
+		}
 	}
 }

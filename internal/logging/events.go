@@ -71,6 +71,11 @@ const (
 	// and the model, its tokens, how the call ended and how long it took — never
 	// the work, what was read or what failed in its words.
 	EventAIUsage = "ai_usage"
+	// EventQuotaExhausted is the line of a call of platform AI that the quota did
+	// not hold, so that it made no call, beside the line of its request (R12): the
+	// method and the cap it met — never an ID, a sum or an offset. The unit
+	// economics count them by the day.
+	EventQuotaExhausted = "quota_exhausted"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -141,6 +146,13 @@ const (
 	// FieldWordsCheck is the check that turned the tutor's words down, so that
 	// the learner read the fallback text: a word of WordsChecks (R47).
 	FieldWordsCheck = "words_check"
+	// FieldCostMicroUSD is what a call of a model cost by tutor's prices, in whole
+	// micro-dollars: at its worst when its tokens are not its whole bill (R12).
+	FieldCostMicroUSD = "cost_micro_usd"
+	// FieldBilled says the tokens of a call of a model are its whole bill.
+	FieldBilled = "billed"
+	// FieldQuotaCap is the cap of the quota a call met: a word of QuotaCaps.
+	FieldQuotaCap = "quota_cap"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -215,7 +227,8 @@ var events = map[string][]string{
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
 	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
-		FieldAIOutcome, FieldDurationMS},
+		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled},
+	EventQuotaExhausted: {FieldMethod, FieldQuotaCap},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -274,6 +287,9 @@ var fields = map[string]rule{
 	FieldThinkingTokens: {kind: slog.KindInt64},
 	FieldAIOutcome:      {kind: slog.KindString, values: AIOutcomes},
 	FieldWordsCheck:     {kind: slog.KindString, values: WordsChecks},
+	FieldCostMicroUSD:   {kind: slog.KindInt64},
+	FieldBilled:         {kind: slog.KindBool},
+	FieldQuotaCap:       {kind: slog.KindString, values: QuotaCaps},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -347,6 +363,11 @@ const (
 
 // WordsChecks is the value set of FieldWordsCheck.
 var WordsChecks = []string{WordsCheckEmpty, WordsCheckLeak, WordsCheckForm}
+
+// QuotaCaps is the value set of FieldQuotaCap: the cap of the profile, of the
+// account, or a tariff with no caps, in the words of quota.Spent. quota's tests
+// hold the set to its words.
+var QuotaCaps = []string{"profile", "account", "tariff"}
 
 // modelShape is a model's ID as a provider answers with it: lowercase letters,
 // digits, dots, dashes and underscores, as "claude-opus-5-5" — no free text.

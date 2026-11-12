@@ -2,15 +2,32 @@ package learning
 
 import (
 	"context"
+	"time"
 
+	"connectrpc.com/connect/v2"
+	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
+
+// The quota of platform AI on the calls of AI (R11, R12, R58): a request that
+// calls platform AI takes a reserve of the call's expected price on the
+// counters of its profile and its account before the call, in its first
+// transaction, and settles it by what the call cost after it, in a transaction
+// of its own. A reserve that does not fit makes no call: the answer's outcome
+// is the quota, with when the next family day begins. An own key spends no
+// quota.
+
+// settleTimeout bounds the transaction that settles a reserve after its call:
+// it goes on a context the request's end does not cut short, so that a call
+// that went is settled even past the request's deadline.
+const settleTimeout = 5 * time.Second
 
 // familyDay is the caller's family day at the request's time, on a request that
 // goes to platform AI by route, once it sent the offset of its device's clock,
@@ -24,4 +41,109 @@ func (s *Service) familyDay(ctx context.Context, tx pgx.Tx, route tutor.Route, o
 	}
 	caller, _ := rpc.CallerFrom(ctx)
 	return store.FamilyDay(ctx, tx, caller.AccountID, offset, s.clock())
+}
+
+// reserve is what a request took of the quota before its call of AI: the
+// charge, when it reserved one, or the outcome of the call that does not go,
+// when the quota does not hold it. The zero reserve is a call on an own key,
+// which takes none.
+type reserve struct {
+	charge store.Charge
+	// taken says the charge is reserved, and is settled after the call.
+	taken bool
+	// refused is the outcome of the call that does not go.
+	refused *v1.Outcome
+}
+
+// reserveFor reserves the call on platform AI by route, for the profile, on the
+// family day, in tx (R12): its expected price by tutor, or the value of its
+// kind when tutor has none. The quota of the profile or the account that does
+// not hold it refuses it with the outcome "quota" and when the next family day
+// begins; an account whose tariff has no caps, with "not admitted": platform AI
+// is closed to it by default (R11). Either is noted in the request's log, with
+// the cap and no ID.
+func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, day quota.Day) (reserve, error) {
+	if route.AI != admissionv0.AiRoutePlatformAi {
+		return reserve{}, nil
+	}
+	caller, _ := rpc.CallerFrom(ctx)
+	c := store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day,
+		Amount: quota.Reserve(call, s.price(call, route), 1)}
+	spent, err := store.ReserveQuota(ctx, tx, c)
+	switch {
+	case err != nil:
+		return reserve{}, err
+	case spent == quota.Fits:
+		return reserve{charge: c, taken: true}, nil
+	}
+	rpc.NoteQuotaSpent(ctx, string(spent))
+	return reserve{charge: c, refused: quotaOutcome(spent, day)}, nil
+}
+
+// quotaOutcome is the outcome of a call the quota does not hold: "quota" with
+// when the next family day begins, or "not admitted" on an account whose tariff
+// has no caps, which no next day opens.
+func quotaOutcome(spent quota.Spent, day quota.Day) *v1.Outcome {
+	if spent == quota.NoTariff {
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}
+	}
+	return &v1.Outcome{Cause: v1.Cause_CAUSE_QUOTA, NextFamilyDay: timestamppb.New(day.End)}
+}
+
+// refusal is the refusal of a request the quota does not hold, as the outcome o
+// says (contract, Refusal): "quota", resource_exhausted, with when the next
+// family day begins; "not admitted", failed_precondition. It keeps what the
+// request wrote before it, the family day.
+func refusal(ctx context.Context, o *v1.Outcome) error {
+	if o.GetCause() == v1.Cause_CAUSE_QUOTA {
+		return rpc.Keep(rpc.Refuse(ctx, connect.CodeResourceExhausted, v1.Cause_CAUSE_QUOTA, func(r *v1.Refusal) {
+			r.Data = &v1.Refusal_NextFamilyDay{NextFamilyDay: o.GetNextFamilyDay()}
+		}))
+	}
+	return rpc.Keep(rpc.Refuse(ctx, connect.CodeFailedPrecondition, o.GetCause()))
+}
+
+// settleQuota settles the reserve r by the outcome of its call, in a transaction of
+// its own on a context the request's end does not cut short: the call went, and
+// what it cost counts whatever the request comes to after it. A settlement that
+// fails leaves the reserve spent on its day, as a process that fell does (R12),
+// and the request's line names the failure.
+func (s *Service) settleQuota(ctx context.Context, r reserve, o tutor.Outcome) {
+	if !r.taken {
+		return
+	}
+	settled, cancel := context.WithTimeout(context.WithoutCancel(ctx), settleTimeout)
+	defer cancel()
+	if err := store.SettleQuota(settled, s.db, r.charge, cost(r.charge.Amount, o)); err != nil {
+		rpc.NoteFailure(ctx, err)
+	}
+}
+
+// cost is what a call that reserved reserved cost by its outcome, by the table
+// of R12: no call went — the admission refused it before any model — nothing; a
+// call with no record of usage at all, its reserve; records that are each the
+// whole bill by the prices, their sum, which is that of the reader that
+// answered when the other was refused; and a record at its worst — of an answer
+// cut short before its tokens were counted — the reserve, or the sum of the
+// others when it is more: a failure of the platform eats no learner's day.
+func cost(reserved quota.Micro, o tutor.Outcome) quota.Micro {
+	if o.Kind == tutor.NotAdmitted {
+		return 0
+	}
+	if len(o.Usage) == 0 {
+		return reserved
+	}
+	var sum quota.Micro
+	exact := true
+	for _, u := range o.Usage {
+		if u.Billed && u.Priced {
+			sum += quota.USD(u.USD)
+		} else {
+			exact = false
+		}
+	}
+	if exact {
+		return sum
+	}
+	return max(reserved, sum)
 }

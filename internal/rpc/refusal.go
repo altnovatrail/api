@@ -83,11 +83,15 @@ type AICall struct {
 	Usage    []AIUsage
 }
 
-// AIUsage is what one call of a model took: its provider and model, and its
-// tokens.
+// AIUsage is what one call of a model took: its provider and model, its tokens
+// and what they cost.
 type AIUsage struct {
 	Provider, Model                           string
 	InputTokens, OutputTokens, ThinkingTokens int64
+	// CostMicroUSD is what it cost by tutor's prices, at its worst when Billed is
+	// false: its tokens are not its whole bill (R12).
+	CostMicroUSD int64
+	Billed       bool
 }
 
 // NoteAICall adds a call of AI to the request's log: a line of each model's
@@ -97,3 +101,9 @@ func NoteAICall(ctx context.Context, c AICall) {
 	n := noteOf(ctx)
 	n.calls = append(n.calls, c)
 }
+
+// NoteQuotaSpent names, in the request's log, a call of platform AI that the
+// quota did not hold, by the cap it met, in a word of quota.Spent: a line of its
+// own beside the request's, with the method and no ID, which the unit economics
+// count by the day (R12).
+func NoteQuotaSpent(ctx context.Context, spent string) { noteOf(ctx).quotaSpent = spent }

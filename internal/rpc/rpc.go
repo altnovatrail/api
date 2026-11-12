@@ -124,6 +124,8 @@ type note struct {
 	outcome string
 	// wordsCheck is the check that turned the tutor's words down (R47).
 	wordsCheck string
+	// quotaSpent is the cap a call of platform AI met, which made no call (R12).
+	quotaSpent string
 	// calls are the calls of AI the request made.
 	calls []AICall
 }
@@ -177,6 +179,9 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 			if n.wordsCheck != "" {
 				attrs = append(attrs, logging.FieldWordsCheck, n.wordsCheck)
 			}
+			if n.quotaSpent != "" {
+				log.InfoContext(ctx, logging.EventQuotaExhausted, logging.FieldMethod, spec.Procedure, logging.FieldQuotaCap, n.quotaSpent)
+			}
 			for _, c := range n.calls {
 				if len(c.Usage) == 0 {
 					// A call that no model answered still says how it ended.
@@ -188,7 +193,7 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 						logging.FieldProvider, u.Provider, logging.FieldModel, u.Model,
 						logging.FieldInputTokens, u.InputTokens, logging.FieldOutputTokens, u.OutputTokens,
 						logging.FieldThinkingTokens, u.ThinkingTokens, logging.FieldAIOutcome, c.Outcome,
-						logging.FieldDurationMS, c.Duration.Milliseconds())
+						logging.FieldDurationMS, c.Duration.Milliseconds(), logging.FieldCostMicroUSD, u.CostMicroUSD, logging.FieldBilled, u.Billed)
 				}
 			}
 			level := slog.LevelInfo

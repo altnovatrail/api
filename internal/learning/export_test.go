@@ -53,3 +53,9 @@ func (s *Service) Candidates(pkg *modulepackage.Package, category formatv0.AgeCa
 	}
 	return pool, len(m.Lessons), err
 }
+
+// WithPrice is what a call is expected to cost, in place of tutor's prices: a
+// test's own, so that its reserves are known.
+func WithPrice(price func(call tutor.Call, route tutor.Route) tutor.CallPrice) Option {
+	return func(s *Service) { s.price = price }
+}

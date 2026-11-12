@@ -147,3 +147,16 @@ func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetR
 func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
 	return g.tutor.Words(ctx, w)
 }
+
+// Price is what tutor expects a call of the kind to cost on the route, by the
+// models it would choose for it and their prices (Tutor.Price; R94 tutor): the
+// quota reserves by it before the call (R12). A route tutor admits no model for,
+// or a price it cannot give, is no price — CallPrice's Expected is false — and
+// the quota reserves its own value of the kind then.
+func (g *Gate) Price(call tutor.Call, route tutor.Route) tutor.CallPrice {
+	price, answer, err := g.tutor.Price(call, route)
+	if err != nil || !answer.Admitted {
+		return tutor.CallPrice{}
+	}
+	return price
+}
