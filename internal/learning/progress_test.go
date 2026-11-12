@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/rpc"
 )
 
@@ -171,8 +173,9 @@ func TestTheSkillMapReadsTheModel(t *testing.T) {
 	if a := empty.GetAnchorSkills(); len(a) != 1 || a[0].GetAnchorSkill() != "core.multiplication-table" ||
 		a[0].GetHolding() != v1.AnchorSkillHolding_ANCHOR_SKILL_HOLDING_NOT_HELD ||
 		a[0].GetReason() != v1.AnchorSkillReason_ANCHOR_SKILL_REASON_NO_EVIDENCE ||
-		len(a[0].GetTeachingSkills()) != 1 || a[0].GetTeachingSkills()[0] != module+"/skill/comparing" {
-		t.Errorf("the anchor skills with no evidence = %v", a)
+		len(a[0].GetTeachingSkills()) != 1 || a[0].GetTeachingSkills()[0] != module+"/skill/comparing" ||
+		len(a[0].GetTeachingModules()) != 0 {
+		t.Errorf("the anchor skills with no evidence, no other module teaching them = %v", a)
 	}
 
 	// Solved, the task's skill has its evidence, its estimate and its practice.
@@ -212,6 +215,47 @@ func TestTheSkillMapReadsTheModel(t *testing.T) {
 	_, err = ask(uuid.NewString(), v1.Action_ACTION_ADULT, module)
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("the map of a profile not the account's = %v, want not found", err)
+	}
+}
+
+// Beside each anchor skill, the skill map offers the modules of the index that
+// teach it: those whose current version suits the profile by its audience and
+// that are not connected to it, by their IDs.
+func TestTheSkillMapOffersTheModulesThatTeachAnAnchorSkill(t *testing.T) {
+	t.Parallel()
+
+	built(t)
+	set := packagestest.Set(t,
+		packagestest.Entry{Pkg: current, Release: "v0.2.0"},
+		packagestest.Entry{Pkg: earlier, Release: "v0.1.0", Withdrawn: "wrong_key"},
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", packagestest.As("example/young", "[under_13, adult]")), Release: "v0.2.0"},
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", packagestest.As("example/grown", "[adult]")), Release: "v0.2.0"},
+	)
+	w := worldOn(t, set, gate(t, "", config.RungFull), nil)
+	w.current, w.earlier, w.connected = current, earlier, []string{module}
+	l := w.learner(t)
+	offered := func(profile string) []string {
+		t.Helper()
+		got, err := w.progress.GetSkillMap(l.ctx, &v1.GetSkillMapRequest{ProfileId: profile, ModuleId: module, Action: v1.Action_ACTION_LEARNING})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a := got.GetAnchorSkills(); len(a) != 1 || a[0].GetAnchorSkill() != "core.multiplication-table" {
+			t.Fatalf("the anchor skills = %v, want core.multiplication-table", a)
+		}
+		return got.GetAnchorSkills()[0].GetTeachingModules()
+	}
+	if got := offered(l.child); !slices.Equal(got, []string{"example/young"}) {
+		t.Errorf("the modules offered to a child = %v, want example/young: example/grown is for adults", got)
+	}
+	if got := offered(l.adult); !slices.Equal(got, []string{"example/grown", "example/young"}) {
+		t.Errorf("the modules offered to an adult = %v, want example/grown and example/young, by their IDs", got)
+	}
+	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: "example/young"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := offered(l.adult); !slices.Equal(got, []string{"example/grown"}) {
+		t.Errorf("the modules offered once example/young is connected = %v, want example/grown", got)
 	}
 }
 

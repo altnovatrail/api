@@ -401,3 +401,50 @@ func TestTheSetGivesTheStatusTheCurrentVersionAndTheFiles(t *testing.T) {
 		}
 	}
 }
+
+// Teachers gives, by each anchor skill, the modules whose current version suits
+// the learner and names it in teaches of its entry, by their IDs: not a module
+// whose audience the learner is not in, nor one whose newest version, withdrawn,
+// teaches it and whose current version does not.
+func TestTheTeachersOfAnAnchorSkillAreTheCurrentVersionsThatSuit(t *testing.T) {
+	t.Parallel()
+
+	quiet := func(path string, data []byte) []byte {
+		if path == "skill-graph.yaml" {
+			teaches := []byte("    teaches: [core.multiplication-table]\n")
+			if !bytes.Contains(data, teaches) {
+				t.Fatal("the skill graph of choices does not teach core.multiplication-table as the test edits it")
+			}
+			data = bytes.ReplaceAll(data, teaches, nil)
+		}
+		return data
+	}
+	lapsed := packagestest.As("example/lapsed", "[under_13, adult]")
+	set := packagestest.Set(t,
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", packagestest.As("example/young", "[under_13, adult]")), Release: "v0.1.0"},
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", packagestest.As("example/grown", "[adult]")), Release: "v0.1.0"},
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", func(path string, data []byte) []byte {
+			return quiet(path, lapsed(path, data))
+		}), Release: "v0.1.0"},
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.1.0", lapsed), Release: "v0.2.0", Withdrawn: "wrong_key"},
+		packagestest.Entry{Pkg: packagestest.Built(t, "smallest"), Release: "v0.1.0"},
+	)
+	for category, want := range map[formatv0.AgeCategory][]formatv0.ModuleID{
+		formatv0.AgeCategoryUnder13: {"example/young"},
+		formatv0.AgeCategoryAdult:   {"example/grown", "example/young"},
+	} {
+		got := set.Teachers(category)
+		if len(got) != 1 || !slices.Equal(got["core.multiplication-table"], want) {
+			t.Errorf("Teachers(%s) = %v, want %v of core.multiplication-table alone", category, got, want)
+		}
+	}
+	if got := set.Teachers(formatv0.AgeCategoryFrom13ToConsent); len(got) != 0 {
+		t.Errorf("Teachers of a category no module suits = %v, want none", got)
+	}
+	if _, ok := set.CurrentFor("example/grown", formatv0.AgeCategoryUnder13); ok {
+		t.Error("CurrentFor gives a child a module for adults")
+	}
+	if _, ok := set.CurrentFor("example/grown", formatv0.AgeCategoryAdult); !ok {
+		t.Error("CurrentFor gives an adult no module for adults")
+	}
+}

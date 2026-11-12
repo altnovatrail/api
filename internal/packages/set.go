@@ -49,12 +49,20 @@ func (s *Set) NotGiven() []string {
 // semver of its versions the index does not mark withdrawn and whose format
 // version is in the window, by module-kit (R07). ok is false when it has none.
 func (s *Set) Current(id formatv0.ModuleID) (pkg *modulepackage.Package, ok bool) {
+	_, pkg, ok = s.current(id)
+	return pkg, ok
+}
+
+// current is the entry of the index of the current version of the module id,
+// and its package.
+func (s *Set) current(id formatv0.ModuleID) (formatv0.Entry, *modulepackage.Package, bool) {
 	version, ok := moduleindex.Newest(s.Index, id)
 	if !ok {
-		return nil, false
+		return formatv0.Entry{}, nil, false
 	}
-	pkg, ok = s.Packages[s.Index.Modules[id][version].PackageDigest]
-	return pkg, ok
+	entry := s.Index.Modules[id][version]
+	pkg, ok := s.Packages[entry.PackageDigest]
+	return entry, pkg, ok
 }
 
 // CurrentFor is the package of the current version of the module id for a
@@ -63,10 +71,32 @@ func (s *Set) Current(id formatv0.ModuleID) (pkg *modulepackage.Package, ok bool
 // older one is never given instead (R07).
 func (s *Set) CurrentFor(id formatv0.ModuleID, category formatv0.AgeCategory) (*modulepackage.Package, bool) {
 	pkg, ok := s.Current(id)
-	if !ok || !slices.Contains(pkg.View.Manifest.Audience.AgeCategories, category) {
+	if !ok || !suits(pkg, category) {
 		return nil, false
 	}
 	return pkg, true
+}
+
+// suits says whether the audience of pkg holds a learner of category.
+func suits(pkg *modulepackage.Package, category formatv0.AgeCategory) bool {
+	return slices.Contains(pkg.View.Manifest.Audience.AgeCategories, category)
+}
+
+// Teachers is, by each anchor skill, the ID of each module whose current version
+// for a learner of category names it in teaches of its entry of the index, in
+// the order of their bytes (R63 spec).
+func (s *Set) Teachers(category formatv0.AgeCategory) map[formatv0.AnchorSkillID][]formatv0.ModuleID {
+	out := map[formatv0.AnchorSkillID][]formatv0.ModuleID{}
+	for _, id := range s.Modules() {
+		entry, pkg, ok := s.current(id)
+		if !ok || !suits(pkg, category) {
+			continue
+		}
+		for _, anchor := range entry.Teaches {
+			out[anchor] = append(out[anchor], id)
+		}
+	}
+	return out
 }
 
 // Modules is the ID of each module the index names, in the order of their bytes.
