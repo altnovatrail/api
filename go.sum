@@ -48,12 +48,12 @@ github.com/Microsoft/go-winio v0.6.3 h1:M/52tsoyTfwaxajLnXZm7PqkbMGRH8iSWP+8fcg9
 github.com/Microsoft/go-winio v0.6.3/go.mod h1:ma0QpxizD4fyyzJ1C7MIblymTD2Nxz5Mho/3CepwIZg=
 github.com/Yiling-J/theine-go v0.6.2 h1:1GeoXeQ0O0AUkiwj2S9Jc0Mzx+hpqzmqsJ4kIC4M9AY=
 github.com/Yiling-J/theine-go v0.6.2/go.mod h1:08QpMa5JZ2pKN+UJCRrCasWYO1IKCdl54Xa836rpmDU=
-github.com/altnovatrail/engine v0.1.6 h1:rcYD/ZAYFHltvLWEkv9L9AICnee4V4XpqVecRxBof4k=
-github.com/altnovatrail/engine v0.1.6/go.mod h1:o5Foq6+10V1ivAwePpuaJC0B1VQ1q8tqkEdw/Q5ywt4=
+github.com/altnovatrail/engine v0.1.8 h1:F73o3eAwVr96ELRE0k5idoQsxfMBfo4UIhaUaxN7f40=
+github.com/altnovatrail/engine v0.1.8/go.mod h1:j5g5m7Yqnp+pSeETCYeEPoCzw+AwYqPedAqsqbALEk0=
 github.com/altnovatrail/learner-model v0.1.6 h1:xoifdkdFlXvTSgjFu939p2Ol2oB7s6G6pCO3h2GxfxU=
 github.com/altnovatrail/learner-model v0.1.6/go.mod h1:RXiblPvAomqm/gZw1jRhGO7Ns8dI7m1uk5g9zmUkxEU=
-github.com/altnovatrail/module-kit v0.3.0 h1:ydpXXqh5gTmBFy5TmaKUhvd+QjCVnG0zWiJVPJ4BsmQ=
-github.com/altnovatrail/module-kit v0.3.0/go.mod h1:ZKr2asx1/A1Z1e0Wq2uqS3r5eMZtgY+WsHFMjmaV0qc=
+github.com/altnovatrail/module-kit v0.3.1 h1:6P9scwQsKepXLg19NmYsDR7z/Bjpngo/YZEAuA/pbm4=
+github.com/altnovatrail/module-kit v0.3.1/go.mod h1:MMd1LVbQaxBXO2EKTJzD4pDo/gvCnI4EtJguasa16nA=
 github.com/altnovatrail/spec v0.15.1 h1:BkFssifoNUPLPXXdbTzjsb7caJ3qNqI7esbZmRwTTW8=
 github.com/altnovatrail/spec v0.15.1/go.mod h1:/JG4n8d9/3wY4DZg8V7PLoB1Y48uPjAyIBqoH/rwxXE=
 github.com/altnovatrail/spec/contracts v0.15.1 h1:73Y7/O/gZBUlmcrUMSSQqRhfsHFpRWYjQ9TbGr6iwu0=
