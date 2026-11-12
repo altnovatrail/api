@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -109,6 +110,8 @@ type telling struct {
 	ready proto.Message
 	// called says whether the words were called, between two transactions.
 	called bool
+	// day is the family day of the account on platform AI (R11).
+	day quota.Day
 }
 
 // call calls the words of t, when it has no answer ready, until finishReserve
@@ -291,7 +294,11 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		if err != nil {
 			return telling{}, err
 		}
-		return s.rungAsked(ctx, tx, h, req, route, admitted)
+		t, err := s.rungAsked(ctx, tx, h, req, route, admitted)
+		if err == nil {
+			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
+		}
+		return t, err
 	}
 	var answer *v1.GetRungWordsResponse
 	if admitted {
@@ -477,7 +484,11 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 		if err != nil {
 			return telling{}, err
 		}
-		return s.otherAsked(ctx, tx, h, req, route, admitted)
+		t, err := s.otherAsked(ctx, tx, h, req, route, admitted)
+		if err == nil {
+			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
+		}
+		return t, err
 	}
 	var answer *v1.ExplainDifferentlyResponse
 	switch {
@@ -647,6 +658,9 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 		ai := !byTap(task)
 		if ai != (req.GetWork() != nil) || (ai && !cropTaken(req.GetWork().GetSheet().GetCrop())) {
 			return nil, store.KeyTarget{}, rpc.Malformed("work")
+		}
+		if _, err := s.familyDay(ctx, tx, routeOf(category, req.GetOwnKey()), req.ClockOffsetMinutes); err != nil {
+			return nil, store.KeyTarget{}, err
 		}
 		out := &v1.GetCorrectAnswerWordsResponse{Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}}
 		return out, store.KeyTarget{ProfileID: profileID, AttemptID: row.ID}, nil

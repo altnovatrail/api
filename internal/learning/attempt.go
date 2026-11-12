@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -85,6 +86,9 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			return held{}, sending{}, err
 		}
 		out, err := s.sent(ctx, h, req, category)
+		if err == nil && out.ai {
+			out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes)
+		}
 		return h, out, err
 	}
 	var answer *v1.SubmitWorkResponse
@@ -192,7 +196,9 @@ type sending struct {
 	ai    bool
 	crop  []byte
 	route tutor.Route
-	read  tutor.SheetRead
+	// day is the family day of the account on platform AI (R11).
+	day  quota.Day
+	read tutor.SheetRead
 }
 
 // sent checks the submission's form on the attempt h, before anything is
