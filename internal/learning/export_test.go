@@ -47,9 +47,15 @@ func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.W
 // learner of category, and how many of its lessons it gets: those this code
 // begins.
 func (s *Service) Candidates(pkg *modulepackage.Package, category formatv0.AgeCategory) (pool []string, lessons int, err error) {
-	m, _, err := s.candidates(pkg, learnermodel.Graph{}, category)
+	m, _, err := s.candidates(pkg, learnermodel.Graph{}, category, true)
 	for _, c := range m.Pool {
 		pool = append(pool, c.Task.ID)
 	}
 	return pool, len(m.Lessons), err
+}
+
+// WithPrice is what a call is expected to cost, in place of tutor's prices: a
+// test's own, so that its reserves are known.
+func WithPrice(price func(call tutor.Call, route tutor.Route) tutor.CallPrice) Option {
+	return func(s *Service) { s.price = price }
 }

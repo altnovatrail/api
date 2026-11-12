@@ -264,3 +264,26 @@ func TestAConfigurationTutorRefusesIsInvalid(t *testing.T) {
 		t.Errorf("Load at an unknown stage = %v, want a refusal of the configuration", err)
 	}
 }
+
+// The price of a call is tutor's, on a route it admits a model for: the
+// expected price of a sheet read by the pair and of the words, which the quota
+// reserves; on a route it admits none for, no price, and the quota reserves its
+// own value (R58).
+func TestTheGatePricesWhatItAdmits(t *testing.T) {
+	t.Parallel()
+
+	g := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(formatv0.AgeCategoryAdult)}
+	for _, call := range []tutor.Call{tutor.CallSheet, tutor.CallWords} {
+		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
+			t.Errorf("the price of %s for an adult = %+v, want an expected price of cents", call, p)
+		}
+	}
+	child := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(formatv0.AgeCategoryUnder13)}
+	if p := g.Price(tutor.CallSheet, child); p.Expected || p.ExpectedUSD != 0 {
+		t.Errorf("the price of a route not admitted = %+v, want none", p)
+	}
+	if p := g.Price(tutor.CallEssay, adult); p.Expected {
+		t.Errorf("the price of an essay, which no entry admits = %+v, want none", p)
+	}
+}

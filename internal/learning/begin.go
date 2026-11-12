@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -42,9 +43,14 @@ type begun struct {
 // admission chooses models to read it, by platform AI or the own key named
 // (R45, R46). A task segment of a lesson run begins on the run's package, once
 // the run is checked whole and every task segment before it has ended, and it
-// has not; its open attempt is given as it is (R13, R48). A refusal of the
-// admission leaves the run open. The answer, the attempt with the open view of
-// its task, is what the key's record holds: it names nothing the learner sent.
+// has not; its open attempt is given as it is (R13, R48), and waits, if the
+// quota ran out on it. On platform AI a task that AI checks begins only with
+// room for a typical task left of the family day, and while the limit of its
+// provider leaves platform AI open: else "quota", with when the next day
+// begins, or "platform limit" (R11, R59). A refusal of the admission, the quota
+// or the limit leaves the run open. The answer, the attempt with the open view
+// of its task, is what the key's record holds: it names nothing the learner
+// sent.
 func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttemptRequest) (*v1.BeginAttemptResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -154,6 +160,19 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_SUITABLE)
 	case !s.admitted(task, category, ownKey):
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+	}
+	if !byTap(task) && ownKey == "" {
+		// A new task that platform AI checks begins only with room for a typical
+		// task today, and only while the provider's limit leaves it open (R11).
+		// A task with a rubric begins in no case here (R14): its typical task,
+		// quota.TypicalRubric, waits for its path.
+		closed, err := closedTo(ctx, tx, profileID, quota.TypicalHandwriting, now)
+		if err != nil {
+			return nil, err
+		}
+		if closed != nil {
+			return nil, closedRefusal(ctx, closed)
+		}
 	}
 	if err := s.leave(ctx, tx, profileID, now); err != nil {
 		return nil, err

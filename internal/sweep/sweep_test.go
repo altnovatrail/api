@@ -272,6 +272,17 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 			newProfile, fmt.Sprintf("example/m/l%d", i), choice, idleFor)
 	}
 
+	// Counters of the quota whose day ended 25 hours ago, which go, and 23 hours
+	// ago, which stay for the requests over midnight (R12).
+	for _, ended := range []string{"25 hours", "23 hours"} {
+		for table, owner := range map[string]string{"account_quota (account_id": active, "profile_quota (profile_id": newProfile} {
+			if _, err := w.pool.Exec(t.Context(), `INSERT INTO `+table+`, day_start, day_end)
+				VALUES ($1, now() - $2::interval - interval '1 day', now() - $2::interval)`, owner, ended); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
 	report := w.run(t)
 	if !report.Clean() {
 		t.Fatalf("report = %+v, want a clean pass", report)
@@ -279,13 +290,16 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	for name, want := range map[string]int64{
 		logging.StepMarks: 1, logging.StepIdleAccounts: 1, logging.StepIdleProfiles: 1, logging.StepUsers: 2,
 		logging.StepAbandonedAttempts: 1, logging.StepEvidence: 1, logging.StepAbandonedRuns: 1,
-		logging.StepTuples: 2, logging.StepConsentRecords: 1, logging.StepKeys: 1, logging.StepChangelog: 1,
+		logging.StepTuples: 2, logging.StepConsentRecords: 1, logging.StepQuota: 2, logging.StepKeys: 1, logging.StepChangelog: 1,
 	} {
 		if got := step(t, report, name).Done; got != want {
 			t.Errorf("%s did %d, want %d", name, got, want)
 		}
 	}
 
+	if w.count(t, "account_quota") != 1 || w.count(t, "profile_quota") != 1 {
+		t.Error("the counters of the quota a day after their day were not the ones deleted")
+	}
 	if w.count(t, "accounts WHERE id = $1", marked) != 0 || !w.removed("uid-marked") || w.owns(t, marked, profileID(1)) {
 		t.Error("the mark was not finished")
 	}

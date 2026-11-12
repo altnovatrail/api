@@ -35,6 +35,7 @@ import (
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages/packagestest"
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
 	"github.com/altnovatrail/api/internal/store"
@@ -189,7 +190,7 @@ func (w *world) code(t *testing.T) string {
 	t.Helper()
 
 	code, hash := invite.New()
-	if err := store.CreateInvite(t.Context(), w.pool, hash[:], invite.ClosedSlice); err != nil {
+	if err := store.CreateInvite(t.Context(), w.pool, hash[:], quota.ClosedSlice); err != nil {
 		t.Fatal(err)
 	}
 	return code

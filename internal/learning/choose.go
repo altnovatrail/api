@@ -17,8 +17,10 @@ import (
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -94,12 +96,22 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 	if err != nil {
 		return nil, &errNoChoice{err}
 	}
-	limited := !s.gate.Handwriting(category, "")
+	// The AI that checks the tasks is closed to a new task by the admission, or on
+	// platform AI by its provider's limit or a family day with no room left for a
+	// typical task (R11, R59): the pool is then of the tasks a tap checks.
+	admitted := s.gate.Handwriting(category, "")
+	var closed *v1.Outcome
+	if admitted {
+		if closed, err = closedTo(ctx, tx, profileID, quota.TypicalHandwriting, now); err != nil {
+			return nil, err
+		}
+	}
+	limited := !admitted || closed != nil
 	in := engine.Input{Time: now.Unix(), Readout: read, MapSkill: mapSkill}
 	graphs := s.model.Graphs(ids)
 	narrowed := false
 	for _, pkg := range pkgs {
-		m, left, err := s.candidates(pkg, graphs[string(pkg.View.Manifest.ID)].Graph, category)
+		m, left, err := s.candidates(pkg, graphs[string(pkg.View.Manifest.ID)].Graph, category, closed == nil)
 		if err != nil {
 			return nil, &errNoChoice{err}
 		}
@@ -117,11 +129,14 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 		return nil, &errNoChoice{err}
 	}
 	row.NotAdmitted = row.Kind == "nothing" && narrowed
+	if row.NotAdmitted {
+		row.Closed, row.NextDay = closedCause(admitted, closed)
+	}
 	id, err := store.WriteChoice(ctx, tx, profileID, row, now)
 	if err != nil {
 		return nil, err
 	}
-	return madeChoice(store.MadeChoice{ID: id, Kind: row.Kind, NotAdmitted: row.NotAdmitted}, true), nil
+	return madeChoice(store.MadeChoice{ID: id, Kind: row.Kind, NotAdmitted: row.NotAdmitted, Closed: row.Closed, NextDay: row.NextDay}, true), nil
 }
 
 // choiceKinds is each kind of a choice of the schema in the contract's words.
@@ -136,9 +151,11 @@ var choiceKinds = map[string]v1.ChoiceKind{
 // the learner whole and whose every task segment this code begins, so that the
 // engine gives nothing a beginning refuses (Д26). It says too whether a task
 // was left out of the pool only for AI that is not admitted to read it.
-func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Graph, category formatv0.AgeCategory) (engine.Module, bool, error) {
+func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Graph, category formatv0.AgeCategory, aiOpen bool) (engine.Module, bool, error) {
 	m := engine.Module{Graph: graph}
-	begins := func(task formatv0.Task) bool { return suits(pkg, task, category) && s.admitted(task, category, "") }
+	begins := func(task formatv0.Task) bool {
+		return suits(pkg, task, category) && s.admitted(task, category, "") && (aiOpen || byTap(task))
+	}
 	narrowed := false
 	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
 		task := pkg.View.Tasks[id]
@@ -469,7 +486,7 @@ func madeChoice(c store.MadeChoice, found bool) *v1.EngineChoice {
 	case !found:
 		return nil
 	case c.Kind == "nothing":
-		return nothing(c.NotAdmitted)
+		return nothing(c)
 	}
 	return &v1.EngineChoice{ChoiceId: c.ID, Kind: choiceKinds[c.Kind]}
 }
@@ -531,13 +548,42 @@ func chosenIn(pkgs []*modulepackage.Package, c engine.Choice) (pkg *modulepackag
 	return nil, "", "", nil
 }
 
-// nothing is the choice of nothing to give: with the outcome "not admitted" when
-// AI that is not admitted left a task the code would begin with it out of the
-// pool, and with none for another reason (contract, EngineChoice).
-func nothing(narrowed bool) *v1.EngineChoice {
+// nothing is the choice c of nothing to give: when the closed AI left a task the
+// code would begin with it out of the pool, with the outcome that says why —
+// "not admitted", "quota" with when the next family day begins, or "platform
+// limit"; with none for another reason (contract, EngineChoice). A choice
+// written before the causes were kept is "not admitted".
+func nothing(c store.MadeChoice) *v1.EngineChoice {
 	out := &v1.EngineChoice{Kind: v1.ChoiceKind_CHOICE_KIND_NOTHING}
-	if narrowed {
+	if !c.NotAdmitted {
+		return out
+	}
+	switch c.Closed {
+	case store.NothingQuota:
+		out.Outcome = &v1.Outcome{Cause: v1.Cause_CAUSE_QUOTA}
+		if c.NextDay != nil {
+			out.Outcome.NextFamilyDay = timestamppb.New(*c.NextDay)
+		}
+	case store.NothingPlatformLimit:
+		out.Outcome = &v1.Outcome{Cause: v1.Cause_CAUSE_PLATFORM_LIMIT}
+	default:
 		out.Outcome = &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}
 	}
 	return out
+}
+
+// closedCause is how a choice of nothing to give keeps why the AI was closed: by
+// the admission, or by what closed platform AI, with when the next family day
+// begins beside the quota.
+func closedCause(admitted bool, closed *v1.Outcome) (string, *time.Time) {
+	switch {
+	case !admitted:
+		return store.NothingNotAdmitted, nil
+	case closed.GetCause() == v1.Cause_CAUSE_QUOTA:
+		next := closed.GetNextFamilyDay().AsTime()
+		return store.NothingQuota, &next
+	case closed.GetCause() == v1.Cause_CAUSE_PLATFORM_LIMIT:
+		return store.NothingPlatformLimit, nil
+	}
+	return store.NothingNotAdmitted, nil
 }

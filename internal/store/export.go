@@ -64,6 +64,9 @@ func ExportAccount(ctx context.Context, tx pgx.Tx, accountID string) (exportv1.A
 	if a.Consents, err = exportConsents(ctx, tx, `c.account_id = $1`, accountID); err != nil {
 		return exportv1.Account{}, err
 	}
+	if a.QuotaCounters, err = exportCounters(ctx, tx, "account_quota", "account_id", accountID); err != nil {
+		return exportv1.Account{}, err
+	}
 	return a, nil
 }
 
@@ -202,6 +205,10 @@ func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) 
 		func() error { return exportReports(ctx, tx, profileID, &out) },
 		func() error { return exportAttempts(ctx, tx, profileID, &e) },
 		func() error { return exportJournal(ctx, tx, profileID, &out, &e) },
+		func() (err error) {
+			out.QuotaCounters, err = exportCounters(ctx, tx, "profile_quota", "profile_id", profileID)
+			return err
+		},
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -552,4 +559,26 @@ func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *export
 	}
 	out.State.Modules = []exportv1.StateEntryModule{}
 	return nil
+}
+
+// exportCounters is every counter of the quota the table keeps of the owner of
+// column, by the beginning of its day (R12): spent and in reserve, in whole
+// micro-dollars, as the database keeps them.
+func exportCounters(ctx context.Context, tx pgx.Tx, table, column, id string) ([]exportv1.QuotaCounter, error) {
+	rows, err := tx.Query(ctx, `SELECT day_start, spent_micro_usd, reserved_micro_usd FROM `+table+`
+		WHERE `+column+` = $1 ORDER BY day_start`, id)
+	if err != nil {
+		return nil, fmt.Errorf("store: read the counters of the quota: %w", err)
+	}
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv1.QuotaCounter, error) {
+		var c exportv1.QuotaCounter
+		var start time.Time
+		err := r.Scan(&start, &c.SpentMicroUsd, &c.ReservedMicroUsd)
+		c.DayStart = timeOf(start)
+		return c, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: read the counters of the quota: %w", err)
+	}
+	return append([]exportv1.QuotaCounter{}, list...), nil
 }

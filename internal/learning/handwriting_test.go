@@ -151,6 +151,14 @@ func TestAHandwritingSheetIsReadByTwoReaders(t *testing.T) {
 					tc.verdict, tc.wrong, tc.cause)
 			}
 		})
+		if tc.cause == v1.Cause_CAUSE_PLATFORM_LIMIT {
+			// The provider's limit closed platform AI to all; the operator opens it (R59).
+			var closed bool
+			if err := w.pool.QueryRow(t.Context(), `SELECT closed_at IS NOT NULL FROM platform_ai`).Scan(&closed); err != nil || !closed {
+				t.Error("the platform's limit did not close platform AI")
+			}
+			w.exec(t, `UPDATE platform_ai SET closed_at = NULL`)
+		}
 	}
 	// The readers got the crop as it came, the open view of the task and the
 	// route: an own key with its provider, the adult's category.

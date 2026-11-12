@@ -11,6 +11,7 @@ import (
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/invite"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -21,8 +22,8 @@ import (
 func createInvite(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	set := flag.NewFlagSet("api invite", flag.ContinueOnError)
 	set.SetOutput(stderr)
-	tariff := set.String("tariff", invite.ClosedSlice,
-		"the tariff the code passes to the account that redeems it: "+strings.Join(invite.Tariffs, ", "))
+	tariff := set.String("tariff", quota.ClosedSlice,
+		"the tariff the code passes to the account that redeems it: "+strings.Join(quota.Tariffs(), ", "))
 	switch err := set.Parse(args); {
 	case errors.Is(err, flag.ErrHelp):
 		return err
@@ -33,8 +34,8 @@ func createInvite(ctx context.Context, args, environ []string, stdout, stderr io
 		fmt.Fprintf(stderr, "api invite takes no arguments, got %q\n", set.Args())
 		return errUsage
 	}
-	if !invite.Known(*tariff) {
-		fmt.Fprintf(stderr, "api invite: -tariff must be one of %s, got %q\n", strings.Join(invite.Tariffs, ", "), *tariff)
+	if !quota.Known(*tariff) {
+		fmt.Fprintf(stderr, "api invite: -tariff must be one of %s, got %q\n", strings.Join(quota.Tariffs(), ", "), *tariff)
 		return errUsage
 	}
 	// The refusal of the configuration names the variable and never the string.

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -109,13 +110,17 @@ type telling struct {
 	ready proto.Message
 	// called says whether the words were called, between two transactions.
 	called bool
+	// day is the family day of the account on platform AI (R11), and reserve
+	// what the call took of its quota (R58).
+	day     quota.Day
+	reserve reserve
 }
 
 // call calls the words of t, when it has no answer ready, until finishReserve
 // before the request's deadline, and notes the call in the request's log. The
 // crop goes no further than the call.
 func (s *Service) call(ctx context.Context, t telling) telling {
-	if t.ready != nil {
+	if t.ready != nil || t.reserve.refused != nil {
 		return t
 	}
 	if deadline, ok := ctx.Deadline(); ok {
@@ -127,6 +132,7 @@ func (s *Service) call(ctx context.Context, t telling) telling {
 	t.answer, t.called = s.teller.TellWords(ctx, t.request), true
 	t.request.Crop = nil
 	noteCall(ctx, t.answer.Outcome, time.Since(start))
+	s.afterCall(ctx, t.reserve, t.answer.Outcome)
 	return t
 }
 
@@ -136,24 +142,33 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 	call := rpc.AICall{Outcome: aiOutcomes[o.Kind], Duration: took}
 	for _, u := range o.Usage {
 		call.Usage = append(call.Usage, rpc.AIUsage{Provider: string(u.Provider), Model: u.Model,
-			InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, ThinkingTokens: u.ThinkingTokens})
+			InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, ThinkingTokens: u.ThinkingTokens,
+			CostMicroUSD: int64(quota.USD(u.USD)), Billed: u.Billed})
 	}
 	rpc.NoteAICall(ctx, call)
 }
 
 // worded is the words that came of the call of t on its rung: the tutor's
 // question, when it passed the leak check and the form check, or the rung's
-// fallback text, with the cause of an outcome that gave no words; none when the
-// words came and failed a check (contract, § 15).
-func worded(t telling) (store.Words, v1.Cause) {
-	if t.answer.Outcome.Kind == tutor.Answered && passes(t.h.pkg, t.h.task, t.answer.Question) {
-		return store.Words{Source: store.SourceModel, Text: t.answer.Question}, v1.Cause_CAUSE_UNSPECIFIED
+// fallback text, with the outcome of a call that gave no words — or that the
+// quota did not hold, and made none; none when the words came and failed a
+// check, which goes to the request's line of the log (contract, § 15; R47).
+func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
+	if t.answer.Outcome.Kind == tutor.Answered {
+		check := turnedDown(t.h.pkg, t.h.task, t.answer.Question)
+		if check == "" {
+			return store.Words{Source: store.SourceModel, Text: t.answer.Question}, nil
+		}
+		rpc.NoteWordsCheck(ctx, check)
 	}
 	words := store.Words{Source: store.SourceFallback, Text: fallback(t.h.pkg, t.h.task, t.rung, t.at)}
-	if t.answer.Outcome.Kind == tutor.Answered {
-		return words, v1.Cause_CAUSE_UNSPECIFIED
+	switch {
+	case t.reserve.refused != nil:
+		return words, t.reserve.refused
+	case t.answer.Outcome.Kind == tutor.Answered:
+		return words, nil
 	}
-	return words, outcomeCause(t.answer.Outcome.Kind, t.request.Route.AI)
+	return words, &v1.Outcome{Cause: outcomeCause(t.answer.Outcome.Kind, t.request.Route.AI)}
 }
 
 // routeOf is the route of a learner of category to AI: the own key, when the
@@ -286,7 +301,14 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		if err != nil {
 			return telling{}, err
 		}
-		return s.rungAsked(ctx, tx, h, req, route, admitted)
+		t, err := s.rungAsked(ctx, tx, h, req, route, admitted)
+		if err == nil {
+			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
+		}
+		if err == nil && admitted && t.ready == nil {
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallWords, t.day)
+		}
+		return t, err
 	}
 	var answer *v1.GetRungWordsResponse
 	if admitted {
@@ -414,14 +436,11 @@ func (s *Service) rungTold(ctx context.Context, tx pgx.Tx, profileID string, t t
 		}
 	}
 	if !ok {
-		words, cause := worded(t)
+		words, outcome := worded(ctx, t)
 		if err := store.WriteRung(ctx, tx, profileID, t.h.row.ID, t.rung, words); err != nil {
 			return nil, store.KeyTarget{}, err
 		}
-		answer = &v1.GetRungWordsResponse{Rung: int32(t.rung), Words: words.Text}
-		if cause != v1.Cause_CAUSE_UNSPECIFIED {
-			answer.Outcome = &v1.Outcome{Cause: cause}
-		}
+		answer = &v1.GetRungWordsResponse{Rung: int32(t.rung), Words: words.Text, Outcome: outcome}
 		if box := t.answer.Box; box != nil && words.Source == store.SourceModel {
 			answer.Marks = []*v1.Mark{{Kind: v1.MarkKind_MARK_KIND_FRAME, Place: &v1.Mark_CropBox{CropBox: box}}}
 		}
@@ -472,7 +491,18 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 		if err != nil {
 			return telling{}, err
 		}
-		return s.otherAsked(ctx, tx, h, req, route, admitted)
+		t, err := s.otherAsked(ctx, tx, h, req, route, admitted)
+		if err == nil {
+			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
+		}
+		if err == nil && admitted {
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallWords, t.day)
+		}
+		if err == nil && t.reserve.refused != nil {
+			// "Explain differently" makes no call without the reserve, and the right stays.
+			err = refusal(ctx, t.reserve.refused)
+		}
+		return t, err
 	}
 	var answer *v1.ExplainDifferentlyResponse
 	switch {
@@ -573,17 +603,14 @@ func (s *Service) otherTold(ctx context.Context, tx pgx.Tx, profileID string, t 
 		return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ALREADY_ASKED)
 	}
 	t.read = readWords(h, t, kept, found)
-	other, cause := worded(t)
-	if cause == v1.Cause_CAUSE_UNSPECIFIED && other.Text == t.read.Text {
-		cause = v1.Cause_CAUSE_NO_OTHER_WORDS
+	other, outcome := worded(ctx, t)
+	if outcome == nil && other.Text == t.read.Text {
+		outcome = &v1.Outcome{Cause: v1.Cause_CAUSE_NO_OTHER_WORDS}
 	}
 	if err := store.ExplainRung(ctx, tx, profileID, h.row.ID, t.rung, t.read, other, s.clock()); err != nil {
 		return nil, store.KeyTarget{}, err
 	}
-	answer := &v1.ExplainDifferentlyResponse{Words: other.Text}
-	if cause != v1.Cause_CAUSE_UNSPECIFIED {
-		answer.Outcome = &v1.Outcome{Cause: cause}
-	}
+	answer := &v1.ExplainDifferentlyResponse{Words: other.Text, Outcome: outcome}
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID, Response: noWords(answer)}, nil
 }
 
@@ -642,6 +669,9 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 		ai := !byTap(task)
 		if ai != (req.GetWork() != nil) || (ai && !cropTaken(req.GetWork().GetSheet().GetCrop())) {
 			return nil, store.KeyTarget{}, rpc.Malformed("work")
+		}
+		if _, err := s.familyDay(ctx, tx, routeOf(category, req.GetOwnKey()), req.ClockOffsetMinutes); err != nil {
+			return nil, store.KeyTarget{}, err
 		}
 		out := &v1.GetCorrectAnswerWordsResponse{Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}}
 		return out, store.KeyTarget{ProfileID: profileID, AttemptID: row.ID}, nil

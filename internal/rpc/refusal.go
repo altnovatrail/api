@@ -69,6 +69,11 @@ func Failed(ctx context.Context, err error) error {
 // of an answer that is no refusal: a call of AI that gave no reading (R46).
 func NoteOutcome(ctx context.Context, cause v1.Cause) { noteOf(ctx).outcome = cause.String() }
 
+// NoteWordsCheck names, in the request's line of the log, the check that turned
+// the tutor's words down, in a word of logging.WordsChecks: the learner read the
+// fallback text, and the line says why, without the words (R47).
+func NoteWordsCheck(ctx context.Context, check string) { noteOf(ctx).wordsCheck = check }
+
 // AICall is a call of AI as the log writes it (R12, R46): how it ended, in one
 // word of logging.AIOutcomes, how long it took, and what each model of it took —
 // no content, no key, no identifier.
@@ -78,11 +83,15 @@ type AICall struct {
 	Usage    []AIUsage
 }
 
-// AIUsage is what one call of a model took: its provider and model, and its
-// tokens.
+// AIUsage is what one call of a model took: its provider and model, its tokens
+// and what they cost.
 type AIUsage struct {
 	Provider, Model                           string
 	InputTokens, OutputTokens, ThinkingTokens int64
+	// CostMicroUSD is what it cost by tutor's prices, at its worst when Billed is
+	// false: its tokens are not its whole bill (R12).
+	CostMicroUSD int64
+	Billed       bool
 }
 
 // NoteAICall adds a call of AI to the request's log: a line of each model's
@@ -92,3 +101,14 @@ func NoteAICall(ctx context.Context, c AICall) {
 	n := noteOf(ctx)
 	n.calls = append(n.calls, c)
 }
+
+// NoteQuotaSpent names, in the request's log, a call of platform AI that the
+// quota did not hold, by the cap it met, in a word of quota.Spent: a line of its
+// own beside the request's, with the method and no ID, which the unit economics
+// count by the day (R12).
+func NoteQuotaSpent(ctx context.Context, spent string) { noteOf(ctx).quotaSpent = spent }
+
+// NotePlatformLimit names, in the request's log, the refusal of the provider by
+// its limit on the platform's key that closed platform AI to all: a line of its
+// own, with the method and no ID, which is the operator's signal (R11).
+func NotePlatformLimit(ctx context.Context) { noteOf(ctx).platformLimit = true }

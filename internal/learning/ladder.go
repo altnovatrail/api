@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -119,19 +120,24 @@ func simplerCase(task formatv0.Task, at spot) *formatv0.Text {
 	return task.Items[at.item].SimplerCase
 }
 
-// passes says whether the tutor's question may reach the learner (R70 spec):
-// the leak check of module-kit finds none of the task's keys or leak phrases in
-// it, on the instance the attempt got, and its form is a hint's, by tutor's
-// words. Words that fail either give way to the fallback text.
-func passes(pkg *modulepackage.Package, task formatv0.Task, question string) bool {
+// turnedDown is the check that turns the tutor's question down, in a word of
+// logging.WordsChecks, or none when it may reach the learner (R70 spec): an
+// empty question; the leak check of module-kit, which finds a key or a leak
+// phrase of the task in it, on the instance the attempt got — or cannot be made
+// for the task, and then no words pass; or its form, which is not a hint's by
+// tutor's words. Words turned down give way to the fallback text.
+func turnedDown(pkg *modulepackage.Package, task formatv0.Task, question string) string {
 	if strings.TrimSpace(question) == "" {
-		return false
+		return logging.WordsCheckEmpty
 	}
 	search, err := leak.For(task)
 	if err != nil || len(search.In(question)) > 0 {
-		return false
+		return logging.WordsCheckLeak
 	}
-	return len(words.Hint(question, string(pkg.View.Manifest.Languages.Explanation), statementOf(task))) == 0
+	if len(words.Hint(question, string(pkg.View.Manifest.Languages.Explanation), statementOf(task))) > 0 {
+		return logging.WordsCheckForm
+	}
+	return ""
 }
 
 // statementOf is the words of the task's statement, whose Latin letters may

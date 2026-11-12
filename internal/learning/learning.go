@@ -49,6 +49,9 @@ type Service struct {
 	// tutor's words: the gate's tutor.
 	reader sheetReader
 	teller wordsTeller
+	// price is what tutor expects a call to cost, which the quota reserves (R58):
+	// the gate's.
+	price func(call tutor.Call, route tutor.Route) tutor.CallPrice
 	// goingFor is the longest a request may run, past which the record of its
 	// key going is of a request that fell (R17, R33).
 	goingFor  time.Duration
@@ -91,6 +94,9 @@ func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, err
 	}
 	if gate == nil {
 		return nil, errors.New("learning: no gate of admission")
+	}
+	if s.price == nil {
+		s.price = gate.Price
 	}
 	if s.moduleKit == "" {
 		return nil, errors.New("learning: the build recorded no version of module-kit")

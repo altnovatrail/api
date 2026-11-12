@@ -1,6 +1,7 @@
-// The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, and
-// the custom token it signs. They run the script's own functions in bash, with jq and openssl, as
-// the devcontainer and its toolchain stage, where CI runs the tests, have them.
+// The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, the
+// custom token it signs, and how it tells a task AI reads and sums the counters of the quota. They
+// run the script's own functions in bash, with jq and openssl, as the devcontainer and its toolchain
+// stage, where CI runs the tests, have them.
 package scripts_test
 
 import (
@@ -154,5 +155,60 @@ func TestTheCustomTokenIsFirebases(t *testing.T) {
 	}
 	if _, stderr, err := bash(t, nil, `custom_token "`+path+`"`); err == nil || !strings.Contains(stderr, "would not sign") {
 		t.Errorf("custom_token with no key = %q, %v; want a refusal", stderr, err)
+	}
+}
+
+// The check knows a task AI reads by its answer slot written anywhere, however deep in the open view
+// it lies, and a task checked by tap from it.
+func TestATaskAIReadsIsToldFromOneByTap(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		name, task string
+		reads      bool
+	}{
+		{"an item's slot", `{"items":[{"answer_slots":[{"id":"a","binding":"anywhere"}]}]}`, true},
+		{"a slot in a line", `{"items":[{"line":[{"answer_slot":{"id":"a","binding":"anywhere"}}]}]}`, true},
+		{"slots by tap", `{"items":[{"answer_slots":[{"id":"a","binding":"choice","options":["1","2"]}]}]}`, false},
+		{"no slots", `{"items":[]}`, false},
+	} {
+		start, err := json.Marshal(map[string]any{"attempt_id": "x", "task": map[string]any{"json": []byte(tc.task)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, strings.ReplaceAll(tc.name, " ", "-")+".json")
+		if err := os.WriteFile(path, start, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, stderr, err := bash(t, nil, `handwritten "`+path+`"`)
+		if (err == nil) != tc.reads {
+			t.Errorf("%s: handwritten = %v, %s; want AI reads it %v", tc.name, err, stderr, tc.reads)
+		}
+	}
+}
+
+// What an export's file holds of the quota is its counters summed over their days, and nothing when
+// it holds none.
+func TestTheCountersOfAnExportAreSummed(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		name, file, want string
+	}{
+		{"two days", `{"quota_counters":[{"day_start":"2026-11-11T00:00:00Z","spent_micro_usd":9300,"reserved_micro_usd":0},` +
+			`{"day_start":"2026-11-12T00:00:00Z","spent_micro_usd":14000,"reserved_micro_usd":18200}]}`, "23300 18200"},
+		{"no counter", `{"quota_counters":[]}`, "0 0"},
+		{"no field", `{}`, "0 0"},
+	} {
+		path := filepath.Join(dir, strings.ReplaceAll(tc.name, " ", "-")+".json")
+		if err := os.WriteFile(path, []byte(tc.file), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		stdout, stderr, err := bash(t, nil, `counted "`+path+`"`)
+		if err != nil || strings.TrimSpace(stdout) != tc.want {
+			t.Errorf("%s: counted = %q, %q, %v; want %q", tc.name, stdout, stderr, err, tc.want)
+		}
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -92,6 +93,13 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[sending, *v1.SubmitWorkResponse]{
 			Prepare: func(tx pgx.Tx, _ string) (sending, store.KeyTarget, error) {
 				h, out, err := prepare(tx)
+				if err == nil && out.ai {
+					// The reading takes its reserve here, beside the record going, and
+					// settles it after the call (R58).
+					if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err == nil {
+						out.reserve, err = s.reserveFor(ctx, tx, profileID, out.route, tutor.CallSheet, out.day)
+					}
+				}
 				return out, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, err
 			},
 			Call: func(ctx context.Context, out sending) sending { return s.read(ctx, out) },
@@ -192,7 +200,11 @@ type sending struct {
 	ai    bool
 	crop  []byte
 	route tutor.Route
-	read  tutor.SheetRead
+	// day is the family day of the account on platform AI (R11), and reserve
+	// what the reading took of its quota (R58).
+	day     quota.Day
+	reserve reserve
+	read    tutor.SheetRead
 }
 
 // sent checks the submission's form on the attempt h, before anything is
@@ -242,9 +254,14 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 
 // read reads the crop of out by tutor, when AI reads a slot of its task, until
 // finishReserve before the request's deadline, and notes the call in the
-// request's log.
+// request's log. A reading the quota does not hold is not called, and one
+// called settles its reserve by what it cost.
 func (s *Service) read(ctx context.Context, out sending) sending {
 	if !out.ai {
+		return out
+	}
+	if out.reserve.refused != nil {
+		out.crop = nil
 		return out
 	}
 	if deadline, ok := ctx.Deadline(); ok {
@@ -262,6 +279,7 @@ func (s *Service) read(ctx context.Context, out sending) sending {
 	// The crop goes no further than the reading.
 	out.crop = nil
 	noteCall(ctx, out.read.Outcome, time.Since(start))
+	s.afterCall(ctx, out.reserve, out.read.Outcome)
 	return out
 }
 
@@ -283,9 +301,9 @@ var aiOutcomes = map[tutor.Kind]string{
 // cannot join, leaves the slots AI reads "unchecked", with the outcome's cause.
 func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitWorkResponse, *observationv1.Observation, error) {
 	var joined *observationv1.Observation
-	var cause v1.Cause
+	var outcome *v1.Outcome
 	if out.ai {
-		joined, cause = s.joined(h.task, out)
+		joined, outcome = s.joined(h.task, out)
 	}
 	verdicts, err := observation.Verdicts(ctx, h.task.Items, joined, out.tapped)
 	switch {
@@ -302,9 +320,7 @@ func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitW
 	if wrong {
 		answer.WrongAnswers++
 	}
-	if cause != v1.Cause_CAUSE_UNSPECIFIED {
-		answer.Outcome = &v1.Outcome{Cause: cause}
-	}
+	answer.Outcome = outcome
 	if correct {
 		if answer.Solved, err = solved(h.pkg, h.task); err != nil {
 			return nil, nil, err
@@ -314,21 +330,25 @@ func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitW
 }
 
 // joined is the observation of the two readers of out joined by module-kit, or
-// none with the cause of the outcome that left the slots AI reads unchecked.
-func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observation, v1.Cause) {
+// none with the outcome that left the slots AI reads unchecked: the quota that
+// did not hold the reading, or what the call came to.
+func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observation, *v1.Outcome) {
+	if out.reserve.refused != nil {
+		return nil, out.reserve.refused
+	}
 	r := out.read
 	if r.Outcome.Kind != tutor.Answered {
-		return nil, outcomeCause(r.Outcome.Kind, out.route.AI)
+		return nil, &v1.Outcome{Cause: outcomeCause(r.Outcome.Kind, out.route.AI)}
 	}
 	if len(r.Observations) != 2 {
-		return nil, v1.Cause_CAUSE_AI_FAILURE
+		return nil, &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
 	}
 	joined, err := observation.Join(task.Items, r.Observations[0], r.Observations[1])
 	if err != nil {
 		// An observation that is not valid is as a failure of AI.
-		return nil, v1.Cause_CAUSE_AI_FAILURE
+		return nil, &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
 	}
-	return joined, v1.Cause_CAUSE_UNSPECIFIED
+	return joined, nil
 }
 
 // outcomeCause is the cause of an outcome of tutor that gave no reading, on the

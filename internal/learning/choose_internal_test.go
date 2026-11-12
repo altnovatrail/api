@@ -3,12 +3,14 @@ package learning
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/altnovatrail/engine"
 	learnermodel "github.com/altnovatrail/learner-model"
 	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
@@ -85,7 +87,7 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 
 	pkg := packagestest.Own(t, "choices")
 	s := &Service{gate: noAI(t)}
-	m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryUnder13)
+	m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryUnder13, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,16 +133,37 @@ func noAI(t *testing.T) *admission.Gate {
 	return g
 }
 
-// Nothing to give says "not admitted" only when AI that is not admitted left a
-// task out of the pool; a choice no module of the engine holds has no package.
+// Nothing to give says why only when the closed AI left a task out of the pool:
+// "not admitted" — as a choice written before the causes were kept —, "quota"
+// with when the next family day begins, or "platform limit"; a choice no module
+// of the engine holds has no package.
 func TestNothingToGiveSaysWhyOnlyForAI(t *testing.T) {
 	t.Parallel()
 
-	if c := nothing(true); c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || c.GetOutcome().GetCause() != v1.Cause_CAUSE_NOT_ADMITTED {
-		t.Errorf("nothing with the pool narrowed = %v", c)
+	next := time.Date(2026, 11, 13, 5, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		made  store.MadeChoice
+		cause v1.Cause
+	}{
+		{store.MadeChoice{Kind: "nothing", NotAdmitted: true}, v1.Cause_CAUSE_NOT_ADMITTED},
+		{store.MadeChoice{Kind: "nothing", NotAdmitted: true, Closed: store.NothingNotAdmitted}, v1.Cause_CAUSE_NOT_ADMITTED},
+		{store.MadeChoice{Kind: "nothing", NotAdmitted: true, Closed: store.NothingQuota, NextDay: &next}, v1.Cause_CAUSE_QUOTA},
+		{store.MadeChoice{Kind: "nothing", NotAdmitted: true, Closed: store.NothingPlatformLimit}, v1.Cause_CAUSE_PLATFORM_LIMIT},
+	} {
+		c := nothing(tc.made)
+		if c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || c.GetOutcome().GetCause() != tc.cause ||
+			(tc.cause == v1.Cause_CAUSE_QUOTA) != (c.GetOutcome().GetNextFamilyDay() != nil) {
+			t.Errorf("nothing of %+v = %v, want %v", tc.made, c, tc.cause)
+		}
 	}
-	if c := nothing(false); c.GetOutcome() != nil {
+	if c := nothing(store.MadeChoice{Kind: "nothing"}); c.GetOutcome() != nil {
 		t.Errorf("nothing for another reason = %v, want no outcome", c)
+	}
+	if cause, day := closedCause(true, &v1.Outcome{Cause: v1.Cause_CAUSE_QUOTA, NextFamilyDay: timestamppb.New(next)}); cause != store.NothingQuota || !day.Equal(next) {
+		t.Errorf("the cause of a quota = %q, %v", cause, day)
+	}
+	if cause, _ := closedCause(false, nil); cause != store.NothingNotAdmitted {
+		t.Errorf("the cause of no admission = %q", cause)
 	}
 	pkg := packagestest.Own(t, "choices")
 	if got, _, _, _ := chosenIn([]*modulepackage.Package{pkg}, engine.Choice{Kind: engine.ChoiceTask, ID: "example/choices/task/none"}); got != nil {

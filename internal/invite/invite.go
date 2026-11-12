@@ -14,7 +14,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
-	"slices"
 	"strings"
 	"unicode"
 )
@@ -33,19 +32,6 @@ const (
 )
 
 var encoding = base32.NewEncoding(alphabet).WithPadding(base32.NoPadding)
-
-// The tariffs a code is made with (R11; architecture 3.6). A code's tariff
-// passes to the account that redeems it. Their caps come with the quota (Д11).
-const (
-	// ClosedSlice is the tariff of the closed slice, a code's by default.
-	ClosedSlice = "closed_slice"
-)
-
-// Tariffs is every tariff a code may be made with.
-var Tariffs = []string{ClosedSlice}
-
-// Known says whether tariff is one of Tariffs.
-func Known(tariff string) bool { return slices.Contains(Tariffs, tariff) }
 
 // Hash is what the database keeps of a code: its SHA-256.
 type Hash [sha256.Size]byte

@@ -71,6 +71,18 @@ const (
 	// and the model, its tokens, how the call ended and how long it took — never
 	// the work, what was read or what failed in its words.
 	EventAIUsage = "ai_usage"
+	// EventQuotaExhausted is the line of a call of platform AI that the quota did
+	// not hold, so that it made no call, beside the line of its request (R12): the
+	// method and the cap it met — never an ID, a sum or an offset. The unit
+	// economics count them by the day.
+	EventQuotaExhausted = "quota_exhausted"
+	// EventPlatformLimit is the line of a refusal of the provider by its limit on
+	// the platform's key, which closed platform AI to all until the operator opens
+	// it again (R11): the method alone. It is the operator's signal.
+	EventPlatformLimit = "platform_limit"
+	// EventPlatformAIOpened is the line of api reopen, which opened platform AI
+	// again: whether it was closed.
+	EventPlatformAIOpened = "platform_ai_opened"
 )
 
 // unregisteredEvent replaces the message of a line whose event the table does
@@ -138,6 +150,18 @@ const (
 	FieldThinkingTokens = "thinking_tokens"
 	// FieldAIOutcome is how a call of AI ended, in a word of AIOutcomes.
 	FieldAIOutcome = "ai_outcome"
+	// FieldWordsCheck is the check that turned the tutor's words down, so that
+	// the learner read the fallback text: a word of WordsChecks (R47).
+	FieldWordsCheck = "words_check"
+	// FieldCostMicroUSD is what a call of a model cost by tutor's prices, in whole
+	// micro-dollars: at its worst when its tokens are not its whole bill (R12).
+	FieldCostMicroUSD = "cost_micro_usd"
+	// FieldBilled says the tokens of a call of a model are its whole bill.
+	FieldBilled = "billed"
+	// FieldQuotaCap is the cap of the quota a call met: a word of QuotaCaps.
+	FieldQuotaCap = "quota_cap"
+	// FieldWasClosed says platform AI was closed when the operator opened it.
+	FieldWasClosed = "was_closed"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -157,6 +181,8 @@ const (
 	MomentAfter     = "after"
 	MomentConsents  = "consents"
 	MomentReports   = "reports"
+	MomentTariff    = "tariff"
+	MomentReopen    = "reopen"
 )
 
 // The steps of the daily job and of the job after a rollout: the value set of
@@ -175,12 +201,13 @@ const (
 	StepConsentRecords    = "consent_records"
 	StepConsentForms      = "consent_forms"
 	StepProblemReports    = "problem_reports"
+	StepQuota             = "quota"
 	StepKeys              = "keys"
 	StepChangelog         = "changelog"
 )
 
 // Steps is every step of the daily job, in the order it takes them.
-var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepConsentForms, StepProblemReports, StepKeys, StepChangelog}
+var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepConsentForms, StepProblemReports, StepQuota, StepKeys, StepChangelog}
 
 // AfterSteps is every step of the job after a rollout, in the order it takes
 // them: the steps of the daily job that close what the image no longer gives
@@ -197,19 +224,23 @@ const (
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
 		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
-	EventStopping:     {},
-	EventStopped:      {FieldCutShort},
-	EventShutdown:     {FieldStarted},
-	EventFailure:      {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
-	EventPanic:        {FieldPanicKind},
-	EventMigrated:     {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
-	EventRequest:      {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind, FieldOutcomeCause},
+	EventStopping: {},
+	EventStopped:  {FieldCutShort},
+	EventShutdown: {FieldStarted},
+	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
+	EventPanic:    {FieldPanicKind},
+	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
+	EventRequest: {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind, FieldOutcomeCause,
+		FieldWordsCheck},
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
 	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
-		FieldAIOutcome, FieldDurationMS},
+		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled},
+	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
+	EventPlatformLimit:    {FieldMethod},
+	EventPlatformAIOpened: {FieldWasClosed},
 }
 
 // rule is what a field's value must be: of a kind, and a string also of a
@@ -232,7 +263,7 @@ var fields = map[string]rule{
 	FieldDeployed:       {kind: slog.KindBool},
 	FieldStarted:        {kind: slog.KindBool},
 	FieldCutShort:       {kind: slog.KindBool},
-	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports}},
+	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen}},
 	FieldErrorKind:      {kind: slog.KindLogValuer},
 	FieldPanicKind:      {kind: slog.KindLogValuer},
 	FieldApplied:        {kind: slog.KindInt64},
@@ -267,6 +298,11 @@ var fields = map[string]rule{
 	FieldOutputTokens:   {kind: slog.KindInt64},
 	FieldThinkingTokens: {kind: slog.KindInt64},
 	FieldAIOutcome:      {kind: slog.KindString, values: AIOutcomes},
+	FieldWordsCheck:     {kind: slog.KindString, values: WordsChecks},
+	FieldCostMicroUSD:   {kind: slog.KindInt64},
+	FieldBilled:         {kind: slog.KindBool},
+	FieldQuotaCap:       {kind: slog.KindString, values: QuotaCaps},
+	FieldWasClosed:      {kind: slog.KindBool},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -327,6 +363,24 @@ var Providers = []string{"anthropic", "google", "openai"}
 // AIOutcomes is the value set of FieldAIOutcome: how a call of tutor ended, in
 // tutor's kinds (R46).
 var AIOutcomes = []string{"answered", "failed", "limit_reached", "not_admitted", "key_refused"}
+
+// The checks of the tutor's words that may turn them down (R47), the value set
+// of FieldWordsCheck: the question is empty; the leak check of module-kit found
+// a key or a leak phrase of the task in it; or its form is no hint's, by
+// tutor's words.
+const (
+	WordsCheckEmpty = "empty"
+	WordsCheckLeak  = "leak"
+	WordsCheckForm  = "form"
+)
+
+// WordsChecks is the value set of FieldWordsCheck.
+var WordsChecks = []string{WordsCheckEmpty, WordsCheckLeak, WordsCheckForm}
+
+// QuotaCaps is the value set of FieldQuotaCap: the cap of the profile, of the
+// account, or a tariff with no caps, in the words of quota.Spent. quota's tests
+// hold the set to its words.
+var QuotaCaps = []string{"profile", "account", "tariff"}
 
 // modelShape is a model's ID as a provider answers with it: lowercase letters,
 // digits, dots, dashes and underscores, as "claude-opus-5-5" — no free text.
