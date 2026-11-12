@@ -69,6 +69,11 @@ func Failed(ctx context.Context, err error) error {
 // of an answer that is no refusal: a call of AI that gave no reading (R46).
 func NoteOutcome(ctx context.Context, cause v1.Cause) { noteOf(ctx).outcome = cause.String() }
 
+// NoteWordsCheck names, in the request's line of the log, the check that turned
+// the tutor's words down, in a word of logging.WordsChecks: the learner read the
+// fallback text, and the line says why, without the words (R47).
+func NoteWordsCheck(ctx context.Context, check string) { noteOf(ctx).wordsCheck = check }
+
 // AICall is a call of AI as the log writes it (R12, R46): how it ended, in one
 // word of logging.AIOutcomes, how long it took, and what each model of it took —
 // no content, no key, no identifier.

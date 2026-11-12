@@ -138,6 +138,9 @@ const (
 	FieldThinkingTokens = "thinking_tokens"
 	// FieldAIOutcome is how a call of AI ended, in a word of AIOutcomes.
 	FieldAIOutcome = "ai_outcome"
+	// FieldWordsCheck is the check that turned the tutor's words down, so that
+	// the learner read the fallback text: a word of WordsChecks (R47).
+	FieldWordsCheck = "words_check"
 
 	// fieldDropped is how many fields guard dropped from the line. guard
 	// writes it itself, on every event; a caller cannot.
@@ -197,13 +200,14 @@ const (
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
 		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
-	EventStopping:     {},
-	EventStopped:      {FieldCutShort},
-	EventShutdown:     {FieldStarted},
-	EventFailure:      {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
-	EventPanic:        {FieldPanicKind},
-	EventMigrated:     {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
-	EventRequest:      {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind, FieldOutcomeCause},
+	EventStopping: {},
+	EventStopped:  {FieldCutShort},
+	EventShutdown: {FieldStarted},
+	EventFailure:  {FieldMoment, FieldErrorKind, FieldDatabase, FieldStep},
+	EventPanic:    {FieldPanicKind},
+	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
+	EventRequest: {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind, FieldOutcomeCause,
+		FieldWordsCheck},
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
@@ -267,6 +271,7 @@ var fields = map[string]rule{
 	FieldOutputTokens:   {kind: slog.KindInt64},
 	FieldThinkingTokens: {kind: slog.KindInt64},
 	FieldAIOutcome:      {kind: slog.KindString, values: AIOutcomes},
+	FieldWordsCheck:     {kind: slog.KindString, values: WordsChecks},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
@@ -327,6 +332,19 @@ var Providers = []string{"anthropic", "google", "openai"}
 // AIOutcomes is the value set of FieldAIOutcome: how a call of tutor ended, in
 // tutor's kinds (R46).
 var AIOutcomes = []string{"answered", "failed", "limit_reached", "not_admitted", "key_refused"}
+
+// The checks of the tutor's words that may turn them down (R47), the value set
+// of FieldWordsCheck: the question is empty; the leak check of module-kit found
+// a key or a leak phrase of the task in it; or its form is no hint's, by
+// tutor's words.
+const (
+	WordsCheckEmpty = "empty"
+	WordsCheckLeak  = "leak"
+	WordsCheckForm  = "form"
+)
+
+// WordsChecks is the value set of FieldWordsCheck.
+var WordsChecks = []string{WordsCheckEmpty, WordsCheckLeak, WordsCheckForm}
 
 // modelShape is a model's ID as a provider answers with it: lowercase letters,
 // digits, dots, dashes and underscores, as "claude-opus-5-5" — no free text.

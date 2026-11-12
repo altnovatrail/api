@@ -328,8 +328,9 @@ func TestTheWordsOfARungWithNoModelAdmittedAreItsFallbackText(t *testing.T) {
 
 // The tutor's words of a rung reach the learner once they pass the leak check
 // and the form check, with the box of the first mistake as a mark; words that
-// fail either give the fallback text with no outcome, and a call that gives
-// none, the fallback text with its outcome. The call gets the task's key of the
+// fail either give the fallback text with no outcome, and the request's line
+// of the log names the check that turned them down; a call that gives none
+// gives the fallback text with its outcome. The call gets the task's key of the
 // rung's slot, its solution, its traps with the one found, its techniques, the
 // style of the learner and the questions asked so far.
 func TestTheWordsOfARungComeFromTheTutor(t *testing.T) {
@@ -346,27 +347,34 @@ func TestTheWordsOfARungComeFromTheTutor(t *testing.T) {
 		words string
 		cause v1.Cause
 		marks int
+		// check is the check the request's line names, if any.
+		check string
 	}{
 		{"words that pass", tutor.WordsAnswer{Question: "Which of the two numbers has more tens?", Box: box,
-			Outcome: tutor.Outcome{Kind: tutor.Answered}}, "Which of the two numbers has more tens?", v1.Cause_CAUSE_UNSPECIFIED, 1},
+			Outcome: tutor.Outcome{Kind: tutor.Answered}}, "Which of the two numbers has more tens?", v1.Cause_CAUSE_UNSPECIFIED, 1, ""},
 		{"too many sentences", tutor.WordsAnswer{Question: "Look. Look again. Which number has more tens?", Box: box,
-			Outcome: tutor.Outcome{Kind: tutor.Answered}}, trapText, v1.Cause_CAUSE_UNSPECIFIED, 0},
+			Outcome: tutor.Outcome{Kind: tutor.Answered}}, trapText, v1.Cause_CAUSE_UNSPECIFIED, 0, "form"},
 		{"no question", tutor.WordsAnswer{Question: "Look at the tens.", Outcome: tutor.Outcome{Kind: tutor.Answered}},
-			trapText, v1.Cause_CAUSE_UNSPECIFIED, 0},
-		{"no words", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Answered}}, trapText, v1.Cause_CAUSE_UNSPECIFIED, 0},
-		{"AI failed", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed}}, trapText, v1.Cause_CAUSE_AI_FAILURE, 0},
-		{"a limit", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.LimitReached}}, trapText, v1.Cause_CAUSE_PLATFORM_LIMIT, 0},
+			trapText, v1.Cause_CAUSE_UNSPECIFIED, 0, "form"},
+		{"no words", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Answered}}, trapText, v1.Cause_CAUSE_UNSPECIFIED, 0, "empty"},
+		{"AI failed", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed}}, trapText, v1.Cause_CAUSE_AI_FAILURE, 0, ""},
+		{"a limit", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.LimitReached}}, trapText, v1.Cause_CAUSE_PLATFORM_LIMIT, 0, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ts.give(tc.got)
 			a := w.begin(t, l, l.child, "pairs").GetAttemptId()
 			w.wrongs(t, l, l.child, a, trapped)
+			before := len(w.log.String())
 			res, err := w.rungWords(l, l.child, a, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if res.GetWords() != tc.words || res.GetOutcome().GetCause() != tc.cause || len(res.GetMarks()) != tc.marks {
 				t.Errorf("the words = %v, want %q, %v, %d marks", res, tc.words, tc.cause, tc.marks)
+			}
+			if line := w.log.String()[before:]; tc.check != "" && !strings.Contains(line, `"words_check":"`+tc.check+`"`) ||
+				tc.check == "" && strings.Contains(line, "words_check") {
+				t.Errorf("the request's line = %s, want the check %q", line, tc.check)
 			}
 			if tc.marks > 0 && res.GetMarks()[0].GetCropBox().GetYmax() != 300 {
 				t.Errorf("the mark = %v, want the box", res.GetMarks()[0])
@@ -669,10 +677,14 @@ func TestTheWordsThatLeakAKeyGiveTheFallbackText(t *testing.T) {
 	}
 	ts.say("Did you get 7 apples?", &observationv1.CropBox{Ymin: 1, Xmin: 2, Ymax: 3, Xmax: 4})
 	wrong := int32(1)
+	before := len(w.log.String())
 	res, err := w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: a,
 		IdempotencyKey: uuid.NewString(), WrongAnswers: &wrong, Work: sheet(crop(t))})
 	if err != nil || res.GetWords() != firstRung || res.GetOutcome() != nil || len(res.GetMarks()) != 0 {
 		t.Errorf("the words that leak = %v (%v), want the first rung's template, no outcome, no mark", res, err)
+	}
+	if line := w.log.String()[before:]; !strings.Contains(line, `"words_check":"leak"`) || strings.Contains(line, "7 apples") {
+		t.Errorf("the request's line = %s, want the check leak and no words", line)
 	}
 }
 

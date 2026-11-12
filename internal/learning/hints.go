@@ -144,10 +144,15 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 // worded is the words that came of the call of t on its rung: the tutor's
 // question, when it passed the leak check and the form check, or the rung's
 // fallback text, with the cause of an outcome that gave no words; none when the
-// words came and failed a check (contract, § 15).
-func worded(t telling) (store.Words, v1.Cause) {
-	if t.answer.Outcome.Kind == tutor.Answered && passes(t.h.pkg, t.h.task, t.answer.Question) {
-		return store.Words{Source: store.SourceModel, Text: t.answer.Question}, v1.Cause_CAUSE_UNSPECIFIED
+// words came and failed a check, which goes to the request's line of the log
+// (contract, § 15; R47).
+func worded(ctx context.Context, t telling) (store.Words, v1.Cause) {
+	if t.answer.Outcome.Kind == tutor.Answered {
+		check := turnedDown(t.h.pkg, t.h.task, t.answer.Question)
+		if check == "" {
+			return store.Words{Source: store.SourceModel, Text: t.answer.Question}, v1.Cause_CAUSE_UNSPECIFIED
+		}
+		rpc.NoteWordsCheck(ctx, check)
 	}
 	words := store.Words{Source: store.SourceFallback, Text: fallback(t.h.pkg, t.h.task, t.rung, t.at)}
 	if t.answer.Outcome.Kind == tutor.Answered {
@@ -414,7 +419,7 @@ func (s *Service) rungTold(ctx context.Context, tx pgx.Tx, profileID string, t t
 		}
 	}
 	if !ok {
-		words, cause := worded(t)
+		words, cause := worded(ctx, t)
 		if err := store.WriteRung(ctx, tx, profileID, t.h.row.ID, t.rung, words); err != nil {
 			return nil, store.KeyTarget{}, err
 		}
@@ -573,7 +578,7 @@ func (s *Service) otherTold(ctx context.Context, tx pgx.Tx, profileID string, t 
 		return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ALREADY_ASKED)
 	}
 	t.read = readWords(h, t, kept, found)
-	other, cause := worded(t)
+	other, cause := worded(ctx, t)
 	if cause == v1.Cause_CAUSE_UNSPECIFIED && other.Text == t.read.Text {
 		cause = v1.Cause_CAUSE_NO_OTHER_WORDS
 	}

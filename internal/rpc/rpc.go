@@ -122,6 +122,8 @@ type note struct {
 	// outcome is the cause of the outcome of an answer that was no refusal: a
 	// call of AI that gave no reading (R46).
 	outcome string
+	// wordsCheck is the check that turned the tutor's words down (R47).
+	wordsCheck string
 	// calls are the calls of AI the request made.
 	calls []AICall
 }
@@ -171,6 +173,9 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 			}
 			if n.outcome != "" {
 				attrs = append(attrs, logging.FieldOutcomeCause, n.outcome)
+			}
+			if n.wordsCheck != "" {
+				attrs = append(attrs, logging.FieldWordsCheck, n.wordsCheck)
 			}
 			for _, c := range n.calls {
 				if len(c.Usage) == 0 {
