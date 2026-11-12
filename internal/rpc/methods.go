@@ -42,11 +42,12 @@ var (
 // registers and this table lacks is served by no one: the checks refuse it, and
 // a test holds the table to the server's methods.
 //
-// Four methods take one of two rights, by who asks: the showing of a solution,
+// Five methods take one of two rights, by who asks: the showing of a solution,
 // the export of a profile and the storage of works are the learner's can_learn
-// or the adult's can_manage, and the skill map the learner's can_learn or the
-// adult's can_view. The owner holds every right in the first slice; the table
-// checks can_learn, and the handler the right its request names.
+// or the adult's can_manage, and the skill map and the share of the quota the
+// learner's can_learn or the adult's can_view. The owner holds every right in
+// the first slice; the table checks can_learn, and the handler the right its
+// request names.
 var methods = map[string]rule{
 	apiv1connect.AccountServiceGetAccountProcedure:          ofAccount,
 	apiv1connect.AccountServiceCreateAccountProcedure:       makeAnew,
@@ -71,6 +72,7 @@ var methods = map[string]rule{
 	apiv1connect.AccountServiceWithdrawOwnConsentProcedure:  toLearn,
 	apiv1connect.AccountServiceRestateAgeProcedure:          toManage,
 	apiv1connect.AccountServiceSetWorkStorageProcedure:      toLearn,
+	apiv1connect.AccountServiceGetQuotaProcedure:            toLearn,
 
 	apiv1connect.AttemptServiceSubmitWorkProcedure:            toLearn,
 	apiv1connect.AttemptServiceSubmitEssayProcedure:           toLearn,
