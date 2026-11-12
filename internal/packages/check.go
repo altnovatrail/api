@@ -10,7 +10,8 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 )
 
-// The reasons Check refuses a modules.json, beside ErrIndex.
+// The reasons Check refuses a modules.json, beside ErrIndex, and the one of
+// Withdrawals.
 var (
 	// ErrOlderRelease is a release older than the one main pins: a withdrawal is
 	// marked only in the indexes of the releases after it (R63 spec).
@@ -18,6 +19,9 @@ var (
 	// ErrLostVersion is a module that has a current version on main and would have
 	// none, other than by a withdrawal (R07; architecture 3.3).
 	ErrLostVersion = errors.New("packages: a module would lose its current version")
+	// ErrNewestIndex is a file of the newest release of modules that is no module
+	// index (R61).
+	ErrNewestIndex = errors.New("packages: the newest release gives no module index")
 )
 
 // Current is the version of a module that a new attempt gets by an index: the
@@ -71,4 +75,53 @@ func Check(cfg Config, index []byte, mainCfg *Config, mainIndex []byte) ([]Curre
 		currents = append(currents, Current{ID: id, Version: v, OK: ok})
 	}
 	return currents, nil
+}
+
+// Withdrawal is a version that the pinned release gives and the newest release
+// withdraws: until modules.json pins a release that marks it, it stays given,
+// and new attempts take it when it is the current version (R07; R61).
+type Withdrawal struct {
+	ID      formatv0.ModuleID
+	Version formatv0.ModuleVersion
+	Reason  formatv0.WithdrawalReason
+	// Current is true when the version is the current version by the pinned index.
+	Current bool
+}
+
+// Withdrawals is the check of the scheduled job Withdrawals (R61): index must be
+// the bytes of the index cfg pins, and latest the index of the newest release
+// of modules, whose signature the job has checked by release-verify (R77 spec).
+// It gives each version that the pinned index gives — in api's window, and not
+// withdrawn — and that latest withdraws, by module ID and then by version, each
+// in the order of its bytes. Only the newest index knows of every withdrawal so
+// far, and module-kit joins them to the pinned index (moduleindex.WithLatest):
+// an index that does not keep every entry of the pinned one, as one of an older
+// release, gives an error that is moduleindex.ErrLatest.
+func Withdrawals(cfg Config, index, latest []byte) ([]Withdrawal, error) {
+	pinned, err := checkIndex(index, cfg.Index)
+	if err != nil {
+		return nil, err
+	}
+	newest, err := moduleindex.Read(latest)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNewestIndex, err)
+	}
+	joined, err := moduleindex.WithLatest(pinned, newest)
+	if err != nil {
+		return nil, fmt.Errorf("packages: %w", err)
+	}
+	var withdrawals []Withdrawal
+	for _, id := range slices.Sorted(maps.Keys(pinned.Modules)) {
+		current, _ := moduleindex.Newest(pinned, id)
+		versions := pinned.Modules[id]
+		for _, v := range slices.Sorted(maps.Keys(versions)) {
+			entry := versions[v]
+			later := joined.Modules[id][v]
+			if !readable(entry) || entry.Withdrawn != nil || later.Withdrawn == nil {
+				continue
+			}
+			withdrawals = append(withdrawals, Withdrawal{ID: id, Version: v, Reason: *later.Withdrawn, Current: v == current})
+		}
+	}
+	return withdrawals, nil
 }

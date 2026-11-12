@@ -1,0 +1,34 @@
+# The watch over withdrawals (R61 in docs/decisions.md; R07): once a day, whether the newest release
+# of modules withdraws a version that the release modules.json pins gives. A withdrawal reaches the
+# learners only with the pull request that pins a release that marks it, and no such pull request
+# opens by itself; so the job fails, on every run, until modules.json pins one. The failure is the
+# signal: GitHub notifies the one who last changed the line of cron below, and the job needs no
+# permission beyond reading and no setting of the repository. GitHub runs a schedule from the latest
+# commit of main, may delay it at the start of an hour, which is why the minute is not round, and
+# disables it in a public repository after 60 days with no activity. By hand, it runs from the
+# Actions tab.
+name: Withdrawals
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The check is the recipe ci-withdrawals in the toolchain stage, as the job Modules of ci.yml runs
+  # its own; spec/ is checked out for release-verify.
+  withdrawals:
+    name: Withdrawals
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Withdrawals of the versions api gives
+        run: .github/modules.sh ci-withdrawals

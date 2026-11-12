@@ -3,6 +3,7 @@ package packages_test
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"maps"
@@ -12,8 +13,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/altnovatrail/module-kit/moduleindex"
 	"github.com/altnovatrail/module-kit/modulepackage"
+	"github.com/altnovatrail/spec"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/packages/packagestest"
@@ -303,6 +307,95 @@ func TestTheCheckOfCI(t *testing.T) {
 	got, err = packages.Check(packages.Config{Release: "v0.3.0", Index: packagestest.DigestOf(withdrawn)}, withdrawn, &mainCfg, main)
 	if err != nil || len(got) != 1 || got[0].OK {
 		t.Errorf("Check of a withdrawal = %+v, %v; want no current version, and no refusal", got, err)
+	}
+}
+
+// vectorIndexes gives the previous index and the index of a vector of the index
+// of spec that has both, as the JSON text a release of modules gives.
+func vectorIndexes(t *testing.T, name string) (previous, index []byte) {
+	t.Helper()
+	data, err := fs.ReadFile(spec.Format, "vectors/indexes/"+name+"/index.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vector struct {
+		Previous map[string]any `yaml:"previous"`
+		Index    map[string]any `yaml:"index"`
+	}
+	if err := yaml.Unmarshal(data, &vector); err != nil {
+		t.Fatal(err)
+	}
+	if vector.Previous == nil || vector.Index == nil {
+		t.Fatalf("the vector %s has no previous index or no index", name)
+	}
+	if previous, err = json.Marshal(vector.Previous); err != nil {
+		t.Fatal(err)
+	}
+	if index, err = json.Marshal(vector.Index); err != nil {
+		t.Fatal(err)
+	}
+	return previous, index
+}
+
+// The scheduled job's check: each version that the pinned index gives and the
+// newest withdraws, by spec's vectors of the index, where the previous index is
+// the pinned one; none when the newest withdraws nothing more; and a refusal of
+// an index that is not the pinned one, of one that is no index, and of one of
+// an older release.
+func TestTheNewestReleaseWithdrawsWhatThePinnedOneGives(t *testing.T) {
+	t.Parallel()
+
+	pinned, newest := vectorIndexes(t, "withdrawal")
+	cfg := packages.Config{Release: "v0.3.0", Index: packagestest.DigestOf(pinned)}
+	got, err := packages.Withdrawals(cfg, pinned, newest)
+	// The times tables 0.1.0 were withdrawn already: the pinned index gives them no more.
+	want := []packages.Withdrawal{{ID: "example/smallest", Version: "0.1.0", Reason: formatv0.WithdrawalReasonUnsuitableContent, Current: true}}
+	if err != nil || !slices.Equal(got, want) {
+		t.Errorf("Withdrawals of the vector withdrawal = %+v, %v; want %+v", got, err, want)
+	}
+	if got, err := packages.Withdrawals(cfg, pinned, pinned); err != nil || len(got) != 0 {
+		t.Errorf("Withdrawals with the pinned index as the newest = %+v, %v; want none", got, err)
+	}
+
+	pinned, newest = vectorIndexes(t, "next-release")
+	cfg = packages.Config{Release: "v0.1.0", Index: packagestest.DigestOf(pinned)}
+	if got, err := packages.Withdrawals(cfg, pinned, newest); err != nil || len(got) != 0 {
+		t.Errorf("Withdrawals of the vector next-release = %+v, %v; want none", got, err)
+	}
+	// The newest the other way round: an index of a release before the pinned one.
+	older := packages.Config{Release: "v0.2.0", Index: packagestest.DigestOf(newest)}
+	if _, err := packages.Withdrawals(older, newest, pinned); !errors.Is(err, moduleindex.ErrLatest) {
+		t.Errorf("Withdrawals of an older newest = %v, want moduleindex.ErrLatest", err)
+	}
+	if _, err := packages.Withdrawals(cfg, newest, newest); !errors.Is(err, packages.ErrIndex) {
+		t.Errorf("Withdrawals of another pinned index = %v, want ErrIndex", err)
+	}
+	if _, err := packages.Withdrawals(cfg, pinned, []byte("[]")); !errors.Is(err, packages.ErrNewestIndex) {
+		t.Errorf("Withdrawals of a newest that is no index = %v, want ErrNewestIndex", err)
+	}
+}
+
+// An earlier version that lesson runs still take is given too, and its
+// withdrawal is one, not of the current version; a withdrawal of an entry out
+// of the window is none, since the image does not give it.
+func TestAWithdrawalOfAVersionThatIsNotCurrentOrNotInTheWindow(t *testing.T) {
+	t.Parallel()
+
+	const earlier, newer = "sha256:0000000000000000000000000000000000000000000000000000000000000001", "sha256:0000000000000000000000000000000000000000000000000000000000000002"
+	entries := func(withdrawn string) []packagestest.Entry {
+		return []packagestest.Entry{
+			{ID: "example/smallest", Version: "0.1.0", Format: "0.4", Digest: earlier, Release: "v0.1.0", Withdrawn: withdrawn},
+			{ID: "example/smallest", Version: "0.2.0", Format: "0.4", Digest: newer, Release: "v0.2.0"},
+			{ID: "example/older", Version: "0.1.0", Format: "0.3", Digest: outOfWindow, Release: "v0.1.0", Withdrawn: withdrawn},
+		}
+	}
+	pinned := packagestest.Index(t, entries("")...)
+	newest := packagestest.Index(t, entries("wrong_key")...)
+	cfg := packages.Config{Release: "v0.2.0", Index: packagestest.DigestOf(pinned)}
+	got, err := packages.Withdrawals(cfg, pinned, newest)
+	want := []packages.Withdrawal{{ID: "example/smallest", Version: "0.1.0", Reason: formatv0.WithdrawalReasonWrongKey}}
+	if err != nil || !slices.Equal(got, want) {
+		t.Errorf("Withdrawals = %+v, %v; want %+v", got, err, want)
 	}
 }
 
