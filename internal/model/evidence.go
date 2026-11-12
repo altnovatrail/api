@@ -49,11 +49,11 @@ func outcomeOf(reason string, wrong int) learnermodel.Outcome {
 // would find again. What it holds is the facts of the attempt, as learner-model
 // describes them (R06; architecture 3.5): the task, the start band by the
 // grade, the outcome, the time of the last action, the techniques given at a
-// step and on request, how many times "explain differently" was asked for,
-// whether the solution of the task — not of a template — reached the device
-// before, what came of each item, and the traps the program found. The leading
-// question given on request is not in it: its field comes with a later release
-// of learner-model (Д17).
+// step and on request, whether a hint asked for gave the leading question — a
+// hint gives it only before the first wrong answer, and only when asked for
+// (R47) —, how many times "explain differently" was asked for, whether the
+// solution of the task — not of a template — reached the device before, what
+// came of each item, and the traps the program found.
 func evidence(ctx context.Context, pkg *modulepackage.Package, o store.Owed, grade learnermodel.Grade) (learnermodel.Evidence, bool, error) {
 	task, ok := pkg.View.Tasks[formatv0.TaskID(o.TaskID)]
 	if !ok {
@@ -89,8 +89,9 @@ func evidence(ctx context.Context, pkg *modulepackage.Package, o store.Owed, gra
 		Kind: learnermodel.EvidenceKind, Task: described, StartBand: start,
 		Outcome: outcomeOf(o.CloseReason, o.WrongAnswers), PracticeTime: o.LastActionAt.Unix(),
 		TechniqueOnStep: o.StepTechniques, TechniqueOnRequest: o.RequestedTechniques,
-		ExplainAgainCount:  int32(o.ExplainedAgain),
-		SolutionSeenBefore: o.SolutionSeenBefore && task.Template == nil, HasSolutionSeenFact: task.Template == nil,
+		LeadingQuestionOnRequest: o.LeadingQuestion,
+		ExplainAgainCount:        int32(o.ExplainedAgain),
+		SolutionSeenBefore:       o.SolutionSeenBefore && task.Template == nil, HasSolutionSeenFact: task.Template == nil,
 		Items: itemsOf(len(got.Items), answers), Traps: traps,
 	}, true, nil
 }

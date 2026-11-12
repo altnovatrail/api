@@ -228,14 +228,25 @@ check() {
     expect GetProgress
     echo "dev-check: the progress of the owner's profile is there"
 
-    # "Something else" asks the engine on the database itself (R50): with no module of format 0.4
-    # in the pinned release, there is nothing to give.
+    # The module of the first app on the pinned release (R53): in the owner's catalog, connected —
+    # a repeat answers by the profile's state —, a file of its package's part for the device, and
+    # "something else", which asks the engine on the database itself (R50), gives a lesson or a task.
+    call ModuleService/ListCatalog < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
+    expect ListCatalog
+    local digest
+    digest=$(jq -r '.modules[]? | select(.module_id == "novatrail/olympiad-math") | .package_digest' "$work/answer.json")
+    [[ -n $digest ]] || die "ListCatalog gave $(jq -c '[.modules[]?.module_id]' "$work/answer.json"), want novatrail/olympiad-math"
+    call ModuleService/ConnectModule < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE, module_id: "novatrail/olympiad-math"}')
+    expect ConnectModule
+    local file
+    file=$(curl -sS -o /dev/null -w '%{http_code}' "$base/packages/${digest/:/-}/device/LICENSE") || die "the package's LICENSE: api did not answer"
+    [[ $file == 200 ]] || die "the package's LICENSE answered $file, want 200"
     call LearningService/ChooseNext < <(PROFILE=$owner KEY=$(cat /proc/sys/kernel/random/uuid) \
         jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY}')
     expect ChooseNext
-    jq -e '.choice.kind == "CHOICE_KIND_NOTHING"' "$work/answer.json" > /dev/null ||
-        die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want nothing to give"
-    echo "dev-check: the engine has nothing to give yet"
+    jq -e '.choice.kind == "CHOICE_KIND_LESSON" or .choice.kind == "CHOICE_KIND_TASK"' "$work/answer.json" > /dev/null ||
+        die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want a lesson or a task"
+    echo "dev-check: olympiad-math is connected, and the engine gives a $(jq -r '.choice.kind | ltrimstr("CHOICE_KIND_") | ascii_downcase' "$work/answer.json")"
 
     # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
     # the folder of the forms, the form among those the operator checks, then the consent taken back,
@@ -261,8 +272,8 @@ check() {
     echo "dev-check: the logs"
     clean "$work/serve.log"
 
-    # The job after a rollout, on the database itself (R51): every version of the pinned release
-    # is out of the window, so it asks what is open on them, and finds nothing yet.
+    # The job after a rollout, on the database itself (R51): it asks what is open on the versions
+    # the image no longer gives, of the pinned release, and closes it.
     echo "dev-check: after"
     API_PACKAGES_DIR="$work/packages" "$binary" after > "$work/after.log" 2>&1 || die "after failed: $(cat "$work/after.log")"
     clean "$work/after.log"

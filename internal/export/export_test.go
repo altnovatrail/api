@@ -86,7 +86,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 
 	choices = packagestest.Own(t, "choices")
 	set := packagestest.Set(t, packagestest.Entry{Pkg: choices, Release: "v0.1.0"})
-	m, err := model.New(set, "v0.1.4")
+	m, err := model.New(set, "v0.1.6")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,8 +129,8 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
-			module_kit_version, task_id, seed, choice_id, wrong_answers, step_techniques_at, requested_techniques_at)
-		VALUES ($1, $2, $3, $4, '0.4', 'v0.3.0', 'pick', 7, $5, 1, now(), now()) RETURNING id`,
+			module_kit_version, task_id, seed, choice_id, wrong_answers, step_techniques_at, requested_techniques_at, leading_question_at)
+		VALUES ($1, $2, $3, $4, '0.4', 'v0.3.0', 'pick', 7, $5, 1, now(), now(), now()) RETURNING id`,
 		profile, string(choices.Digest), string(choices.View.Manifest.ID), string(choices.Inventory.Version), choice).Scan(&attempt); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	}
 	text := string(files["profiles/"+profile+".json"])
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
-		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`} {
+		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
 		}
@@ -290,7 +290,7 @@ func TestARecordThatIsNoMessageFailsTheExport(t *testing.T) {
 
 	built := packagestest.Own(t, "choices")
 	set := packagestest.Set(t, packagestest.Entry{Pkg: built, Release: "v0.1.0"})
-	m, err := model.New(set, "v0.1.4")
+	m, err := model.New(set, "v0.1.6")
 	if err != nil {
 		t.Fatal(err)
 	}

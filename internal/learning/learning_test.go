@@ -37,11 +37,13 @@ import (
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/authn/authntest"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/invite"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
@@ -72,11 +74,16 @@ type world struct {
 	signin   *authntest.Fake
 	clock    *clock
 	accounts apiv1connect.AccountServiceClient
+	modules  apiv1connect.ModuleServiceClient
 	learning apiv1connect.LearningServiceClient
 	attempts apiv1connect.AttemptServiceClient
 	progress apiv1connect.ProgressServiceClient
-	current  *modulepackage.Package
-	earlier  *modulepackage.Package
+	// service is the service the server answers by.
+	service *learning.Service
+	current *modulepackage.Package
+	earlier *modulepackage.Package
+	// connected is the modules each learner's profiles have connected.
+	connected []string
 	// log is what the server wrote to its log.
 	log *lockedBuffer
 	// denyManage takes the right can_manage away from every account, for the
@@ -130,8 +137,8 @@ func newGatedWorld(t *testing.T, g *admission.Gate, wrap ...func(*pgxpool.Pool) 
 	return worldOf(t, g, nil, wrap...)
 }
 
-// worldOf is the world whose attempts ask g, with opts; its log is written at
-// the level info to w.log.
+// worldOf is the world of the module choices whose attempts ask g, with opts;
+// each learner connects it.
 func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
 	t.Helper()
 
@@ -142,13 +149,26 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 		packagestest.Entry{Pkg: current, Release: "v0.2.0"},
 		packagestest.Entry{Pkg: earlier, Release: "v0.1.0", Withdrawn: "wrong_key"},
 	)
+	w := worldOn(t, set, g, opts, wrap...)
+	w.current, w.earlier, w.connected = current, earlier, []string{module}
+	return w
+}
+
+// worldOn is the world of the packages of set whose attempts ask g, with opts;
+// its log is written at the level info to w.log. Its learners connect no module.
+func worldOn(t *testing.T, set *packages.Set, g *admission.Gate, opts []learning.Option, wrap ...func(*pgxpool.Pool) rpc.DB) *world {
+	t.Helper()
+
 	rights, err := authz.Open(t.Context(), storetest.OpenFGAURL(t, true))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(rights.Close)
-	w := &world{pool: storetest.DB(t), rights: rights, signin: &authntest.Fake{}, clock: &clock{},
-		current: current, earlier: earlier, log: &lockedBuffer{}}
+	cat, err := catalog.New(set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &world{pool: storetest.DB(t), rights: rights, signin: &authntest.Fake{}, clock: &clock{}, log: &lockedBuffer{}}
 	var db rpc.DB = w.pool
 	if len(wrap) > 0 {
 		db = wrap[0](w.pool)
@@ -159,14 +179,16 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 	if err != nil {
 		t.Fatal(err)
 	}
+	w.service = s
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
-		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Learning: s.Learning(db), Attempt: s.Attempts(db, adultRights{w}),
-			Progress: s.Progress(db, adultRights{w})})
+		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Module: cat.Modules(w.pool), Learning: s.Learning(db),
+			Attempt: s.Attempts(db, adultRights{w}), Progress: s.Progress(db, adultRights{w})})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL))
 	w.accounts = apiv1connect.NewAccountServiceClient(transport)
+	w.modules = apiv1connect.NewModuleServiceClient(transport)
 	w.learning = apiv1connect.NewLearningServiceClient(transport)
 	w.attempts = apiv1connect.NewAttemptServiceClient(transport)
 	w.progress = apiv1connect.NewProgressServiceClient(transport)
@@ -175,7 +197,7 @@ func worldOf(t *testing.T, g *admission.Gate, opts []learning.Option, wrap ...fu
 
 // learner is a signed-in owner with an account, the owner's profile, an adult's,
 // and a child's profile under 13, both with their consents confirmed and the
-// module choices connected.
+// world's modules connected.
 type learner struct {
 	ctx                     context.Context
 	accountID, adult, child string
@@ -217,7 +239,9 @@ func (w *world) learner(t *testing.T) learner {
 	l := learner{ctx: ctx, accountID: created.GetAccount().GetAccountId(), adult: owner.GetProfile().GetProfileId(),
 		bearer: "Bearer token-" + uid}
 	l.child = w.child(t, l, "under_13", true)
-	w.exec(t, `INSERT INTO connected_modules (profile_id, module_id) VALUES ($1, $3), ($2, $3)`, l.adult, l.child, module)
+	for _, id := range w.connected {
+		w.exec(t, `INSERT INTO connected_modules (profile_id, module_id) VALUES ($1, $3), ($2, $3)`, l.adult, l.child, id)
+	}
 	return l
 }
 
@@ -255,12 +279,18 @@ func (w *world) id(t *testing.T, sql string, args ...any) string {
 	return id
 }
 
-// choice is an engine's choice of the task of the profile, as the engine's code
-// will write it.
+// choice is an engine's choice of the task of the module choices for the
+// profile, as the engine's code will write it.
 func (w *world) choice(t *testing.T, profile, task string) string {
 	t.Helper()
+	return w.choiceOf(t, profile, module, task)
+}
+
+// choiceOf is an engine's choice of the task of the module for the profile.
+func (w *world) choiceOf(t *testing.T, profile, moduleID, task string) string {
+	t.Helper()
 	return w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id) VALUES ($1, 'task', $2, $3)
-		RETURNING id`, profile, module, task)
+		RETURNING id`, profile, moduleID, task)
 }
 
 // lessonChoice is a new engine's choice of the module's lesson for the profile,
@@ -657,6 +687,8 @@ func TestASubmissionThatTheTaskDoesNotTakeIsRefused(t *testing.T) {
 		"a slot tapped twice":           {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, TappedChoices: []*v1.TappedChoice{tap(1, 1, "five"), tap(1, 1, "five")}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"work on a tap's task":          {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, Work: work}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"a child's own key":             {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: pick, OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "k"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE},
+		"an own key of no provider":     {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick, OwnKey: &v1.OwnKey{Key: "k"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
+		"an own key with no key":        {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick, OwnKey: &v1.OwnKey{Provider: "anthropic"}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"an attempt not there":          {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: uuid.NewString()}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
 		"another's attempt":             {&v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: pick}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},
 		"an ID that is none":            {&v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: "x"}, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND},

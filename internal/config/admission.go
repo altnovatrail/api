@@ -24,7 +24,11 @@ const (
 	// twin with the suffix _FILE names — on Cloud Run, a volume of a secret of
 	// Secret Manager (R11, R46). Unset, platform AI has no route to Anthropic.
 	VarAnthropicKey = "API_ANTHROPIC_KEY"
-	// VarOpenAIKey is the platform's key of OpenAI, read the same way.
+	// VarOpenAIKey was the platform's key of OpenAI. api gives tutor no adapter
+	// of OpenAI, whose models the admission table admits for nothing, so the
+	// variable, or its twin _FILE, set is a refusal: a deployment that still
+	// passes it learns so at its start rather than holding a key nothing calls
+	// (R54).
 	VarOpenAIKey = "API_OPENAI_KEY"
 )
 
@@ -97,20 +101,20 @@ func AdmissionFrom(environ []string) (Admission, error) {
 		problems = append(problems, fmt.Errorf("%w: %s must not be %s when %s is set: the stage %s is the first app's alone",
 			ErrInvalid, VarAdmissionRung, RungAuthor, deployedBy, RungAuthor))
 	}
-	for _, k := range []struct {
-		name string
-		into *Secret
-	}{{VarAnthropicKey, &cfg.Keys.Anthropic}, {VarOpenAIKey, &cfg.Keys.OpenAI}} {
-		_, inline := env[k.name]
-		_, fromFile := env[k.name+fileSuffix]
-		if !inline && !fromFile {
-			continue
-		}
-		key, err := env.secret(k.name)
+	_, inline := env[VarAnthropicKey]
+	_, fromFile := env[VarAnthropicKey+fileSuffix]
+	if inline || fromFile {
+		key, err := env.secret(VarAnthropicKey)
 		if err != nil {
 			problems = append(problems, err)
 		}
-		*k.into = key
+		cfg.Keys.Anthropic = key
+	}
+	for _, name := range []string{VarOpenAIKey, VarOpenAIKey + fileSuffix} {
+		if _, set := env[name]; set {
+			problems = append(problems, fmt.Errorf("%w: %s is set, and api gives tutor no adapter of OpenAI: unset it",
+				ErrInvalid, name))
+		}
 	}
 	if len(problems) > 0 {
 		return Admission{}, errors.Join(problems...)
@@ -119,18 +123,18 @@ func AdmissionFrom(environ []string) (Admission, error) {
 }
 
 // PlatformKeys are the platform's keys of the providers whose models platform AI
-// calls (R11, R46): optional each, since a provider with no key is no route of
+// calls (R11, R46): Anthropic's alone, the one provider api gives tutor an
+// adapter of (R54). It is optional, since a provider with no key is no route of
 // platform AI — tutor's Choose takes none of its models.
 type PlatformKeys struct {
 	Anthropic Secret
-	OpenAI    Secret
 }
 
 // ByProvider is each key set, by its provider's code in the admission table:
 // the one list of the providers whose keys the platform may hold.
 func (k PlatformKeys) ByProvider() map[string]Secret {
 	keys := map[string]Secret{}
-	for provider, s := range map[string]Secret{"anthropic": k.Anthropic, "openai": k.OpenAI} {
+	for provider, s := range map[string]Secret{"anthropic": k.Anthropic} {
 		if s.Reveal() != "" {
 			keys[provider] = s
 		}

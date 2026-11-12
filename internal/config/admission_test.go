@@ -93,24 +93,42 @@ func TestServeReadsWhatIsDeclaredForAdmission(t *testing.T) {
 	}
 }
 
-// The platform's keys are secrets, each optional, read from its variable or
-// from the file its twin names, and both at once is refused.
+// The platform's key is a secret, optional, read from its variable or from the
+// file its twin names, and both at once is refused.
 func TestThePlatformsKeysAreSecrets(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "openai")
-	if err := os.WriteFile(path, []byte("sk-openai\n"), 0o600); err != nil {
+	path := filepath.Join(t.TempDir(), "anthropic")
+	if err := os.WriteFile(path, []byte("sk-anthropic\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := config.AdmissionFrom([]string{"API_ANTHROPIC_KEY=sk-anthropic", "API_OPENAI_KEY_FILE=" + path})
-	if err != nil || got.Keys.Anthropic.Reveal() != "sk-anthropic" || got.Keys.OpenAI.Reveal() != "sk-openai" || len(got.Keys.ByProvider()) != 2 {
-		t.Errorf("AdmissionFrom = %d keys, %v; want both", len(got.Keys.ByProvider()), err)
+	for _, environ := range [][]string{{"API_ANTHROPIC_KEY=sk-anthropic"}, {"API_ANTHROPIC_KEY_FILE=" + path}} {
+		got, err := config.AdmissionFrom(environ)
+		if err != nil || got.Keys.Anthropic.Reveal() != "sk-anthropic" || len(got.Keys.ByProvider()) != 1 {
+			t.Errorf("AdmissionFrom(%s) = %d keys, %v; want Anthropic's", strings.SplitN(environ[0], "=", 2)[0],
+				len(got.Keys.ByProvider()), err)
+		}
 	}
 	if none, err := config.AdmissionFrom(nil); err != nil || len(none.Keys.ByProvider()) != 0 {
 		t.Errorf("AdmissionFrom of nothing = %d keys, %v; want none", len(none.Keys.ByProvider()), err)
 	}
-	_, err = config.AdmissionFrom([]string{"API_ANTHROPIC_KEY=sk", "API_ANTHROPIC_KEY_FILE=" + path})
+	_, err := config.AdmissionFrom([]string{"API_ANTHROPIC_KEY=sk", "API_ANTHROPIC_KEY_FILE=" + path})
 	if !errors.Is(err, config.ErrInvalid) || !strings.Contains(err.Error(), "API_ANTHROPIC_KEY") || strings.Contains(err.Error(), "sk") {
 		t.Errorf("both at once = %v, want a refusal naming the variable and not the key", err)
+	}
+}
+
+// A key of OpenAI, inline or by its file, is refused: api gives tutor no
+// adapter of OpenAI (R54), and the refusal names the variable, not the key.
+func TestAKeyOfOpenAIIsRefused(t *testing.T) {
+	t.Parallel()
+
+	for _, entry := range []string{"API_OPENAI_KEY=sk-openai", "API_OPENAI_KEY_FILE=/run/secrets/openai"} {
+		name := strings.SplitN(entry, "=", 2)[0]
+		_, err := config.AdmissionFrom([]string{"API_ANTHROPIC_KEY=sk-anthropic", entry})
+		if !errors.Is(err, config.ErrInvalid) || !strings.Contains(err.Error(), name+" is set") ||
+			strings.Contains(err.Error(), "sk-") || strings.Contains(err.Error(), "/run/secrets") {
+			t.Errorf("AdmissionFrom with %s = %v, want a refusal naming the variable alone", name, err)
+		}
 	}
 }

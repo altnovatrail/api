@@ -32,7 +32,7 @@ import (
 func TestMain(m *testing.M) { os.Exit(storetest.Main(m)) }
 
 // version is the version of learner-model the tests' models name.
-const version = "v0.1.4"
+const version = "v0.1.6"
 
 // The packages of the module choices, built once: 1.0.0, 0.9.0 and 2.0.0, which
 // renames the skill adding summing and retires it.
@@ -138,8 +138,8 @@ type closed struct {
 	at       time.Time
 	answers  [][]byte
 	// what is set when not zero.
-	stepTechniques, requestedTechniques bool
-	explained                           int
+	stepTechniques, requestedTechniques, leadingQuestion bool
+	explained                                            int
 }
 
 // attempt makes the closed attempt c of the learner, begun a minute before it
@@ -163,12 +163,16 @@ func (l learner) attempt(t *testing.T, c closed) string {
 	if c.requestedTechniques {
 		requested = &c.at
 	}
+	var question *time.Time
+	if c.leadingQuestion {
+		question = &c.at
+	}
 	if err := l.pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version,
 			module_format_version, module_kit_version, task_id, seed, instance, choice_id, started_at, last_action_at,
-			close_reason, closed_at, wrong_answers, step_techniques_at, requested_techniques_at)
+			close_reason, closed_at, wrong_answers, step_techniques_at, requested_techniques_at, leading_question_at)
 		VALUES ($1, $2, 'example/choices', $3, '0.4', 'v0.3.0', $4, 1, $5, $6, $7::timestamptz - interval '1 minute', $7,
-			$8, $7, $9, $10, $11) RETURNING id`,
-		l.profile, digest, version, c.task, c.instance, choice, c.at, c.reason, c.wrong, step, requested).Scan(&id); err != nil {
+			$8, $7, $9, $10, $11, $12) RETURNING id`,
+		l.profile, digest, version, c.task, c.instance, choice, c.at, c.reason, c.wrong, step, requested, question).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	for i, a := range c.answers {
@@ -322,7 +326,7 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 		answer(0, []slot{{"unreadable", "blank", ""}}, []slot{{"unreadable", "blank", ""}}),
 		answer(1, []slot{{"not_yet", "", "12"}}, []slot{{"correct", "", "30"}}),
 		answer(1, []slot{{"correct", "", "21"}}, []slot{{"correct", "", "30"}}),
-	}, stepTechniques: true, requestedTechniques: true, explained: 2})
+	}, stepTechniques: true, requestedTechniques: true, leadingQuestion: true, explained: 2})
 	again := l.attempt(t, closed{pkg: current, task: "pairs", reason: "solution_shown", wrong: 3, at: at.Add(time.Minute)})
 	template := l.attempt(t, closed{pkg: current, task: "greater", instance: 0, reason: "correct", at: at.Add(2 * time.Minute)})
 	l.settle(t, m)
@@ -338,6 +342,7 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 		t.Errorf("the items of the task = %+v", e.Task.Items)
 	}
 	if e.StartBand != (learnermodel.BandRef{Place: 1, ID: "grades-1-2"}) || e.PracticeTime != at.Unix() ||
+		e.Kind != 2 || !e.LeadingQuestionOnRequest ||
 		!e.TechniqueOnStep || !e.TechniqueOnRequest || e.ExplainAgainCount != 2 || !e.HasSolutionSeenFact || e.SolutionSeenBefore {
 		t.Errorf("the evidence = %+v", e)
 	}
@@ -363,9 +368,10 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 	}
 }
 
-// A slot whose check is a time of day, which this learner-model does not know,
-// is written as a kind not given (Д28).
-func TestATimeOfDayIsAKindNotGiven(t *testing.T) {
+// A slot whose check is a time of day, from format 0.4, is written as its own
+// kind, and one with a rubric, which learner-model does not know, as a kind not
+// given.
+func TestATimeOfDayIsItsOwnKind(t *testing.T) {
 	t.Parallel()
 
 	built(t)
@@ -374,7 +380,11 @@ func TestATimeOfDayIsAKindNotGiven(t *testing.T) {
 	slots[0].Check.Kind = formatv0.CheckKindTime
 	task.Items = []formatv0.Item{{AnswerSlots: slots}}
 	got, err := model.Describe(current, task)
-	if err != nil || got.Items[0].Slots[0] != (learnermodel.Slot{Check: learnermodel.CheckKindUnspecified}) {
+	if err != nil || got.Items[0].Slots[0] != (learnermodel.Slot{Check: learnermodel.CheckKindTime}) {
+		t.Errorf("Describe = %+v, %v; want a time of day", got.Items, err)
+	}
+	slots[0].Check.Kind = formatv0.CheckKindRubric
+	if got, err := model.Describe(current, task); err != nil || got.Items[0].Slots[0] != (learnermodel.Slot{Check: learnermodel.CheckKindUnspecified}) {
 		t.Errorf("Describe = %+v, %v; want a kind not given", got.Items, err)
 	}
 	task.Band = "nowhere"

@@ -58,11 +58,13 @@ jobs:
   # The check of modules.json (R07, R41): the signature of the pinned release's index by
   # release-verify, its digest, and the rules against main's — on every pull request and push, with
   # no filter of paths, since a new tag of spec may raise what release-verify accepts. It reads
-  # main's modules.json from the history, and spec/justfile from the submodule.
+  # main's modules.json from the history, and spec/justfile from the submodule. Then it lays the
+  # release's packages and runs the test of the first app's path on them (R53): the test's build,
+  # with no cache in the toolchain stage, is why the job has 25 minutes.
   modules:
     name: Modules
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

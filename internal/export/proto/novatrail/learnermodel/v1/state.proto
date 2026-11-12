@@ -19,7 +19,8 @@ message State {
 message ModuleState {
   // The full ID of the module.
   optional string module_id = 1;
-  // The level θ, on the module's scale of bands.
+  // The level θ, on the module's scale of bands: the band at place p of the module's `bands`,
+  // from 1, stands at 2.5 · (p − 1), and a task of difficulty d in it at 2.5 · (p − 1) + d − 3.
   optional double level = 2;
   // n, the sum of the weights of the module's answers.
   optional double answer_weight = 3;
@@ -54,7 +55,7 @@ message TrialAnswer {
 message SkillState {
   // The full ID of the skill.
   optional string skill_id = 1;
-  // The correction δ: the estimate of the skill is the level plus it.
+  // The correction δ, on the same scale: the estimate of the skill is the level plus it.
   optional double correction = 2;
   // m, the sum of the weights of the answers of items where the skill is primary.
   optional double answer_weight = 3;

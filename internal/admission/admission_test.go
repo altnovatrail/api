@@ -204,26 +204,63 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	}
 }
 
-// No model is admitted for the tutor's words in this release of tutor, on any
-// route, even where the reading is (T127 of tutor): the gate says so, and the
-// call of words asks no model.
-func TestTheGateAdmitsNoWordsYet(t *testing.T) {
+// The tutor's words are admitted where the table admits them (R100 of tutor):
+// at the author's stage, for an adult, by the platform's key of Anthropic or an
+// own key of Anthropic, the hint and the analysis with the work alike; at the
+// stage full, for a child, with no key of the platform, or by a provider api
+// gives no adapter of, they are not. The call of words with no task asks no
+// model.
+func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	t.Parallel()
 
-	g := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
-	if !g.Handwriting(formatv0.AgeCategoryAdult, "") {
-		t.Fatal("the reading of an adult's handwriting is not admitted")
-	}
-	for _, withWork := range []bool{false, true} {
-		for _, own := range []string{"", "anthropic"} {
-			if g.Words(withWork, formatv0.AgeCategoryAdult, own) {
-				t.Errorf("Words(%v, adult, %q) = true, want no model admitted", withWork, own)
+	facts := keyed(t, file(t, adultFacts), config.RungAuthor)
+	full := keyed(t, file(t, adultFacts), config.RungFull)
+	unkeyed := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungAuthor}
+	for name, tc := range map[string]struct {
+		cfg      config.Admission
+		category formatv0.AgeCategory
+		provider string
+		want     bool
+	}{
+		"facts for an adult":            {facts, formatv0.AgeCategoryAdult, "", true},
+		"facts for an adult, a child":   {facts, formatv0.AgeCategoryUnder13, "", false},
+		"facts at the stage full":       {full, formatv0.AgeCategoryAdult, "", false},
+		"facts, no key of the platform": {unkeyed, formatv0.AgeCategoryAdult, "", false},
+		"an own key of Anthropic":       {unkeyed, formatv0.AgeCategoryAdult, "anthropic", true},
+		"an own key of OpenAI":          {unkeyed, formatv0.AgeCategoryAdult, "openai", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := load(t, tc.cfg)
+			for _, withWork := range []bool{false, true} {
+				if got := g.Words(withWork, tc.category, tc.provider); got != tc.want {
+					t.Errorf("Words(%v, %s, %q) = %v, want %v", withWork, tc.category, tc.provider, got, tc.want)
+				}
 			}
-		}
+		})
 	}
-	told := g.TellWords(t.Context(), tutor.WordsRequest{Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi,
+	told := load(t, facts).TellWords(t.Context(), tutor.WordsRequest{Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi,
 		Category: admissionv0.AgeCategoryAdult}})
 	if told.Outcome.Kind != tutor.Failed || len(told.Outcome.Usage) != 0 {
 		t.Errorf("TellWords with no task = %v, want a failure with no call", told.Outcome.Kind)
+	}
+}
+
+// The gate gives tutor Anthropic's adapter alone, and OpenAI's is not given
+// (R54).
+func TestTheGateGivesAnthropicsAdapterAlone(t *testing.T) {
+	t.Parallel()
+
+	if got := slices.Sorted(maps.Keys(admission.Adapters())); !slices.Equal(got, []admissionv0.Provider{"anthropic"}) {
+		t.Errorf("Adapters = %v, want Anthropic's alone", got)
+	}
+}
+
+// A configuration tutor refuses, such as a stage it does not know, is a
+// refusal of the configuration.
+func TestAConfigurationTutorRefusesIsInvalid(t *testing.T) {
+	t.Parallel()
+
+	if _, _, err := admission.Load(config.Admission{Rung: "everyone"}); !errors.Is(err, config.ErrInvalid) {
+		t.Errorf("Load at an unknown stage = %v, want a refusal of the configuration", err)
 	}
 }

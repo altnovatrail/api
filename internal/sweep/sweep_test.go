@@ -87,7 +87,7 @@ func newWorldOn(t *testing.T, withdrawn string) *world {
 	builtOnce.Do(func() { choices = packagestest.Own(t, "choices") })
 	set := packagestest.Set(t, packagestest.Entry{Pkg: choices, Release: "v0.1.0", Withdrawn: withdrawn},
 		packagestest.Entry{ID: "example/old", Version: "0.1.0", Format: "0.3", Digest: old, Release: "v0.1.0"})
-	m, err := model.New(set, "v0.1.4")
+	m, err := model.New(set, "v0.1.6")
 	if err != nil {
 		t.Fatal(err)
 	}
