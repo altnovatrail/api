@@ -112,11 +112,13 @@ Six sections of architecture stayed over 24 KB after T61–T64. Each has a limit
 |---|---|---|---|---|---|---|
 | `-workspaces-api` — T61–T65 | 2026-11-12T21:19 … 2026-11-13T06:04 | 5 | 546 / 639 | 173.9 / 86.5 | 0 | $62.95 |
 | `-workspaces-api` — E8, T58–T65 | 2026-11-12T19:56 … 2026-11-13T15:53 | 9 | 943 / 717 | 172.3 / 87.1 | 0 | $90.42 |
+| `-workspaces-api` — E9, T66–T72 | 2026-11-13T15:52 … 2026-11-13T22:04 | 9 | 741 / 175 | 166.8 / 67.8 | 1 | $54.75 |
 
 - The context of a main call fell from 371.4 to 173.9 thousand, −53%, and of a subagent's from 104.4 to 86.5, −17%. The windows differ in work: "before" is mostly the code of E2–E7, "after" the move to the tag and documents; most subagent calls are the blind reading of the translations of T63 and T64.
 - By session, main calls and a main call's context: T61 — 183, 241.9 thousand; T62 — 125, 196.2; T63 — 91, 112.2; T64 — 96, 116.6; T65 — 51, 93.0.
 - The reference of `api` for the threshold of R145 spec is its measurement after of T124 spec, not this row.
 - E8, at its archive on 2026-11-13: `tokens-report --since 2026-11-12T19:56 --row`, from the start of the session that archived E7, set up E8 and did T58; the window holds the sessions of T61–T65 above and the archive's own session to the moment of the measurement. By session, main calls and a main call's context: E7's archive and T58 — 146, 209.1 thousand; T59 — 175, 176.2; T60 — 53, 73.9. No task of analysis by R145 spec: `api` has no reference yet, a main call's context is below the row of T61–T65, and `docs-budgets.json` has been written once, by T65, and raised never.
+- E9, at its archive on 2026-11-13: `tokens-report --since 2026-11-13T15:52 --row`, from the start of the session that archived E8, set up E9 and did T60's last edit; the window holds the archive's own session to the moment of the measurement. By session, main calls and a main call's context: E8's archive — 50, 73.7 thousand; T66 — 58, 92.5; T67 — 32, 83.1; T68 — 126, 210.3; T69 — 76, 100.8; T70 — 98, 154.7; T71 — 178, 189.8; T72 — 107, 161.9; E9's archive — 18, 50.8, to the measurement. The one compaction is T71's. No task of analysis by R145 spec: `api` still has no reference — measurements 1.9 spec at v0.16.5 holds only its row before — a main call's context is below the row of E8, and `docs-budgets.json` has had no limit raised: T67 only took the limit of architecture 3.9 out.
 
 ## 5. Fuzzing, T59, 2026-11-13
 
