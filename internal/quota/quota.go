@@ -142,6 +142,23 @@ type Counter struct {
 	Spent, Reserved Micro
 }
 
+// Share is the share of the cap limit that spent takes, in whole percent rounded
+// down, as the share of the quota gives it (the amendment of 2026-11-12 to R11):
+// 100 is the cap reached, and spending past it is 100 too, as is any of no cap.
+func Share(spent, limit Micro) int32 {
+	if limit <= 0 || spent >= limit {
+		return 100
+	}
+	return int32(max(spent, 0) * 100 / limit)
+}
+
+// Reached says whether what the profile or its account has spent has reached
+// its cap of caps: no request of the profile on platform AI goes until the next
+// family day.
+func Reached(caps Caps, profile, account Micro) bool {
+	return profile >= caps.Profile || account >= caps.Account
+}
+
 // Room says whether a reserve of amount fits under caps beside the counters of
 // the profile and of its account: on each, what is spent, what is in reserve
 // and amount together are no more than its cap (R12). The profile's cap is

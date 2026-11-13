@@ -118,3 +118,40 @@ func TestRoomAsksTheProfileFirst(t *testing.T) {
 		}
 	}
 }
+
+// A share is whole percent rounded down, and a cap reached, spending past it or
+// no cap at all is 100; either cap reached closes the quota.
+func TestAShareIsWholePercentDownToTheCap(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		spent, limit quota.Micro
+		want         int32
+	}{
+		{0, 80_000, 0},
+		{799, 80_000, 0},
+		{800, 80_000, 1},
+		{79_999, 80_000, 99},
+		{80_000, 80_000, 100},
+		{90_000, 80_000, 100},
+		{-1, 80_000, 0},
+		{0, 0, 100},
+	} {
+		if got := quota.Share(tc.spent, tc.limit); got != tc.want {
+			t.Errorf("Share(%d, %d) = %d, want %d", tc.spent, tc.limit, got, tc.want)
+		}
+	}
+	caps := quota.Caps{Profile: 80_000, Account: 100_000}
+	for _, tc := range []struct {
+		profile, account quota.Micro
+		want             bool
+	}{
+		{79_999, 99_999, false},
+		{80_000, 0, true},
+		{0, 100_000, true},
+	} {
+		if got := quota.Reached(caps, tc.profile, tc.account); got != tc.want {
+			t.Errorf("Reached(%d, %d) = %v, want %v", tc.profile, tc.account, got, tc.want)
+		}
+	}
+}

@@ -73,45 +73,106 @@ type Charge struct {
 	Amount               quota.Micro
 }
 
-// room is whether the charge c fits under the caps of the account's tariff
-// beside the counters of its day, read in q, and FOR UPDATE when lock: a
-// reserve holds them until it writes. A day with no counter yet has spent
-// nothing. Every statement of the quota takes the counters of a
-// profile before those of its account, as the deletion of an account does — its
-// profiles, and theirs with them, then its own —, so that two of them never wait
-// for each other.
-func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, error) {
+// capsOf is the caps of the account's tariff, read in q, and false when the
+// account has no tariff with caps: platform AI is closed to it (R11).
+func capsOf(ctx context.Context, q Querier, accountID string) (quota.Caps, bool, error) {
 	var tariff *string
-	err := q.QueryRow(ctx, `SELECT tariff FROM accounts WHERE id = $1`, c.AccountID).Scan(&tariff)
+	err := q.QueryRow(ctx, `SELECT tariff FROM accounts WHERE id = $1`, accountID).Scan(&tariff)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return "", ErrNoAccount
+		return quota.Caps{}, false, ErrNoAccount
 	case err != nil:
-		return "", fmt.Errorf("store: read the tariff: %w", err)
+		return quota.Caps{}, false, fmt.Errorf("store: read the tariff: %w", err)
 	}
 	caps, ok := quota.CapsOf(deref(tariff))
-	if !ok {
-		return quota.NoTariff, nil
-	}
+	return caps, ok, nil
+}
+
+// counters are the counters of the profile and of its account of the day that
+// begins at start, read in q, and FOR UPDATE when lock: a reserve holds them
+// until it writes. A day with no counter yet has spent nothing. Every statement
+// of the quota takes the counters of a profile before those of its account, as
+// the deletion of an account does — its profiles, and theirs with them, then its
+// own —, so that two of them never wait for each other.
+func counters(ctx context.Context, q Querier, profileID, accountID string, start time.Time, lock bool) (profile, account quota.Counter, err error) {
 	suffix := ""
 	if lock {
 		suffix = " FOR UPDATE"
 	}
-	var profile, account quota.Counter
 	for _, read := range []struct {
 		table, column, id string
 		into              *quota.Counter
 	}{
-		{"profile_quota", "profile_id", c.ProfileID, &profile},
-		{"account_quota", "account_id", c.AccountID, &account},
+		{"profile_quota", "profile_id", profileID, &profile},
+		{"account_quota", "account_id", accountID, &account},
 	} {
 		err := q.QueryRow(ctx, `SELECT spent_micro_usd, reserved_micro_usd FROM `+read.table+`
-			WHERE `+read.column+` = $1 AND day_start = $2`+suffix, read.id, c.Day.Start).Scan(&read.into.Spent, &read.into.Reserved)
+			WHERE `+read.column+` = $1 AND day_start = $2`+suffix, read.id, start).Scan(&read.into.Spent, &read.into.Reserved)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return "", fmt.Errorf("store: read the quota of the %s: %w", read.table, err)
+			return quota.Counter{}, quota.Counter{}, fmt.Errorf("store: read the quota of the %s: %w", read.table, err)
 		}
 	}
+	return profile, account, nil
+}
+
+// room is whether the charge c fits under the caps of the account's tariff
+// beside the counters of its day, read in q, and FOR UPDATE when lock.
+func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, error) {
+	caps, ok, err := capsOf(ctx, q, c.AccountID)
+	switch {
+	case err != nil:
+		return "", err
+	case !ok:
+		return quota.NoTariff, nil
+	}
+	profile, account, err := counters(ctx, q, c.ProfileID, c.AccountID, c.Day.Start, lock)
+	if err != nil {
+		return "", err
+	}
 	return quota.Room(caps, profile, account, c.Amount), nil
+}
+
+// Settled is what a profile and its account have spent of the quota of a family
+// day, as their calls were settled, without the reserves of calls still going,
+// beside the caps of the account's tariff: what the share of the quota counts
+// by (the amendment of 2026-11-12 to R11).
+type Settled struct {
+	Day quota.Day
+	// Caps are the caps of the account's tariff, and Capped is false when it has
+	// none: platform AI is closed to it, and there is no share (R11).
+	Caps             quota.Caps
+	Capped           bool
+	Profile, Account quota.Micro
+}
+
+// QuotaSettled is what the account's profile and the account have spent of the
+// quota on the family day the account keeps at now, read in q and writing
+// nothing, as Today: the request carries no offset (R97 spec). A profile the
+// account does not have is ErrNoProfile. q is best a snapshot, so that the day,
+// the tariff and the counters are of one moment.
+func QuotaSettled(ctx context.Context, q Querier, accountID, profileID string, now time.Time) (Settled, error) {
+	day, err := Today(ctx, q, accountID, now)
+	if err != nil {
+		return Settled{}, err
+	}
+	switch there, _, err := ProfileOf(ctx, q, accountID, profileID); {
+	case err != nil:
+		return Settled{}, err
+	case !there:
+		return Settled{}, ErrNoProfile
+	}
+	caps, capped, err := capsOf(ctx, q, accountID)
+	switch {
+	case err != nil:
+		return Settled{}, err
+	case !capped:
+		return Settled{Day: day}, nil
+	}
+	profile, account, err := counters(ctx, q, profileID, accountID, day.Start, false)
+	if err != nil {
+		return Settled{}, err
+	}
+	return Settled{Day: day, Caps: caps, Capped: true, Profile: profile.Spent, Account: account.Spent}, nil
 }
 
 // QuotaFits says whether the charge c would fit, reserving nothing: what is left
