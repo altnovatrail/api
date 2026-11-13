@@ -160,6 +160,8 @@ Work in the devcontainer: open the repository in VS Code and choose "Reopen in C
 The documents are in Russian until their translation into English, tasks T63 and T64 of the work plan; the work plan, its technical debt and the archives of its epics stay in Russian.
 
 - [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links, what was decided and how the service is built.
+- [docs/sources.md](docs/sources.md) — the external facts the documents rest on: each source with its address, the date it was read and a quote.
+- [docs/measurements.md](docs/measurements.md) — the results of measurements: what was measured, how, and the numbers.
 - [docs/decisions.md](docs/decisions.md) — the decision log: what was decided, why, and what was rejected.
 - [RUN.md](RUN.md) — the work plan, in epics.
 - [DEBT.md](DEBT.md) — the technical debt, in Russian: table 4 of the work plan.
