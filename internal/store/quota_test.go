@@ -303,6 +303,82 @@ func TestTheCountersGoWithTheirProfileAndTheirAccount(t *testing.T) {
 	}
 }
 
+// What was settled is the spending of the profile and of the account on the day
+// the account keeps, without the reserves, beside the tariff's caps; a tariff
+// with no caps has none, and a profile not of the account is ErrNoProfile.
+// Nothing is written.
+func TestWhatWasSettledIsTheSpendingOfTheDayKept(t *testing.T) {
+	t.Parallel()
+
+	w := newQuotaWorld(t, quota.Probe)
+	now := w.day.Start.Add(time.Hour)
+	if _, err := w.pool.Exec(t.Context(), `UPDATE accounts SET utc_offset_minutes = -300, day_starts_at = $2, day_ends_at = $3
+		WHERE id = $1`, w.account, w.day.Start, w.day.End); err != nil {
+		t.Fatal(err)
+	}
+	settled := func(profileID string) store.Settled {
+		t.Helper()
+		s, err := store.QuotaSettled(t.Context(), w.pool, w.account, profileID, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	caps, _ := quota.CapsOf(quota.Probe)
+	if got := settled(w.child); got != (store.Settled{Day: w.day, Caps: caps, Capped: true}) {
+		t.Errorf("a day with no counter = %+v", got)
+	}
+	w.reserve(t, w.charge(w.child, 50_000))
+	if err := store.SettleQuota(t.Context(), w.pool, w.charge(w.child, 30_000), 21_000); err != nil {
+		t.Fatal(err)
+	}
+	w.reserve(t, w.charge(w.owner, 10_000))
+	if got := settled(w.child); got != (store.Settled{Day: w.day, Caps: caps, Capped: true, Profile: 21_000, Account: 21_000}) {
+		t.Errorf("the child's settled = %+v, want $0.021 and no reserve", got)
+	}
+	if got := settled(w.owner); got.Profile != 0 || got.Account != 21_000 {
+		t.Errorf("the owner's settled = %+v, want nothing of their own", got)
+	}
+	if _, err := w.pool.Exec(t.Context(), `UPDATE accounts SET tariff = NULL WHERE id = $1`, w.account); err != nil {
+		t.Fatal(err)
+	}
+	if got := settled(w.child); got != (store.Settled{Day: w.day}) {
+		t.Errorf("no tariff = %+v, want the day alone", got)
+	}
+	// A profile of another account of the same database, with a counter of the day.
+	var other string
+	if err := w.pool.QueryRow(t.Context(), `INSERT INTO profiles
+		(account_id, owner, pseudonym, age_category, country, voicing_enabled, default_mode, ask_before_showing)
+		VALUES ($1, true, 'Owl', 'adult', 'US', false, 'self', false) RETURNING id`, account(t, w.pool)).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(t.Context(), `INSERT INTO profile_quota (profile_id, day_start, day_end, spent_micro_usd)
+		VALUES ($1, $2, $3, 7000)`, other, w.day.Start, w.day.End); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.QuotaSettled(t.Context(), w.pool, w.account, other, now); !errors.Is(err, store.ErrNoProfile) {
+		t.Errorf("a profile of another account = %v, want ErrNoProfile", err)
+	}
+	if _, err := store.QuotaSettled(t.Context(), w.pool, "00000000-0000-0000-0000-000000000000", w.child, now); !errors.Is(err, store.ErrNoAccount) {
+		t.Errorf("no account = %v, want ErrNoAccount", err)
+	}
+	for _, failOn := range []string{"SELECT utc_offset_minutes", "SELECT active_on", "SELECT tariff", "FROM profile_quota", "FROM account_quota"} {
+		if _, err := w.pool.Exec(t.Context(), `UPDATE accounts SET tariff = $2 WHERE id = $1`, w.account, quota.Probe); err != nil {
+			t.Fatal(err)
+		}
+		err := pgx.BeginFunc(t.Context(), &flaky{Pool: w.pool, failOn: failOn}, func(tx pgx.Tx) error {
+			_, err := store.QuotaSettled(t.Context(), tx, w.account, w.child, now)
+			return err
+		})
+		if !errors.Is(err, errDown) {
+			t.Errorf("a failed %q = %v, want the failure", failOn, err)
+		}
+	}
+	if _, start, end := kept(t, w.pool, w.account); !start.Equal(w.day.Start) || !end.Equal(w.day.End) {
+		t.Errorf("the day kept = %v–%v, want it unwritten", start, end)
+	}
+}
+
 // The flag "platform AI closed" is one for the deployment: set by the first
 // close, which keeps its time, and cleared by the operator alone.
 func TestTheFlagOfPlatformAIIsOneForTheDeployment(t *testing.T) {

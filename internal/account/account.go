@@ -49,7 +49,8 @@ type Rights interface {
 // Option is a choice of New's that a test makes.
 type Option func(*Service)
 
-// WithClock is the clock the PIN's count goes by, the system's by default.
+// WithClock is the clock the handlers go by — the PIN's count, the family day
+// of the quota —, the system's by default.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
 // WithTexts is the legal texts the requests of a consent name, those of the
