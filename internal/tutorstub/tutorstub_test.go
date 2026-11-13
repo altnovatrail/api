@@ -29,10 +29,12 @@ func (g gate) Words(bool, formatv0.AgeCategory, string) bool { return g.admitted
 func (g gate) Price(call tutor.Call, _ tutor.Route) tutor.CallPrice { return g.prices[call] }
 
 // priced is a gate that admits, and expects a sheet to cost $0.020001, which
-// the two readers do not share evenly, and the words a cent.
+// the two readers do not share evenly, the words with the work a cent, and the
+// hint without it half a cent.
 var priced = gate{admitted: true, prices: map[tutor.Call]tutor.CallPrice{
 	tutor.CallSheet: {ExpectedUSD: 0.020001, Expected: true},
 	tutor.CallWords: {ExpectedUSD: 0.01, Expected: true},
+	tutor.CallHint:  {ExpectedUSD: 0.005, Expected: true},
 }}
 
 var adult = tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
@@ -179,7 +181,8 @@ func TestTheStubFailsWhatTutorFails(t *testing.T) {
 // The words are the stub's questions in the learner's language, the first not
 // asked yet, so "explain differently" gets other words, and the list again once
 // all were asked; another language gets English. A call spends the expected
-// price of the words. Admission is the gate's.
+// price of its kind: the hint without the work, or the words with it when the
+// work goes (R106 tutor). Admission is the gate's.
 func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 	t.Parallel()
 
@@ -188,8 +191,12 @@ func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 	if first.Outcome.Kind != tutor.Answered || first.Question == "" {
 		t.Fatalf("TellWords = %+v, want a question", first)
 	}
-	if u := first.Outcome.Usage; len(u) != 1 || u[0].Model != tutorstub.Model || u[0].USD != 0.01 || !u[0].Priced {
-		t.Errorf("the words spent %+v, want the expected 0.01 by the model stub", u)
+	if u := first.Outcome.Usage; len(u) != 1 || u[0].Model != tutorstub.Model || u[0].USD != 0.005 || !u[0].Priced {
+		t.Errorf("the hint without the work spent %+v, want the expected 0.005 by the model stub", u)
+	}
+	withWork := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Crop: crop(t, 40, 20)})
+	if u := withWork.Outcome.Usage; withWork.Outcome.Kind != tutor.Answered || len(u) != 1 || u[0].USD != 0.01 {
+		t.Errorf("the words with the work spent %+v, want the expected 0.01", u)
 	}
 	asked := []string{first.Question}
 	for range 2 {

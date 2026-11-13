@@ -198,7 +198,8 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 						logging.FieldProvider, u.Provider, logging.FieldModel, u.Model,
 						logging.FieldInputTokens, u.InputTokens, logging.FieldOutputTokens, u.OutputTokens,
 						logging.FieldThinkingTokens, u.ThinkingTokens, logging.FieldAIOutcome, c.Outcome,
-						logging.FieldDurationMS, c.Duration.Milliseconds(), logging.FieldCostMicroUSD, u.CostMicroUSD, logging.FieldBilled, u.Billed)
+						logging.FieldDurationMS, c.Duration.Milliseconds(), logging.FieldCostMicroUSD, u.CostMicroUSD, logging.FieldBilled, u.Billed,
+						logging.FieldModelMS, u.Took.Milliseconds(), logging.FieldRetries, u.Retries, logging.FieldFirstTokenMS, u.FirstToken.Milliseconds())
 				}
 			}
 			level := slog.LevelInfo

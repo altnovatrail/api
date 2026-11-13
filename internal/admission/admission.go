@@ -149,20 +149,25 @@ func (g *Gate) Handwriting(category formatv0.AgeCategory, ownKeyProvider string)
 }
 
 // Words says whether the tutor's words are admitted for a learner of category,
-// on the route Handwriting takes: the hint of a rung, and, with the work, the
-// analysis of its steps too, which the one call of words serves by the very
-// model the hint is admitted for (R47). tutor asks again, of the very model.
+// on the route Handwriting takes: the hint of a rung by the call of the hint
+// without the work, and, with the work, the call of words, which serves the
+// analysis of its steps and the hint at once, and which tutor admits only with
+// the hint on the model of the analysis (R84 spec; R106, R111 tutor). tutor
+// asks again, of the very model.
 func (g *Gate) Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	route := g.route(category, ownKeyProvider)
-	hint, _, err := g.tutor.Choose(admissionv0.CapabilityHint, route)
-	if err != nil || len(hint.Models) == 0 {
-		return false
+	entry, _, err := g.tutor.ChooseCall(WordsCall(withWork), g.route(category, ownKeyProvider))
+	return err == nil && len(entry.Models) > 0
+}
+
+// WordsCall is tutor's kind of call of the words of a rung: the words with the
+// work, which analyse its steps too, or the hint without it — "explain
+// differently" and a task a tap checks (R106 tutor). The gate admits, and the
+// quota reserves, by it.
+func WordsCall(withWork bool) tutor.Call {
+	if withWork {
+		return tutor.CallWords
 	}
-	if !withWork {
-		return true
-	}
-	analysis, _, err := g.tutor.ChooseCall(tutor.CallWords, route)
-	return err == nil && len(analysis.Models) > 0 && analysis.Models[0] == hint.Models[0]
+	return tutor.CallHint
 }
 
 // route is tutor's route for a learner of category: platform AI, or the own key

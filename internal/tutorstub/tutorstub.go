@@ -32,6 +32,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 
+	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/quota"
 )
 
@@ -134,7 +135,7 @@ func (s *Stub) TellWords(_ context.Context, w tutor.WordsRequest) tutor.WordsAns
 		}
 	}
 	return tutor.WordsAnswer{Question: question, Outcome: tutor.Outcome{Kind: tutor.Answered,
-		Usage: s.usage(tutor.CallWords, w.Route, 1)}}
+		Usage: s.usage(admission.WordsCall(len(w.Crop) > 0), w.Route, 1)}}
 }
 
 // questions are the stub's words, by language: one question each, without a

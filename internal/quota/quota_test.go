@@ -75,6 +75,7 @@ func TestACallReservesTheExpectedPriceOrItsKindsValue(t *testing.T) {
 		{"a sheet tutor prices", tutor.CallSheet, expected, 1, 9343},
 		{"a sheet tutor does not price", tutor.CallSheet, tutor.CallPrice{}, 1, 14_000},
 		{"words tutor does not price", tutor.CallWords, tutor.CallPrice{Expected: true}, 0, 18_200},
+		{"a hint without the work, worst alone", tutor.CallHint, tutor.CallPrice{WorstUSD: 0.512, Worst: true}, 1, 18_200},
 		{"an essay", tutor.CallEssay, tutor.CallPrice{}, 1, 15_000},
 		{"a rubric", tutor.CallRubric, tutor.CallPrice{}, 1, 15_000},
 		{"a page of three crops", tutor.CallWorkbook, tutor.CallPrice{}, 3, 42_000},

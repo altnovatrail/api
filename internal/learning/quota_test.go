@@ -5,6 +5,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -169,6 +170,51 @@ func TestACallReservesItsPriceAndSettlesWhatItCost(t *testing.T) {
 	if log := w.log.String(); !strings.Contains(log, `"cost_micro_usd":15100,"billed":true`) ||
 		!strings.Contains(log, `"cost_micro_usd":680000,"billed":false`) {
 		t.Errorf("the log = %s, want each model's cost and whether it is its bill", log)
+	}
+}
+
+// The words of a rung and "explain differently" reserve by tutor's kind of
+// call, by the request they send (R106 tutor): the words of a handwriting
+// sheet, with its crop, the words with the work; of a task a tap checks, with
+// no work, the hint without it, as "explain differently" is.
+func TestTheWordsReserveByTheirKindOfCall(t *testing.T) {
+	t.Parallel()
+
+	ts, rs := &tellers{}, &readers{}
+	ts.say("Which of the two numbers has more tens?", nil)
+	rs.give(answered(read("6"), read("6")))
+	var mu sync.Mutex
+	var priced []tutor.Call
+	w := worldOf(t, gate(t, adultFacts, config.RungAuthor), []learning.Option{learning.WithWords(ts.tell),
+		learning.WithReader(rs.read), learning.WithPrice(func(call tutor.Call, _ tutor.Route) tutor.CallPrice {
+			mu.Lock()
+			defer mu.Unlock()
+			priced = append(priced, call)
+			return tutor.CallPrice{ExpectedUSD: expected.Dollars(), Expected: true}
+		})})
+	l := w.learner(t)
+	png, wrong := crop(t), int32(1)
+	sheetTask := w.begin(t, l, l.adult, "apples").GetAttemptId()
+	if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: sheetTask,
+		IdempotencyKey: uuid.NewString(), Work: sheet(png)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: sheetTask,
+		IdempotencyKey: uuid.NewString(), WrongAnswers: &wrong, Work: sheet(png)}); err != nil {
+		t.Fatal(err)
+	}
+	a := w.begin(t, l, l.child, "pairs").GetAttemptId()
+	w.wrongs(t, l, l.child, a, []*v1.TappedChoice{tap(1, 1, "12"), tap(2, 1, "30")})
+	if _, err := w.rungWords(l, l.child, a, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.explain(l, l.child, a, 1); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if want := []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallHint}; !slices.Equal(priced, want) {
+		t.Errorf("the calls reserved by %v, want %v", priced, want)
 	}
 }
 
