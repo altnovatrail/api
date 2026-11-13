@@ -48,7 +48,9 @@ const finishReserve = 3 * time.Second
 // second. An attempt closed meanwhile — by another device that began another —
 // is "closed", and nothing is written. An answer that closes the attempt says
 // what comes next in a lesson: the next segment, or that none is left (R48);
-// outside a lesson, the engine's choice (R50).
+// outside a lesson, the engine's choice (R50), on the route of the own key's
+// provider, or of own_key_provider when the submission sends neither work nor
+// own key — beside either it is malformed —, or else platform AI (R65).
 func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkRequest) (*v1.SubmitWorkResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -57,6 +59,19 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	}
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
+	}
+	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
+		return nil, err
+	}
+	if req.GetOwnKeyProvider() != "" && (req.GetWork() != nil || req.GetOwnKey() != nil) {
+		// There the route is that of own_key, or platform AI's without one.
+		return nil, rpc.Malformed("own_key_provider")
+	}
+	// The route of the engine's choice in next: the provider of the own key, or
+	// the one named without the key by a submission AI does not read (R65).
+	ownKey := req.GetOwnKey().GetProvider()
+	if ownKey == "" {
+		ownKey = req.GetOwnKeyProvider()
 	}
 	profileID := req.GetProfileId()
 	key := rpc.Key{
@@ -76,7 +91,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			if err != nil {
 				return nil, err
 			}
-			answer.Next, err = s.nextAfter(ctx, tx, profileID, row, category, s.clock(), true)
+			answer.Next, err = s.nextAfter(ctx, tx, profileID, row, category, ownKey, s.clock(), true)
 			return answer, err
 		},
 	}
@@ -109,7 +124,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 				if err != nil {
 					return nil, store.KeyTarget{}, err
 				}
-				return s.record(ctx, tx, profileID, category, h, out)
+				return s.record(ctx, tx, profileID, category, ownKey, h, out)
 			},
 		})
 	} else {
@@ -118,7 +133,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			return s.record(ctx, tx, profileID, category, h, out)
+			return s.record(ctx, tx, profileID, category, ownKey, h, out)
 		})
 	}
 	if err != nil {
@@ -151,9 +166,9 @@ func (s *Service) readsAI(ctx context.Context, profileID, attemptID string) bool
 }
 
 // record writes the submission out on the profile's attempt h: its verdict, the close of
-// a task solved, and the submission with its answer and observation, which the
-// key's record names.
-func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, h held, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
+// a task solved, with the engine's choice on the route of ownKey, and the
+// submission with its answer and observation, which the key's record names.
+func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, h held, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
 	now := s.clock()
 	answer, observed, err := s.verdict(ctx, h, out)
 	if err != nil {
@@ -181,7 +196,7 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, categ
 		if err := s.settle(ctx, tx, profileID, now); err != nil {
 			return nil, store.KeyTarget{}, err
 		}
-		if answer.Next, err = s.nextAfter(ctx, tx, profileID, h.row, category, now, false); err != nil {
+		if answer.Next, err = s.nextAfter(ctx, tx, profileID, h.row, category, ownKey, now, false); err != nil {
 			return nil, store.KeyTarget{}, err
 		}
 	}
@@ -404,13 +419,19 @@ func givesTechniques(steps *formatv0.SolvingSteps, place int32) bool {
 
 // Done ends an attempt of a task with a rubric (R14). A task with a verdict
 // takes no "Done", and an attempt of a task with a rubric has no submission
-// before the rubric's code sends one: it is "no submission".
+// before the rubric's code sends one: it is "no submission". A provider named
+// for a learner who is not an adult is refused, as at every request whose
+// answer may give an engine's choice (R65).
 func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.DoneResponse, error) {
 	s := a.s
-	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
+	category, err := s.learner(ctx, req.GetProfileId())
+	if err != nil {
 		return nil, err
 	}
-	err := s.act(ctx, req.GetProfileId(), req.GetAttemptId(), func(_ pgx.Tx, h held, _ time.Time) error {
+	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
+		return nil, err
+	}
+	err = s.act(ctx, req.GetProfileId(), req.GetAttemptId(), func(_ pgx.Tx, h held, _ time.Time) error {
 		if !rubric(h.task) {
 			return rpc.Malformed("attempt_id")
 		}

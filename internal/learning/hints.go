@@ -240,8 +240,9 @@ func (s *Service) keptWords(ctx context.Context, tx pgx.Tx, profileID, attemptID
 	return hint.GetWords(), nil
 }
 
-// ownKeyFits refuses an own key that a request sends for a learner who is not
-// an adult: only the owner's own profile goes by its key (contract, § 15).
+// ownKeyFits refuses an own key, or its provider alone, that a request sends
+// for a learner who is not an adult: only the owner's own profile goes by its
+// key (contract, § 15).
 func ownKeyFits(ctx context.Context, category formatv0.AgeCategory, sent bool) error {
 	if sent && category != formatv0.AgeCategoryAdult {
 		return rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
@@ -697,11 +698,15 @@ type canner interface {
 // learner of the category adult from the beginning. The close deletes the
 // words of the rungs (R05). The answer, the task solved, is what the key's
 // record holds, with what comes next: in a lesson, the next segment (R48);
-// outside a lesson, the engine's choice (R50).
+// outside a lesson, the engine's choice (R50), on the route own_key_provider
+// names (R65).
 func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionRequest) (*v1.ShowSolutionResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
 	if err != nil {
+		return nil, err
+	}
+	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
 		return nil, err
 	}
 	switch req.GetAction() {
@@ -736,7 +741,7 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 			if err := s.close(ctx, tx, profileID, h.row.ID, closeShown, now); err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			next, err := s.nextAfter(ctx, tx, profileID, h.row, category, now, false)
+			next, err := s.nextAfter(ctx, tx, profileID, h.row, category, req.GetOwnKeyProvider(), now, false)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}

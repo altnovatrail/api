@@ -121,7 +121,7 @@ func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRe
 		if segment.GetSegment() < 1 {
 			return begun{}, rpc.Malformed("segment")
 		}
-		return s.segmentBegun(ctx, tx, profileID, segment.GetLessonRunId(), int(segment.GetSegment()), category, now)
+		return s.segmentBegun(ctx, tx, profileID, segment.GetLessonRunId(), int(segment.GetSegment()), category, req.GetOwnKeyProvider(), now)
 	}
 }
 

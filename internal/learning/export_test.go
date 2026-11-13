@@ -44,10 +44,10 @@ func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.W
 }
 
 // Candidates is the full IDs of the tasks of pkg the engine's pool holds for a
-// learner of category, and how many of its lessons it gets: those this code
-// begins.
-func (s *Service) Candidates(pkg *modulepackage.Package, category formatv0.AgeCategory) (pool []string, lessons int, err error) {
-	m, _, err := s.candidates(pkg, learnermodel.Graph{}, category, true)
+// learner of category on the route of ownKey — the own key of that provider, or
+// platform AI —, and how many of its lessons it gets: those this code begins.
+func (s *Service) Candidates(pkg *modulepackage.Package, category formatv0.AgeCategory, ownKey string) (pool []string, lessons int, err error) {
+	m, _, err := s.candidates(pkg, learnermodel.Graph{}, category, ownKey, true)
 	for _, c := range m.Pool {
 		pool = append(pool, c.Task.ID)
 	}

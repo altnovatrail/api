@@ -3,6 +3,7 @@ package learning_test
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -514,4 +515,155 @@ func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
 		t.Fatalf("the segment of a tap = %v (%v), want it solved", res, err)
 	}
 	waits(l.child, v1.Cause_CAUSE_NOT_ADMITTED)
+}
+
+// Every choice of the engine goes by the route the request names (R65): with
+// platform AI closed by the quota or the platform's limit, the owner's profile
+// that names the provider of its own key gets what a beginning by that key
+// takes — the run whose next segment is of handwriting, and a pool not limited
+// to taps in "something else", in next and at the end of a run alike —, while
+// platform AI's route waits; a provider whose models are not admitted gives a
+// task that begins or nothing to give, "not admitted" alone.
+func TestAnOwnKeyChoosesByItsRoute(t *testing.T) {
+	t.Parallel()
+
+	built(t)
+	// basics on a sheet of a tap, then of handwriting; grown, the adult's other
+	// lesson, of handwriting, so that no new lesson begins on platform AI closed.
+	handwritten := packagestest.OwnEdited(t, "choices", "1.1.0", func(path string, data []byte) []byte {
+		switch path {
+		case "lessons/basics.yaml":
+			return bytes.Replace(data, []byte("task: pairs"), []byte("task: apples"), 1)
+		case "lessons/grown.yaml":
+			data = bytes.Replace(data, []byte("skills: [comparing]"), []byte("skills: [adding]"), 1)
+			return bytes.Replace(data, []byte("task: grown-ups"), []byte("task: apples"), 1)
+		}
+		return data
+	})
+	w := worldOn(t, packagestest.Set(t, packagestest.Entry{Pkg: handwritten, Release: "v0.2.0"}), gate(t, adultFacts, config.RungAuthor), nil)
+	w.current, w.connected = handwritten, []string{module}
+	l := w.learner(t)
+	const own = "anthropic"
+	choose := func(provider string) *v1.EngineChoice {
+		t.Helper()
+		res, err := w.learning.ChooseNext(l.ctx, &v1.ChooseNextRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(), OwnKeyProvider: provider})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.GetChoice()
+	}
+	// byPlatformAI says the choice is what platform AI closed by cause gives: a
+	// task from a pool limited to taps, or nothing to give for cause.
+	byPlatformAI := func(c *v1.EngineChoice, causes ...v1.Cause) {
+		t.Helper()
+		switch {
+		case c.GetKind() == v1.ChoiceKind_CHOICE_KIND_TASK:
+			if limited := w.choiceRow(t, c.GetChoiceId()).poolLimited; limited == nil || !*limited {
+				t.Errorf("the choice %v with the AI closed does not say its pool was limited", c)
+			}
+		case c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || !slices.Contains(causes, c.GetOutcome().GetCause()):
+			t.Errorf("the choice = %v, want a task of a tap or nothing to give for %v", c, causes)
+		}
+	}
+	// byOwnKey says the choice went by the own key: something to give, from a
+	// pool no closed AI limited.
+	byOwnKey := func(c *v1.EngineChoice) {
+		t.Helper()
+		if c.GetKind() == v1.ChoiceKind_CHOICE_KIND_NOTHING {
+			t.Fatalf("the choice by the own key = %v, want something to give", c)
+		}
+		if limited := w.choiceRow(t, c.GetChoiceId()).poolLimited; limited == nil || *limited {
+			t.Errorf("the choice %v by the own key says its pool was limited", c)
+		}
+	}
+
+	run := w.open(t, l, l.adult, "basics").GetLessonRunId()
+	pick, err := w.segment(l, l.adult, run, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, err := w.submit(l, l.adult, pick.GetAttemptId(), tap(1, 1, "three and four")); err != nil || res.GetSolved() == nil {
+		t.Fatalf("the segment of a tap = %v (%v), want it solved", res, err)
+	}
+	w.spend(t, l.accountID, 1_500_000)
+
+	// On platform AI the run waits; by the own key it comes next, and its segment
+	// of handwriting begins by that key.
+	byPlatformAI(choose(""), v1.Cause_CAUSE_QUOTA)
+	c := choose(own)
+	if c.GetKind() != v1.ChoiceKind_CHOICE_KIND_LESSON {
+		t.Fatalf("the choice by the own key = %v, want the lesson of the run", c)
+	}
+	opened, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: c.GetChoiceId(), OwnKeyProvider: own})
+	if err != nil || opened.GetRun().GetLessonRunId() != run {
+		t.Fatalf("the lesson opened = %v (%v), want the run %s", opened.GetRun(), err, run)
+	}
+	if _, err := w.learning.GetLessonRun(l.ctx, &v1.GetLessonRunRequest{ProfileId: l.adult, LessonRunId: run, OwnKeyProvider: own}); err != nil {
+		t.Fatal(err)
+	}
+	apples, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 4}}, OwnKeyProvider: own})
+	if err != nil {
+		t.Fatalf("the segment of handwriting by the own key: %v", err)
+	}
+	if _, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: apples.GetAttempt().GetAttemptId(),
+		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING, OwnKeyProvider: own}); err != nil {
+		t.Fatal(err)
+	}
+	done, err := w.learning.CompleteLesson(l.ctx, &v1.CompleteLessonRequest{ProfileId: l.adult, LessonRunId: run, OwnKeyProvider: own})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byOwnKey(done.GetEnd().GetChoice())
+
+	// What comes next outside a lesson goes by the route too: a submission that AI
+	// does not read names it without the key, and the solution shown by its own.
+	w.exec(t, `UPDATE platform_ai SET closed_at = now()`)
+	solved, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: w.begin(t, l, l.adult, "pick").GetAttemptId(),
+		IdempotencyKey: uuid.NewString(), TappedChoices: []*v1.TappedChoice{tap(1, 1, "three and four")}, OwnKeyProvider: own})
+	if err != nil || solved.GetSolved() == nil {
+		t.Fatalf("a task of a tap = %v (%v), want it solved", solved, err)
+	}
+	byOwnKey(solved.GetNext().GetChoice())
+	shown, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: w.begin(t, l, l.adult, "pick").GetAttemptId(),
+		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING, OwnKeyProvider: own})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byOwnKey(shown.GetNext().GetChoice())
+	onPlatformAI, err := w.submit(l, l.adult, w.begin(t, l, l.adult, "pick").GetAttemptId(), tap(1, 1, "three and four"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPlatformAI(onPlatformAI.GetNext().GetChoice(), v1.Cause_CAUSE_PLATFORM_LIMIT)
+	byOwnKey(choose(own))
+
+	// The end of a run that a request finds goes by its route too: a run with no
+	// action for 30 days ends "abandoned", opened by its choice, by its ID, or by
+	// the beginning of its segment.
+	abandoned := func() (run, choice string) {
+		t.Helper()
+		choice = w.lessonChoice(t, l.adult, "basics")
+		run = w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id, last_action_at)
+			VALUES ($1, $2, $3, '1.1.0', $4, $5, now() - interval '31 days') RETURNING id`, l.adult, module+"/lesson/basics", module,
+			string(handwritten.Digest), choice)
+		return run, choice
+	}
+	_, lesson := abandoned()
+	_, err = w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: lesson, OwnKeyProvider: own})
+	byOwnKey(endedAs(t, err, v1.RunEndReason_RUN_END_REASON_ABANDONED))
+	run, _ = abandoned()
+	_, err = w.learning.GetLessonRun(l.ctx, &v1.GetLessonRunRequest{ProfileId: l.adult, LessonRunId: run, OwnKeyProvider: own})
+	byOwnKey(endedAs(t, err, v1.RunEndReason_RUN_END_REASON_ABANDONED))
+	run, _ = abandoned()
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 2}}, OwnKeyProvider: own})
+	byOwnKey(endedAs(t, err, v1.RunEndReason_RUN_END_REASON_ABANDONED))
+	run, _ = abandoned()
+	_, err = w.learning.GetLessonRun(l.ctx, &v1.GetLessonRunRequest{ProfileId: l.adult, LessonRunId: run})
+	byPlatformAI(endedAs(t, err, v1.RunEndReason_RUN_END_REASON_ABANDONED), v1.Cause_CAUSE_PLATFORM_LIMIT)
+
+	// Neither the quota nor the limit closes an own key: one whose models are not
+	// admitted is "not admitted".
+	byPlatformAI(choose("openai"), v1.Cause_CAUSE_NOT_ADMITTED)
 }

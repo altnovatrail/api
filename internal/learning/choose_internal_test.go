@@ -87,7 +87,7 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 
 	pkg := packagestest.Own(t, "choices")
 	s := &Service{gate: noAI(t)}
-	m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryUnder13, true)
+	m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryUnder13, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,11 +118,50 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 	}
 }
 
+// The pool goes by the route the request names (R65): platform AI, which a
+// deployment with no facts closes, leaves the tasks a tap checks and says so,
+// and so does the own key of a provider whose models are not admitted; the
+// adult's own key of Anthropic, which the stage "author" admits, gives the
+// handwriting too.
+func TestThePoolGoesByTheRoute(t *testing.T) {
+	t.Parallel()
+
+	pkg := packagestest.Own(t, "choices")
+	s := &Service{gate: gateAt(t, "author")}
+	for _, tc := range []struct {
+		ownKey   string
+		apples   bool
+		narrowed bool
+	}{
+		{"", false, true},
+		{"openai", false, true},
+		{"anthropic", true, false},
+	} {
+		m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryAdult, tc.ownKey, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		apples := slices.ContainsFunc(m.Pool, func(c engine.Candidate) bool { return c.Task.ID == "example/choices/task/apples" })
+		if apples != tc.apples || len(m.Lessons) != 2 || narrowed != tc.narrowed {
+			t.Errorf("the pool by %q holds apples %v, %d lessons, narrowed %v; want %v, both lessons, %v", tc.ownKey, apples,
+				len(m.Lessons), narrowed, tc.apples, tc.narrowed)
+		}
+	}
+}
+
 // noAI is the gate of a deployment that declares no facts, at the stage "full":
 // no AI is admitted to read handwriting.
 func noAI(t *testing.T) *admission.Gate {
 	t.Helper()
-	cfg, err := config.AdmissionFrom([]string{"API_ADMISSION_RUNG=full", "API_ANTHROPIC_KEY=sk-test"})
+	return gateAt(t, "full")
+}
+
+// gateAt is the gate of a deployment that declares no facts, at the stage rung,
+// with the platform's key of Anthropic: platform AI is closed, and at "author"
+// an adult's own key of Anthropic is open.
+func gateAt(t *testing.T, rung string) *admission.Gate {
+	t.Helper()
+	cfg, err := config.AdmissionFrom([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
