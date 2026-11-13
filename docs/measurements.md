@@ -1,74 +1,74 @@
-# api — замеры
+# api — measurements
 
-> Итоги замеров `api`: что мерили, как, на чём и какие вышли числа. Документ, который описывает устройство, — [architecture.md](architecture.md), — ссылается сюда и чисел замеров сам не держит, а только вывод из них (RULES.md, How we work; R143 spec). Замер цитируется разделом, как любой документ: `measurements 2.1`, а из другого репозитория — `measurements 2.1 api`.
+> The results of the measurements of `api`: what was measured, how, on what, and the numbers that came out. The document that describes how it is built, [architecture.md](architecture.md), refers here and holds no numbers of measurements itself, only what follows from them (RULES.md, How we work; R143 spec). A measurement is cited by its section, as any document is: `measurements 2.1`, and from another repository `measurements 2.1 api`.
 >
-> Внешний факт, на котором стоит замер, — запись [sources.md](sources.md). Новый замер — новый раздел или подраздел в конце, и номер раздела не меняется. До T62, 2026-11-13, эти итоги стояли в architecture 3.3, 3.6, 3.9 и 4, а прогона квоты и размера бинарника на `tutor` v0.1.24 в architecture не было — только в теле T52 в архиве [docs/plan/E6.md](plan/E6.md) и в R54; утверждения и ссылки сюда остались в architecture. Подробности замеров первого приложения, которых architecture не держала, — из тел T42 и T45 в архиве [docs/plan/E3.md](plan/E3.md). Файл — на русском, пока его не переведёт T63.
+> An external fact a measurement rests on is a record of [sources.md](sources.md). A new measurement is a new section or subsection at the end, and a section's number does not change. Until T62, 2026-11-13, these results stood in architecture 3.3, 3.6, 3.9 and 4, and the run of the quota and the size of the binary on `tutor` v0.1.24 were not in architecture: the run was only in the body of T52 in the archive [docs/plan/E6.md](plan/E6.md), and the size in R54; the claims, and the references to this document, stayed in architecture. The details of the measurements of the first app that architecture did not hold come from the bodies of T42 and T45 in the archive [docs/plan/E3.md](plan/E3.md).
 
-## 1. Размер бинарника и образа
+## 1. Size of the binary and the image
 
-### 1.1. Бинарник с OpenFGA, 2026-11-08
+### 1.1. The binary with OpenFGA, 2026-11-08
 
-Для R31, где OpenFGA встроен библиотекой (sources 2.4). Бинарник `api` с OpenFGA, `CGO_ENABLED=0 -trimpath -s -w`, — 33 816 736 байт против 11 915 424 у v0.1.1: замер 2026-11-08.
+For R31, where OpenFGA is embedded as a library (sources 2.4). The `api` binary with OpenFGA, `CGO_ENABLED=0 -trimpath -s -w`, is 33,816,736 bytes against 11,915,424 for v0.1.1: measured 2026-11-08.
 
-### 1.2. Бинарник с портом Admin SDK, 2026-11-09
+### 1.2. The binary with the Admin SDK port, 2026-11-09
 
-Для R32 (sources 2.5). Проба в копии модуля вне репозитория: `cmd/api`, который импортирует порт сервиса входа на Admin SDK для Go. Бинарник `linux/amd64` с `-trimpath` и `-s -w` — 51 765 408 байт против 33 804 448 без порта.
+For R32 (sources 2.5). A trial in a copy of the module outside the repository: `cmd/api`, which imports the port of the sign-in service on the Admin SDK for Go. The `linux/amd64` binary with `-trimpath` and `-s -w` is 51,765,408 bytes against 33,804,448 without the port.
 
-### 1.3. Образ, 2026-11-09 и 2026-11-11
+### 1.3. The image, 2026-11-09 and 2026-11-11
 
-Для R07, R52 и R53 (architecture 3.3). Размер образа печатает job «Image» CI:
-- без пакетов это был бинарник — 56,0 МБ — на рантайме: 58 359 952 байт, 58,4 МБ, у образа релиза и образа из исходников, прогон pull request #45 2026-11-09;
-- с переходом на `spec` v0.15.0 бинарник вырос (R52), и образ `main` без пакетов — 115 392 656 байт;
-- с пакетами `modules` v0.2.5 оба образа — 130 402 471 байт, 130,4 МБ, pull request #58 2026-11-11: пакеты добавляют 15,0 МБ (R53).
+For R07, R52 and R53 (architecture 3.3). The size of the image is printed by the job "Image" of CI:
+- without packages it was the binary — 56.0 MB — on the runtime: 58,359,952 bytes, 58.4 MB, for the release image and the image from source, the run of pull request #45 on 2026-11-09;
+- with the move to `spec` v0.15.0 the binary grew (R52), and the image of `main` without packages is 115,392,656 bytes;
+- with the packages of `modules` v0.2.5 both images are 130,402,471 bytes, 130.4 MB, pull request #58 on 2026-11-11: the packages add 15.0 MB (R53).
 
-### 1.4. Бинарник на `tutor` v0.1.24, T45, 2026-11-12
+### 1.4. The binary on `tutor` v0.1.24, T45, 2026-11-12
 
-Для R54. Бинарник релиза для `linux/amd64` — с 113 029 280 до 79 339 680 байт, по флагам `release-files`, 2026-11-12: адаптер Anthropic даёт сам `api`, и из модулей бинарника ушли `openai-go/v3` и `coder/websocket`, а `openai` в нём нет. В architecture этого замера не было: он — в R54 и в теле T45 архива E3; сюда его перенёс T62, чтобы история размера была в одном месте.
+For R54. The release binary for `linux/amd64` — from 113,029,280 down to 79,339,680 bytes, by the flags of `release-files`, 2026-11-12: `api` itself provides the Anthropic adapter, and `openai-go/v3` and `coder/websocket` left the binary's modules, and `openai` is not in it. This measurement was not in architecture: it is in R54 and in the body of T45 of the archive E3; T62 moved it here so that the history of the size is in one place.
 
-## 2. Первое приложение
+## 2. The first app
 
-Автор прошёл путь первого приложения в браузере, локально: `app` и `api` на одной машине, preflight — местный, а проверка токена, база и поставщик ИИ — по сети, как в развёртывании (architecture 3.9). Время — время сервера по журналу `serve`: вердикт — `request.duration_ms` у `SubmitWork`, чтение — `ai_usage.duration_ms` у вызова чтения, одно на обе модели пары. База — Neon `aws-us-east-1` из машины автора, так что накладные — свойство локального запуска.
+The author walked the first app's path in a browser, locally: `app` and `api` on one machine, preflight local, and the token check, the database and the AI provider over the network, as in a deployment (architecture 3.9). The time is the server's time by the log of `serve`: the verdict is `request.duration_ms` of `SubmitWork`, the reading is `ai_usage.duration_ms` of the reading call, one for both models of the pair. The database is Neon `aws-us-east-1` from the author's machine, so the overhead is a property of the local run.
 
-### 2.1. Вердикт, выбор движка и цена проверки, T42, 2026-11-12
+### 2.1. The verdict, the engine choice and the price of a check, T42, 2026-11-12
 
-Для поправки 2026-11-12 к R19 и оценок architecture 3.6 и 3.9. Первая сборка с `app`, `tutor` v0.1.21: 112 запросов, 10 проверок рукописью — все дошли до Anthropic, и обе модели пары ответили, — слова ступени запасным текстом, 3 выбора движка (T42):
+For the 2026-11-12 amendment to R19 and the estimates of architecture 3.6 and 3.9. The first build with `app`, `tutor` v0.1.21: 112 requests, 10 checks by handwriting — all reached Anthropic, and both models of the pair answered —, the words of a rung by fallback text, 3 engine choices (T42):
 
-| Что | p50 | Разброс |
+| What | p50 | Spread |
 |---|---|---|
-| вердикт — `SubmitWork` целиком | 9,3 с | 6,3–17,9 с |
-| чтение парой Opus 5.5 · `high` и Haiku 5.5 · `medium` | 6,7 с | 3,3–15,2 с |
-| остальное в `SubmitWork` — токен, база и проверки | 2,7 с | 1,5–9,7 с, первая отправка — самая долгая |
-| второй запрос без вызова — `GetRungWords` с запасным текстом | 1,2 с | 1,2 с |
-| выбор движка — `ChooseNext`, верхняя граница чтения его входа | 2,5 с | 1,7–4,3 с |
-| конец урока с выбором — `CompleteLesson` | 2,0 с | 1,8–2,2 с |
+| the verdict — `SubmitWork` as a whole | 9.3 s | 6.3–17.9 s |
+| the reading by the pair Opus 5.5 · `high` and Haiku 5.5 · `medium` | 6.7 s | 3.3–15.2 s |
+| the rest in `SubmitWork` — the token, the database and the checks | 2.7 s | 1.5–9.7 s, the first submission the longest |
+| the second request without a call — `GetRungWords` with fallback text | 1.2 s | 1.2 s |
+| the engine choice — `ChooseNext`, an upper bound on reading its input | 2.5 s | 1.7–4.3 s |
+| the end of a lesson with a choice — `CompleteLesson` | 2.0 s | 1.8–2.2 s |
 
-- Haiku 5.5 · `medium` думает 286–1047 токенов, p50 681, а Opus 5.5 · `high` — 0–462, p50 201. Время `ai_usage` одно на пару, поэтому какая модель держит чтение, журнал не говорит.
-- Оценка architecture 3.9 — вердикт после чтения, ≈ 3–4 с, — а замер больше её втрое. Почему чтение дольше судьи `tutor`, — вопрос В53; куда лёг ответ, называет R62.
-- Цена: 10 проверок — Opus 14 631 токен входа и 3 688 выхода, Haiku — 14 631 и 8 256. По ценам, сверенным 2026-11-11, это $0,138, ≈ $0,014 за проверку против оценки $0,0086 (architecture 3.6), и больше всего — выход Opus.
+- Haiku 5.5 · `medium` thinks 286–1047 tokens, p50 681, and Opus 5.5 · `high` 0–462, p50 201. The time of `ai_usage` is one for the pair, so the log does not say which model holds up the reading.
+- The estimate of architecture 3.9 — the verdict after the reading, ≈ 3–4 s — and the measurement is three times larger. Why the reading is longer than the judge of `tutor` is the question В53; where the answer went is named by R62.
+- The price: 10 checks — Opus 14,631 input tokens and 3,688 output, Haiku 14,631 and 8,256. By the prices checked 2026-11-11 this is $0.138, ≈ $0.014 per check against the estimate of $0.0086 (architecture 3.6), and the most of it is Opus's output.
 
-### 2.2. Слова наставника, T45, 2026-11-12
+### 2.2. The tutor's words, T45, 2026-11-12
 
-Для R54 и поправки 2026-11-12 к R19. Второй прогон с `app`, на `tutor` v0.1.24: новый аккаунт, 8 проверок рукописью, 3 слова ступени, 3 «объясни иначе», «подскажи» и 2 «слов после верного ответа» — они ожидаемо «не допущен» (T45):
+For R54 and the 2026-11-12 amendment to R19. The second run with `app`, on `tutor` v0.1.24: a new account, 8 checks by handwriting, 3 words of a rung, 3 "explain differently", "Hint" and 2 "correct answer words" — they are, as expected, "not admitted" (T45):
 
-| Что | p50 | Разброс |
+| What | p50 | Spread |
 |---|---|---|
-| вердикт — `SubmitWork` целиком, 8 проверок | 5,3 с | 4,2–6,1 с |
-| чтение парой | 3,0 с | 2,7–4,0 с |
-| слова ступени — `GetRungWords`, 3 вызова | 10,6 с | 9,8–12,7 с |
-| из них вызов Opus 5.5 · `high` | 7,9 с | 7,4–11,1 с |
-| «объясни иначе» — `ExplainDifferently`, 3 вызова | 8,7 с | 7,5–8,9 с |
+| the verdict — `SubmitWork` as a whole, 8 checks | 5.3 s | 4.2–6.1 s |
+| the reading by the pair | 3.0 s | 2.7–4.0 s |
+| the words of a rung — `GetRungWords`, 3 calls | 10.6 s | 9.8–12.7 s |
+| of them, the call of Opus 5.5 · `high` | 7.9 s | 7.4–11.1 s |
+| "explain differently" — `ExplainDifferently`, 3 calls | 8.7 s | 7.5–8.9 s |
 
-- Вердикт пришёл быстрее, чем в первом прогоне: Haiku думал меньше. Слова — вдвое дольше оценки ≈ 5 с (architecture 3.9). Почему слова дольше замера `tutor`, — вопрос В54; куда лёг ответ, называет R62.
-- Источник слов, по `attempt_rungs` в dev-базе: все 3 слова ступени — от модели, «объясни иначе» — 2 от модели и 1 запасным текстом: не прошла проверка утечки или формы.
-- Цена — слова $0,132 за 6 вызовов, чтения $0,078 за 8, всего ≈ $0,21.
+- The verdict came faster than in the first run: Haiku thought less. The words take twice the estimate of ≈ 5 s (architecture 3.9). Why the words are longer than the measurement of `tutor` is the question В54; where the answer went is named by R62.
+- The source of the words, by `attempt_rungs` in the dev database: all 3 words of a rung from the model, "explain differently" 2 from the model and 1 by fallback text: the leak check or the form check failed.
+- The price — the words $0.132 for 6 calls, the readings $0.078 for 8, in all ≈ $0.21.
 
-## 3. Квота ИИ платформы с `app`, T52, 2026-11-12
+## 3. Platform AI quota with `app`, T52, 2026-11-12
 
-Для R55–R59 и architecture 3.6. Прогон на dev-проекте: аккаунт автора на тарифе `probe` — потолки профиля и аккаунта $0,08 и $0,10, типичная задача — $0,06, — исчерпание, исход «квота» и смена тарифа командой. Первые сутки — автор в браузере, вторые — исполнитель теми же запросами, что шлёт `app`, через `curl`, токеном пользователя автора, а рукопись — синтетический PNG с цифрами (T52). Цены Anthropic сверены 2026-11-12 — Opus 5.5 — $4 и $20 за MTok входа и выхода, Haiku 5.5 — $0,10 и $0,50, — те же, что в sources 7.1.
+For R55–R59 and architecture 3.6. A run on the dev project: the author's account on the tariff `probe` — the caps of the profile and the account $0.08 and $0.10, a typical task $0.06 —, running out, the outcome "quota" and a change of tariff by a command. The first day — the author in a browser, the second — the executor with the same requests that `app` sends, through `curl`, with the token of the author's user, and the handwriting a synthetic PNG with digits (T52). Anthropic's prices were checked 2026-11-12 — Opus 5.5 $4 and $20 per MTok of input and output, Haiku 5.5 $0.10 and $0.50 —, the same as in sources 7.1.
 
-- **Первые сутки** — по смещению −6 ч, которое `app` прислал первым запросом: 4 проверки — одна «не получается прочитать», «читается двояко», — 2 слова от модели; затем слова ступени — запасной текст, а «объясни иначе» — «Время наставника на сегодня кончилось. Оно вернётся в 00:00».
-- **Вторые сутки:** после полуночи проверки снова пошли. На `probe` новая задача рукописью не начинается, когда у профиля потрачено и в резерве больше $0,02: «заново» началось при $0,0145, а при $0,0217 — отказ `resource_exhausted` `CAUSE_QUOTA` со следующими сутками, 2026-11-13 06:00 UTC, и то же у звена урока. Начатая попытка — 8 проверок, затем «без проверки»: ячейка `unchecked`, исход `CAUSE_QUOTA`, неверных ответов не прибавилось. После `just dev tariff -tariff closed_slice` новая задача рукописью началась в тех же сутках.
-- **Цена прогона** — $0,1518: 15 проверок — $0,1203, слово ступени — $0,0185, «объясни иначе» — $0,0130; проверка парой — $0,0072–0,0135.
-- **Время:** чтение — p50 2,4 с, 1,8–8,9 с, `SubmitWork` целиком — p50 4,6 с.
-- **Счётчики:** в выгрузке — $0,068326 у профиля и $0,083508 у аккаунта, в резерве — ноль; счётчики сходятся с суммой `cost_micro_usd` журнала до микродоллара.
-- **Журнал `serve`** — 98 строк JSON, без UID, email, ключей, токена и строк подключения; `quota_exhausted` — 4 строки с потолком `profile`, `platform_limit` — ни одной.
+- **The first day** — by the offset −6 h that `app` sent with its first request: 4 checks — one "unreadable", "ambiguous" —, 2 words from the model; then the words of a rung — fallback text, and "explain differently" — «Время наставника на сегодня кончилось. Оно вернётся в 00:00».
+- **The second day:** after midnight the checks went again. On `probe` a new task by handwriting does not start when the profile has more than $0.02 spent and reserved: "again" started at $0.0145, and at $0.0217 — the refusal `resource_exhausted` `CAUSE_QUOTA` with the next day, 2026-11-13 06:00 UTC, and the same for a lesson's segment. The attempt already started — 8 checks, then "unchecked": the slot `unchecked`, the outcome `CAUSE_QUOTA`, no wrong answers added. After `just dev tariff -tariff closed_slice` a new task by handwriting started on the same day.
+- **The price of the run** — $0.1518: 15 checks — $0.1203, a word of a rung — $0.0185, "explain differently" — $0.0130; a check by the pair — $0.0072–0.0135.
+- **Time:** the reading — p50 2.4 s, 1.8–8.9 s, `SubmitWork` as a whole — p50 4.6 s.
+- **Counters:** in the export — $0.068326 for the profile and $0.083508 for the account, nothing reserved; the counters agree with the sum of `cost_micro_usd` of the log to the microdollar.
+- **The log of `serve`** — 98 lines of JSON, without UID, email, keys, the token and connection strings; `quota_exhausted` — 4 lines with the cap `profile`, `platform_limit` — none.
