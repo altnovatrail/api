@@ -157,7 +157,7 @@ Work in the devcontainer: open the repository in VS Code and choose "Reopen in C
 
 ## Documents
 
-The documents are in Russian until their translation into English, tasks T63 and T64 of the work plan; the work plan, its technical debt and the archives of its epics stay in Russian.
+The documents are in English, but for the decision log, which is in Russian until its translation, task T64 of the work plan; the work plan, its technical debt and the archives of its epics stay in Russian.
 
 - [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links, what was decided and how the service is built.
 - [docs/sources.md](docs/sources.md) — the external facts the documents rest on: each source with its address, the date it was read and a quote.
