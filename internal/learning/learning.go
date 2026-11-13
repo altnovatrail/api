@@ -283,6 +283,7 @@ const (
 	closeLeft      = "left"
 	closeUnchecked = "unchecked"
 	closeAbandoned = "abandoned"
+	closeDone      = "done"
 )
 
 // closeReasons is each close reason of the schema in the contract's words.
@@ -293,7 +294,7 @@ var closeReasons = map[string]v1.CloseReason{
 	closeAbandoned: v1.CloseReason_CLOSE_REASON_ABANDONED,
 	closeUnchecked: v1.CloseReason_CLOSE_REASON_UNCHECKED,
 	"not_suitable": v1.CloseReason_CLOSE_REASON_NOT_SUITABLE,
-	"done":         v1.CloseReason_CLOSE_REASON_DONE,
+	closeDone:      v1.CloseReason_CLOSE_REASON_DONE,
 }
 
 // refused answers what a request met: a refusal of the contract as it is, the

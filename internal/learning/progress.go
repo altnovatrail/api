@@ -11,6 +11,7 @@ import (
 
 	"connectrpc.com/connect/v2"
 	learnermodel "github.com/altnovatrail/learner-model"
+	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
@@ -262,7 +263,7 @@ func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRe
 			answer.NextPageToken = tokenOf(store.Cursor{StartedAt: last.StartedAt, ID: last.ID})
 		}
 		for _, r := range records {
-			answer.Attempts = append(answer.Attempts, attemptRecord(r))
+			answer.Attempts = append(answer.Attempts, attemptRecord(r, s.set.Packages[formatv0.Digest(r.PackageDigest)]))
 		}
 		if after != nil {
 			return nil
@@ -289,21 +290,65 @@ func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRe
 	return answer, nil
 }
 
-// attemptRecord is the attempt r in the progress.
-func attemptRecord(r store.Record) *v1.AttemptRecord {
+// solvedBy is the close reasons of an attempt solved: those whose progress names
+// the skills its task trains (R99 spec).
+var solvedBy = map[string]bool{closeCorrect: true, closeShown: true, closeDone: true}
+
+// attemptRecord is the attempt r in the progress, with the titles of pkg, the
+// package it went on: of its lesson, and of the skills of its task once it is
+// solved. pkg is nil when the image no longer holds it, and the titles are
+// empty (R99 spec).
+func attemptRecord(r store.Record, pkg *modulepackage.Package) *v1.AttemptRecord {
 	out := &v1.AttemptRecord{
 		Task: model.TaskID(formatv0.ModuleID(r.ModuleID), formatv0.TaskID(r.TaskID)), ModuleVersion: r.ModuleVersion,
 		WrongAnswers: int32(r.WrongAnswers), BegunAt: timestamppb.New(r.StartedAt),
 	}
 	if r.LessonID != nil {
 		out.Lesson = *r.LessonID
+		if pkg != nil {
+			if lesson, ok := lessonOf(pkg, *r.LessonID); ok {
+				out.LessonTitle = string(lesson.Title)
+			}
+		}
 	}
 	if r.CloseReason != nil {
 		out.CloseReason = closeReasons[*r.CloseReason]
 		out.ClosedAt = timestamppb.New(*r.ClosedAt)
+		if pkg != nil && solvedBy[*r.CloseReason] {
+			if task, ok := pkg.View.Tasks[formatv0.TaskID(r.TaskID)]; ok {
+				out.SkillTitles = skillTitles(pkg.View.SkillGraph, task)
+			}
+		}
 	}
 	if r.ChosenAt != nil {
 		out.ChosenAt, out.ReasonCode = timestamppb.New(*r.ChosenAt), v1.ReasonCode(*r.ReasonCode)
+	}
+	return out
+}
+
+// skillTitles is the titles in graph of the skills the task trains: the primary
+// skills of its items, each item's own or else the task's, each once, in the
+// order of the items and of their lists (contract, AttemptRecord) — not
+// primarySkills, which sorts them.
+func skillTitles(graph *formatv0.SkillGraph, task formatv0.Task) []string {
+	if graph == nil {
+		return nil
+	}
+	seen := map[formatv0.SkillID]bool{}
+	var out []string
+	for _, item := range task.Items {
+		primary := task.Skills.Primary
+		if item.Skills != nil {
+			primary = item.Skills.Primary
+		}
+		for _, id := range primary {
+			skill, ok := graph.Skills[id]
+			if !ok || seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, string(skill.Title))
+		}
 	}
 	return out
 }

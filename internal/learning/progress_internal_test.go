@@ -10,6 +10,7 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 
+	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/store"
 )
 
@@ -55,6 +56,65 @@ func TestAMasteredSkillHasItsReview(t *testing.T) {
 	// A module with no graph has no skills on its map.
 	if m := skillMap(formatv0.CanonicalView{}, "sha256:x", learnermodel.Readout{}, nil); len(m.GetSkills()) != 0 || m.GetPackageDigest() != "sha256:x" {
 		t.Errorf("the map of a module with no graph = %v", m)
+	}
+}
+
+// The skills of an attempt solved are its items' own primary skills, or else
+// the task's, each once, in the order of the items and of their lists; a skill
+// the graph does not know has no title, and a module with no graph names none.
+func TestTheSkillsOfATaskComeInTheOrderOfItsItems(t *testing.T) {
+	t.Parallel()
+
+	graph := &formatv0.SkillGraph{Skills: map[formatv0.SkillID]formatv0.Skill{
+		"adding": {Title: "Adding"}, "comparing": {Title: "Comparing"}, "telling": {Title: "Telling"},
+	}}
+	task := formatv0.Task{Skills: formatv0.Skills{Primary: []formatv0.SkillID{"comparing", "adding"}}, Items: []formatv0.Item{
+		{Skills: &formatv0.Skills{Primary: []formatv0.SkillID{"telling", "comparing"}}},
+		{},
+		{Skills: &formatv0.Skills{Primary: []formatv0.SkillID{"unknown", "telling"}}},
+	}}
+	if got, want := skillTitles(graph, task), []string{"Telling", "Comparing", "Adding"}; !slices.Equal(got, want) {
+		t.Errorf("the titles = %q, want %q", got, want)
+	}
+	if got := skillTitles(nil, task); got != nil {
+		t.Errorf("the titles with no graph = %q, want none", got)
+	}
+}
+
+// An attempt names its lesson's title, open or closed, and the titles of its
+// task's skills only once it is solved — by a correct answer, the solution
+// shown or "done"; on a package the image no longer holds it names neither.
+func TestAnAttemptNamesItsSkillsOnceSolved(t *testing.T) {
+	t.Parallel()
+
+	pkg := packagestest.Own(t, "choices")
+	lesson, at := "example/choices/lesson/basics", time.Now()
+	for reason, solved := range map[string]bool{
+		"": false, closeCorrect: true, closeShown: true, closeDone: true,
+		closeLeft: false, closeAbandoned: false, closeUnchecked: false, "not_suitable": false,
+	} {
+		r := store.Record{ModuleID: "example/choices", TaskID: "pick", LessonID: &lesson, StartedAt: at}
+		if reason != "" {
+			r.CloseReason, r.ClosedAt = &reason, &at
+		}
+		got := attemptRecord(r, pkg)
+		want := []string(nil)
+		if solved {
+			want = []string{"Adding"}
+		}
+		if got.GetLessonTitle() != "Choosing and adding" || !slices.Equal(got.GetSkillTitles(), want) {
+			t.Errorf("closed %q: the lesson %q, the skills %q; want Choosing and adding, %q", reason, got.GetLessonTitle(), got.GetSkillTitles(), want)
+		}
+		if gone := attemptRecord(r, nil); gone.GetLessonTitle() != "" || len(gone.GetSkillTitles()) != 0 || gone.GetLesson() != lesson {
+			t.Errorf("closed %q, on a package gone: %v", reason, gone)
+		}
+	}
+
+	// A lesson or a task the package does not have is named by nothing.
+	other, reason := "example/choices/lesson/none", closeCorrect
+	r := store.Record{ModuleID: "example/choices", TaskID: "none", LessonID: &other, CloseReason: &reason, ClosedAt: &at, StartedAt: at}
+	if got := attemptRecord(r, pkg); got.GetLessonTitle() != "" || len(got.GetSkillTitles()) != 0 {
+		t.Errorf("an attempt of what the package has not = %v", got)
 	}
 }
 
