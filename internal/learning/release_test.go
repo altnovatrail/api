@@ -53,7 +53,7 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	}
 
 	w := worldOn(t, set, gate(t, adultFacts, config.RungAuthor), nil)
-	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryAdult)
+	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryAdult, "")
 	if err != nil || len(pool) == 0 || lessons != len(pkg.View.Lessons) {
 		t.Errorf("the engine gets %d tasks and %d lessons of %d of %s, %v; want every lesson", len(pool), lessons,
 			len(pkg.View.Lessons), releaseModule, err)

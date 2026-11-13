@@ -295,3 +295,49 @@ func TestAChoiceOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 		})
 	}
 }
+
+// The provider of an own key is named by the owner's profile of an adult alone:
+// a child's that names one is refused at every request whose answer may give
+// an engine's choice, before anything is read or written (R65).
+func TestAChildNamesNoProvider(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	l := w.learner(t)
+	open := w.begin(t, l, l.child, "pick").GetAttemptId()
+	run, choice := uuid.NewString(), uuid.NewString()
+	const own = "anthropic"
+	for name, call := range map[string]func() error{
+		"ChooseNext": func() error {
+			_, err := w.learning.ChooseNext(l.ctx, &v1.ChooseNextRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(), OwnKeyProvider: own})
+			return err
+		},
+		"OpenLesson": func() error {
+			_, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.child, ChoiceId: choice, OwnKeyProvider: own})
+			return err
+		},
+		"GetLessonRun": func() error {
+			_, err := w.learning.GetLessonRun(l.ctx, &v1.GetLessonRunRequest{ProfileId: l.child, LessonRunId: run, OwnKeyProvider: own})
+			return err
+		},
+		"CompleteLesson": func() error {
+			_, err := w.learning.CompleteLesson(l.ctx, &v1.CompleteLessonRequest{ProfileId: l.child, LessonRunId: run, OwnKeyProvider: own})
+			return err
+		},
+		"Done": func() error {
+			_, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: l.child, AttemptId: open, OwnKeyProvider: own})
+			return err
+		},
+		"ShowSolution": func() error {
+			_, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.child, AttemptId: open,
+				IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING, OwnKeyProvider: own})
+			return err
+		},
+	} {
+		err := call()
+		t.Run(name, func(t *testing.T) { refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE) })
+	}
+	if got := w.closeOf(t, open); got != "" {
+		t.Errorf("the open attempt is closed %q, want it open", got)
+	}
+}
