@@ -68,7 +68,8 @@ const (
 	EventAdmission = "admission"
 	// EventAIUsage is the line of what one model of a call of AI took, beside the
 	// line of the request that made the call (R12, R46): the method, the provider
-	// and the model, its tokens, how the call ended and how long it took — never
+	// and the model, its tokens, how the call ended and how long it took, and the
+	// model's own time, retries and first text (R107 tutor) — never
 	// the work, what was read or what failed in its words.
 	EventAIUsage = "ai_usage"
 	// EventQuotaExhausted is the line of a call of platform AI that the quota did
@@ -161,6 +162,15 @@ const (
 	FieldCostMicroUSD = "cost_micro_usd"
 	// FieldBilled says the tokens of a call of a model are its whole bill.
 	FieldBilled = "billed"
+	// FieldModelMS is how long a call of one model took at tutor, its SDK's
+	// retries counted in (Usage.Latency; R107 tutor): of a pair, which reader
+	// held the call, beside the call's own duration_ms.
+	FieldModelMS = "model_ms"
+	// FieldRetries is how many times the SDK sent a call of a model again.
+	FieldRetries = "retries"
+	// FieldFirstTokenMS is when the first text of a model's answer came, from
+	// the attempt that answered: 0 where none came.
+	FieldFirstTokenMS = "first_token_ms"
 	// FieldQuotaCap is the cap of the quota a call met: a word of QuotaCaps.
 	FieldQuotaCap = "quota_cap"
 	// FieldWasClosed says platform AI was closed when the operator opened it.
@@ -240,7 +250,7 @@ var events = map[string][]string{
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
 	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
-		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled},
+		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled, FieldModelMS, FieldRetries, FieldFirstTokenMS},
 	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
 	EventPlatformLimit:    {FieldMethod},
 	EventPlatformAIOpened: {FieldWasClosed},
@@ -305,6 +315,9 @@ var fields = map[string]rule{
 	FieldWordsCheck:     {kind: slog.KindString, values: WordsChecks},
 	FieldCostMicroUSD:   {kind: slog.KindInt64},
 	FieldBilled:         {kind: slog.KindBool},
+	FieldModelMS:        {kind: slog.KindInt64},
+	FieldRetries:        {kind: slog.KindInt64},
+	FieldFirstTokenMS:   {kind: slog.KindInt64},
 	FieldQuotaCap:       {kind: slog.KindString, values: QuotaCaps},
 	FieldWasClosed:      {kind: slog.KindBool},
 }

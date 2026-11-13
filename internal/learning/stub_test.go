@@ -42,8 +42,10 @@ func newStubWorld(t *testing.T) (*world, *admission.Gate) {
 // provider (R66): a square crop is illegible, a tall crop reads a wrong value,
 // the rung's words are the stub's and pass the checks, "explain differently"
 // gives other words, and a wide crop reads the right value and solves the task.
-// Each call spends what tutor expects it to cost, the reserve it took, so
-// nothing is left in reserve; the log names the model stub.
+// Each call spends what tutor expects it to cost, the reserve it took, and
+// "explain differently", the hint without the work that tutor expects no price
+// of (R106 tutor), keeps the value of its kind as spent (R12): nothing is left
+// in reserve. The log names the model stub.
 func TestThePathRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 
@@ -88,7 +90,8 @@ func TestThePathRunsOnTheStub(t *testing.T) {
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
 	sheetPrice := quota.USD(g.Price(tutor.CallSheet, adult).ExpectedUSD)
 	wordsPrice := quota.USD(g.Price(tutor.CallWords, adult).ExpectedUSD)
-	want := quota.Counter{Spent: 3*sheetPrice + 2*wordsPrice}
+	hintReserve := quota.Reserve(tutor.CallHint, g.Price(tutor.CallHint, adult), 1)
+	want := quota.Counter{Spent: 3*sheetPrice + wordsPrice + hintReserve}
 	if profile, account := w.counted(t, l.accountID, l.adult); sheetPrice == 0 || wordsPrice == 0 || profile != want || account != want {
 		t.Errorf("the counters = %+v, %+v; want %+v, the expected prices, and nothing in reserve", profile, account, want)
 	}

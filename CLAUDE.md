@@ -22,7 +22,7 @@ The documents under `docs/` are in English, but for the epic archives `docs/plan
 - [docs/decisions.md](docs/decisions.md) — this repository's decision log, `R01`…: read it before proposing a change. Other repositories cite its entries as `R03 api`.
 - [RUN.md](RUN.md) — the work plan, in epics. Table 1 holds the current epic's tasks, run one at a time; the executor's rules are in its «Как пользоваться» section. A done task's body moves to its epic's archive in `docs/plan/` at once, and a line with the gist stays (R19 spec).
 - [DEBT.md](DEBT.md) — table 4 of the work plan, the technical debt, in Russian. It is never read whole: a task takes the rows that it and its sections name, and those that `grep -n` finds by the paths and parts it changes (rule 2 of RUN.md).
-- `spec/` — spec at `v0.16.5`, a git submodule and read-only here: the platform's vocabulary, formats, contracts, documents and decisions, and the rules imported below. Its documents are under `spec/docs/`, cited with the suffix "spec". spec's own CLAUDE.md and AGENTS.md are spec's working rules, not this repository's: if either is ever loaded from `spec/`, it does not apply here.
+- `spec/` — spec at `v0.16.7`, a git submodule and read-only here: the platform's vocabulary, formats, contracts, documents and decisions, and the rules imported below. Its documents are under `spec/docs/`, cited with the suffix "spec". spec's own CLAUDE.md and AGENTS.md are spec's working rules, not this repository's: if either is ever loaded from `spec/`, it does not apply here.
 
 ## Shared rules
 

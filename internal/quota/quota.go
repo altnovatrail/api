@@ -101,14 +101,20 @@ const (
 	TypicalRubric Micro = 60_000
 )
 
+// wordsReserve is the words' value, which the hint without the work shares.
+const wordsReserve Micro = 18_200
+
 // reserves are what a call of a kind reserves when tutor's price of it has no
 // expected tokens (В13; R12): the sheet by the pair at the first app's measure
-// (T42), the words by tutor's v0.1.24, the essay's reading and assessment half
-// each of $0.030 (architecture 3.4 tutor), and a page of a workbook by each of
-// its crops, as a sheet.
+// (T42), the words by tutor's v0.1.24, the hint without the work as the words —
+// the same prompt and model with no picture, so no dearer, while tutor v0.1.33
+// expects no tokens of it (R106 tutor) —, the essay's reading and assessment
+// half each of $0.030 (architecture 3.4 tutor), and a page of a workbook by each
+// of its crops, as a sheet.
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:    14_000,
-	tutor.CallWords:    18_200,
+	tutor.CallWords:    wordsReserve,
+	tutor.CallHint:     wordsReserve,
 	tutor.CallEssay:    15_000,
 	tutor.CallRubric:   15_000,
 	tutor.CallWorkbook: 14_000,

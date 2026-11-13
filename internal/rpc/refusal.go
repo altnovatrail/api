@@ -84,7 +84,8 @@ type AICall struct {
 }
 
 // AIUsage is what one call of a model took: its provider and model, its tokens
-// and what they cost.
+// and what they cost, and how long it took at tutor, how many times its SDK
+// sent it again and when its first text came (R107 tutor).
 type AIUsage struct {
 	Provider, Model                           string
 	InputTokens, OutputTokens, ThinkingTokens int64
@@ -92,6 +93,10 @@ type AIUsage struct {
 	// false: its tokens are not its whole bill (R12).
 	CostMicroUSD int64
 	Billed       bool
+	// Took is the model's own time, its retries counted in; FirstToken, 0 where
+	// no text came.
+	Took, FirstToken time.Duration
+	Retries          int
 }
 
 // NoteAICall adds a call of AI to the request's log: a line of each model's

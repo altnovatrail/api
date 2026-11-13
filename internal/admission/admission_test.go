@@ -209,8 +209,10 @@ func TestTheGateReadsByTutor(t *testing.T) {
 // at the author's stage, for an adult, by the platform's key of Anthropic or an
 // own key of Anthropic, the hint and the analysis with the work alike; at the
 // stage full, for a child, with no key of the platform, or by a provider api
-// gives no adapter of, they are not. The call of words with no task asks no
-// model.
+// gives no adapter of, they are not. Either is admitted exactly when the
+// choice of its kind of call by the gate's tutor gives an entry: the hint
+// without the work by CallHint, the words with it by CallWords (R106, R111
+// tutor). The call of words with no task asks no model.
 func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	t.Parallel()
 
@@ -232,9 +234,21 @@ func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			g := load(t, tc.cfg)
-			for _, withWork := range []bool{false, true} {
-				if got := g.Words(withWork, tc.category, tc.provider); got != tc.want {
+			route := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(tc.category)}
+			if tc.provider != "" {
+				route.AI, route.Own = admissionv0.AiRouteOwnKey, tutor.NewOwnKey(admissionv0.Provider(tc.provider), "own key")
+			}
+			for withWork, call := range map[bool]tutor.Call{false: tutor.CallHint, true: tutor.CallWords} {
+				if got := admission.WordsCall(withWork); got != call {
+					t.Errorf("WordsCall(%v) = %s, want %s", withWork, got, call)
+				}
+				got := g.Words(withWork, tc.category, tc.provider)
+				if got != tc.want {
 					t.Errorf("Words(%v, %s, %q) = %v, want %v", withWork, tc.category, tc.provider, got, tc.want)
+				}
+				entry, _, err := admission.TutorOf(g).ChooseCall(call, route)
+				if chosen := err == nil && len(entry.Models) > 0; got != chosen {
+					t.Errorf("Words(%v) = %v, but ChooseCall(%s) chose an entry: %v", withWork, got, call, chosen)
 				}
 			}
 		})
@@ -279,6 +293,11 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
 			t.Errorf("the price of %s for an adult = %+v, want an expected price of cents", call, p)
 		}
+	}
+	// The hint without the work has no expected tokens at tutor (R106 tutor), so
+	// the quota reserves its own value of the kind.
+	if p := g.Price(tutor.CallHint, adult); p.Expected || !p.Worst || p.WorstUSD <= 0 {
+		t.Errorf("the price of a hint without the work = %+v, want its worst alone", p)
 	}
 	child := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(formatv0.AgeCategoryUnder13)}
 	if p := g.Price(tutor.CallSheet, child); p.Expected || p.ExpectedUSD != 0 {

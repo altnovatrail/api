@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -116,6 +117,13 @@ type telling struct {
 	reserve reserve
 }
 
+// wordsCall is the kind of call the words of t make, by the request they will
+// send: the words with the work when the crop goes, the hint without it else
+// (R106 tutor), as tutor picks it. The quota reserves by it.
+func wordsCall(t telling) tutor.Call {
+	return admission.WordsCall(len(t.request.Crop) > 0)
+}
+
 // call calls the words of t, when it has no answer ready, until finishReserve
 // before the request's deadline, and notes the call in the request's log. The
 // crop goes no further than the call.
@@ -143,7 +151,7 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 	for _, u := range o.Usage {
 		call.Usage = append(call.Usage, rpc.AIUsage{Provider: string(u.Provider), Model: u.Model,
 			InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, ThinkingTokens: u.ThinkingTokens,
-			CostMicroUSD: int64(quota.USD(u.USD)), Billed: u.Billed})
+			CostMicroUSD: int64(quota.USD(u.USD)), Billed: u.Billed, Took: u.Latency, Retries: u.Retries, FirstToken: u.FirstToken})
 	}
 	rpc.NoteAICall(ctx, call)
 }
@@ -307,7 +315,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted && t.ready == nil {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallWords, t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
 		}
 		return t, err
 	}
@@ -497,7 +505,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallWords, t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
 		}
 		if err == nil && t.reserve.refused != nil {
 			// "Explain differently" makes no call without the reserve, and the right stays.

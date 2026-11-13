@@ -99,7 +99,8 @@ func (a *accounts) CreateAccount(ctx context.Context, _ *v1.CreateAccountRequest
 	if a.ai {
 		rpc.NoteOutcome(ctx, v1.Cause_CAUSE_AI_FAILURE)
 		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "answered", Duration: 1500 * time.Millisecond, Usage: []rpc.AIUsage{
-			{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 1200, OutputTokens: 40, ThinkingTokens: 300},
+			{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 1200, OutputTokens: 40, ThinkingTokens: 300,
+				Took: 1400 * time.Millisecond, Retries: 1, FirstToken: 900 * time.Millisecond},
 		}})
 		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "not_admitted"})
 	}
@@ -714,8 +715,9 @@ func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
 }
 
 // A request that called AI names the cause of its outcome in its line, and
-// each model of each call has a line of its usage — or, when no model
-// answered, one line of how the call ended (R46).
+// each model of each call has a line of its usage, with its own time, retries
+// and first text (R107 tutor) — or, when no model answered, one line of how the
+// call ended (R46).
 func TestTheCallsOfAIAreLoggedBesideTheirRequest(t *testing.T) {
 	t.Parallel()
 
@@ -728,7 +730,7 @@ func TestTheCallsOfAIAreLoggedBesideTheirRequest(t *testing.T) {
 	log := w.log.String()
 	for _, want := range []string{
 		`"outcome_cause":"CAUSE_AI_FAILURE"`,
-		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","provider":"anthropic","model":"claude-opus-5-5","input_tokens":1200,"output_tokens":40,"thinking_tokens":300,"ai_outcome":"answered","duration_ms":1500`,
+		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","provider":"anthropic","model":"claude-opus-5-5","input_tokens":1200,"output_tokens":40,"thinking_tokens":300,"ai_outcome":"answered","duration_ms":1500,"cost_micro_usd":0,"billed":false,"model_ms":1400,"retries":1,"first_token_ms":900`,
 		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","ai_outcome":"not_admitted","duration_ms":0`,
 	} {
 		if !strings.Contains(log, want) {
