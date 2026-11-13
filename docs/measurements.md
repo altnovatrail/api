@@ -72,3 +72,46 @@ For R55–R59 and architecture 3.6. A run on the dev project: the author's accou
 - **Time:** the reading — p50 2.4 s, 1.8–8.9 s, `SubmitWork` as a whole — p50 4.6 s.
 - **Counters:** in the export — $0.068326 for the profile and $0.083508 for the account, nothing reserved; the counters agree with the sum of `cost_micro_usd` of the log to the microdollar.
 - **The log of `serve`** — 98 lines of JSON, without UID, email, keys, the token and connection strings; `quota_exhausted` — 4 lines with the cap `profile`, `platform_limit` — none.
+
+## 4. Keeping the savings
+
+For R145 spec and R63: the budgets of size that `docs-check-repo` measures by [docs-budgets.json](../docs-budgets.json), and the tokens of the sessions, a row at each epic's archive (RUN.md, «Как устроен план: эпики»). The first row, T65, measures the sessions T61–T65, which moved `api` to the line 0.16 of `spec`, rebuilt its documents and translated them (R62).
+
+### 4.1. Budgets, T65, 2026-11-13
+
+Measured 2026-11-13, after T64, by `docs-check-repo` itself, with every limit of a draft of `docs-budgets.json` set to 1 KB: the check then printed the size of each thing it measures. The largest of each kind, in KB of 1,024 bytes, and the limit of the block `repository` of `spec/tools/docs-check/budgets.json`:
+
+| What | The largest | Limit |
+|---|---|---|
+| CLAUDE.md / RUN.md / `DEBT.md` | 8.9 / 34.1 / 16.7 | 12 / 96 / 128 |
+| a rule of `.claude/rules/` | 2.1, `ci` | 6 |
+| an entry of the decision log, with its amendments | 19.4, R07 | 40 |
+| the own text under a heading, outside the six sections below | 23.5, architecture 3.10; in the other documents 10.0, sources 7.1 | 24 |
+| a row of a table of RUN.md / `DEBT.md` | 1.4 / 2.1, Д26 | 4 / 4 |
+
+Six sections of architecture stayed over 24 KB after T61–T64. Each has a limit of its own in `docs-budgets.json`: its size plus 10–20%, rounded to a whole KB, as R145 spec sets.
+
+| Section | Size, KB | Limit, KB |
+|---|---|---|
+| architecture 1 | 24.9 | 28 |
+| architecture 3.1 | 28.6 | 32 |
+| architecture 3.2 | 30.0 | 34 |
+| architecture 3.3 | 26.6 | 30 |
+| architecture 3.6 | 28.0 | 32 |
+| architecture 3.9 | 54.6 | 62 |
+
+- architecture 3.10 is 0.5 KB under its limit: the next edit that adds to it compresses it, or raises its limit by an edit of `docs-budgets.json`, seen in review (R145 spec).
+- architecture 3.9 is more than twice the limit of a section — about 22 thousand tokens at 2.5 bytes a token (measurements 1.6 spec) — Д36.
+- With the edits of T65, on 2026-11-13, the check measures 181 things.
+
+### 4.2. The sessions' tokens
+
+"Before" is the row `-workspaces-api` of measurements 1.9 spec: 2026-10-13T00:00 … 2026-11-12T14:27, 23 sessions, 6,109 / 4,741 calls of the main session and of subagents, a call's context 371.4 / 104.4 thousand tokens, 17 compactions, $954.57. "After" is `just -f spec/justfile tokens-report --since 2026-11-12T21:19 --row`, from the start of the session of T61: from 00:00 of 2026-11-12, as the text of T65 named it, the window would also take the sessions of T42–T58. The session of T65 is counted to the moment of the measurement.
+
+| Project | Window, UTC | Sessions | Calls, main / subagents | Context of a call, k, main / subagents | Compactions | Cost at API prices |
+|---|---|---|---|---|---|---|
+| `-workspaces-api` — T61–T65 | 2026-11-12T21:19 … 2026-11-13T06:04 | 5 | 546 / 639 | 173.9 / 86.5 | 0 | $62.95 |
+
+- The context of a main call fell from 371.4 to 173.9 thousand, −53%, and of a subagent's from 104.4 to 86.5, −17%. The windows differ in work: "before" is mostly the code of E2–E7, "after" the move to the tag and documents; most subagent calls are the blind reading of the translations of T63 and T64.
+- By session, main calls and a main call's context: T61 — 183, 241.9 thousand; T62 — 125, 196.2; T63 — 91, 112.2; T64 — 96, 116.6; T65 — 51, 93.0.
+- The reference of `api` for the threshold of R145 spec is its measurement after of T124 spec, not this row.
