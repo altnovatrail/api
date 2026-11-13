@@ -101,7 +101,8 @@ func TestTheModelsRowsAreWrittenAndRead(t *testing.T) {
 	}
 
 	page, err := store.ProgressPage(ctx, e.pool, e.profileID, nil, 2)
-	if err != nil || len(page) != 2 || page[0].StartedAt.Before(page[1].StartedAt) {
+	if err != nil || len(page) != 2 || page[0].StartedAt.Before(page[1].StartedAt) ||
+		page[0].PackageDigest != digest || page[1].PackageDigest != digest {
 		t.Fatalf("ProgressPage = %+v, %v", page, err)
 	}
 	rest, err := store.ProgressPage(ctx, e.pool, e.profileID, &store.Cursor{StartedAt: page[1].StartedAt, ID: page[1].ID}, 2)

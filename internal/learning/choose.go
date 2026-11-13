@@ -387,7 +387,7 @@ func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, cate
 	last := map[string]engine.SkillIssue{}
 	for i, a := range closed {
 		task := model.TaskID(formatv0.ModuleID(a.ModuleID), formatv0.TaskID(a.TaskID))
-		if a.CloseReason == "done" {
+		if a.CloseReason == closeDone {
 			in.RubricDone = append(in.RubricDone, engine.RubricDone{Task: task, At: a.ClosedAt.Unix()})
 		}
 		results := s.results(a, graphs)

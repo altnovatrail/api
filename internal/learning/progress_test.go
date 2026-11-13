@@ -325,6 +325,72 @@ func TestTheProgressGivesTheAttemptsAndTheTrapsThatRepeat(t *testing.T) {
 	}
 }
 
+// The progress names an attempt's lesson, open or closed, and the skills of a
+// solved attempt's task, by the package it went on; an attempt left names no
+// skills, and one on a package the image no longer holds names neither.
+func TestTheProgressNamesTheLessonAndTheSkillsSolved(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	l := w.learner(t)
+	gone := "sha256:" + strings.Repeat("0", 64)
+	run := w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
+		VALUES ($1, $2, $3, '1.0.0', $4, $5) RETURNING id`, l.child, module+"/lesson/basics", module, gone, w.lessonChoice(t, l.child, "basics"))
+	w.exec(t, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
+			module_kit_version, task_id, seed, lesson_run_id, segment, close_reason, started_at, closed_at)
+		VALUES ($1, $2, $3, '1.0.0', '0.4', 'v0.3.0', 'pick', 7, $4, 2, 'correct', now() - interval '1 minute', now())`,
+		l.child, gone, module, run)
+	w.exec(t, `UPDATE lesson_runs SET end_reason = 'unchecked', ended_at = now() WHERE id = $1`, run)
+	w.attempt(t, l.child, string(w.current.Digest), "pairs")
+	w.clock.move(time.Minute)
+	w.solve(t, l, l.child)
+	w.clock.move(time.Minute)
+	run = w.open(t, l, l.child, "basics").GetLessonRunId()
+	segment, err := w.segment(l, l.child, run, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.submit(l, l.child, segment.GetAttemptId(), tap(1, 1, "three and four")); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.move(time.Minute)
+	if _, err := w.segment(l, l.child, run, 4); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := w.progress.GetProgress(l.ctx, &v1.GetProgressRequest{ProfileId: l.child})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type named struct {
+		task, lesson string
+		skills       []string
+	}
+	var got []named
+	for _, a := range page.GetAttempts() {
+		got = append(got, named{a.GetTask(), a.GetLessonTitle(), a.GetSkillTitles()})
+	}
+	// The attempts written here begin by the database's clock, the one on the
+	// package gone a minute back, before those the service begins by its own,
+	// moved on.
+	want := []named{
+		{module + "/task/pairs", "Choosing and adding", nil},
+		{module + "/task/pick", "Choosing and adding", []string{"Adding"}},
+		{module + "/task/pick", "", []string{"Adding"}},
+		{module + "/task/pairs", "", nil},
+		{module + "/task/pick", "", nil},
+	}
+	if !slices.EqualFunc(got, want, func(a, b named) bool {
+		return a.task == b.task && a.lesson == b.lesson && slices.Equal(a.skills, b.skills)
+	}) {
+		t.Errorf("the attempts named = %q, want %q", got, want)
+	}
+	if last := page.GetAttempts()[len(page.GetAttempts())-1]; last.GetLesson() != module+"/lesson/basics" ||
+		last.GetCloseReason() != v1.CloseReason_CLOSE_REASON_CORRECT {
+		t.Errorf("the attempt on a package gone = %v", last)
+	}
+}
+
 // A database that fails is unavailable, at each step of the progress and the
 // skill map.
 func TestTheProgressOnADatabaseThatFailsIsUnavailable(t *testing.T) {
