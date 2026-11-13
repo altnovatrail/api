@@ -22,7 +22,7 @@ func WithReader(read func(ctx context.Context, r tutor.SheetReading) tutor.Sheet
 // readerFunc is a function as a sheetReader.
 type readerFunc func(ctx context.Context, r tutor.SheetReading) tutor.SheetRead
 
-func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead {
+func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task) tutor.SheetRead {
 	return f(ctx, r)
 }
 

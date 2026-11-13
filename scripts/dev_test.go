@@ -1,7 +1,7 @@
 // The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, the
-// custom token it signs, and how it tells a task AI reads and sums the counters of the quota. They
-// run the script's own functions in bash, with jq and openssl, as the devcontainer and its toolchain
-// stage, where CI runs the tests, have them.
+// custom token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a
+// task AI reads and sums the counters of the quota. They run the script's own functions in bash, with
+// jq and openssl, as the devcontainer and its toolchain stage, where CI runs the tests, have them.
 package scripts_test
 
 import (
@@ -210,5 +210,28 @@ func TestTheCountersOfAnExportAreSummed(t *testing.T) {
 		if err != nil || strings.TrimSpace(stdout) != tc.want {
 			t.Errorf("%s: counted = %q, %q, %v; want %q", tc.name, stdout, stderr, err, tc.want)
 		}
+	}
+}
+
+// `just dev` runs on the stub of tutor with no key of platform AI from the dev file, and `just
+// dev-ai` and the check with the key and no stub (R66).
+func TestARunIsOnTheStubOrOnTheModels(t *testing.T) {
+	t.Parallel()
+
+	env := []string{"API_ANTHROPIC_KEY=sk-dev", "API_ANTHROPIC_KEY_FILE=/run/secrets/anthropic", "API_TUTOR_STUB=1"}
+	show := `printf '%s|%s|%s' "${API_ANTHROPIC_KEY-unset}" "${API_ANTHROPIC_KEY_FILE-unset}" "${API_TUTOR_STUB-unset}"`
+	for fn, want := range map[string]string{
+		"stubbed":  "unset|unset|1",
+		"modelled": "sk-dev|/run/secrets/anthropic|unset",
+	} {
+		stdout, stderr, err := bash(t, env, fn+" && "+show)
+		if err != nil || stdout != want {
+			t.Errorf("%s = %q, %q, %v; want %s", fn, stdout, stderr, err, want)
+		}
+	}
+	// The stub is exported to the binary.
+	stdout, _, err := bash(t, nil, `stubbed && bash -c 'printf %s "$API_TUTOR_STUB"'`)
+	if err != nil || stdout != "1" {
+		t.Errorf("the binary sees API_TUTOR_STUB = %q, %v; want 1", stdout, err)
 	}
 }

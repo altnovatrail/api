@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
-# of the binary with the configuration of the dev file, and `just dev-check` goes the whole way —
+# of the binary with the configuration of the dev file on the stub of tutor, which calls no provider
+# (R66), `just dev-ai <command>` the same with the dev file's key of platform AI, on the models, and
+# `just dev-check` goes the whole way —
 # migrations, an invite code, a country, the packages of modules, the opening of platform AI, the
 # server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
 # else", a reading of handwriting with its reserve and settlement of the quota, a parent's consent by
@@ -63,6 +65,19 @@ load() {
         [[ $line =~ ^(API_[A-Z0-9_]+)=(.*)$ ]] || die "$config, line $n, is not API_NAME=VALUE"
         export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
     done < "$config"
+}
+
+# stubbed puts the run on the stub of tutor (R66): no key of platform AI from the dev file reaches
+# the process, and every call of AI is the stub's, which costs nothing. `just dev` runs so.
+stubbed() {
+    unset API_ANTHROPIC_KEY API_ANTHROPIC_KEY_FILE
+    export API_TUTOR_STUB=1
+}
+
+# modelled puts the run on the models, with the dev file's key: `just dev-ai`, for a task that checks
+# the words of a model under the cap its text names (rule 4 of RUN.md; R146 spec).
+modelled() {
+    unset API_TUTOR_STUB
 }
 
 # b64url is base64url with no padding, as a JWT writes its parts.
@@ -214,6 +229,8 @@ build() {
 }
 
 check() {
+    # The check calls the provider with the key it refuses, not the stub (R39).
+    modelled
     work=$(mktemp -d)
     trap 'stop_serve; rm -rf "$work"' EXIT
     echo "dev-check: build"
@@ -402,10 +419,17 @@ check)
     ;;
 run)
     shift
+    stubbed
+    build
+    exec "$binary" "$@"
+    ;;
+run-ai)
+    shift
+    modelled
     build
     exec "$binary" "$@"
     ;;
 *)
-    die "usage: dev.sh run <command of api> | dev.sh check"
+    die "usage: dev.sh run <command of api> | dev.sh run-ai <command of api> | dev.sh check"
     ;;
 esac

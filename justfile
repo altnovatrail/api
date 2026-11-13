@@ -531,10 +531,18 @@ packages dir="/home/vscode/.novatrail-dev/packages":
 # The configuration is a file outside any git working tree, API_DEV_CONFIG, by default
 # /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39); README.md shows
 # its lines. Nothing of it is printed.
-# Run a command of api on the dev projects, as `just dev migrate` or `just dev serve`.
+# Run a command of api on the dev projects, as `just dev migrate` or `just dev serve`: on the stub
+# of tutor, which calls no provider and costs nothing; the dev file's key of platform AI is not
+# passed (R66).
 [positional-arguments]
 dev *args:
     bash scripts/dev.sh run "$@"
+
+# The same on the models, with the dev file's key of platform AI: only for a task that checks the
+# words of a model, under the cap its text names (rule 4 of RUN.md; R146 spec).
+[positional-arguments]
+dev-ai *args:
+    bash scripts/dev.sh run-ai "$@"
 
 # The account of the dev project is a test one, dev-author, signed in by a custom token (R39).
 # Go the whole way on the dev projects and check the answers and the log.

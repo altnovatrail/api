@@ -65,7 +65,7 @@ type Service struct {
 	engine string
 }
 
-// Option sets what a Service runs on, for the tests.
+// Option sets what a Service runs on: for the tests, and the dev mode's stub.
 type Option func(*Service)
 
 // WithClock is the clock a Service tells the time of its actions by.
@@ -75,9 +75,27 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
-// sheetReader reads the work of a handwriting sheet, as tutor does.
+// WithTutor is what reads the sheets and words the tutor's words in place of
+// the gate's tutor: the dev mode's stub (R66), which calls no provider.
+func WithTutor(t interface {
+	sheetReader
+	wordsTeller
+}) Option {
+	return func(s *Service) { s.reader, s.teller = t, t }
+}
+
+// sheetReader reads the work of a handwriting sheet, as tutor does. task is the
+// instance, its key with it, which the dev mode's stub alone reads, to read a
+// right value (R66): tutor is given the open view of r alone (R67 spec).
 type sheetReader interface {
-	ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead
+	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task) tutor.SheetRead
+}
+
+// gateReader reads by the gate's tutor, which never sees the instance.
+type gateReader struct{ gate *admission.Gate }
+
+func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task) tutor.SheetRead {
+	return g.gate.ReadSheet(ctx, r)
 }
 
 // New is the Service of the packages of set, which asks gate before a task that
@@ -87,8 +105,8 @@ type sheetReader interface {
 // of learner-model, which the mark of the learner model's cache names, or of
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gate, teller: gate, now: time.Now, moduleKit: version.ModuleKit(), engine: version.Engine(),
-		goingFor: config.DefaultRequestTimeout}
+	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, now: time.Now, moduleKit: version.ModuleKit(),
+		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}

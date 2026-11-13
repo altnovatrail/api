@@ -132,3 +132,47 @@ func TestAKeyOfOpenAIIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// The stub of tutor is the dev mode's alone (R66): off a deployment, with no
+// platform key, API_TUTOR_STUB=1 is taken, and empty is unset. Deployed, as a
+// service or as a job, it is refused by the variable the platform set; so is
+// it beside a key of Anthropic, inline or by its file, and with any value but 1.
+func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
+	t.Parallel()
+
+	for environ, want := range map[string]config.Admission{
+		"API_TUTOR_STUB=1":                           {Rung: config.RungFull, Stub: true},
+		"API_TUTOR_STUB=1 API_ADMISSION_RUNG=author": {Rung: config.RungAuthor, RungSet: true, Stub: true},
+		"API_TUTOR_STUB=":                            {Rung: config.RungFull},
+	} {
+		got, err := config.AdmissionFrom(strings.Fields(environ))
+		if err != nil || got != want {
+			t.Errorf("AdmissionFrom(%s) = %+v, %v; want %+v", environ, got, err, want)
+		}
+	}
+	for name, tc := range map[string]struct {
+		environ []string
+		names   []string
+	}{
+		"as a service":        {[]string{"API_TUTOR_STUB=1", "K_SERVICE=api"}, []string{"API_TUTOR_STUB", "K_SERVICE"}},
+		"as a job":            {[]string{"API_TUTOR_STUB=1", "CLOUD_RUN_JOB=check"}, []string{"API_TUTOR_STUB", "CLOUD_RUN_JOB"}},
+		"beside a key":        {[]string{"API_TUTOR_STUB=1", "API_ANTHROPIC_KEY=sk-anthropic"}, []string{"API_TUTOR_STUB", "API_ANTHROPIC_KEY"}},
+		"beside a key's file": {[]string{"API_TUTOR_STUB=1", "API_ANTHROPIC_KEY_FILE=/run/secrets/anthropic"}, []string{"API_TUTOR_STUB", "API_ANTHROPIC_KEY"}},
+		"another value":       {[]string{"API_TUTOR_STUB=true"}, []string{"API_TUTOR_STUB"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := config.AdmissionFrom(tc.environ)
+			if !errors.Is(err, config.ErrInvalid) {
+				t.Fatalf("AdmissionFrom error = %v, want %v", err, config.ErrInvalid)
+			}
+			for _, variable := range tc.names {
+				if !strings.Contains(err.Error(), variable) {
+					t.Errorf("error %q does not name %s", err, variable)
+				}
+			}
+			if strings.Contains(err.Error(), "sk-") {
+				t.Errorf("error %q holds the key", err)
+			}
+		})
+	}
+}
