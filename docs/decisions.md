@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R66.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R67.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -1631,6 +1631,8 @@ This is how the author walked the path of the first app on 2026-11-12.
   - `dev-check` without edits;
   - substituting the provider's address through `ANTHROPIC_BASE_URL`: the Anthropic SDK reads it, and the adapter of `tutor` sets no address, but this is a hole, not a route for the check (В58).
 
+— *Amendment 2026-11-13* (T71; R66): `just dev` runs on the stub of `tutor`. `scripts/dev.sh run` unsets the dev file's key of platform AI, `API_ANTHROPIC_KEY` and `API_ANTHROPIC_KEY_FILE`, and sets `API_TUTOR_STUB=1`, so a run calls no provider. The models are `just dev-ai`, `run-ai`, with the key of the dev file, for a task that checks the words of a model under the cap its text names (rule 4 of RUN.md). `just dev-check` stays on the key Anthropic refuses, as the 2026-11-12 amendment above has it, and unsets the switch.
+
 ## The `spec` tag: v0.12.0
 
 **R40. `api` stands on `spec` v0.12.0. The tag records `spec`'s answer to the row «в реестр spec» В41 — `api`'s own limit of "waiting" consents until the release of epic E4 —, format 0.4 with the leading question's fields in the contract, Identity Platform in production, the region, the basis and the method of consent, the period of the minimal record of consent, "report a problem" and the fact that the platform has no lawyer. The code of `api` builds on the tag without edits, and the code that reads the module packages waits for a release of `module-kit` on the line of `spec` 0.10 or newer: `module-kit` `v0.2.6` does not build beside `spec` v0.12.0.** Task T30 of epic E3, 2026-11-09. The move is by the author's instruction of the same day, to the latest release instead of v0.11.0, which the task named; one task with the code, the order of E3 and the limit of 10 consents are the author's decisions in the planning of T30.
@@ -1938,6 +1940,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Consequence:* the 2026-11-10 amendments to R05, R17, R33, R44 and R45; Д14 is narrowed, Д22 is closed; new Д23 and Д24, and В45 «в реестр spec». T37 is the second request, with the tutor's words, and the leak and form checks. — RUN.md, T36; README.md; [architecture.md](architecture.md), sections 3.2, 3.5, 3.9 and 3.11.
 
 — *Amendment 2026-11-12* (T45; R54): the platform AI key is only Anthropic's. `api` gives `tutor` one provider adapter, `claude.Dial`, and `API_OPENAI_KEY` and `API_OPENAI_KEY_FILE`, when set, are a configuration refusal. The outcomes "platform limit", "limit reached" and "key refused" are given by `tutor` v0.1.24 in fact, and their handling is the same: of the pair the worst is taken — the limit, then the key, then "AI failure" (R95 `tutor`). There is still no flag "platform AI closed" — it is behind the quota (Д11).
+
+— *Amendment 2026-11-13* (T71; R66): the port of reading in `internal/learning`, `sheetReader`, takes the instance beside the reading: `ReadSheet(ctx, reading, task)`. The gate's adapter, `gateReader`, drops it, and `tutor` is given the open view alone, as above; only the stub of the dev mode reads the key, to read a right value.
 
 ## The hint ladder in code
 
@@ -2269,6 +2273,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Consequence:* the 2026-11-12 amendments to R19, R46 and R47; Д14 and Д30 closed, Д23 and Д25 narrowed, Д24 and Д26 extended, new В54 and В55 «в реестр spec» and Д32. — RUN.md, T45; [architecture.md](architecture.md), sections 3.5, 3.9 and 3.11.
 
+— *Amendment 2026-11-13* (T71; R66): with `API_TUTOR_STUB=1`, off a deployment alone, the gate gives `tutor` the stub's adapter, `admission.StubAdapters`, instead of `claude.Dial`, and a key `stub` instead of the platform's: the adapter makes the client of Claude's catalog with no key, for its names and prices, and refuses every call. A key of Anthropic beside the switch is a refusal of the configuration.
+
 ## Quota in code
 
 **R55. The tariffs, their caps per family day, the typical tasks and the reserve by the kind of call are a table of the package `internal/quota`, which a pull request changes; the unit is whole microdollars. There are two tariffs: `closed_slice` — profile $0.50, account $1.50 — and `probe` — $0.08 and $0.10 — for a run where the quota runs out. The account's tariff is changed by the operator's command `api tariff -tariff <tariff> <code>`, which finds the account by its invite code.** Task T47 of epic E6, 2026-11-12; the executor's decisions in planning — the author entrusted the whole epic, and T52 will decide together with them.
@@ -2594,3 +2600,38 @@ This is how the author walked the path of the first app on 2026-11-12.
 - a column of the provider or of the route in `engine_choices`, migration `0017`: new data of the owner in the database and the export with nothing that reads it.
 
 — *Consequence:* the 2026-11-13 amendments to R50, R59 and R62; Д224 spec answered for `api`; what `app` sends is T46 `app` (row 6.14 of COORDINATION.md spec). — RUN.md, T68; [architecture.md](architecture.md), sections 3.6, 3.7 and 3.9.
+
+## The stub of tutor in the dev mode
+
+**R66. In the dev mode `api` calls a stub of `tutor` instead of `tutor`'s reading of a sheet and words: `API_TUTOR_STUB=1`, refused on a deployment, as R32 refuses the emulator, and beside a key of platform AI. The stub reads a sheet by the shape of its crop — wider than tall the right value, taller than wide a wrong one, square illegible —, words questions of its own, and spends what `tutor` expects the call to cost; admission and the prices stay `tutor`'s. `just dev` runs on the stub, `just dev-ai` on the models.** Task T71 of epic E9, 2026-11-13; the reading by the shape, the expected price and `just dev` on the stub were decided by the author in planning, by the executor's recommendation. The first half of Д33; the answer of `api` to R146 spec and Д226 spec.
+- **What was decided:**
+  - **the switch** is `API_TUTOR_STUB=1` in `config.Admission`, so `api check` refuses it before the migrations too. The dev mode is off a deployment: neither `K_SERVICE` nor `CLOUD_RUN_JOB` is set, the rule of the stage `author` (R45) and of the key of the service account (R32). With the switch, a variable of a deployment, a key of Anthropic — `API_ANTHROPIC_KEY` or its `_FILE` — or a value other than `1` is a refusal of the configuration that names the variables. The lines `startup` and `admission` carry `tutor_stub`;
+  - **admission** — `admission.Load` gives `tutor` the stub's adapter, `admission.StubAdapters`, and a key `stub` that stands for the platform's: the adapter makes the client of Claude's catalog with no key, whose names and prices `tutor` reads for the choice and `Tutor.Price`, and refuses every call and every check of a key. So `ChooseCall`, the pool, the start of a task and the reserve of the quota go on the real table, facts and stage, and no SDK client with a key exists in the process;
+  - **the stub** is the package `internal/tutorstub`, behind the ports of `internal/learning`: `sheetReader` and `wordsTeller`, by the option `learning.WithTutor`, which `serve` gives with the switch. Its admission of the words is the gate's;
+  - **the reading.** The crop's size, by `png.DecodeConfig`, picks the value of the one slot bound anywhere, which `module-kit`'s verdict finds on the instance (`verdict.OfSlot`), out of the key, the options of a choice written by hand and the whole numbers 0–999:
+    - wider than tall — the first value it holds right;
+    - taller than wide — the first trap value it holds not right, else the first such value of the rest;
+    - square, or no value found — `UNREADABLE_ILLEGIBLE`.
+
+    Both readers read the same: a value with the crop box of the whole crop, `0 0 1000 1000` in thousandths, and a reason with no box, as the rules of an observation have it. A crop that is no PNG, a task with no slot bound anywhere, or a request cut short fails as `tutor`'s reading does;
+  - **the port of reading** carries the instance: `sheetReader.ReadSheet(ctx, reading, task)`. The gate's adapter `gateReader` drops it, so `tutor` still sees the open view alone (R67 spec); only the stub reads the key;
+  - **the words** — three questions each in English and Russian, without a number, which pass the leak check and the form check; the first that `Asked` does not hold, so "explain differently" gets other words. Another language gets English, which the form check turns down into the fallback text;
+  - **the spending** — the expected price of the kind of call on the route, `Tutor.Price`, which is the reserve (R58), shared by the readers in whole micro-dollars; a kind of call with no expected price spends nothing priced, and the reserve stays spent, as R12 has it. So the settlement spends the reserve to the micro-dollar, and the quota runs out after as many calls as on the models. The usage names the provider `anthropic` and the model `stub`. The flag "platform limit" the stub never sets: it gives no "limit reached";
+  - **the runs** — `just dev` (`scripts/dev.sh run`) unsets the dev file's key of platform AI and sets the switch; `just dev-ai` (`run-ai`) keeps the key and unsets the switch, for a task that checks the words of a model under the cap its text names (rule 4 of RUN.md). `just dev-check` stays on the key Anthropic refuses (the 2026-11-12 amendment to R39) and unsets the switch.
+- **Checked:** the tests — the configuration and its refusals; `serve` refused on a deployment and started on the stub; the gate of the stub admits and prices with no key, and its models answer nothing; the stub reads a number with a trap and without, a predicate and a choice by hand by the three shapes, each reading one that `module-kit`'s `observation.Join` takes, spends the reserve exactly, fails what `tutor` fails and a request cut short, and rotates its words; on the database, the path — a square crop illegible, a tall crop "not yet", the rung's words of the stub, other words for "explain differently", a wide crop "correct" and solved, the counters spending the expected prices with nothing in reserve, the log with the model `stub`; `dev.sh` puts the run on the stub or on the models.
+
+— *Why:*
+- R146 spec has the executor of `app` walk the path with no paid call, and the stub has to give both "correct" and a wrong answer, or the hint ladder cannot be walked;
+- behind the ports of `learning`, not as an adapter of `tutor`: an adapter sees the open view and the crop, never the key (R67 spec), and could read no right value, while `tutor` would still admit, choose and price with it;
+- the shape of the crop is what a scenario of Playwright can draw — a horizontal or a vertical stroke — without recognizing handwriting;
+- the expected price makes the quota run with `app` that R146 spec asks for possible on the stub;
+- `just dev` on the stub: a session cannot spend money by mistake, and a real call is the exception a task names.
+
+— *Rejected:*
+- the stub as `provider.Dial` alone: no right value, as above;
+- the reading always right — no wrong answer, no ladder — or always illegible — neither;
+- a stub that spends nothing — the quota could not be run out on it;
+- a build tag that leaves the stub out of the release: the refusal at the start is the guarantee R32 gives the emulator, and lint and coverage would need a second build;
+- `just dev` on the models with `just dev-stub` beside it, and `dev-check` on the stub: the check would no longer reach the adapter of Claude.
+
+— *Consequence:* the 2026-11-13 amendments to R39, R46 and R54; Д33 narrowed to the tool of a custom token, T72; В64 «в реестр spec» — the shapes a scenario of `app` draws. — RUN.md, T71; README.md; [architecture.md](architecture.md), section 3.11.

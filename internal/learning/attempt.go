@@ -289,7 +289,7 @@ func (s *Service) read(ctx context.Context, out sending) sending {
 	if err != nil {
 		out.read = tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	} else {
-		out.read = s.reader.ReadSheet(ctx, tutor.SheetReading{Route: out.route, Task: &view, Crop: out.crop})
+		out.read = s.reader.ReadSheet(ctx, tutor.SheetReading{Route: out.route, Task: &view, Crop: out.crop}, out.task)
 	}
 	// The crop goes no further than the reading.
 	out.crop = nil

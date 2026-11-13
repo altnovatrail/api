@@ -58,6 +58,7 @@ func logAdmission(log *slog.Logger, r admission.Report, a config.Agreements) {
 		logging.FieldRung, r.Rung,
 		logging.FieldRungSet, r.RungSet,
 		logging.FieldPlatformKeys, r.PlatformKeys,
+		logging.FieldTutorStub, r.Stub,
 		logging.FieldLegalDir, a.LegalDir != "",
 		logging.FieldConsentForms, a.Forms(),
 	)

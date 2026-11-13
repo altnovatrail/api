@@ -28,6 +28,7 @@ import (
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/server"
 	"github.com/altnovatrail/api/internal/store"
+	"github.com/altnovatrail/api/internal/tutorstub"
 	"github.com/altnovatrail/api/internal/version"
 )
 
@@ -91,8 +92,13 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		return startupFailed(ctx, log, err)
 	}
 	// Attempts keep the version of module-kit, which the build records (R44), and
-	// ask the gate before a task that AI checks (R45).
-	attempts, err := learning.New(set, gate, learning.WithRequestTimeout(cfg.RequestTimeout))
+	// ask the gate before a task that AI checks (R45). In the dev mode the stub of
+	// tutor reads and words in place of tutor, which admits and prices still (R66).
+	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout)}
+	if declared.Stub {
+		options = append(options, learning.WithTutor(tutorstub.New(gate)))
+	}
+	attempts, err := learning.New(set, gate, options...)
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
@@ -156,6 +162,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldLegalDir, opens.Agreements.LegalDir != "",
 		logging.FieldConsentForms, opens.Agreements.Forms(),
 		logging.FieldPlatformKeys, declared.PlatformKeys,
+		logging.FieldTutorStub, declared.Stub,
 	)
 
 	if err := srv.Run(ctx); err != nil {

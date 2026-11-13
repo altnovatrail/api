@@ -15,6 +15,7 @@ import (
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+	"github.com/altnovatrail/tutor/provider"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
@@ -285,5 +286,50 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 	}
 	if p := g.Price(tutor.CallEssay, adult); p.Expected {
 		t.Errorf("the price of an essay, which no entry admits = %+v, want none", p)
+	}
+}
+
+// The dev mode's stub (R66): with no key of the platform, tutor admits the
+// reading and the words on the route of platform AI as with Anthropic's key,
+// and prices them by the catalog of its adapter, while its models answer no
+// call and check no key. The report says so, and counts no key of the platform.
+func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := config.AdmissionFrom([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author",
+		"API_ADMISSION_FACTS_FILE=" + file(t, adultFacts)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, r, err := admission.Load(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Stub || r.PlatformKeys != 0 {
+		t.Errorf("Report = %+v, want the stub and no key of the platform", r)
+	}
+	if !g.Handwriting(formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") {
+		t.Error("the stub's gate does not admit the reading and the words for an adult")
+	}
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
+	if p := g.Price(tutor.CallSheet, adult); !p.Expected || p.ExpectedUSD <= 0 {
+		t.Errorf("the price of a sheet on the stub = %+v, want tutor's expected price", p)
+	}
+	dial := admission.StubAdapters()["anthropic"]
+	m, err := dial("claude-opus-5-5", "sk-never")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Ask(t.Context(), provider.Request{}); err == nil {
+		t.Error("the stub's model answered a call")
+	}
+	if err := m.Check(t.Context()); err == nil {
+		t.Error("the stub's model checked a key")
+	}
+	if m.Name() == "" || m.Prices().Read == "" {
+		t.Errorf("the stub's model has no name or prices of the catalog: %q, %+v", m.Name(), m.Prices())
+	}
+	if _, err := dial("no-such-model", ""); err == nil {
+		t.Error("the stub's adapter dialled a model the catalog does not hold")
 	}
 }

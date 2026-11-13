@@ -30,6 +30,11 @@ const (
 	// passes it learns so at its start rather than holding a key nothing calls
 	// (R54).
 	VarOpenAIKey = "API_OPENAI_KEY"
+	// VarTutorStub, set to 1, puts tutor's calls on a stub in api's process,
+	// off a deployment alone: the stub reads a sheet by the shape of its crop and
+	// words the tutor's words from a list of its own, and calls no provider
+	// (R66; R146 spec). Admission, the prices and the quota stay tutor's own.
+	VarTutorStub = "API_TUTOR_STUB"
 )
 
 // The stages of admission, as tutor codes them.
@@ -41,6 +46,7 @@ const (
 func init() {
 	declared[VarAdmissionFactsFile] = struct{}{}
 	declared[VarAdmissionRung] = struct{}{}
+	declared[VarTutorStub] = struct{}{}
 	for _, name := range []string{VarAnthropicKey, VarOpenAIKey} {
 		declared[name] = struct{}{}
 		declared[name+fileSuffix] = struct{}{}
@@ -59,6 +65,8 @@ type Admission struct {
 	RungSet bool
 	// Keys are the platform's keys of the providers, each empty when unset.
 	Keys PlatformKeys
+	// Stub says whether tutor's calls go to the stub of the dev mode (R66).
+	Stub bool
 }
 
 // AdmissionFrom reads what the deployment declares for admission from a set of
@@ -71,6 +79,11 @@ type Admission struct {
 // The file of facts holds no secret, but it lies outside any git working tree
 // as a secret's file does: the first app's is the author's own, outside the
 // repository.
+//
+// The stub of tutor is the dev mode's alone, as R32 refuses the emulator of the
+// sign-in service: deployed, it is refused, and so it is beside a platform key,
+// which nothing would call — with the stub no key of a provider is in the
+// process (R66).
 func AdmissionFrom(environ []string) (Admission, error) {
 	env := read(environ)
 	deployedBy := ""
@@ -109,6 +122,19 @@ func AdmissionFrom(environ []string) (Admission, error) {
 			problems = append(problems, err)
 		}
 		cfg.Keys.Anthropic = key
+	}
+	if stub, set := env[VarTutorStub]; set {
+		cfg.Stub = true
+		switch {
+		case stub != "1":
+			problems = append(problems, fmt.Errorf("%w: %s must be 1 or unset, got %q", ErrInvalid, VarTutorStub, stub))
+		case deployedBy != "":
+			problems = append(problems, fmt.Errorf("%w: %s must not be set when %s is set: the stub of tutor is the dev mode's alone",
+				ErrInvalid, VarTutorStub, deployedBy))
+		case inline || fromFile:
+			problems = append(problems, fmt.Errorf("%w: %s must not be set beside %s: the stub calls no provider, so unset the key",
+				ErrInvalid, VarTutorStub, VarAnthropicKey))
+		}
 	}
 	for _, name := range []string{VarOpenAIKey, VarOpenAIKey + fileSuffix} {
 		if _, set := env[name]; set {

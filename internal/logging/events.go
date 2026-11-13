@@ -132,6 +132,9 @@ const (
 	FieldRungSet = "rung_set"
 	// FieldPlatformKeys is how many providers the platform holds a key of.
 	FieldPlatformKeys = "platform_keys"
+	// FieldTutorStub says whether tutor's calls go to the stub of the dev mode,
+	// which calls no provider (R66).
+	FieldTutorStub = "tutor_stub"
 	// FieldLegalDir says whether the deployment names a folder of its own legal
 	// texts, rather than serving those of spec's tag.
 	FieldLegalDir = "legal_dir"
@@ -223,7 +226,7 @@ const (
 // events is every event and the fields it may carry.
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
-		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
+		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldLegalDir, FieldConsentForms},
 	EventStopping: {},
 	EventStopped:  {FieldCutShort},
 	EventShutdown: {FieldStarted},
@@ -235,7 +238,7 @@ var events = map[string][]string{
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
-	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldLegalDir, FieldConsentForms},
+	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
 		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled},
 	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
@@ -289,6 +292,7 @@ var fields = map[string]rule{
 	FieldRung:           {kind: slog.KindString, values: Rungs},
 	FieldRungSet:        {kind: slog.KindBool},
 	FieldPlatformKeys:   {kind: slog.KindInt64},
+	FieldTutorStub:      {kind: slog.KindBool},
 	FieldLegalDir:       {kind: slog.KindBool},
 	FieldConsentForms:   {kind: slog.KindString, values: FormsStores},
 	FieldOutcomeCause:   {kind: slog.KindString, shape: matches(causeShape)},

@@ -21,6 +21,7 @@ package admission
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -59,7 +60,41 @@ type Report struct {
 	RungSet      bool
 	// PlatformKeys is how many providers the platform holds a key of.
 	PlatformKeys int
+	// Stub says whether tutor's calls go to the stub of the dev mode (R66).
+	Stub bool
 }
+
+// stubKey stands for the platform's key of Anthropic in the dev mode's stub,
+// so that tutor's choice takes the route of platform AI: the stub's adapter
+// takes no key, and this one goes nowhere (R66).
+const stubKey = "stub"
+
+// errStub is what the stub's adapter answers a call: it calls no provider.
+var errStub = errors.New("admission: the stub of tutor calls no provider")
+
+// StubAdapters are the adapters of the dev mode's stub (R66): Anthropic's, by
+// the client of its catalog made with no key, whose names and prices tutor
+// reads for the choice and the price as it does from any adapter, while the
+// calls are refused before any network. So tutor admits, chooses and prices on
+// the real table, and nothing of it reaches a provider.
+func StubAdapters() map[admissionv0.Provider]provider.Dial {
+	return map[admissionv0.Provider]provider.Dial{"anthropic": func(id, _ string) (provider.Model, error) {
+		m, err := claude.Dial(id, "")
+		if err != nil {
+			return nil, err
+		}
+		return stubModel{m}, nil
+	}}
+}
+
+// stubModel is a model of the catalog whose calls are refused.
+type stubModel struct{ provider.Model }
+
+func (stubModel) Ask(context.Context, provider.Request) (provider.Response, error) {
+	return provider.Response{}, errStub
+}
+
+func (stubModel) Check(context.Context) error { return errStub }
 
 // Load is the gate of the table of spec and of what cfg declares. A file that
 // cannot be read, or that tutor refuses, is a refusal of the configuration,
@@ -85,15 +120,20 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 	for p, key := range cfg.Keys.ByProvider() {
 		keys[admissionv0.Provider(p)] = key.Reveal()
 	}
+	adapters := Adapters()
+	if cfg.Stub {
+		// The configuration holds no platform key beside the stub (R66).
+		adapters, keys = StubAdapters(), map[admissionv0.Provider]string{"anthropic": stubKey}
+	}
 	g := &Gate{}
 	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung), Keys: keys,
-		Adapters: Adapters()}); err != nil {
+		Adapters: adapters}); err != nil {
 		// What tutor.New refuses is what cfg declares: a stage, or a key of a
 		// provider api gives no adapter of.
 		return nil, Report{}, fmt.Errorf("%w: %w", config.ErrInvalid, err)
 	}
 	return g, Report{TableVersion: t.Version(), FactsFile: cfg.FactsFile != "", Rung: cfg.Rung, RungSet: cfg.RungSet,
-		PlatformKeys: len(keys)}, nil
+		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub}, nil
 }
 
 // Handwriting says whether the reading of handwriting is admitted for a learner
