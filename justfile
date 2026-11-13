@@ -548,3 +548,10 @@ dev-ai *args:
 # Go the whole way on the dev projects and check the answers and the log.
 dev-check:
     bash scripts/dev.sh check
+
+# The account of the local build of app is a test one, dev-app, apart from dev-check's (R67).
+# Keep api up for app until Ctrl-C: the server on the stub of tutor on port 8080, the account with
+# its owner's profile, and a custom token of it, laid anew every half hour, in the volume
+# novatrail-dev-token that the devcontainers of api and app share.
+dev-app:
+    bash scripts/dev.sh app

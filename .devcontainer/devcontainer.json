@@ -37,7 +37,11 @@
         // api's own: the configuration of the dev projects — a service account's key and the
         // connection strings — outside the repository and any git working tree, kept across
         // rebuilds; just dev reads it (R39). The author puts the files in it.
-        "source=novatrail-api-dev,target=/home/vscode/.novatrail-dev,type=volume"
+        "source=novatrail-api-dev,target=/home/vscode/.novatrail-dev,type=volume",
+        // api's own too, shared with app's container, which mounts it read-only: the custom token
+        // of the test account dev-app, which `just dev-app` lays anew while it runs, and nothing
+        // else — no key, no configuration (R67).
+        "source=novatrail-dev-token,target=/home/vscode/.novatrail-token,type=volume"
     ],
     "containerEnv": {
         // Tells an agent's session, Claude's or Codex's, that it runs in here, the one place
