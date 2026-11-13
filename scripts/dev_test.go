@@ -85,10 +85,10 @@ func TestTheDevFileIsReadAsWritten(t *testing.T) {
 	}
 }
 
-// The custom token carries Firebase's claims for one made with a JWT library, and its RS256
-// signature holds under the service account's public key.
-func TestTheCustomTokenIsFirebases(t *testing.T) {
-	t.Parallel()
+// serviceAccount writes a synthetic key of a service account to a file and returns its path and
+// its key.
+func serviceAccount(t *testing.T) (string, *rsa.PrivateKey) {
+	t.Helper()
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -110,12 +110,15 @@ func TestTheCustomTokenIsFirebases(t *testing.T) {
 	if err := os.WriteFile(path, account, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	return path, key
+}
 
-	stdout, stderr, err := bash(t, []string{"API_DEV_UID=dev-synthetic"}, `custom_token "`+path+`"`)
-	if err != nil {
-		t.Fatalf("custom_token: %v, %s", err, stderr)
-	}
-	parts := strings.Split(strings.TrimSpace(stdout), ".")
+// firebases fails the test unless token is a custom token of uid with Firebase's claims for one
+// made with a JWT library, an hour long, whose RS256 signature holds under key's public half.
+func firebases(t *testing.T, token, uid string, key *rsa.PrivateKey) {
+	t.Helper()
+
+	parts := strings.Split(strings.TrimSpace(token), ".")
 	if len(parts) != 3 {
 		t.Fatalf("the token has %d parts, want 3", len(parts))
 	}
@@ -141,20 +144,77 @@ func TestTheCustomTokenIsFirebases(t *testing.T) {
 	now := time.Now().Unix()
 	if claims.Iss != "sa@synthetic.example" || claims.Sub != claims.Iss ||
 		claims.Aud != "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit" ||
-		claims.UID != "dev-synthetic" || claims.Iat < now-60 || claims.Iat > now || claims.Exp != claims.Iat+3600 {
-		t.Errorf("claims = %+v, want Firebase's for a custom token of dev-synthetic, an hour long", claims)
+		claims.UID != uid || claims.Iat < now-60 || claims.Iat > now || claims.Exp != claims.Iat+3600 {
+		t.Errorf("claims = %+v, want Firebase's for a custom token of %s, an hour long", claims, uid)
 	}
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
 	if err := rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, digest[:], decode(parts[2])); err != nil {
 		t.Errorf("the signature does not hold: %v", err)
 	}
+}
+
+// The custom token carries Firebase's claims for one made with a JWT library, for the account it is
+// asked for, and its RS256 signature holds under the service account's public key.
+func TestTheCustomTokenIsFirebases(t *testing.T) {
+	t.Parallel()
+
+	path, key := serviceAccount(t)
+	stdout, stderr, err := bash(t, nil, `custom_token "`+path+`" dev-synthetic`)
+	if err != nil {
+		t.Fatalf("custom_token: %v, %s", err, stderr)
+	}
+	firebases(t, stdout, "dev-synthetic", key)
 
 	// A key that is no key fails, and says so.
 	if err := os.WriteFile(path, []byte(`{"client_email":"sa@synthetic.example","private_key":"none"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, err := bash(t, nil, `custom_token "`+path+`"`); err == nil || !strings.Contains(stderr, "would not sign") {
+	if _, stderr, err := bash(t, nil, `custom_token "`+path+`" dev-synthetic`); err == nil || !strings.Contains(stderr, "would not sign") {
 		t.Errorf("custom_token with no key = %q, %v; want a refusal", stderr, err)
+	}
+}
+
+// The token for app lies in its folder as custom-token, its owner's alone, and a new one takes the
+// old one's place by a rename, leaving nothing else behind; a folder that is not there — the volume
+// not mounted — is refused, not made (R67).
+func TestTheTokenIsLaidForApp(t *testing.T) {
+	t.Parallel()
+
+	path, key := serviceAccount(t)
+	dir := t.TempDir()
+	env := []string{"API_FIREBASE_CREDENTIALS_FILE=" + path}
+	laid := filepath.Join(dir, "custom-token")
+	// The second token is of another account, so that it differs from the first within one second.
+	for _, uid := range []string{"dev-app", "dev-other"} {
+		if _, stderr, err := bash(t, env, `lay_token "`+dir+`" `+uid); err != nil {
+			t.Fatalf("lay_token: %v, %s", err, stderr)
+		}
+		info, err := os.Stat(laid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode := info.Mode().Perm(); mode != 0o600 {
+			t.Errorf("custom-token has the mode %o, want 600", mode)
+		}
+		token, err := os.ReadFile(laid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		firebases(t, string(token), uid, key)
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+		t.Errorf("the folder holds %v, %v; want custom-token alone", entries, err)
+	}
+
+	missing := filepath.Join(dir, "not-mounted")
+	if _, stderr, err := bash(t, env, `lay_token "`+missing+`" dev-app`); err == nil || !strings.Contains(stderr, "Rebuild Container") {
+		t.Errorf("lay_token into no folder = %q, %v; want a refusal naming Rebuild Container", stderr, err)
+	}
+	if _, err := os.Stat(missing); err == nil {
+		t.Error("lay_token made the folder")
+	}
+	if _, stderr, err := bash(t, nil, `unset API_FIREBASE_CREDENTIALS_FILE; lay_token "`+dir+`" dev-app`); err == nil || !strings.Contains(stderr, "API_FIREBASE_CREDENTIALS_FILE") {
+		t.Errorf("lay_token with no key = %q, %v; want a refusal naming the key", stderr, err)
 	}
 }
 

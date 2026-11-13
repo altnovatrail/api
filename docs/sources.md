@@ -72,6 +72,14 @@ For R39. Read 2026-11-09:
 - [the Firebase Auth REST API](https://firebase.google.com/docs/reference/rest/auth), no date: "Exchange custom token for an ID and refresh token" — `POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=[API_KEY]`, the body `token` and `returnSecureToken`, in the response `idToken`, `refreshToken` and `expiresIn`; "API_KEY refers to the Web API Key, which can be obtained on the project settings page in your admin console";
 - [custom token](https://firebase.google.com/docs/auth/admin/create-custom-tokens), no date: the claims of a token made by a third-party JWT library — `alg` `"RS256"`, `iss` and `sub` — "Your project's service account email address", `aud` — `"https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit"`, `exp` — "a maximum of 3600 seconds later than the `iat`", `uid` — "between 1-128 characters long, inclusive".
 
+### 2.7. A volume two devcontainers share, 2026-11-13
+
+For R67. Read 2026-11-13, [Volumes](https://docs.docker.com/engine/storage/volumes/) of the Docker documentation, no date:
+
+- "Multiple containers can mount the same volume. You can simultaneously mount a single volume as `read-write` for some containers and as `read-only` for others.";
+- the option `readonly` of `--mount`: "If present, causes the volume to be mounted into the container as read-only.";
+- "If you start a container which creates a new volume, and the container has files or directories in the directory to be mounted such as `/app/`, Docker copies the directory's contents into the volume." Whether the owner and the mode of the directory itself pass to the volume, the page does not say.
+
 ## 3. Database and learner model
 
 For architecture 3.2: Neon and the rejected Cloud SQL and the profile on Drive, the database of the tests and the migrations.
