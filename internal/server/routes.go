@@ -3,8 +3,7 @@ package server
 import (
 	"log/slog"
 	"net/http"
-	"path"
-	"strings"
+	"reflect"
 
 	"github.com/altnovatrail/api/internal/logging"
 )
@@ -13,6 +12,9 @@ import (
 // serves. It names no version, which the startup line and the version command
 // give to those who need it.
 const healthBody = `{"status":"ok"}`
+
+// redirect is the type of the handler by which the mux redirects a request.
+var redirect = reflect.TypeOf(http.RedirectHandler("/", http.StatusTemporaryRedirect))
 
 // Routes is the service's handler: the health check, and whatever mount puts on
 // the mux — the methods of the contract, by the Connect server (R33). A panic
@@ -33,31 +35,17 @@ func Routes(log *slog.Logger, appOrigin string, mount func(*http.ServeMux)) http
 	// repeats nothing of the path, which may carry anything a client put in it.
 	mux.HandleFunc("/", notFound)
 	return cors(appOrigin, recovered(log, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// A path the mux would redirect to its clean form — //health, /a/../b —
-		// is not found either: the redirect would repeat the path in its
-		// Location and its body.
-		if r.URL.Path != cleanPath(r.URL.Path) {
+		// A path the mux would redirect — to its clean form, //health or
+		// /a/../b, or to the subtree with a slash at its end, as a service of
+		// Connect is mounted — is not found either: the redirect would repeat
+		// the path and the query in its Location and its body. No handler of
+		// api answers by a redirect.
+		if h, _ := mux.Handler(r); reflect.TypeOf(h) == redirect {
 			notFound(w, r)
 			return
 		}
 		mux.ServeHTTP(w, r)
 	})))
-}
-
-// cleanPath is the path as the mux cleans it before routing: rooted, without
-// empty, . or .. elements, and with its trailing slash kept.
-func cleanPath(p string) string {
-	if p == "" {
-		return "/"
-	}
-	if p[0] != '/' {
-		p = "/" + p
-	}
-	cleaned := path.Clean(p)
-	if strings.HasSuffix(p, "/") && cleaned != "/" {
-		cleaned += "/"
-	}
-	return cleaned
 }
 
 func notFound(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) }

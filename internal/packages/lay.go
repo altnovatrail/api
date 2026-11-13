@@ -37,8 +37,8 @@ var (
 	// is not 200, or more bytes than its limit.
 	ErrFetch = errors.New("packages: the file could not be fetched from the release")
 	// ErrArchive is an archive of a package that holds what a package does not:
-	// a link or another kind of entry, a path out of the package or of no part of
-	// it, or more bytes than its limit (architecture 3.10 spec).
+	// a link or another kind of entry, a sparse file, a path out of the package
+	// or of no part of it, or more bytes than its limit (architecture 3.10 spec).
 	ErrArchive = errors.New("packages: the archive is not a package's")
 	// ErrNotEmpty is a folder to lay the packages into that holds something.
 	ErrNotEmpty = errors.New("packages: the folder is not empty")
@@ -245,10 +245,10 @@ func archiveName(digest formatv0.Digest) string { return Name(digest) + ".tar.gz
 
 // unpack is the files of an archive of a package, by their paths in its folder.
 // The archive holds the files of the package and its folders alone: a link or
-// another kind of entry, a path that leaves the folder or names no part of a
-// package, a path twice, or more bytes than maxUnpacked is refused. The files
-// are a MapFS of testing/fstest, a file system in memory of the standard
-// library, which imports no testing.
+// another kind of entry, a sparse file, a path that leaves the folder or names
+// no part of a package, a path twice, or more bytes than maxUnpacked is
+// refused. The files are a MapFS of testing/fstest, a file system in memory of
+// the standard library, which imports no testing.
 func unpack(archive []byte) (fstest.MapFS, error) {
 	gz, err := gzip.NewReader(bytes.NewReader(archive))
 	if err != nil {
@@ -282,6 +282,11 @@ func unpack(archive []byte) (fstest.MapFS, error) {
 		default:
 			return nil, fmt.Errorf("%w: %q is no file", ErrArchive, name)
 		}
+		// A package holds no sparse file of PAX, which the reader would unfold
+		// into the zeros of its holes, more bytes than the archive has.
+		if sparse(header) {
+			return nil, fmt.Errorf("%w: %q is a sparse file", ErrArchive, name)
+		}
 		if !partOfPackage(name) {
 			return nil, fmt.Errorf("%w: %q is of no part of a package", ErrArchive, name)
 		}
@@ -299,6 +304,17 @@ func unpack(archive []byte) (fstest.MapFS, error) {
 		files[name] = &fstest.MapFile{Data: data, Mode: 0o444}
 	}
 	return files, nil
+}
+
+// sparse says whether header is of a sparse file of PAX, by the records that
+// GNU tar writes for one: a package holds none.
+func sparse(header *tar.Header) bool {
+	for key := range header.PAXRecords {
+		if strings.HasPrefix(key, "GNU.sparse.") {
+			return true
+		}
+	}
+	return false
 }
 
 // partOfPackage says whether name is a file a package as files has: its three

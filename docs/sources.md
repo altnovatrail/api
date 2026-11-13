@@ -152,6 +152,14 @@ For architecture 3.3; R61. Read 2026-11-12, no date on the pages:
 - [the latest release](https://docs.github.com/en/rest/releases/releases#get-the-latest-release): "The latest release is the most recent non-prerelease, non-draft release, sorted by the created_at attribute"; when creating a release, `make_latest` defaults to `true`; the public `https://github.com/altnovatrail/modules/releases/latest` redirects to `…/releases/tag/v0.2.5` (`curl -sI`);
 - [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions): "The following usage remains free independently and does not reduce the included compute usage: Standard GitHub-hosted runners in public repositories".
 
+### 4.5. Sparse files in `archive/tar`, 2026-11-13
+
+For architecture 3.3; R41. Read 2026-11-13 in `src/archive/tar/` of Go 1.27.4, through `go env GOROOT`, and tried by a test:
+
+- `common.go`: `// Type 'S' indicates a sparse file in the GNU format.` and `paxGNUSparse = "GNU.sparse."`, the prefix of the keywords of a sparse file in a PAX extended header;
+- `reader.go`: `readGNUSparsePAXHeaders` — "checks the PAX headers for GNU sparse headers. If they are found, then this function reads the sparse map and returns it", and the size of the entry becomes `GNU.sparse.size` or `GNU.sparse.realsize`; the old GNU format keeps its type `S`, and `Next` gives an entry of PAX sparse with the type of a regular file. Reading it gives the zeros of its holes;
+- the trial, a conclusion from the code that a test confirmed: a tar of 3,584 bytes, 193 after gzip, with the records `GNU.sparse.major=1`, `minor=0`, `name=inventory.json` and `realsize=500000000`, was unpacked by `unpack` of `internal/packages` to a file of 500,000,000 bytes, before T59 refused such an entry. The input is `testdata/fuzz/FuzzUnpack/sparse-file`.
+
 ## 5. Carrying progress over
 
 For architecture 3.4.
@@ -308,6 +316,13 @@ For architecture 3.9; R33. Read 2026-11-09:
 - the module of contracts `contracts/v0.9.11`, and since R40 `contracts/v0.12.0`, where `go.mod` and `apiv1connect/account.connect.go` are the same: `go.mod` requires `connectrpc.com/connect/v2 v2.0.2`, and `apiv1connect/account.connect.go` has `func RegisterAccountServiceHandler(server *connect.Server, svc AccountServiceHandler)`, each method has `if err := stream.Receive(&req); err != nil { return err }` before calling the handler, and `UnimplementedAccountServiceHandler` has `connect.NewError(connect.CodeUnimplemented, …)`;
 - `connectrpc.com/connect/v2` [v2.0.2](https://github.com/connectrpc/connect-go/tree/v2.0.2) — `go 1.26.0`, license Apache-2.0, from the module through `go mod download`; `docs/v2-guide.md`: "an interceptor can reject a call using only its headers, before any payload work, which is what makes authn be able to be an interceptor in v2 rather than HTTP middleware"; "an interceptor can observe individual messages by wrapping the stream before calling `next`"; "only a locally authored `*connect.Error` is serialized to the wire. Any other error reaches the client as a bare code with no message"; "`Mount` installs one `http.Handler` per registered procedure onto a mux"; `connectproto/connectproto.go`: `NewJSONCodec` has `DiscardUnknown: true, // Ensure difference schema versions unmarshal.`, and `MarshalOptions` is a field that can be set "before use".
 
+### 10.6. Redirects of the standard library's mux, 2026-11-13
+
+For architecture 3.9; R26. Read 2026-11-13 in the sources of the module, through `go list -m -f '{{.Dir}}'` and `go env GOROOT`:
+
+- Go 1.27.4, `src/net/http/server.go`, the comment of `ServeMux`, "Trailing-slash redirection": "If the ServeMux receives a request for the subtree root without a trailing slash, it redirects the request by adding the trailing slash"; the comment of `ServeMux.Handler`: "If the path is not in its canonical form, the handler will be an internally-generated handler that redirects to the canonical path". The comment does not name the trailing slash there; the code does: `findHandler` returns `RedirectHandler(u.String(), StatusTemporaryRedirect)` for both, and for the clean path `u` keeps `r.URL.RawQuery`. This is a conclusion from the code, which the fuzz test `FuzzRoutes` of `internal/server` holds;
+- `connectrpc.com/connect/v2` v2.0.2, `connecthttp/connecthttp.go`, `Mount`: `mux.Handle(spec.Procedure, …)` for each method, and beside them `// "/package.Service/Method" -> subtree pattern "/package.Service/".` with `mux.Handle(service, newUnknownMethodHandler(server, &opts))`; `newUnknownMethodHandler` "routes RPC-shaped POST requests through [connect.Server.Call] and 404s everything else", by `http.NotFound(responseWriter, request)`, whose body in `server.go` of Go is "404 page not found".
+
 ## 11. Deletion and export
 
 For architecture 3.10: the sign-in service on deletion and fresh sign-in, RFC 9470, the codes of Connect, canvas-api and `app`, Cloud Run jobs and the `changelog` of OpenFGA.
@@ -405,3 +420,14 @@ For architecture 3.1, 3.2, 3.6, 3.9 and 3.10. [mathtrail/canvas-api, `docs/`](ht
   - spec 3.3 canvas-api: «Neon | Free | 0,5 ГБ на проект, 100 CU-часов в месяц, автопауза через 5 мин (не отключается), восстановление на момент времени — 6 часов»;
   - privacy 7 canvas-api: the database `canvas` is deleted «сразу; из истории восстановления (PITR) — через 6 часов», and in the database `openfga` «`changelog` — ежедневной очисткой, до суток; из PITR — через 6 часов после этого»;
   - privacy 8 canvas-api: a child's profile with no activity for 12 months «удаляется автоматически, без отдельного уведомления. Этот срок заранее указан в уведомлении при согласии: email у нас нет, писать некуда (П-6)».
+
+## 13. Checks of the code
+
+For architecture 1, where the checks of CI are named, and R27.
+
+### 13.1. Go's fuzzing and Scorecard's check Fuzzing, 2026-11-13
+
+For architecture 1; R27. Read 2026-11-13, no date on the pages:
+
+- [Go Fuzzing](https://go.dev/doc/security/fuzz/): "Fuzz tests are run much like a unit test by default. Each seed corpus entry will be tested against the fuzz target, reporting any failures before exiting"; "To enable fuzzing, run go test with the -fuzz flag, providing a regex matching a single fuzz test"; "The fuzzing engine wrote this failing input to the seed corpus for that fuzz test, and it will now be run by default with go test, serving as a regression test once the bug has been fixed"; the seed corpus "is composed of the corpus entries provided by f.Add calls within the fuzz test, and the files in the testdata/fuzz/{FuzzTestName} directory within the package. These entries are run by default with go test, whether fuzzing or not";
+- [Scorecard's checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md#fuzzing), the branch `main`: "This check tries to determine if the project uses fuzzing by checking: … 3. if there are user-defined language-specified fuzzing functions in the repository. - currently only supports Go fuzzing", beside OSS-Fuzz and ClusterFuzzLite; "Regular fuzzing is important to detect vulnerabilities that may be exploited by others".

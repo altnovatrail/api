@@ -1,6 +1,7 @@
 package learning_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"slices"
 	"strconv"
@@ -314,7 +315,11 @@ func TestTheProgressGivesTheAttemptsAndTheTrapsThatRepeat(t *testing.T) {
 		t.Error("the solved attempt has no evidence")
 	}
 
-	for _, token := range []string{"%%", "bm90LWEtdG9rZW4", "MTIzL25vdC1hbi1pZA"} {
+	// The last two are of a time before 4713 BC, which the database would not
+	// take, and of the year 10000, which no Timestamp holds.
+	for _, token := range []string{"%%", "bm90LWEtdG9rZW4", "MTIzL25vdC1hbi1pZA",
+		base64.RawURLEncoding.EncodeToString([]byte("-210866803200000001/0b8f6c1e-2a4d-4d6b-9c55-6f2a8e7d1c3b")),
+		base64.RawURLEncoding.EncodeToString([]byte("253402300800000000/0b8f6c1e-2a4d-4d6b-9c55-6f2a8e7d1c3b"))} {
 		_, err := w.progress.GetProgress(l.ctx, &v1.GetProgressRequest{ProfileId: l.child, PageToken: token})
 		refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
 	}

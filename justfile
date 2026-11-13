@@ -342,6 +342,23 @@ ci-test:
     mkdir -p coverage
     go test -race -count=1 -covermode=atomic -coverprofile=coverage/go.out ./...
 
+# ci-test runs each fuzz test on its seeds and on testdata/fuzz/ alone; this recipe fuzzes. Go
+# fuzzes one test of one package at a time, so each test is run in turn, for fuzztime. An input
+# that fails a test is written to testdata/fuzz/ of its package, stays in the corpus, and fails
+# ci-test until the code is fixed (R27). A new input is minimized for 2 s, not Go's 60: the
+# minimizing stops the fuzzing, and FuzzUnpack made half its executions with 60 (measurements 5).
+# Fuzz the fuzz tests of the readers of foreign input, or the one named, for fuzztime each.
+fuzz fuzztime="1m" test="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    grep -rl --include='*_test.go' '^func Fuzz' internal cmd | sort | while read -r file; do
+        for name in $(sed -n 's/^func \(Fuzz[A-Za-z0-9_]*\)(.*/\1/p' "$file"); do
+            [[ -z {{ quote(test) }} || $name == {{ quote(test) }} ]] || continue
+            echo "fuzz: $(dirname "$file") $name" >&2
+            go test -run '^$' -fuzz "^${name}\$" -fuzztime {{ quote(fuzztime) }} -fuzzminimizetime 2s "./$(dirname "$file")"
+        done
+    done
+
 # It fails on a known vulnerability in code the module reaches, in the standard library of its Go
 # too.
 # Look for known vulnerabilities with govulncheck.
