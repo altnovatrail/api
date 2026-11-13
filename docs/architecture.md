@@ -976,6 +976,8 @@ In the protocol (R17; section 3.9): the answer to a submission with a rubric is 
 
 Decided 2026-11-02: R17 — the requests, the boundary with the contract of `spec`, refusals and outcomes, idempotency keys and what goes to the device; R18 — the wire, the paths without a token, version withdrawal, CORS and logs, and with them the 2026-11-02 amendments to R03 and R07; R19 — the first slice has no real-time channel (Т-25). The amendments of the same day to R10 and R11 — where a refusal and where an outcome. The facts about Connect, protobuf, buf and Fetch and the measurements of `tutor` are in the records sources 10.1–10.4, and about Connect v2, in 10.5 (R33).
 
+#### What the contract decided and the boundary of `spec` and `api`
+
 **What the contract decided** (R97–R100 spec; R23). The contract `app` ↔ `api` came out in `spec` v0.9.4 — the package `novatrail.api.v1`: the services `AccountService`, `ModuleService`, `PackageService`, `LearningService`, `AttemptService` and `ProgressService`, one enumeration of causes `Cause`, and the [contracts text](../spec/contracts/README.md), section 15. It took almost everything from this section, and the messages, fields, causes and Connect codes are now its own: where the tables below say otherwise, the contract is right. It decided otherwise the following:
 - the clock offset is only for requests to platform AI, and with an own key there is none; `BeginAttempt` and `ChooseNext` do not call AI and carry no offset (R97 spec). This also decides the question that `api` put to the author — the 2026-11-07 amendment to R11;
 - the words of a rung and "explain differently" carry the number of wrong answers that the learner saw, and there is a new refusal "answer not current" — `failed_precondition`, when the learner asks for words for a wrong answer that is no longer the last: while they were reading, another submission came; for the words of a rung, also the refusals "no rung", "no more words" — from the fourth wrong answer — and "attempt closed", and a repeat comes without marks, with the flag "repeat";
@@ -1008,6 +1010,8 @@ Since `spec` v0.10.0 the contract has been supplemented with the fields of the l
 
 The cause "too many consents" is not in v0.12.0: the task T103 of E4 brings it, together with the confirmation, the withdrawal and the removal of a waiting consent, in one release of epic E4 of `spec`, and until then `api` refuses beyond its own limit with the code `invalid_argument` without `Refusal` (the 2026-11-09 amendment to R98 spec; section 3.1; Д21 in table 4 of [RUN.md](../RUN.md)).
 
+**In the code (R52)**: the contract of `spec` v0.15.0: `LegalService.GetLegalTexts` without a token, with `Cache-Control` for an hour, the texts of `spec.Legal` or of the copy's folder `API_LEGAL_DIR`, read by the rules of the part `legal/`; the consent methods of `AccountService` and `AttemptService.ReportProblem` with a key and the review period of 3 days; the causes 39–42. The message limit is 11 MiB, for the scan of the form.
+
 **What the decision starts from:**
 - the API contracts are proto3 files in `contracts/` of `spec`, the packages `novatrail.<part>.v1`, the buf rules `STANDARD`, `COMMENTS` and `UNARY_RPC`: no method streams anything. A field's name in JSON is the proto name, snake_case, and `spec` generates the code: the Go module `github.com/altnovatrail/spec/contracts` and the npm package `@altnovatrail/contracts`. The transport is Connect: the server on connect-go in `api`, the client on connect-es in `app`, and JSON or binary protobuf on the wire is the choice of this task (R11, R83 spec). There were no `.proto` files then: T62–T64 of epic E3 of RUN.md of `spec` wrote them by T07 and T08 — "What the contract decided" above (section 3.10);
 - the contract's version is the package's suffix and the tag of `spec`. Within a package a change only adds, a breaking change is a new package and a new line, and `api` keeps the current and the previous major package; both sides skip unknown fields. While the module format is v0, `api` and `app` are released together. `app` offers a reload only on `unimplemented` and on a format version that its build does not read (R44, R83 spec; «origin `api` и версии» at table 1 of RUN.md of `spec`). First the contract, then the service, then the client (repositories 1 spec);
@@ -1032,6 +1036,8 @@ The cause "too many consents" is not in v0.12.0: the task T103 of E4 brings it, 
 
 This section speaks at the level of meaning, without the names of messages and fields: otherwise there would be a second source of truth beside T62–T64.
 
+#### Common to all requests
+
 **Common to all requests** (R17, R18):
 - a request with a token carries the ID token of the sign-in service in `Authorization`, and `api` checks it with revocation and goes through the checks of section 3.1 in order (R03, R04);
 - a learning request and an adult action on a profile carry the profile ID, even when the table below names only the attempt, the run or the choice: `api` first checks the right to the profile, and reads the attempt, the run and the choice by the pair "profile ID, their ID". Those of others and those that do not exist get one refusal — "not found" (R04);
@@ -1040,6 +1046,8 @@ This section speaks at the level of meaning, without the names of messages and f
 - the wire is binary protobuf, and the server accepts JSON too — below.
 
 **Requests** (R17). "Key" is the idempotency key, "AI" means the request calls AI and carries the clock offset, and with an own key, the key and its provider instead of the offset (R97 spec; the 2026-11-07 amendment to R11). The heading of each table names the task of epic E3 of RUN.md of `spec` that writes these requests into the contract.
+
+#### Requests of `AccountService`
 
 *Account and profiles — T63:*
 
@@ -1054,6 +1062,24 @@ This section speaks at the level of meaning, without the names of messages and f
 | voicing from the task screen | `can_learn` | whether voicing is on, and its speed — only these (Д74) | the profile | voicing on another device too |
 | consent and its status | — | epic E4 of `spec`, «с детьми и тарифами»: not decided here | — | — |
 
+*Own key — T62, T63:*
+
+| Request | Right | Comes in | Goes out | What they see |
+|---|---|---|---|---|
+| check a key | `can_manage` of the owner profile of the category `adult` | owner profile ID, the key and the provider, without the learner's content (R84 spec) | "accepted", "wrong", "the key has no rights" or "provider closed for the profile" | the answer on the page where the key is entered |
+| own key providers | `can_manage` | profile ID | the providers open to the own key at the profile, by the admission function (R96 spec) | a list that `app` does not build in |
+
+*Export and deletion — T63; R20, R21, section 3.10:*
+
+| Request | Right | Comes in | Goes out | What they see |
+|---|---|---|---|---|
+| profile export | `can_manage`, without a fresh sign-in | profile ID | its own part of the profile export: everything in the column "in the export" of the table of section 3.2, with the profile's counters; the format is epic E4 of `spec` (R76 spec) | the export file is assembled by `app` (architecture 4.5 spec) |
+| account export | account from the token, without a fresh sign-in | — | the account's fields for the export, its counters and the exports of all profiles | the same |
+| delete a profile | `can_manage` and a fresh sign-in | profile ID | "deleted"; refusals: "fresh sign-in needed", "no profile" — on a repeat too, when the profile is deleted already (R21) | the profile is gone from the learner choice; `app` erases its database, the other devices by the list of profiles |
+| delete the account | account from the token and a fresh sign-in | — | "deleted" — also when the steps after the transaction did not pass and the operator's job finishes them (R21); the refusal "fresh sign-in needed", and a repeat gets "account gone" | `app` erases everything of the account and signs out; the other devices by "account gone" (R20) |
+
+#### Requests of `ModuleService` and `PackageService`
+
 *Modules, open views and files — T64:*
 
 | Request | Right | Comes in | Goes out | What they see |
@@ -1064,6 +1090,8 @@ This section speaks at the level of meaning, without the names of messages and f
 | module manifest, skill graph, technique catalog, solving steps | without a token, Connect GET (R18) | package digest, without a profile ID | the open view — the bytes of the format's JSON — and the format version; the refusals "version withdrawn" and "temporarily" | — |
 | file of the device part | without a token, HTTP GET, not Connect (R18) | package digest and the file's path | `200`, `404`, `410` or `503` with `Retry-After` | the pictures of a task and of an example |
 | which digests the image no longer gives | account from the token | digests from the cache of `app` | for each, "gives", "no longer gives" — withdrawn or out of the window — or "does not know": the image's index does not know such a digest, a deployment is going on (R18) | the open views that are "no longer given" `app` deletes, and about an unknown one it asks later |
+
+#### Requests of `LearningService` and `AttemptService`
 
 *Choice and attempt — T64:*
 
@@ -1096,12 +1124,7 @@ This section speaks at the level of meaning, without the names of messages and f
 | segment attempt | — | the row "start an attempt" above | | |
 | "lesson passed" | `can_learn` | run ID | the run ended "passed" — on a repeat too —, and the engine choice. Refusals: "segments not ended" with the places of the ended ones, "run ended" with another reason (R13) | the next one |
 
-*Own key — T62, T63:*
-
-| Request | Right | Comes in | Goes out | What they see |
-|---|---|---|---|---|
-| check a key | `can_manage` of the owner profile of the category `adult` | owner profile ID, the key and the provider, without the learner's content (R84 spec) | "accepted", "wrong", "the key has no rights" or "provider closed for the profile" | the answer on the page where the key is entered |
-| own key providers | `can_manage` | profile ID | the providers open to the own key at the profile, by the admission function (R96 spec) | a list that `app` does not build in |
+#### Requests of `ProgressService` and the quota share
 
 *Skill map and progress — T64, recorded by R99 spec:*
 
@@ -1111,14 +1134,7 @@ This section speaks at the level of meaning, without the names of messages and f
 | adult's progress | `can_view` | profile ID | the attempts with close reasons and time, the marks of the criteria of closed attempts with a rubric (R15), repeating traps, and the reason code and the time of the choice at each attempt (R99, R100 spec) | the section for adults |
 | platform AI quota share | for a learner `can_learn`, for an adult `can_view` | profile ID and the action, a learner's or an adult's | the share of the profile's cap for the family day, and for an adult also the account's: whole percent rounded down, by the computed spending, without the reserves of calls going on; whether the cap is reached and when the next day begins; for a tariff without caps, without shares (the 2026-11-12 amendment to R98 spec; R11). In the contract from `spec` v0.16.3, in the code by epic E9 of [RUN.md](../RUN.md), and before it `unimplemented` (R62) | for a learner, where they begin work; for an adult, their section |
 
-*Export and deletion — T63; R20, R21, section 3.10:*
-
-| Request | Right | Comes in | Goes out | What they see |
-|---|---|---|---|---|
-| profile export | `can_manage`, without a fresh sign-in | profile ID | its own part of the profile export: everything in the column "in the export" of the table of section 3.2, with the profile's counters; the format is epic E4 of `spec` (R76 spec) | the export file is assembled by `app` (architecture 4.5 spec) |
-| account export | account from the token, without a fresh sign-in | — | the account's fields for the export, its counters and the exports of all profiles | the same |
-| delete a profile | `can_manage` and a fresh sign-in | profile ID | "deleted"; refusals: "fresh sign-in needed", "no profile" — on a repeat too, when the profile is deleted already (R21) | the profile is gone from the learner choice; `app` erases its database, the other devices by the list of profiles |
-| delete the account | account from the token and a fresh sign-in | — | "deleted" — also when the steps after the transaction did not pass and the operator's job finishes them (R21); the refusal "fresh sign-in needed", and a repeat gets "account gone" | `app` erases everything of the account and signs out; the other devices by "account gone" (R20) |
+#### Refusals, outcomes, the idempotency key and what goes to the device
 
 **Refusals and outcomes** (R17):
 - a refusal is an action that did not happen: a Connect error with a standard code and a cause with data. An outcome is an action that happened and changes what the learner sees: a field of the successful answer. An exhausted quota does not refuse a submission — the verdict "unchecked" with the cause "quota" (R11) —, but does not begin a new attempt or segment, and that is a refusal (R11, R13);
@@ -1196,6 +1212,8 @@ The close reasons of an attempt (section 3.5), the end reasons of a lesson run (
 - never, with a task and in the answers of an attempt: traps — neither the catalog nor the matched trap: the words of a rung in `api` get it (architecture 4.1 spec; R57 spec; [format text](../spec/format/README.md), section 16); slot checks, skills, the band, the difficulty, techniques — but for the IDs of those given —, the simpler case and the leak phrases (R51, R56, R57 spec); the attempt's seed (R59 spec); the own key back;
 - to the learner, neither the criteria of the rubric nor the marks: they see the feedback (R15). To an adult the marks and the repeating traps are progress. Progress names a trap by its `description` and `trap_advice`, as the [format text](../spec/format/README.md), section 16, prescribes — only in progress and by closed attempts. So `spec` recorded progress in T64 and in the [format text](../spec/format/README.md), section 16: traps only in progress and only by closed attempts (R99 spec; R23).
 
+#### The wire, routes without a token, CORS, logs and the request timeout
+
 **The wire** (R18):
 - binary protobuf. `app` turns it on in the transport connect-web — by default it sends JSON. A new value of an enumeration that a release of `spec` added to the package `v1` binary protobuf carries to an earlier build of `app` as a number: a proto3 enumeration is open. In JSON the server writes the value's name, and connect-es skips an unknown name, and the field reads as empty: a new close reason would look like "attempt open". Crops are `bytes`, in JSON a base64 string, a third longer, and the crop of a handwriting check goes twice;
 - the server accepts JSON too, for debugging. The standard JSON codec of connect-go writes the names in lowerCamelCase, so `api` sets its own: `protojson` with `UseProtoNames`, as R83 spec prescribes, and `DiscardUnknown`, as the standard one does;
@@ -1226,6 +1244,8 @@ The close reasons of an attempt (section 3.5), the end reasons of a lesson run (
 
 **Request timeout** (R33; sources 10.5): 30 s, `API_REQUEST_TIMEOUT`, less than `API_HTTP_WRITE_TIMEOUT`; shorter if the client's `Connect-Timeout-Ms` asks so. It governs the calls of the ports — the Firebase SDK repeats a call for up to two minutes (R32) —, the record "going" of the idempotency key and the finishing of marks by a job (sections 3.2 and 3.10).
 
+#### The real-time channel and its measurement
+
 **Real-time channel** (R19; Т-25): there is none. The check of handwriting is two requests, a tapped choice one, without AI, an essay one. How long the learner waits on Opus 5.5 · `high` is an estimate by the measurements of `tutor` be607e5 (sources 10.3), not a measurement:
 
 | What the learner waits for | Two requests — decided | One answer | Event channel |
@@ -1246,6 +1266,8 @@ The close reasons of an attempt (section 3.5), the end reasons of a lesson run (
 
 New facts against R41 canvas-api, which rejected «всё в HTTP-ответе»: the tutor's words go whole, after the leak check (R54 spec), so a channel would carry only events; the verdict is ready after the first call, the reading (R67 spec), so a channel would carry one event, the one that comes as an answer anyway; the rules of the contracts do not allow streams (R83 spec); there are no queues or event bus of our own (R11 spec). The argument of R23 canvas-api itself — on Cloud Run work after the response gets almost no CPU — holds: each request does its work within itself. That canvas-api went without Centrifugo in its E2 is not a new fact: R60 canvas-api keeps it in the stack until the beta. Return to the channel together with voice (Т-13), at stage 3, and decide then whether it is needed, if voice input goes as a stream (repositories 8 spec).
 
+#### The check against privacy and what `spec` recorded
+
 **Check against privacy spec** (privacy 1, 4, 5, 7 spec):
 - the fields of requests that carry learners' data — the profile's fields, the clock offset, the work and the profile ID — are those that privacy 4 spec names. The work and the own key live only in the request's memory (R09 spec; R84 spec), and the profile's fields and the offset on the server, as in the table of section 3.2;
 - the record of the idempotency key is a service record, without content, for no longer than 2 days, and it does not go into the export; `api` does not store the digests of the request about withdrawals;
@@ -1259,8 +1281,6 @@ New facts against R41 canvas-api, which rejected «всё в HTTP-ответе»
 - the contract is R97–R100 spec and the [contracts text](../spec/contracts/README.md), sections 9 and 15: binary protobuf on the wire, JSON with proto names, and in the answer to a submission neither the matched trap nor the refusal "nothing to hint". Where the contract decided otherwise than this section is "What the contract decided" above;
 - Т-25: for the first slice there is no channel, the check of handwriting is two requests, and the return comes with voice; to `tutor`, for its epic of code: readers of the pair in parallel, and the time of a reading call and of the pair in its documents;
 - the adult's progress is in the contract, T64, and progress gets the `description` and `trap_advice` of a repeating trap by the [format text](../spec/format/README.md), section 16.
-
-**In the code (R52)**: the contract of `spec` v0.15.0: `LegalService.GetLegalTexts` without a token, with `Cache-Control` for an hour, the texts of `spec.Legal` or of the copy's folder `API_LEGAL_DIR`, read by the rules of the part `legal/`; the consent methods of `AccountService` and `AttemptService.ReportProblem` with a key and the review period of 3 days; the causes 39–42. The message limit is 11 MiB, for the scan of the form.
 
 ### 3.10. Deletion and export
 
