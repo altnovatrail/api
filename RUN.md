@@ -54,7 +54,7 @@
 |---|---|---|---|---|---|
 | [x] | T58 | `.bestpractices.json` и раздел Contributing README | Claude | — | — |
 | [x] | T59 | Fuzz-тесты читателей чужого ввода | Claude | — | — |
-| [ ] | T60 | Проект на bestpractices.dev и значок | я + Claude | — | T58, T59 |
+| [x] | T60 | Проект на bestpractices.dev и значок | я + Claude | — | T58, T59 |
 | [x] | T61 | Вне плана эпика: переход на spec v0.16.3 и порядок работы линии 0.16 | Claude | да | — |
 | [x] | T62 | Вне плана эпика: «Источники» и замеры — в `docs/sources.md` и `docs/measurements.md` | Claude | — | T61 |
 | [x] | T63 | Вне плана эпика: перевод architecture, sources и measurements | Claude | да | T62 |
@@ -92,16 +92,5 @@
 
 - T58 — сделана 2026-11-12: `.bestpractices.json` — 61 Met, 5 N/A и `dynamic_analysis` Unmet до T59 — и раздел Contributing README. Тело — [docs/plan/E8.md](docs/plan/E8.md).
 - T59 — сделана 2026-11-13: шесть fuzz-тестов читателей чужого ввода, `just fuzz` и правило части go; найдены и исправлены редирект поддерева с путём и query, токен страницы до 4713 г. до н. э. и sparse-архив в 500 МБ; `dynamic_analysis` — Met. Тело — [docs/plan/E8.md](docs/plan/E8.md).
+- T60 — сделана 2026-11-13: проект [16661](https://www.bestpractices.dev/projects/16661) на bestpractices.dev с уровнем passing — сайт взял все 67 статусов из `.bestpractices.json`, — значок в README и поправка к R27; Д19 закрыт. Тело — [docs/plan/E8.md](docs/plan/E8.md).
 - T61–T65 — вне плана эпика, сделаны 2026-11-12 и 2026-11-13: `spec` v0.16.3, документы перестроены и переведены, бюджеты и замер (R62, R63). Тела — [docs/plan/E8.md](docs/plan/E8.md).
-
-#### T60. Проект на bestpractices.dev и значок
-
-- **Цель:** у `api` — проект на bestpractices.dev с уровнем passing и значок в README, Д19 закрыт.
-- **Мой шаг:** после мержа T59 — проект на bestpractices.dev входом через GitHub, на адрес `https://github.com/altnovatrail/api`. Сайт прочтёт `.bestpractices.json` с `main`, а сохраняю анкету я.
-- **Сделать:**
-  - сверить `https://www.bestpractices.dev/projects/<ID>.json`: `badge_level` — `passing`, статусы — как в файле. Где сайт записал своё, а по сути ответ другой, — ссылка на анкету с `overrides` (repositories 2.3 spec);
-  - значок OpenSSF Best Practices — на его месте в первой строке README, после покрытия (repositories 2.3 spec);
-  - строка Д19 уходит из таблицы 4, а эпик получает итог.
-- **Как проверить:** `projects/<ID>.json` — `badge_level` `passing`, а значок в README его показывает; `docs-check-repo`; после следующего прогона Scorecard находка `CII-Best-Practices` закрыта.
-- **Разделы:** R27; R48 spec; repositories 2.3 spec; Д19.
-
