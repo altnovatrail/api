@@ -115,3 +115,22 @@ Six sections of architecture stayed over 24 KB after T61–T64. Each has a limit
 - The context of a main call fell from 371.4 to 173.9 thousand, −53%, and of a subagent's from 104.4 to 86.5, −17%. The windows differ in work: "before" is mostly the code of E2–E7, "after" the move to the tag and documents; most subagent calls are the blind reading of the translations of T63 and T64.
 - By session, main calls and a main call's context: T61 — 183, 241.9 thousand; T62 — 125, 196.2; T63 — 91, 112.2; T64 — 96, 116.6; T65 — 51, 93.0.
 - The reference of `api` for the threshold of R145 spec is its measurement after of T124 spec, not this row.
+
+## 5. Fuzzing, T59, 2026-11-13
+
+For the 2026-11-13 amendment to R27. `just fuzz 5m` in the devcontainer, 20 workers of `go test -fuzz` on this machine (`nproc` 20), Go 1.27.4, each test for five minutes from its seeds; the executions are those of the last line of each run. No test failed, and no input was written to `testdata/fuzz/`.
+
+| Test | Package | Executions in 5 minutes |
+|---|---|---|
+| `FuzzRead` | `internal/invite` | 35,175,054 |
+| `FuzzCursorOf` | `internal/learning` | 2,411,589 |
+| `FuzzFromName` | `internal/packages` | 10,599,276 |
+| `FuzzParseConfig` | `internal/packages` | 5,665,657 |
+| `FuzzUnpack` | `internal/packages` | 31,940 before the refusal of sparse files, 302,342 after |
+| `FuzzRoutes` | `internal/server` | 11,324,242 |
+
+`FuzzUnpack` stood for tens of seconds at 0 executions a second. One cause was an entry of PAX sparse, which the reader of `archive/tar` unfolds into zeros up to the limit of 512 MB (sources 4.5); once `unpack` refused it, the run made ten times as many executions. Its remaining stops are the minimization of new inputs, up to 60 s each by default: a minute with `-fuzzminimizetime 2s` made 79,353 executions against 39,520 without it.
+
+The refusal does not bound the memory of the build; the limit of R41 does: 500,000,000 zero bytes gzip to 485,269 bytes (`head -c 500000000 /dev/zero | gzip -c | wc -c`, the default level), and a regular file of them unpacks as far as the limit allows.
+
+After the review the two tests changed and were fuzzed again, `just fuzz 5m <test>` with `-fuzzminimizetime 2s`, without a failure: `FuzzRoutes`, now on `rpc.Mount` of every service, 1,244,726 executions; `FuzzCursorOf`, now bounded at the year 9999 too, 744,648.

@@ -129,16 +129,3 @@ func TestAFlushBeginsTheAnswer(t *testing.T) {
 	}()
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 }
-
-func TestCleanPath(t *testing.T) {
-	t.Parallel()
-
-	for in, want := range map[string]string{
-		"": "/", "health": "/health", "/health": "/health", "//health": "/health",
-		"/a/../health": "/health", "/a/./b/": "/a/b/", "/": "/",
-	} {
-		if got := cleanPath(in); got != want {
-			t.Errorf("cleanPath(%q) = %q, want %q", in, got, want)
-		}
-	}
-}

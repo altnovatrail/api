@@ -1,6 +1,7 @@
 package learning
 
 import (
+	"encoding/base64"
 	"slices"
 	"testing"
 	"time"
@@ -68,4 +69,31 @@ func TestAPageTokenIsItsCursor(t *testing.T) {
 	if got, err := cursorOf(""); got != nil || err != nil {
 		t.Errorf("no token = %v, %v; want the first page", got, err)
 	}
+}
+
+// Whatever app gives back as a page token, cursorOf does not panic, and the
+// cursor it reads is one whose token reads back to it, of a time between 1970
+// and the year 9999, as the service gives one.
+func FuzzCursorOf(f *testing.F) {
+	f.Add(tokenOf(store.Cursor{StartedAt: time.UnixMicro(1_800_000_000_123_456).UTC(), ID: "0b8f6c1e-2a4d-4d6b-9c55-6f2a8e7d1c3b"}))
+	for _, seed := range []string{
+		"", "%%", "bm90LWEtdG9rZW4", "MTIzL25vdC1hbi1pZA",
+		base64.RawURLEncoding.EncodeToString([]byte("-1/0b8f6c1e-2a4d-4d6b-9c55-6f2a8e7d1c3b")),
+		base64.RawURLEncoding.EncodeToString([]byte("+0/0b8f6c1e-2a4d-4d6b-9c55-6f2a8e7d1c3b")),
+		base64.RawURLEncoding.EncodeToString([]byte("9223372036854775807/0B8F6C1E-2A4D-4D6B-9C55-6F2A8E7D1C3B")),
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, token string) {
+		c, err := cursorOf(token)
+		if err != nil || c == nil {
+			return
+		}
+		if c.StartedAt.Before(time.Unix(0, 0)) || c.StartedAt.Year() > 9999 {
+			t.Fatalf("cursorOf(%q) = %v, out of 1970 to 9999", token, c)
+		}
+		if again, err := cursorOf(tokenOf(*c)); err != nil || again == nil || *again != *c {
+			t.Fatalf("cursorOf(%q) = %v; its token reads to %v, %v", token, c, again, err)
+		}
+	})
 }

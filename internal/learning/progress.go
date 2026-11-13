@@ -317,7 +317,14 @@ func tokenOf(c store.Cursor) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(c.StartedAt.UnixMicro(), 10) + "/" + c.ID))
 }
 
-// cursorOf is the cursor of a page token, nil for the first page.
+// lastMicros is the last microsecond of the year 9999, the last a Timestamp of
+// protobuf holds, in which the service gives an attempt's beginning.
+var lastMicros = time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC).UnixMicro() - 1
+
+// cursorOf is the cursor of a page token, nil for the first page. An attempt
+// begins by the service's clock, between 1970 and the year 9999: a time out of
+// them is no token the service gave, and one before 4713 BC the database would
+// not take.
 func cursorOf(token string) (*store.Cursor, error) {
 	if token == "" {
 		return nil, nil
@@ -328,7 +335,7 @@ func cursorOf(token string) (*store.Cursor, error) {
 	}
 	at, id, ok := strings.Cut(string(data), "/")
 	micros, err := strconv.ParseInt(at, 10, 64)
-	if !ok || err != nil || !store.CanonicalID(id) {
+	if !ok || err != nil || micros < 0 || micros > lastMicros || !store.CanonicalID(id) {
 		return nil, errToken
 	}
 	return &store.Cursor{StartedAt: time.UnixMicro(micros).UTC(), ID: id}, nil
