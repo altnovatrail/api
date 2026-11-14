@@ -126,6 +126,8 @@ type note struct {
 	outcome string
 	// wordsCheck is the check that turned the tutor's words down (R47).
 	wordsCheck string
+	// keyCheck is how the check of an own key ended (R73).
+	keyCheck string
 	// quotaSpent is the cap a call of platform AI met, which made no call (R12).
 	quotaSpent string
 	// platformLimit says the request closed platform AI for its provider's limit.
@@ -182,6 +184,9 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 			}
 			if n.wordsCheck != "" {
 				attrs = append(attrs, logging.FieldWordsCheck, n.wordsCheck)
+			}
+			if n.keyCheck != "" {
+				attrs = append(attrs, logging.FieldKeyCheck, n.keyCheck)
 			}
 			if n.platformLimit {
 				log.WarnContext(ctx, logging.EventPlatformLimit, logging.FieldMethod, spec.Procedure)

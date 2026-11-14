@@ -157,6 +157,9 @@ const (
 	// FieldWordsCheck is the check that turned the tutor's words down, so that
 	// the learner read the fallback text: a word of WordsChecks (R47).
 	FieldWordsCheck = "words_check"
+	// FieldKeyCheck is how the check of an own key ended, in a word of
+	// KeyChecks — never the key or its provider (R73).
+	FieldKeyCheck = "key_check"
 	// FieldCostMicroUSD is what a call of a model cost by tutor's prices, in whole
 	// micro-dollars: at its worst when its tokens are not its whole bill (R12).
 	FieldCostMicroUSD = "cost_micro_usd"
@@ -244,7 +247,7 @@ var events = map[string][]string{
 	EventPanic:    {FieldPanicKind},
 	EventMigrated: {FieldDatabase, FieldApplied, FieldSchemaVersion, FieldStoreCreated, FieldModelWritten},
 	EventRequest: {FieldMethod, FieldCode, FieldCause, FieldTokenClass, FieldDurationMS, FieldErrorKind, FieldOutcomeCause,
-		FieldWordsCheck},
+		FieldWordsCheck, FieldKeyCheck},
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
@@ -313,6 +316,7 @@ var fields = map[string]rule{
 	FieldThinkingTokens: {kind: slog.KindInt64},
 	FieldAIOutcome:      {kind: slog.KindString, values: AIOutcomes},
 	FieldWordsCheck:     {kind: slog.KindString, values: WordsChecks},
+	FieldKeyCheck:       {kind: slog.KindString, values: KeyChecks},
 	FieldCostMicroUSD:   {kind: slog.KindInt64},
 	FieldBilled:         {kind: slog.KindBool},
 	FieldModelMS:        {kind: slog.KindInt64},
@@ -393,6 +397,21 @@ const (
 
 // WordsChecks is the value set of FieldWordsCheck.
 var WordsChecks = []string{WordsCheckEmpty, WordsCheckLeak, WordsCheckForm}
+
+// The ends of the check of an own key (R73), the value set of FieldKeyCheck:
+// the contract's OwnKeyCheck in its own words, and "unanswered" for a
+// provider that gave no answer, OWN_KEY_CHECK_UNSPECIFIED with
+// CAUSE_AI_FAILURE.
+const (
+	KeyCheckAccepted       = "accepted"
+	KeyCheckInvalid        = "invalid"
+	KeyCheckNoPermission   = "no_permission"
+	KeyCheckProviderClosed = "provider_closed"
+	KeyCheckUnanswered     = "unanswered"
+)
+
+// KeyChecks is the value set of FieldKeyCheck.
+var KeyChecks = []string{KeyCheckAccepted, KeyCheckInvalid, KeyCheckNoPermission, KeyCheckProviderClosed, KeyCheckUnanswered}
 
 // QuotaCaps is the value set of FieldQuotaCap: the cap of the profile, of the
 // account, or a tariff with no caps, in the words of quota.Spent. quota's tests

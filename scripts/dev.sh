@@ -5,8 +5,9 @@
 # `just dev-check` goes the whole way —
 # migrations, an invite code, a country, the packages of modules, the opening of platform AI, the
 # server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
-# else", a reading of handwriting with its reserve and settlement of the quota, a stored work by the
-# storage switched on and off, a parent's consent by its form, then the job after a rollout — and
+# else", the own key's providers and its check, a reading of handwriting with its reserve and
+# settlement of the quota, a stored work by the storage switched on and off, a parent's consent by
+# its form, then the job after a rollout — and
 # checks the answers and the logs. The server's key of
 # platform AI is one Anthropic refuses, so that no call of the check reaches a model. `just dev-app`
 # keeps the server up on the stub for the local build of app, which signs in by a custom token this
@@ -429,6 +430,19 @@ check() {
     jq -e '.providers == [{provider: "anthropic", name: "Anthropic"}]' "$work/answer.json" > /dev/null ||
         die "ListOwnKeyProviders gave $(jq -c .providers "$work/answer.json"), want Anthropic alone"
     echo "$who: the own key's providers are Anthropic alone"
+
+    # The check of an own key through tutor (R73): the key Anthropic refuses, as the owner's own,
+    # goes to count_tokens, which is free, and comes back not valid; OpenAI's is closed, with no call.
+    call CheckOwnKey < <(PROFILE=$owner KEY=$refused_key \
+        jq -cn '{profile_id: env.PROFILE, own_key: {provider: "anthropic", key: env.KEY}}')
+    expect CheckOwnKey
+    jq -e '.check == "OWN_KEY_CHECK_INVALID"' "$work/answer.json" > /dev/null ||
+        die "CheckOwnKey of the refused key gave $(jq -c . "$work/answer.json"), want OWN_KEY_CHECK_INVALID"
+    call CheckOwnKey < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE, own_key: {provider: "openai", key: "sk-dev-check"}}')
+    expect CheckOwnKey
+    jq -e '.check == "OWN_KEY_CHECK_PROVIDER_CLOSED"' "$work/answer.json" > /dev/null ||
+        die "CheckOwnKey of OpenAI gave $(jq -c . "$work/answer.json"), want OWN_KEY_CHECK_PROVIDER_CLOSED"
+    echo "$who: the refused key is not valid, and OpenAI's provider is closed"
 
     # The quota of platform AI on the database itself (R58): a reading of handwriting takes its
     # reserve before the call and settles it after. The provider refuses the key, the answer has no

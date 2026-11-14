@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/altnovatrail/spec"
 	"github.com/altnovatrail/spec/types/admissionv0"
@@ -95,25 +97,56 @@ var errStub = errors.New("admission: the stub of tutor calls no provider")
 // the client of its catalog made with no key, whose names and prices tutor
 // reads for the choice and the price as it does from any adapter, while the
 // calls are refused before any network. So tutor admits, chooses and prices on
-// the real table, and nothing of it reaches a provider.
+// the real table, and nothing of it reaches a provider. The check of an own
+// key answers by how the key ends (stubModel.Check), so that Tutor.CheckKey
+// gives every end of a check with no call.
 func StubAdapters() map[admissionv0.Provider]provider.Dial {
-	return map[admissionv0.Provider]provider.Dial{"anthropic": func(id, _ string) (provider.Model, error) {
+	return map[admissionv0.Provider]provider.Dial{"anthropic": func(id, key string) (provider.Model, error) {
 		m, err := claude.Dial(id, "")
 		if err != nil {
 			return nil, err
 		}
-		return stubModel{m}, nil
+		return stubModel{Model: m, checked: stubCheck(key)}, nil
 	}}
 }
 
-// stubModel is a model of the catalog whose calls are refused.
-type stubModel struct{ provider.Model }
+// The endings of a synthetic key that the stub's check of a key reads (R66);
+// a key that ends in none of them is accepted. README.md names them for app.
+const (
+	StubKeyInvalid = "-invalid"
+	StubKeyNoPerm  = "-noperm"
+	StubKeySilent  = "-silent"
+)
+
+// stubCheck is how the stub's check of key ends, by its ending, as a provider
+// answers the check: the key refused, a key with no rights to the model, a
+// failure of neither kind — a provider that gave no answer —, or nil, the key
+// taken.
+func stubCheck(key string) error {
+	switch {
+	case strings.HasSuffix(key, StubKeyInvalid):
+		return fmt.Errorf("%w: %w", errStub, provider.ErrKeyRefused)
+	case strings.HasSuffix(key, StubKeyNoPerm):
+		return fmt.Errorf("%w: %w", errStub, provider.ErrNoRights)
+	case strings.HasSuffix(key, StubKeySilent):
+		return errStub
+	}
+	return nil
+}
+
+// stubModel is a model of the catalog whose calls are refused, and whose check
+// of a key ends as stubCheck read the key it was dialled with: the model keeps
+// the end, never the key.
+type stubModel struct {
+	provider.Model
+	checked error
+}
 
 func (stubModel) Ask(context.Context, provider.Request) (provider.Response, error) {
 	return provider.Response{}, errStub
 }
 
-func (stubModel) Check(context.Context) error { return errStub }
+func (m stubModel) Check(context.Context) error { return m.checked }
 
 // Load is the gate of the table of spec and of what cfg declares. A file that
 // cannot be read, or that tutor refuses, is a refusal of the configuration,
@@ -221,6 +254,41 @@ func (g *Gate) OwnKeyOpen(category formatv0.AgeCategory, provider string) bool {
 		}
 	}
 	return false
+}
+
+// checkReserve is the part of a request's time kept after the check of a key,
+// to answer how it ended: the check ends that much before the request's
+// deadline, so that a provider that does not answer in time is an outcome, not
+// a deadline exceeded.
+const checkReserve = time.Second
+
+// ErrTooLittleTime is a check of a key that would not begin: the request has
+// less than twice checkReserve left, and the provider would be blamed for the
+// client's short deadline.
+var ErrTooLittleTime = errors.New("admission: too little time to check the key")
+
+// CheckKey checks the own key of provider at a learner of category through
+// tutor, which checks it for every model it would call with it, each by a
+// request with nothing of a learner's (Tutor.CheckKey; R84 spec, R96 tutor).
+// A provider closed to the key (OwnKeyOpen) is KeyProviderClosed with no call,
+// so that the check and the list of ListOwnKeyProviders do not part (R72). The
+// check ends checkReserve before ctx's deadline, and with less than twice that
+// left it does not begin: KeyUnanswered and ErrTooLittleTime. The error says
+// what failed, for the log, and never holds the key.
+func (g *Gate) CheckKey(ctx context.Context, category formatv0.AgeCategory, provider, key string) (tutor.KeyCheck, error) {
+	if !g.OwnKeyOpen(category, provider) {
+		return tutor.KeyProviderClosed, nil
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		if time.Until(deadline) < 2*checkReserve {
+			return tutor.KeyUnanswered, ErrTooLittleTime
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-checkReserve))
+		defer cancel()
+	}
+	return g.tutor.CheckKey(ctx, tutor.Route{AI: admissionv0.AiRouteOwnKey, Category: admissionv0.AgeCategory(category),
+		Own: tutor.NewOwnKey(admissionv0.Provider(provider), key)})
 }
 
 // OwnKeyProviders are the providers of the table, in its order, whose own key

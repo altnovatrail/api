@@ -1,15 +1,19 @@
 package admission_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/altnovatrail/spec"
 	"github.com/altnovatrail/spec/types/admissionv0"
@@ -17,6 +21,7 @@ import (
 	"github.com/altnovatrail/tutor"
 	table "github.com/altnovatrail/tutor/admission"
 	"github.com/altnovatrail/tutor/provider"
+	"github.com/altnovatrail/tutor/provider/claude"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
@@ -343,8 +348,8 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	if _, err := m.Ask(t.Context(), provider.Request{}); err == nil {
 		t.Error("the stub's model answered a call")
 	}
-	if err := m.Check(t.Context()); err == nil {
-		t.Error("the stub's model checked a key")
+	if err := m.Check(t.Context()); err != nil {
+		t.Errorf("the stub's check of a key with no ending of its own = %v, want it taken", err)
 	}
 	if m.Name() == "" || m.Prices().Read == "" {
 		t.Errorf("the stub's model has no name or prices of the catalog: %q, %+v", m.Name(), m.Prices())
@@ -483,5 +488,187 @@ func TestTheProvidersKeepTheTablesOrder(t *testing.T) {
 				t.Errorf("ReadProviders = %v, want a fault", got)
 			}
 		})
+	}
+}
+
+// checkingModel is a model of Claude's catalog whose check of a key answers
+// err, and records the deadline it was given.
+type checkingModel struct {
+	provider.Model
+	err      error
+	deadline chan<- time.Time
+}
+
+func (m checkingModel) Check(ctx context.Context) error {
+	if m.deadline != nil {
+		d, _ := ctx.Deadline()
+		m.deadline <- d
+	}
+	return m.err
+}
+
+// checkingGate is a gate at the stage author whose adapters of Anthropic and
+// OpenAI both answer the check of a key err, and count how often they dial.
+func checkingGate(t *testing.T, err error, deadline chan<- time.Time) (*admission.Gate, *atomic.Int32) {
+	t.Helper()
+	tbl, e := table.Platform()
+	if e != nil {
+		t.Fatal(e)
+	}
+	dials := &atomic.Int32{}
+	dial := func(id, _ string) (provider.Model, error) {
+		dials.Add(1)
+		m, err2 := claude.Dial(id, "")
+		if err2 != nil {
+			return nil, err2
+		}
+		return checkingModel{Model: m, err: err, deadline: deadline}, nil
+	}
+	tt, e := tutor.New(tutor.Config{Table: tbl, Least: table.Stage(config.RungAuthor),
+		Adapters: map[admissionv0.Provider]provider.Dial{"anthropic": dial, "openai": dial}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	g, e := admission.GateOn(tt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return g, dials
+}
+
+// The check of a key is tutor's (R73): what the provider answers the check of
+// each model is how it ends — taken, a limit too, the key refused, no rights,
+// or a failure of neither kind, which is no answer —, and each model tutor
+// would call is dialled with it.
+func TestTheGateChecksAKeyByTutor(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		err  error
+		want tutor.KeyCheck
+	}{
+		"taken":       {nil, tutor.KeyAccepted},
+		"a limit":     {&provider.LimitError{Limit: provider.LimitTier, Err: errors.New("429")}, tutor.KeyAccepted},
+		"refused":     {provider.ErrKeyRefused, tutor.KeyWrong},
+		"no rights":   {provider.ErrNoRights, tutor.KeyNoRights},
+		"no answer":   {errors.New("connection reset"), tutor.KeyUnanswered},
+		"cut short":   {context.DeadlineExceeded, tutor.KeyUnanswered},
+		"a 5xx error": {fmt.Errorf("overloaded: %w", errors.New("529")), tutor.KeyUnanswered},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g, dials := checkingGate(t, tc.err, nil)
+			got, err := g.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "anthropic", "sk-ant-synthetic")
+			if got != tc.want {
+				t.Errorf("CheckKey = %v, %v, want %v", got, err, tc.want)
+			}
+			if (got == tutor.KeyAccepted) != (err == nil) {
+				t.Errorf("CheckKey = %v with the error %v", got, err)
+			}
+			if err != nil && strings.Contains(err.Error(), "sk-ant-synthetic") {
+				t.Errorf("the error of the check holds the key: %v", err)
+			}
+			if dials.Load() == 0 {
+				t.Error("the check dialled no model")
+			}
+		})
+	}
+}
+
+// A provider closed to the key — OpenAI, whose model tutor admits none of, one
+// the table does not know, any below 18 — is "provider closed" with no model
+// dialled, as the list leaves it out (R72).
+func TestTheGateChecksNoKeyOfAClosedProvider(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		category formatv0.AgeCategory
+		provider string
+	}{
+		"OpenAI":                {formatv0.AgeCategoryAdult, "openai"},
+		"Google":                {formatv0.AgeCategoryAdult, "google"},
+		"a provider no table":   {formatv0.AgeCategoryAdult, "acme"},
+		"Anthropic for a child": {formatv0.AgeCategoryUnder13, "anthropic"},
+		"Anthropic for a teen":  {formatv0.AgeCategoryFromConsentTo18, "anthropic"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g, dials := checkingGate(t, nil, nil)
+			if got, err := g.CheckKey(t.Context(), tc.category, tc.provider, "sk-synthetic"); got != tutor.KeyProviderClosed || err != nil {
+				t.Errorf("CheckKey = %v, %v, want provider closed", got, err)
+			}
+			if n := dials.Load(); n != 0 {
+				t.Errorf("the check of a closed provider dialled %d models", n)
+			}
+		})
+	}
+	full := load(t, config.Admission{Rung: config.RungFull})
+	if got, err := full.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "anthropic", "sk-synthetic"); got != tutor.KeyProviderClosed || err != nil {
+		t.Errorf("CheckKey at full = %v, %v, want provider closed", got, err)
+	}
+}
+
+// The check ends checkReserve before the request's deadline, so that the
+// handler answers how it ended in time.
+func TestTheCheckOfAKeyEndsBeforeTheDeadline(t *testing.T) {
+	t.Parallel()
+
+	deadlines := make(chan time.Time, 8)
+	g, _ := checkingGate(t, nil, deadlines)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	outer, _ := ctx.Deadline()
+	if got, err := g.CheckKey(ctx, formatv0.AgeCategoryAdult, "anthropic", "sk-synthetic"); got != tutor.KeyAccepted {
+		t.Fatalf("CheckKey = %v, %v, want accepted", got, err)
+	}
+	close(deadlines)
+	for d := range deadlines {
+		if !d.Equal(outer.Add(-time.Second)) {
+			t.Errorf("a model checked the key until %v, want a second before %v", d, outer)
+		}
+	}
+}
+
+// The stub's check of a key answers by its ending (R66, R73), through tutor's
+// own check: each of the five ends with no call of a provider, OpenAI closed
+// as on the models.
+func TestTheStubChecksAKeyByItsEnding(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := config.AdmissionFrom([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := load(t, cfg)
+	for key, want := range map[string]tutor.KeyCheck{
+		"sk-ant-synthetic": tutor.KeyAccepted,
+		"sk-ant-synthetic" + admission.StubKeyInvalid: tutor.KeyWrong,
+		"sk-ant-synthetic" + admission.StubKeyNoPerm:  tutor.KeyNoRights,
+		"sk-ant-synthetic" + admission.StubKeySilent:  tutor.KeyUnanswered,
+		"sk-ant-invalid-but-not-at-the-end":           tutor.KeyAccepted,
+	} {
+		if got, err := g.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "anthropic", key); got != want {
+			t.Errorf("the stub's CheckKey(%q) = %v, %v, want %v", key, got, err, want)
+		}
+	}
+	if got, _ := g.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "openai", "sk-synthetic"); got != tutor.KeyProviderClosed {
+		t.Errorf("the stub's CheckKey of OpenAI = %v, want provider closed", got)
+	}
+}
+
+// With less than two seconds left the check does not begin: the client's
+// deadline, not the provider, would end it.
+func TestACheckWithTooLittleTimeDoesNotBegin(t *testing.T) {
+	t.Parallel()
+
+	g, dials := checkingGate(t, nil, nil)
+	ctx, cancel := context.WithTimeout(t.Context(), 1500*time.Millisecond)
+	defer cancel()
+	if got, err := g.CheckKey(ctx, formatv0.AgeCategoryAdult, "anthropic", "sk-synthetic"); got != tutor.KeyUnanswered ||
+		!errors.Is(err, admission.ErrTooLittleTime) {
+		t.Errorf("CheckKey with 1.5 s left = %v, %v, want too little time", got, err)
+	}
+	if n := dials.Load(); n != 0 {
+		t.Errorf("a check with too little time dialled %d models", n)
 	}
 }
