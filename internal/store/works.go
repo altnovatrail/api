@@ -36,10 +36,12 @@ type Work struct {
 // PutWork keeps w in tx, in the place of the work kept of its attempt before,
 // while the storage of the profile's works is on: ErrStorageOff when it is off,
 // ErrNoProfile when the account has no such profile, ErrNotFound when the
-// attempt is not the profile's. The profile's row is held FOR SHARE, which the
-// UPDATE of SwitchWorkStorageOff waits for and waits on: a work put before the
-// switch is erased by it, and one after it is refused. FOR KEY SHARE would not
-// do: that UPDATE takes FOR NO KEY UPDATE, which does not conflict with it.
+// attempt is not the profile's. The profile's row is held FOR SHARE, which a
+// switch of the storage off waits for and waits on — SetWorkStorage at its
+// HoldProfile, before the consent (R74), and SwitchWorkStorageOff at its UPDATE
+// in any case: a work put before the switch is erased by it, and one after it
+// is refused. FOR KEY SHARE would not do: both take FOR NO KEY UPDATE, which
+// does not conflict with it.
 func PutWork(ctx context.Context, tx pgx.Tx, accountID, profileID string, w Work) error {
 	var on bool
 	err := tx.QueryRow(ctx, `SELECT work_storage FROM profiles WHERE id = $1 AND account_id = $2 FOR SHARE`,

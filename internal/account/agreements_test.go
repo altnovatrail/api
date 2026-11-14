@@ -467,22 +467,69 @@ func TestTheStorageOfWorks(t *testing.T) {
 	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
 }
 
-// A write that changes the profile after its consent waits for the deletion of
-// the profile, which holds the profile and then reaches the consent by the
-// cascade, rather than deadlock with it: the deletion goes through, and the
-// write finds no profile (R74).
+// A request that holds a profile's consent waits for the deletion of the
+// profile, which holds the profile and then reaches the consent by the
+// cascade, rather than deadlock with it or take the consent before it: the
+// deletion goes through, and the request finds no profile (R74).
 func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
 	t.Parallel()
 
-	for name, write := range map[string]func(ctx context.Context, w *world, profileID string) error{
-		"SetWorkStorage": func(ctx context.Context, w *world, profileID string) error {
-			_, err := w.client.SetWorkStorage(ctx, &v1.SetWorkStorageRequest{ProfileId: profileID, Action: v1.Action_ACTION_ADULT})
-			return err
+	// teen is a profile whose learner consents themselves, with that consent
+	// given when given is true.
+	teen := func(t *testing.T, ctx context.Context, w *world, given bool) string {
+		t.Helper()
+		profileID := w.childProfile(t, ctx, w.askChild(t, ctx, "k-teen", 15, "US").GetConsentId()).GetProfileId()
+		if given {
+			if _, err := w.client.GiveOwnConsent(ctx, &v1.GiveOwnConsentRequest{ProfileId: profileID,
+				Text: text(legal.TeenConsent)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return profileID
+	}
+	for name, tc := range map[string]struct {
+		profile func(t *testing.T, ctx context.Context, w *world) string
+		write   func(ctx context.Context, w *world, profileID string) error
+	}{
+		"SetWorkStorage": {
+			profile: func(t *testing.T, ctx context.Context, w *world) string {
+				t.Helper()
+				profileID := w.ownerProfile(t, ctx).GetProfileId()
+				if _, err := w.client.SetWorkStorage(ctx, &v1.SetWorkStorageRequest{ProfileId: profileID,
+					Action: v1.Action_ACTION_ADULT, Enabled: true, Text: text(legal.StorageConsent)}); err != nil {
+					t.Fatal(err)
+				}
+				return profileID
+			},
+			write: func(ctx context.Context, w *world, profileID string) error {
+				_, err := w.client.SetWorkStorage(ctx, &v1.SetWorkStorageRequest{ProfileId: profileID, Action: v1.Action_ACTION_ADULT})
+				return err
+			},
 		},
-		"RestateAge": func(ctx context.Context, w *world, profileID string) error {
-			_, err := w.client.RestateAge(ctx, &v1.RestateAgeRequest{ProfileId: profileID, IdempotencyKey: "k-restate",
-				Country: "CA", ParentConsentText: text(legal.ParentConsent)})
-			return err
+		"RestateAge": {
+			profile: func(t *testing.T, ctx context.Context, w *world) string {
+				t.Helper()
+				return w.ownerProfile(t, ctx).GetProfileId()
+			},
+			write: func(ctx context.Context, w *world, profileID string) error {
+				_, err := w.client.RestateAge(ctx, &v1.RestateAgeRequest{ProfileId: profileID, IdempotencyKey: "k-restate",
+					Country: "CA", ParentConsentText: text(legal.ParentConsent)})
+				return err
+			},
+		},
+		"GiveOwnConsent": {
+			profile: func(t *testing.T, ctx context.Context, w *world) string { t.Helper(); return teen(t, ctx, w, false) },
+			write: func(ctx context.Context, w *world, profileID string) error {
+				_, err := w.client.GiveOwnConsent(ctx, &v1.GiveOwnConsentRequest{ProfileId: profileID, Text: text(legal.TeenConsent)})
+				return err
+			},
+		},
+		"WithdrawOwnConsent": {
+			profile: func(t *testing.T, ctx context.Context, w *world) string { t.Helper(); return teen(t, ctx, w, true) },
+			write: func(ctx context.Context, w *world, profileID string) error {
+				_, err := w.client.WithdrawOwnConsent(ctx, &v1.WithdrawOwnConsentRequest{ProfileId: profileID})
+				return err
+			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -491,11 +538,7 @@ func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
 			w := newWorld(t)
 			w.allow(t, "US", "CA")
 			ctx := w.owner(t, "uid-owner")
-			profileID := w.ownerProfile(t, ctx).GetProfileId()
-			if _, err := w.client.SetWorkStorage(ctx, &v1.SetWorkStorageRequest{ProfileId: profileID,
-				Action: v1.Action_ACTION_ADULT, Enabled: true, Text: text(legal.StorageConsent)}); err != nil {
-				t.Fatal(err)
-			}
+			profileID := tc.profile(t, ctx, w)
 
 			deletion, err := w.pool.Begin(t.Context())
 			if err != nil {
@@ -510,8 +553,8 @@ func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
 				t.Fatal(err)
 			}
 			done := make(chan error, 1)
-			go func() { done <- write(ctx, w, profileID) }()
-			for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+			go func() { done <- tc.write(ctx, w, profileID) }()
+			for deadline := time.Now().Add(5 * time.Second); ; {
 				var waiting int
 				if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity
 					WHERE $1 = ANY(pg_blocking_pids(pid))`, pid).Scan(&waiting); err != nil {
@@ -520,8 +563,13 @@ func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
 				if waiting > 0 {
 					break
 				}
+				select {
+				case err := <-done:
+					t.Fatalf("the request answered %v without waiting for the deletion", err)
+				case <-time.After(10 * time.Millisecond):
+				}
 				if time.Now().After(deadline) {
-					t.Fatal("the write never waited for the deletion")
+					t.Fatal("the request never waited for the deletion")
 				}
 			}
 			if err := store.DeleteProfileRows(t.Context(), deletion, profileID); err != nil {
