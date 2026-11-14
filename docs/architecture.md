@@ -1071,7 +1071,18 @@ This section speaks at the level of meaning, without the names of messages and f
 | Request | Right | Comes in | Goes out | What they see |
 |---|---|---|---|---|
 | check a key | `can_manage` of the owner profile of the category `adult` | owner profile ID, the key and the provider, without the learner's content (R84 spec) | "accepted", "wrong", "the key has no rights" or "provider closed for the profile" | the answer on the page where the key is entered |
-| own key providers | `can_manage` | profile ID | the providers open to the own key at the profile, by the admission function (R96 spec) | a list that `app` does not build in |
+| own key providers | `can_manage` | profile ID | the providers of the admission table, in its order, by code and name, whose own key `tutor` admits at the profile for one kind of call `api` makes at least; none to a profile not of the category `adult`, with no refusal (R72; R96 spec) | a list that `app` does not build in |
+
+**In the code (R72)**: `ListOwnKeyProviders` gives the providers of the admission table, in its order, by code and name, whose own key `tutor` admits at the profile's category for one kind of call `api` makes at least — the reading of a sheet, `CallSheet`; the words with the work, `CallWords`; the hint without it, `CallHint` —, and none to a profile not of the category `adult`. The gate's `OwnKeyOpen` answers it; `CheckOwnKey`, still `unimplemented`, is to ask the same before any call (T78). What is open to an own key of an adult on 2026-11-14 — by the admission table 0.3 of `spec` v0.17.1, the list of admitted models of `tutor` v0.1.33 and the adapters of `api`, Anthropic's alone (R54); below 18 the table closes every own key (R122 spec):
+
+| Kind of call | Anthropic, stage `author` | Anthropic, stage `full` | OpenAI | Google |
+|---|---|---|---|---|
+| reading of a sheet, `CallSheet` | open: Opus 5.5 `high` and Haiku 5.5 `medium` | closed: no model passed `full` | closed: no model of `tutor`'s, no adapter of `api`'s | closed: the cell is closed (R47 spec) |
+| words with the work, `CallWords` | open: Opus 5.5 `high` | closed | closed | closed |
+| hint without the work, `CallHint` | open: Opus 5.5 `high` | closed | closed | closed |
+| workbook, essay, rubric — not called by `api` (Д24, Д26) | closed: no model admitted | closed | closed | closed |
+
+So the list is Anthropic locally, at `author`, and nobody on a deployment, at `full`, until a model passes `full` (П-16).
 
 *Export and deletion — T63; R20, R21, section 3.10:*
 

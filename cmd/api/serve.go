@@ -106,7 +106,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
 	deps, handlers, closeDeps, err := open(ctx, opens, cat, attempts, account.WithTexts(texts), account.WithForms(store),
-		account.WithExport(exporter))
+		account.WithExport(exporter), account.WithOwnKeys(gate))
 	if err != nil {
 		var fields []any
 		if failed := (*openFailed)(nil); errors.As(err, &failed) {

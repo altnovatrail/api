@@ -35,6 +35,7 @@ type Service struct {
 	ages    *consentage.Table
 	forms   forms.Store
 	export  *export.Exporter
+	ownKeys OwnKeys
 	now     func() time.Time
 }
 

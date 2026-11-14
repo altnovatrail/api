@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R72.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R73.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -2305,6 +2305,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-13* (T73; R68): on `tutor` v0.1.33 the gate asks the words by their kinds of call: `Words` without the work — "explain differently" and a task a tap checks — is `ChooseCall(CallHint)` (R106 `tutor`), and with the work `ChooseCall(CallWords)`, which admits only with the hint on the analysis's model (R111 `tutor`; R84 spec), so the gate no longer compares the models itself and asks no `Choose`. The kind is `admission.WordsCall`, by which the quota reserves too. В55 has its answer, and Д35 is closed. The adapters of `tutor` take nothing from the environment (R105 `tutor`), and `api` gives `claude.Dial` with no option of its own: Д34 is closed too.
 
+— *Amendment 2026-11-14* (T77; R72): `CheckKey` is no longer for later — epic E11, the own key, takes it, and T78 calls it. The gate answers whether an own key is open by `OwnKeyOpen`, the choice of `ChooseCall` for the kinds of call `api` makes, and `ListOwnKeyProviders` lists the providers by it.
+
 ## Quota in code
 
 **R55. The tariffs, their caps per family day, the typical tasks and the reserve by the kind of call are a table of the package `internal/quota`, which a pull request changes; the unit is whole microdollars. There are two tariffs: `closed_slice` — profile $0.50, account $1.50 — and `probe` — $0.08 and $0.10 — for a run where the quota runs out. The account's tariff is changed by the operator's command `api tariff -tariff <tariff> <code>`, which finds the account by its invite code.** Task T47 of epic E6, 2026-11-12; the executor's decisions in planning — the author entrusted the whole epic, and T52 will decide together with them.
@@ -2846,3 +2848,26 @@ This is how the author walked the path of the first app on 2026-11-12.
 - moving the submodule to v0.17.2: it changes only `COORDINATION.md` and `spec`'s log, and a move to a tag is a task of its own.
 
 — *Consequence:* the 2026-11-14 amendments to R07, R41 and R53; В69 «В реестр spec». — `modules.json`; `internal/learning/release_test.go`, `stub_test.go`, `learning_test.go`; RUN.md, T76; [plan/E11.md](plan/E11.md), T76; README.md; CLAUDE.md; [architecture.md](architecture.md), sections 1 and 3.3.
+
+## The providers of the own key
+
+**R72. `ListOwnKeyProviders` names the providers of the admission table, in its order, whose own key `tutor` admits at the profile's category for one kind of call `api` makes at least — `CallSheet`, `CallWords` or `CallHint` —, by the code and the name the table writes. A profile not of the category `adult` gets none, with no refusal. The gate's `OwnKeyOpen` answers whether a provider is open, one function for the list and for the check of a key (T78), so that a provider out of the list is "provider closed" with no call. On `tutor` v0.1.33 the list is Anthropic at the stage `author` and nobody at `full`.** Task T77 of epic E11, 2026-11-14; the list by `tutor`'s admission rather than by the cell of the table alone, and no limit of `api`'s own on the checks of a key, were decided by the author when the epic was set up, by the executor's recommendation.
+- **What was decided** (the contract `contracts/v0.16.3` and later; [contracts text](../spec/contracts/README.md), section 15; R84, R96 spec):
+  - **the function** — `admission.Gate.OwnKeyOpen(category, provider)`: `ChooseCall` of each of the three kinds on the route `own_key` of the provider, with a stand-in for the key, since the choice reads the provider alone (R54). It is open when one kind gets an entry with models. A provider `api` gives no adapter of, one the table does not know, and none are closed;
+  - **the list** — `Gate.OwnKeyProviders(category)`: the providers of `admission-table.json` of `spec.Admission`, read in the order of its JSON when the gate is loaded, since `tutor`'s table keeps them in a map and gives none out, each kept when `OwnKeyOpen` holds;
+  - **the handler** — `internal/account/ownkey.go`, after the checks of `toManage`: another account's profile and one that is not there are "no profile" by the checks (R04), and one gone since, by the handler, which reads the category alone by `store.LearnerOf`, in one query: the request is an adult's, and no consent of the profile's refuses it — the contract names `CAUSE_NO_PROFILE` alone. A category not `adult` gets the empty list before the gate is asked: the table opens no own key below 18 (R122 spec), and the contract gives none whatever it says. With no gate, `account.WithOwnKeys`, the method is `unimplemented`; `serve` gives it the gate it loads, the dev mode's too, whose stub gives Anthropic's adapter (R66), so the list is the same there;
+  - **what is open** on the day of the task is the table of architecture 3.9, "In the code (R72)";
+  - **no limit of `api`'s own** on the checks of a key — Д39, not later than open sign-in.
+- **Checked:** the tests of the gate — Anthropic's own key open to an adult at `author` with no facts and no key of the platform; OpenAI's, Google's, an unknown provider's and none closed; nobody's below 18 or at `full`; each answer the same as `ChooseCall` of the gate's `tutor`; with the adapters of Anthropic and OpenAI both, at either stage, the list is what the choice of the same `tutor` gives, provider by provider; the providers keep the order of a table's JSON, and providers that are no object are a fault. The tests of the handler — the owner at `author` gets `anthropic`, "Anthropic"; a child and a teen none, with no refusal; at `full` none; another account's profile, one not there and one gone are `CAUSE_NO_PROFILE`; with no gate, `unimplemented`. No call of AI, $0.
+
+— *Why:*
+- the list and the check do not part: `app` offers no provider whose key would always get `PROVIDER_CLOSED`, and at `full` it offers none, though the table's cells leave Anthropic and OpenAI open to an adult;
+- the kinds of call `api` makes, not every kind of `tutor`'s: a provider open to the workbook or the essay alone, which `api` does not call yet (Д24, Д26), would be a key with nothing to do here;
+- the order of the JSON, not of the codes: the file is alphabetical today, but the contract names the table's order.
+
+— *Rejected:*
+- the list by the cell `own_key` of the table alone — then OpenAI is always in it, and on a deployment both providers are listed and both closed;
+- every kind of call of `tutor`, as `CheckKey` asks: on v0.1.33 the same three are admitted, and the list would name a provider for calls `api` does not make;
+- a limit on the checks of a key now: the slice is closed by invite codes, and only the signed-in owner checks a key of their own `adult` profile with `can_manage` (Д39).
+
+— *Consequence:* the 2026-11-14 amendment to R54; В70 «В реестр spec»; Д39. — `internal/admission/admission.go`, `internal/account/ownkey.go`, `cmd/api/serve.go`; RUN.md, T77; [plan/E11.md](plan/E11.md), T77; [architecture.md](architecture.md), section 3.9.

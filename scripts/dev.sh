@@ -422,6 +422,14 @@ check() {
         die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want a lesson or a task"
     echo "$who: olympiad-math is connected, and the engine gives a $(jq -r '.choice.kind | ltrimstr("CHOICE_KIND_") | ascii_downcase' "$work/answer.json")"
 
+    # The providers of the own key by tutor's admission (R72): at the stage author the dev file
+    # declares, the owner's own key of Anthropic alone, by the table's code and name. No call goes.
+    call ListOwnKeyProviders < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
+    expect ListOwnKeyProviders
+    jq -e '.providers == [{provider: "anthropic", name: "Anthropic"}]' "$work/answer.json" > /dev/null ||
+        die "ListOwnKeyProviders gave $(jq -c .providers "$work/answer.json"), want Anthropic alone"
+    echo "$who: the own key's providers are Anthropic alone"
+
     # The quota of platform AI on the database itself (R58): a reading of handwriting takes its
     # reserve before the call and settles it after. The provider refuses the key, the answer has no
     # record of usage, and the reserve is kept as spent (R12): the export shows more spent and the

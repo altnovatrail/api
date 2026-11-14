@@ -20,11 +20,15 @@
 package admission
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 
+	"github.com/altnovatrail/spec"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
@@ -48,7 +52,22 @@ func Adapters() map[admissionv0.Provider]provider.Dial {
 // before its call.
 type Gate struct {
 	tutor *tutor.Tutor
+	// providers are the providers of the table, in its order.
+	providers []Provider
 }
+
+// Provider is a provider of the admission table: its code and its name, as
+// the table writes them.
+type Provider struct {
+	Code admissionv0.Provider
+	Name string
+}
+
+// ownKeyCalls are the kinds of call of tutor that api makes: the reading of a
+// sheet, the hint without the work and the words with it (R54, R68) — the
+// hint before the words, whose choice asks the hint's too. An own key is open
+// when tutor admits it for one of them at least (R72).
+var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords}
 
 // Report is what a start says of admission to the operator: the version of the
 // table, whether the deployment gave a file of facts, and the stage and whether
@@ -126,6 +145,9 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		adapters, keys = StubAdapters(), map[admissionv0.Provider]string{"anthropic": stubKey}
 	}
 	g := &Gate{}
+	if g.providers, err = tableProviders(); err != nil {
+		return nil, Report{}, err
+	}
 	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung), Keys: keys,
 		Adapters: adapters}); err != nil {
 		// What tutor.New refuses is what cfg declares: a stage, or a key of a
@@ -136,6 +158,84 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub}, nil
 }
 
+// tableProviders are the providers of the table that tutor reads,
+// admission-table.json of spec.Admission (readProviders). A table it cannot
+// read is a fault of the release of spec, as table.Platform's.
+func tableProviders() ([]Provider, error) {
+	data, err := fs.ReadFile(spec.Admission, "admission-table.json")
+	if err != nil {
+		return nil, fmt.Errorf("admission: %w", err)
+	}
+	return readProviders(data)
+}
+
+// readProviders reads the providers of a table, in the order its JSON writes
+// them: tutor's table keeps them in a map, and the contract gives them in the
+// table's order (ListOwnKeyProviders). The table follows its schema already,
+// as tutor read it, so a member of another form is a fault of the release.
+func readProviders(data []byte) ([]Provider, error) {
+	var raw struct {
+		Providers json.RawMessage `json:"providers"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("admission: the table: %w", err)
+	}
+	d := json.NewDecoder(bytes.NewReader(raw.Providers))
+	switch open, err := d.Token(); {
+	case err != nil:
+		return nil, fmt.Errorf("admission: the providers of the table: %w", err)
+	case open != json.Delim('{'):
+		return nil, errors.New("admission: the providers of the table are no object")
+	}
+	var out []Provider
+	for d.More() {
+		// The key of a member is a string, or Token fails.
+		code, err := d.Token()
+		var p admissionv0.AiProvider
+		if err == nil {
+			err = d.Decode(&p)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("admission: the providers of the table: %w", err)
+		}
+		key, _ := code.(string)
+		out = append(out, Provider{Code: admissionv0.Provider(key), Name: p.Name})
+	}
+	return out, nil
+}
+
+// OwnKeyOpen says whether the own key of provider is open at a learner of
+// category: whether tutor chooses, on the route of that key, an entry for one
+// of the kinds of call api makes at least (R72). A provider api gives no
+// adapter of, or the table does not know, is closed; so is none. The list of
+// ListOwnKeyProviders and the check of a key ask it alike, so that a provider
+// out of the list is closed to the check with no call.
+func (g *Gate) OwnKeyOpen(category formatv0.AgeCategory, provider string) bool {
+	if provider == "" {
+		return false
+	}
+	route := g.route(category, provider)
+	for _, call := range ownKeyCalls {
+		if g.chooses(call, route) {
+			return true
+		}
+	}
+	return false
+}
+
+// OwnKeyProviders are the providers of the table, in its order, whose own key
+// is open at a learner of category (OwnKeyOpen): none at a category the table
+// opens no own key to.
+func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
+	var out []Provider
+	for _, p := range g.providers {
+		if g.OwnKeyOpen(category, string(p.Code)) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // Handwriting says whether the reading of handwriting is admitted for a learner
 // of category: by platform AI, or, when ownKeyProvider names one, by the own
 // key of that provider alone. It is admitted when tutor chooses, for the call
@@ -144,8 +244,7 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 // holds a key of serve, and on either route only those api gives an adapter
 // of; the reading asks again (R46).
 func (g *Gate) Handwriting(category formatv0.AgeCategory, ownKeyProvider string) bool {
-	entry, _, err := g.tutor.ChooseCall(tutor.CallSheet, g.route(category, ownKeyProvider))
-	return err == nil && len(entry.Models) > 0
+	return g.chooses(tutor.CallSheet, g.route(category, ownKeyProvider))
 }
 
 // Words says whether the tutor's words are admitted for a learner of category,
@@ -155,8 +254,7 @@ func (g *Gate) Handwriting(category formatv0.AgeCategory, ownKeyProvider string)
 // the hint on the model of the analysis (R84 spec; R106, R111 tutor). tutor
 // asks again, of the very model.
 func (g *Gate) Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	entry, _, err := g.tutor.ChooseCall(WordsCall(withWork), g.route(category, ownKeyProvider))
-	return err == nil && len(entry.Models) > 0
+	return g.chooses(WordsCall(withWork), g.route(category, ownKeyProvider))
 }
 
 // WordsCall is tutor's kind of call of the words of a rung: the words with the
@@ -204,4 +302,11 @@ func (g *Gate) Price(call tutor.Call, route tutor.Route) tutor.CallPrice {
 		return tutor.CallPrice{}
 	}
 	return price
+}
+
+// chooses says whether tutor chooses, for the call on the route, an entry with
+// models: what the gate means by "admitted".
+func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
+	entry, _, err := g.tutor.ChooseCall(call, route)
+	return err == nil && len(entry.Models) > 0
 }
