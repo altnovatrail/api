@@ -271,8 +271,11 @@ func SwitchWorkStorageOn(ctx context.Context, tx pgx.Tx, profileID, giver string
 }
 
 // SwitchWorkStorageOff switches the storage of the profile's works off at at,
-// and records when. The server keeps no copy of a work yet (Д12 of RUN.md), so
-// none is erased.
+// records when, and erases every work the server keeps of the profile, in tx:
+// one step (R113 spec; R70). The works go after the profile's row is updated,
+// which waits for a PutWork holding it FOR SHARE: the DELETE then sees the work
+// that PutWork kept. In the other order the DELETE would lock the rows that
+// PutWork waits to update while the UPDATE waits for PutWork.
 func SwitchWorkStorageOff(ctx context.Context, tx pgx.Tx, profileID string, at time.Time) error {
 	if _, err := tx.Exec(ctx, `UPDATE work_storage_consents SET off_at = $2 WHERE profile_id = $1 AND off_at IS NULL`,
 		profileID, at); err != nil {
@@ -280,6 +283,9 @@ func SwitchWorkStorageOff(ctx context.Context, tx pgx.Tx, profileID string, at t
 	}
 	if _, err := tx.Exec(ctx, `UPDATE profiles SET work_storage = false WHERE id = $1`, profileID); err != nil {
 		return fmt.Errorf("store: switch the storage off: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM works WHERE profile_id = $1`, profileID); err != nil {
+		return fmt.Errorf("store: erase the works: %w", err)
 	}
 	return nil
 }

@@ -37,8 +37,7 @@ type Deps struct {
 }
 
 // Handlers are the methods of the contract that api serves. A service left
-// unset answers unimplemented; the tests set the one they need. Work is unset
-// until api keeps stored works (T75 of RUN.md).
+// unset answers unimplemented; the tests set the one they need.
 type Handlers struct {
 	Account  apiv1connect.AccountServiceHandler
 	Attempt  apiv1connect.AttemptServiceHandler
@@ -95,10 +94,10 @@ func Mount(mux *http.ServeMux, server *connect.Server) {
 // MaxMessage is the largest message of a request the server reads, in bytes
 // (R33, R46, R52): 11 MiB. The largest message of the contract is the scan of a
 // parent's form of consent, up to 10 MiB by the contract (section 15), with the
-// rest of its request; the crop of a handwriting sheet, at most 1568 px a side
-// in grey of 8 bits, is under 2.5 MB even if PNG compressed nothing. The JSON
-// of debugging writes the scan in base64, a third larger, and is no way to send
-// one.
+// rest of its request; a stored work is at most 4 MiB, and the crop of a
+// handwriting sheet, at most 1568 px a side in grey of 8 bits, is under 2.5 MB
+// even if PNG compressed nothing. The JSON of debugging writes the scan in
+// base64, a third larger, and is no way to send one.
 const MaxMessage = 11 << 20
 
 // limited cuts a request short at its time limit; a shorter Connect-Timeout-Ms

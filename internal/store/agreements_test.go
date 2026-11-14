@@ -18,7 +18,7 @@ import (
 // texts the account was made on, and a profile with every record the export
 // reads: a connected module, a choice, an attempt with a rung and submissions,
 // one with an observation, its evidence and state, a lesson run, the storage of
-// works and a problem report.
+// works, a stored work and a problem report.
 type rich struct {
 	pool                      *pgxpool.Pool
 	account, profile, attempt string
@@ -94,6 +94,8 @@ func newRich(t *testing.T) rich {
 		r.profile)
 	exec(`INSERT INTO problem_reports (account_id, profile_id, attempt_id, reply, rung, words, kind, text, created_at, reviewed_at)
 		VALUES ($1, $2, $3, 'rung', 1, 'Words.', 'unclear', '', now(), now())`, r.account, r.profile, r.attempt)
+	exec(`INSERT INTO works (profile_id, attempt_id, kind, size_bytes, work, stored_at) VALUES ($1, $2, 'handwriting', 3, '\x06', now())`,
+		r.profile, r.attempt)
 	return r
 }
 
@@ -139,6 +141,10 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		len(at.Owed.Answers) != 2 || !at.Owed.StepTechniques || !at.Owed.RequestedTechniques || at.Owed.CloseReason != "solution_shown" {
 		t.Errorf("the attempt = %+v", at)
 	}
+	if len(e.Works) != 1 || e.Works[0].Work.AttemptID != exportv2.ID(r.attempt) || e.Works[0].Work.Kind != exportv2.WorkKindHandwriting ||
+		e.Works[0].Work.StoredAt == "" || string(e.Works[0].Bytes) != "\x06" {
+		t.Errorf("the works = %+v", e.Works)
+	}
 	if len(e.Observations[r.attempt]) != 1 || len(e.Evidence) != 1 || len(p.Evidence) != 1 || string(e.State) != "\x05" ||
 		p.State.LastSeq != 1 || p.State.LearnerModelVersion != "v0.1.4" {
 		t.Errorf("the records of protobuf = %d observations, %d evidence, state %q, %+v", len(e.Observations[r.attempt]), len(e.Evidence), e.State, p.State)
@@ -183,7 +189,7 @@ func TestAFailedStatementOfTheExportIsAFailure(t *testing.T) {
 	for _, failOn := range []string{"FROM accounts WHERE id", "SELECT id FROM profiles WHERE account_id", "FROM consents c",
 		"FROM account_texts", "SELECT active_on", "FROM connected_modules", "FROM lesson_runs WHERE", "FROM engine_choices WHERE",
 		"FROM work_storage_consents", "FROM problem_reports", "FROM attempts WHERE", "FROM attempt_rungs", "FROM submissions",
-		"FROM evidence", "FROM skill_states"} {
+		"FROM evidence", "FROM skill_states", "FROM works WHERE"} {
 		err := pgx.BeginFunc(t.Context(), &flaky{Pool: r.pool, failOn: failOn}, func(tx pgx.Tx) error {
 			if _, err := store.ExportProfile(t.Context(), tx, r.account, r.profile); err != nil {
 				return err
@@ -407,6 +413,7 @@ func TestAFailedStatementOfTheAgreementsIsAFailure(t *testing.T) {
 		}},
 		{"UPDATE work_storage_consents", func(tx pgx.Tx) error { return store.SwitchWorkStorageOff(ctx, tx, r.profile, time.Now()) }},
 		{"SET work_storage = false", func(tx pgx.Tx) error { return store.SwitchWorkStorageOff(ctx, tx, r.profile, time.Now()) }},
+		{"DELETE FROM works", func(tx pgx.Tx) error { return store.SwitchWorkStorageOff(ctx, tx, r.profile, time.Now()) }},
 		{"INSERT INTO account_texts", func(tx pgx.Tx) error {
 			return store.AcceptTexts(ctx, tx, r.account, []store.TextRef{{ID: "x", Version: 1}}, time.Now())
 		}},

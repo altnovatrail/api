@@ -5,8 +5,9 @@
 # `just dev-check` goes the whole way —
 # migrations, an invite code, a country, the packages of modules, the opening of platform AI, the
 # server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
-# else", a reading of handwriting with its reserve and settlement of the quota, a parent's consent by
-# its form, then the job after a rollout — and checks the answers and the logs. The server's key of
+# else", a reading of handwriting with its reserve and settlement of the quota, a stored work by the
+# storage switched on and off, a parent's consent by its form, then the job after a rollout — and
+# checks the answers and the logs. The server's key of
 # platform AI is one Anthropic refuses, so that no call of the check reaches a model. `just dev-app`
 # keeps the server up on the stub for the local build of app, which signs in by a custom token this
 # script lays in a volume the two devcontainers share (R67).
@@ -449,6 +450,47 @@ check() {
     ((spent_after > spent_before && reserved_after == reserved_before)) ||
         die "the account's counters went from spent and reserved $before to $after, want more spent and the same reserved"
     echo "$who: a reading of handwriting takes its reserve and settles it, on both counters"
+
+    # The stored works on the database itself (R70): the storage switched on to the current
+    # storage-consent, a synthetic work of the attempt put, listed, read back and in the export,
+    # erased, put again, and gone with the storage switched off, so that nothing of it is left
+    # (R113 spec).
+    call SetWorkStorage < <(PROFILE=$owner jq -c '{profile_id: env.PROFILE, action: "ACTION_ADULT", enabled: true,
+        text: (.texts[] | select(.id == "storage-consent") | {id, version})}' "$work/texts.json")
+    expect SetWorkStorage
+    local stored listed
+    stored=$(PROFILE=$owner ATTEMPT=$attempt PIXEL=$pixel jq -cn '{profile_id: env.PROFILE, work: {attempt_id: env.ATTEMPT,
+        history: ("[]" | @base64), submissions: [{context: ("{}" | @base64), history_length: 0}], picture: env.PIXEL}}')
+    listed=$(PROFILE=$owner jq -cn '{profile_id: env.PROFILE, action: "ACTION_LEARNING"}')
+    call WorkService/PutWork <<< "$stored"
+    expect PutWork
+    jq -e '.work.kind == "WORK_KIND_HANDWRITING"' "$work/answer.json" > /dev/null ||
+        die "PutWork gave $(jq -c .work "$work/answer.json"), want a handwriting kept"
+    call WorkService/ListWorks <<< "$listed"
+    expect ListWorks
+    ATTEMPT=$attempt jq -e '[.works[]?.attempt_id] | index(env.ATTEMPT) != null' "$work/answer.json" > /dev/null ||
+        die "ListWorks gave $(jq -c '[.works[]?.attempt_id]' "$work/answer.json"), want the work put"
+    call WorkService/GetWork < <(PROFILE=$owner ATTEMPT=$attempt jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT,
+        action: "ACTION_ADULT"}')
+    expect GetWork
+    PIXEL=$pixel jq -e '.work.picture == env.PIXEL' "$work/answer.json" > /dev/null || die "GetWork gave another picture than the one put"
+    exported "$work/works"
+    ATTEMPT=$attempt PIXEL=$pixel jq -e 'any(.works[]?; .attempt_id == env.ATTEMPT and .history == [] and .picture == env.PIXEL)' \
+        "$work/works/profiles/$owner.json" > /dev/null || die "the export does not hold the work put"
+    call WorkService/DeleteWork < <(PROFILE=$owner ATTEMPT=$attempt jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT,
+        action: "ACTION_ADULT"}')
+    expect DeleteWork
+    call WorkService/GetWork < <(PROFILE=$owner ATTEMPT=$attempt jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT,
+        action: "ACTION_LEARNING"}')
+    [[ $status == 404 ]] || die "GetWork of the work erased answered $status, want not_found"
+    call WorkService/PutWork <<< "$stored"
+    expect PutWork
+    call SetWorkStorage < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE, action: "ACTION_ADULT", enabled: false}')
+    expect SetWorkStorage
+    call WorkService/ListWorks <<< "$listed"
+    expect ListWorks
+    jq -e '(.works // []) == []' "$work/answer.json" > /dev/null || die "ListWorks with the storage off gave $(jq -c .works "$work/answer.json"), want none"
+    echo "$who: a work is kept, listed, read back, exported and erased, and goes with the storage"
 
     # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
     # the folder of the forms, the form among those the operator checks, then the consent taken back,

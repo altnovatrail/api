@@ -5,7 +5,8 @@
 // texts, the showing of the solution, and lesson runs with their segments
 // (R48). It answers the methods of LearningService and AttemptService that it
 // has; the others answer unimplemented, until the tasks of epic E3 that build
-// them — the engine's choice.
+// them — the engine's choice. It keeps the stored works of WorkService too
+// (R70), whose kind is the attempt's task's.
 //
 // Every request is a learning request on a profile, whose right the checks hold
 // before it (R33), and a profile whose consent is not confirmed is refused. An
@@ -39,6 +40,7 @@ import (
 var (
 	_ apiv1connect.LearningServiceHandler = (*LearningService)(nil)
 	_ apiv1connect.AttemptServiceHandler  = (*AttemptService)(nil)
+	_ apiv1connect.WorkServiceHandler     = (*WorkService)(nil)
 )
 
 // Service runs the attempts of the profiles on the packages the image holds.
