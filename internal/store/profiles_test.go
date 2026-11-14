@@ -122,6 +122,13 @@ func TestAProfileIsChangedOnlyByItsAccount(t *testing.T) {
 	if !errors.Is(err, store.ErrNoProfile) {
 		t.Errorf("ProfileFor of another account = %v, want ErrNoProfile", err)
 	}
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { return store.HoldProfile(ctx, tx, id, profileID) }); err != nil {
+		t.Errorf("HoldProfile of the account's profile = %v", err)
+	}
+	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { return store.HoldProfile(ctx, tx, other, profileID) })
+	if !errors.Is(err, store.ErrNoProfile) {
+		t.Errorf("HoldProfile of another account = %v, want ErrNoProfile", err)
+	}
 }
 
 func TestTheDateOfAProfilesActivityIsWrittenOnceADay(t *testing.T) {

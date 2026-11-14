@@ -1376,6 +1376,7 @@ If steps 2–4 did not pass, the answer is "deleted" anyway: there is nothing ab
 
 **Races** (R21):
 - each write transaction under an account takes its row `FOR KEY SHARE` and checks the mark, and the deletion of the account takes it `FOR UPDATE`. A request that passed the checks before the mark creates under a marked account neither a profile, nor a consent, nor a PIN, nor a counter. The lock is `FOR KEY SHARE`, not `FOR SHARE`: a request that then updates the account's row itself — the date of the request, the PIN counter — would with `FOR SHARE` fall into a deadlock with a neighbouring request of the same account, and `FOR KEY SHARE` does not hinder such an update and still conflicts with the `FOR UPDATE` of deletion;
+- a request that holds a profile's consent holds the profile's row `FOR NO KEY UPDATE` first, as the deletion of the profile holds it before its cascade reaches the consent: they wait and do not deadlock, and the one after the deletion answers "no profile" (R74);
 - the operator's command that confirms a consent rejects a marked account;
 - a row about a profile that is written after its deletion fails on the foreign key, and an `UPDATE` that did not find the profile's row answers "no profile";
 - the quota reserve of a deleted profile is counted only to the account's counter (R12);

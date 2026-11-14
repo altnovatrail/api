@@ -95,6 +95,25 @@ func ProfileFor(ctx context.Context, tx pgx.Tx, accountID, profileID string) (Pr
 	return p, nil
 }
 
+// HoldProfile holds the account's profile FOR NO KEY UPDATE in tx, or is
+// ErrNoProfile: what a write takes before the profile's consent, so that it
+// holds the two rows in the order of the deletion of a profile, which takes the
+// profile FOR UPDATE and reaches the consent by the cascade, and the two wait
+// rather than deadlock (R74). NO KEY UPDATE is the lock an UPDATE of the row
+// takes anyway, and it lets a row that references the profile be written.
+func HoldProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) error {
+	var id string
+	err := tx.QueryRow(ctx, `SELECT id FROM profiles WHERE id = $1 AND account_id = $2 FOR NO KEY UPDATE`,
+		profileID, accountID).Scan(&id)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrNoProfile
+	case err != nil:
+		return fmt.Errorf("store: hold the profile: %w", err)
+	}
+	return nil
+}
+
 // WriteProfile writes the settings of p, the profile ProfileFor held: what an
 // adult changes, and nothing the profile was created with.
 func WriteProfile(ctx context.Context, tx pgx.Tx, p Profile) error {
