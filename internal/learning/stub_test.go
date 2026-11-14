@@ -23,6 +23,14 @@ import (
 // the platform, and the stub, which reads and words in place of tutor.
 func newStubWorld(t *testing.T) (*world, *admission.Gate) {
 	t.Helper()
+	g := stubGate(t)
+	return worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g))}), g
+}
+
+// stubGate is the gate of the dev mode, as just dev builds it: the facts for an
+// adult, the author's stage and the stub's adapter.
+func stubGate(t *testing.T) *admission.Gate {
+	t.Helper()
 	facts := filepath.Join(t.TempDir(), "facts.yaml")
 	if err := os.WriteFile(facts, []byte(adultFacts), 0o600); err != nil {
 		t.Fatal(err)
@@ -35,7 +43,7 @@ func newStubWorld(t *testing.T) (*world, *admission.Gate) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g))}), g
+	return g
 }
 
 // The path of the check, the hint and the words runs on the stub, with no

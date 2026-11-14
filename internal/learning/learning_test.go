@@ -309,8 +309,15 @@ func (w *world) choiceOf(t *testing.T, profile, moduleID, task string) string {
 // as the engine's code will write it.
 func (w *world) lessonChoice(t *testing.T, profile, lesson string) string {
 	t.Helper()
+	return w.lessonChoiceOf(t, profile, module, lesson)
+}
+
+// lessonChoiceOf is a new engine's choice of the lesson of the module for the
+// profile.
+func (w *world) lessonChoiceOf(t *testing.T, profile, moduleID, lesson string) string {
+	t.Helper()
 	return w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id) VALUES ($1, 'lesson', $2, $3)
-		RETURNING id`, profile, module, lesson)
+		RETURNING id`, profile, moduleID, lesson)
 }
 
 // begin begins an attempt of the task on the profile by a new choice.

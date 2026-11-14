@@ -16,13 +16,19 @@ import (
 
 	api "github.com/altnovatrail/api"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
+	"github.com/altnovatrail/api/internal/tutorstub"
 )
 
 // releaseModule is the module of the first app (R76 spec): the one module of
 // the pinned release whose every lesson this code must begin.
 const releaseModule = "novatrail/olympiad-math"
+
+// boardModule is the module of tutor's board, whose tasks the author solves in
+// app (R71): every task of it is on a handwriting sheet.
+const boardModule = "novatrail/check-board"
 
 // The pinned release of modules, laid by api packages into the folder that
 // API_RELEASE_PACKAGES names, as ci-modules lays it (R53): its packages are read
@@ -32,8 +38,9 @@ const releaseModule = "novatrail/olympiad-math"
 // task segment, a task of the pool tapped with its leading question asked for,
 // a wrong answer and its rung's words, then the key — gives evidence of kind 2
 // that holds the question. A task with a time
-// of day describes its slot as one. With no folder named, the test is skipped:
-// ci-test runs with no network, and its packages are the vectors.
+// of day describes its slot as one. The module of the board begins too, on the
+// stub of tutor, as boardIsLearnedOn tells. With no folder named, the test is
+// skipped: ci-test runs with no network, and its packages are the vectors.
 func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	dir := os.Getenv("API_RELEASE_PACKAGES")
 	if dir == "" {
@@ -47,6 +54,7 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("the board module", func(t *testing.T) { boardIsLearnedOn(t, set) })
 	pkg, ok := set.Current(releaseModule)
 	if !ok {
 		t.Fatalf("the release %s gives %s no current version", cfg.Release, releaseModule)
@@ -84,8 +92,7 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	w.started(t, l, l.adult, c)
 	lesson := slices.Sorted(maps.Keys(pkg.View.Lessons))[0]
 	opened, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult,
-		ChoiceId: w.id(t, `INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id) VALUES ($1, 'lesson', $2, $3)
-			RETURNING id`, l.adult, releaseModule, string(lesson))})
+		ChoiceId: w.lessonChoiceOf(t, l.adult, releaseModule, string(lesson))})
 	if err != nil {
 		t.Fatalf("OpenLesson %s: %v", lesson, err)
 	}
@@ -126,6 +133,80 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	e, err := learnermodel.DecodeEvidence(written)
 	if err != nil || e.Kind != 2 || !e.LeadingQuestionOnRequest || e.Outcome.Kind != learnermodel.OutcomeAfterHint {
 		t.Errorf("the evidence of %s = %+v, %v; want kind 2, the question on request, correct after a hint", task.ID, e, err)
+	}
+}
+
+// boardIsLearnedOn walks the owner's path on the module of tutor's board (R71;
+// the 2026-11-14 amendment to R76 spec) in the dev mode, the gate and the stub
+// of tutor as just dev builds them: every task and lesson of it reaches the
+// engine for an adult, the owner's catalog gives its current version, it
+// connects, its lesson opens and its first task segment begins, and the sheet
+// is read — a tall crop not yet, with the words of rung 1 on the work, then a
+// wide one correct — and gives its evidence.
+func boardIsLearnedOn(t *testing.T, set *packages.Set) {
+	pkg, ok := set.Current(boardModule)
+	if !ok {
+		t.Fatalf("the pinned release gives %s no current version", boardModule)
+	}
+	g := stubGate(t)
+	w := worldOn(t, set, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryAdult, "")
+	if err != nil || len(pool) != len(pkg.View.Tasks) || lessons != len(pkg.View.Lessons) {
+		t.Errorf("the engine gets %d tasks of %d and %d lessons of %d of %s, %v; want all", len(pool), len(pkg.View.Tasks),
+			lessons, len(pkg.View.Lessons), boardModule, err)
+	}
+
+	l := w.learner(t)
+	catalog, err := w.modules.ListCatalog(l.ctx, &v1.ListCatalogRequest{ProfileId: l.adult})
+	if err != nil || !slices.ContainsFunc(catalog.GetModules(), func(m *v1.CatalogModule) bool {
+		return m.GetModuleId() == boardModule && m.GetPackageDigest() == string(pkg.Digest)
+	}) {
+		t.Fatalf("ListCatalog = %v, %v; want %s on its current version", catalog, err, boardModule)
+	}
+	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: boardModule}); err != nil {
+		t.Fatal(err)
+	}
+	lesson := slices.Sorted(maps.Keys(pkg.View.Lessons))[0]
+	opened, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult,
+		ChoiceId: w.lessonChoiceOf(t, l.adult, boardModule, string(lesson))})
+	if err != nil {
+		t.Fatalf("OpenLesson %s: %v", lesson, err)
+	}
+	start, err := w.segment(l, l.adult, opened.GetRun().GetLessonRunId(), firstTaskSegment(pkg.View.Lessons[lesson]))
+	if err != nil {
+		t.Fatalf("the first task segment of %s did not begin: %v", lesson, err)
+	}
+	attempt := start.GetAttemptId()
+	submit := func(width, height int) *v1.SubmitWorkResponse {
+		t.Helper()
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt,
+			IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, width, height))})
+		if err != nil {
+			t.Fatalf("SubmitWork of %s: %v", lesson, err)
+		}
+		return res
+	}
+	if res := submit(10, 40); !strings.HasPrefix(verdicts(res), "not_yet") || res.GetWrongAnswers() != 1 {
+		t.Fatalf("a tall crop = %s, %d wrong; want not yet, one wrong", verdicts(res), res.GetWrongAnswers())
+	}
+	wrong := int32(1)
+	words, err := w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: attempt,
+		IdempotencyKey: uuid.NewString(), WrongAnswers: &wrong, Work: sheet(pngOf(t, 10, 40))})
+	// The rung's fallback is the module's first template: the stub's words, not it,
+	// and no words turned down by a check.
+	fallback := string(pkg.View.Manifest.RungTemplates[0])
+	if err != nil || words.GetWords() == "" || words.GetWords() == fallback || words.GetOutcome() != nil ||
+		strings.Contains(w.log.String(), "words_check") {
+		t.Errorf("the words of rung 1 on the work = %v, %v; want the stub's, not the fallback %q", words, err, fallback)
+	}
+	if res := submit(40, 10); !strings.HasPrefix(verdicts(res), "correct") || w.closeOf(t, attempt) != "correct" {
+		t.Fatalf("a wide crop = %s, the attempt closed %q; want correct and closed correct", verdicts(res), w.closeOf(t, attempt))
+	}
+	if _, err := w.progress.GetProgress(l.ctx, &v1.GetProgressRequest{ProfileId: l.adult}); err != nil {
+		t.Fatal(err)
+	}
+	if n := w.evidenceOf(t, attempt); n != 1 {
+		t.Errorf("the journal holds %d pieces of evidence of the board's attempt, want 1", n)
 	}
 }
 
