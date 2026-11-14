@@ -74,6 +74,11 @@ func NoteOutcome(ctx context.Context, cause v1.Cause) { noteOf(ctx).outcome = ca
 // fallback text, and the line says why, without the words (R47).
 func NoteWordsCheck(ctx context.Context, check string) { noteOf(ctx).wordsCheck = check }
 
+// NoteKeyCheck names, in the request's line of the log, how the check of an
+// own key ended, in a word of logging.KeyChecks: never the key or its provider
+// (R73).
+func NoteKeyCheck(ctx context.Context, check string) { noteOf(ctx).keyCheck = check }
+
 // AICall is a call of AI as the log writes it (R12, R46): how it ended, in one
 // word of logging.AIOutcomes, how long it took, and what each model of it took —
 // no content, no key, no identifier.

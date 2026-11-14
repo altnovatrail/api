@@ -140,3 +140,15 @@ For the 2026-11-13 amendment to R27. `just fuzz 5m` in the devcontainer, 20 work
 The refusal does not bound the memory of the build; the limit of R41 does: 500,000,000 zero bytes gzip to 485,269 bytes (`head -c 500000000 /dev/zero | gzip -c | wc -c`, the default level), and a regular file of them unpacks as far as the limit allows.
 
 After the review the two tests changed and were fuzzed again, `just fuzz 5m <test>` with `-fuzzminimizetime 2s`, without a failure: `FuzzRoutes`, now on `rpc.Mount` of every service, 1,244,726 executions; `FuzzCursorOf`, now bounded at the year 9999 too, 744,648.
+
+## 6. The check of an own key, T78, 2026-11-14
+
+For R73. `just dev-ai` — `serve` on the models, at the stage `author`, on the dev projects of Firebase and Neon (R39, R66) —, from the devcontainer, 2026-11-14 at about 19:15 UTC: `CheckOwnKey` of the owner's profile of the dev account, three requests one after another. The times are `duration_ms` of the request's line of the log, and the call's own beside it, by `curl` from the script:
+
+| Key | Answer | `duration_ms` | The call, ms | Requests to Anthropic |
+|---|---|---|---|---|
+| the author's dev key of Anthropic, as an own key | `OWN_KEY_CHECK_ACCEPTED` | 713 | 721 | 2 `count_tokens` |
+| a synthetic key of Anthropic's form | `OWN_KEY_CHECK_INVALID` | 472 | 480 | 2 `count_tokens`, each 401 |
+| a synthetic key of OpenAI | `OWN_KEY_CHECK_PROVIDER_CLOSED` | 323 | 353 | none |
+
+The two requests are those of the two models `tutor` v0.1.33 would call with the key — Opus 5.5 and Haiku 5.5 —, one after the other: a gate with a counting adapter dials two models for one check. The log held neither key, and its lines `request` named the end alone, `key_check`. Token counting is free (sources 10.7): four requests, $0.
