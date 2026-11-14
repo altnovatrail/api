@@ -22,7 +22,7 @@ require (
 	github.com/yuin/goldmark v1.8.7
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.59.0
-	golang.org/x/oauth2 v0.37.0
+	golang.org/x/oauth2 v0.38.0
 	golang.org/x/text v0.44.0
 	google.golang.org/api v0.311.0
 	google.golang.org/protobuf v1.36.12
