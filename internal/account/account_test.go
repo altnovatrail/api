@@ -51,8 +51,10 @@ type world struct {
 	rights *authz.Rights
 	signin *authntest.Fake
 	client apiv1connect.AccountServiceClient
-	clock  *clock
-	log    *syncBuffer
+	// work is WorkService on the same server, which answers unimplemented.
+	work  apiv1connect.WorkServiceClient
+	clock *clock
+	log   *syncBuffer
 	// forms is the folder the scans of the forms of the world lie in.
 	forms string
 	// ownerFails makes the writing of a tuple fail, and deleteFails its deletion.
@@ -125,6 +127,12 @@ func (c *clock) advance(d time.Duration) {
 	c.now = c.now.Add(d)
 }
 
+func (c *clock) set(at time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = at
+}
+
 // syncBuffer is the log, which the server writes from its goroutines.
 type syncBuffer struct {
 	mu  sync.Mutex
@@ -176,7 +184,9 @@ func newWorldWith(t *testing.T, options []account.Option, wrap ...func(*pgxpool.
 			options...)})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
-	w.client = apiv1connect.NewAccountServiceClient(connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL)))
+	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL))
+	w.client = apiv1connect.NewAccountServiceClient(transport)
+	w.work = apiv1connect.NewWorkServiceClient(transport)
 	return w
 }
 
@@ -234,7 +244,7 @@ func refusedAs(t *testing.T, err error, code connect.Code, cause v1.Cause) *v1.R
 
 func create(ctx context.Context, w *world, code string) (*v1.CreateAccountResponse, error) {
 	return w.client.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true,
-		AcceptedTexts: legal.Spec().Refs(legal.PrivacyPolicy, legal.TermsOfUse)})
+		AcceptedTexts: legal.Spec().On(w.clock.Now()).Refs(legal.PrivacyPolicy, legal.TermsOfUse)})
 }
 
 func TestAnOwnerWithACodeCreatesTheAccountAndReadsIt(t *testing.T) {

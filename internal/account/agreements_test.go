@@ -4,11 +4,16 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect/v2"
+	"github.com/altnovatrail/spec"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 
 	"github.com/altnovatrail/api/internal/account"
@@ -17,8 +22,9 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// texts is the current version of each of ids, as a request names them.
-func texts(ids ...string) []*v1.LegalTextRef { return legal.Spec().Refs(ids...) }
+// texts is the current version of each of ids today, as a request names them:
+// the tests that call it do not move the clock of their world.
+func texts(ids ...string) []*v1.LegalTextRef { return legal.Spec().On(time.Now()).Refs(ids...) }
 
 func text(id string) *v1.LegalTextRef { return texts(id)[0] }
 
@@ -43,6 +49,84 @@ func TestAnAccountIsMadeOnTheCurrentTexts(t *testing.T) {
 	if n := w.count(t, "account_texts"); n != 2 {
 		t.Errorf("account_texts = %d, want the two texts", n)
 	}
+}
+
+// The texts a request names are those of its day in UTC: version 3 of the
+// tag's policy, which applies from 2026-11-27, is refused the minute before,
+// and version 2 the minute after, when 3 is current (R130 spec).
+func TestTheTextsOfARequestAreThoseOfItsDay(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ctx := w.signIn(t, "uid-owner")
+	code := w.code(t)
+	create := func(policy int32) error {
+		terms := legal.Spec().On(w.clock.Now()).Refs(legal.TermsOfUse)
+		_, err := w.client.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true,
+			AcceptedTexts: append(terms, &v1.LegalTextRef{Id: legal.PrivacyPolicy, Version: policy})})
+		return err
+	}
+	w.clock.set(time.Date(2026, 11, 26, 23, 59, 0, 0, time.UTC))
+	refusedAs(t, create(3), connect.CodeFailedPrecondition, v1.Cause_CAUSE_TEXT_NOT_CURRENT)
+	w.clock.set(time.Date(2026, 11, 27, 0, 1, 0, 0, time.UTC))
+	refusedAs(t, create(2), connect.CodeFailedPrecondition, v1.Cause_CAUSE_TEXT_NOT_CURRENT)
+	if err := create(3); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A repeat under its key past the day a text comes into force is its first
+// answer, since the texts are checked after the key, while a request of its own
+// is held to the new current version: here parent-consent applies from
+// 2026-11-27 alone, so the day before a parent's consent names none.
+func TestARepeatPastTheDayOfATextIsItsFirstAnswer(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	sub, err := fs.Sub(spec.Legal, "texts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	passport, err := fs.ReadFile(spec.Legal, "legal.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := fs.ReadFile(spec.Legal, "VERSION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const was = "  parent-consent:\n    place: app\n    versions:\n      - version: 1\n        status: in_force\n        in_force_since: \"2026-11-11\""
+	if !bytes.Contains(passport, []byte(was)) {
+		t.Fatal("the tag's legal.yaml has no parent-consent of 2026-11-11")
+	}
+	passport = bytes.Replace(passport, []byte(was), []byte(strings.Replace(was, "2026-11-11", "2026-11-27", 1)), 1)
+	if err := errors.Join(os.CopyFS(filepath.Join(dir, "texts"), sub), os.WriteFile(filepath.Join(dir, "legal.yaml"), passport, 0o644),
+		os.WriteFile(filepath.Join(dir, "VERSION"), version, 0o644)); err != nil {
+		t.Fatal(err)
+	}
+	before := time.Date(2026, 11, 26, 23, 59, 30, 0, time.UTC)
+	later, err := legal.LoadDir(dir, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := newWorldWith(t, []account.Option{account.WithTexts(later)})
+	w.clock.set(before)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	ask := func(key string) (*v1.RequestChildConsentResponse, error) {
+		return w.client.RequestChildConsent(ctx, &v1.RequestChildConsentRequest{IdempotencyKey: key, AgeYears: ptr(int32(9)), Country: "US"})
+	}
+	first, err := ask("k-before")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.clock.set(before.Add(time.Minute))
+	again, err := ask("k-before")
+	if err != nil || again.GetConsent().GetConsentId() != first.GetConsent().GetConsentId() {
+		t.Errorf("the repeat past the day = %v, %v; want the consent %s", again, err, first.GetConsent().GetConsentId())
+	}
+	_, err = ask("k-after")
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_TEXT_NOT_CURRENT)
 }
 
 // askChild asks the consent for a child of age in the country.
@@ -406,7 +490,7 @@ func TestTheExportIsGiven(t *testing.T) {
 		return got
 	}
 	profile, err := w.client.ExportProfile(ctx, &v1.ExportProfileRequest{ProfileId: owner.GetProfileId()})
-	if err != nil || profile.GetExportFormatVersion() != "1" {
+	if err != nil || profile.GetExportFormatVersion() != "2" {
 		t.Fatalf("ExportProfile = %v, %v", profile, err)
 	}
 	if got := names(profile.GetPart()); !got["profiles/"+owner.GetProfileId()+".json"] || got["account.json"] ||

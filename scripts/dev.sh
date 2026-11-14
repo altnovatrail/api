@@ -546,7 +546,7 @@ app() {
     # that run's token where it is.
     laying=1
     lay_token "$token_dir" "$app_uid"
-    echo "dev-app: app signs in by the custom token in $token_dir/custom-token, laid anew every half hour; api listens on $(hostname -i | cut -d' ' -f1), port $port, on the network novatrail-api; stop with Ctrl-C"
+    echo "dev-app: app signs in by the custom token in $token_dir/custom-token, laid anew every half hour; api listens on port $port of the host api in the network novatrail-api; stop with Ctrl-C"
     while :; do
         sleep "$token_every" &
         sleep_pid=$!

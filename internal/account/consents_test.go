@@ -24,7 +24,7 @@ func (w *world) askConsent(t *testing.T, ctx context.Context, key string, age in
 	t.Helper()
 	res, err := w.client.RequestChildConsent(ctx, &v1.RequestChildConsentRequest{
 		IdempotencyKey: key, AgeYears: ptr(age), Country: country,
-		ParentConsentText: legal.Spec().Refs(legal.ParentConsent)[0],
+		ParentConsentText: legal.Spec().On(w.clock.Now()).Refs(legal.ParentConsent)[0],
 	})
 	return res.GetConsent(), err
 }

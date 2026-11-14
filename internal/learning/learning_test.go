@@ -231,7 +231,7 @@ func (w *world) learner(t *testing.T) learner {
 		t.Fatal(err)
 	}
 	created, err := w.accounts.CreateAccount(ctx, &v1.CreateAccountRequest{InviteCode: code, AdultStated: true,
-		AcceptedTexts: legal.Spec().Refs(legal.PrivacyPolicy, legal.TermsOfUse)})
+		AcceptedTexts: legal.Spec().On(time.Now()).Refs(legal.PrivacyPolicy, legal.TermsOfUse)})
 	if err != nil {
 		t.Fatal(err)
 	}
