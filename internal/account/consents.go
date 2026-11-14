@@ -459,10 +459,15 @@ func (s *Service) SetWorkStorage(ctx context.Context, req *v1.SetWorkStorageRequ
 }
 
 // consentOf is the consent of the account's profile, held, or ErrNoProfile: a
-// profile has a consent always.
+// profile has a consent always. The profile is held first, as its deletion
+// holds it, since SetWorkStorage and RestateAge change the profile after the
+// consent (R74).
 func (s *Service) consentOf(ctx context.Context, tx pgx.Tx, accountID, profileID string) (store.Consent, error) {
 	if !store.CanonicalID(profileID) {
 		return store.Consent{}, store.ErrNoProfile
+	}
+	if err := store.HoldProfile(ctx, tx, accountID, profileID); err != nil {
+		return store.Consent{}, err
 	}
 	c, err := store.ConsentOfProfile(ctx, tx, accountID, profileID)
 	if errors.Is(err, store.ErrNoConsent) {
