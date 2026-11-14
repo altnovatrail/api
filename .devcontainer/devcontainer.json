@@ -15,7 +15,13 @@
     // host's own, so a tunnel on the host does not silently truncate large downloads here.
     "initializeCommand": "bash .devcontainer/host-network.sh",
     "runArgs": [
-        "--network=novatrail-api"
+        "--network=novatrail-api",
+        // The container's name in its network, the repository's: a container that joins the
+        // network too — app's, on api's — reaches it by that name, as http://api:8080, whatever
+        // address a rebuild gives it. Docker gives it the first --network alone, so the
+        // repository's own network stays first; and one container of a repository runs at a
+        // time, since a second would take the same name.
+        "--network-alias=api"
     ],
     "mounts": [
         // The sign-ins live in volumes shared by the containers of every NovaTrail repository:

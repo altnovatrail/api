@@ -50,6 +50,7 @@ func FuzzRoutes(f *testing.F) {
 	apiv1connect.RegisterPackageServiceHandler(services, apiv1connect.UnimplementedPackageServiceHandler{})
 	apiv1connect.RegisterProgressServiceHandler(services, apiv1connect.UnimplementedProgressServiceHandler{})
 	apiv1connect.RegisterLegalServiceHandler(services, apiv1connect.UnimplementedLegalServiceHandler{})
+	apiv1connect.RegisterWorkServiceHandler(services, apiv1connect.UnimplementedWorkServiceHandler{})
 	routes := server.Routes(slog.New(slog.DiscardHandler), "", func(mux *http.ServeMux) {
 		rpc.Mount(mux, services)
 		mux.Handle(catalog.FilesPattern, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))

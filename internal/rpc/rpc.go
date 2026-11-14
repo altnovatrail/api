@@ -37,7 +37,8 @@ type Deps struct {
 }
 
 // Handlers are the methods of the contract that api serves. A service left
-// unset answers unimplemented; the tests set the one they need.
+// unset answers unimplemented; the tests set the one they need. Work is unset
+// until api keeps stored works (T75 of RUN.md).
 type Handlers struct {
 	Account  apiv1connect.AccountServiceHandler
 	Attempt  apiv1connect.AttemptServiceHandler
@@ -46,6 +47,7 @@ type Handlers struct {
 	Package  apiv1connect.PackageServiceHandler
 	Progress apiv1connect.ProgressServiceHandler
 	Legal    apiv1connect.LegalServiceHandler
+	Work     apiv1connect.WorkServiceHandler
 }
 
 // NewServer is the server of the contract, with every method registered and
@@ -67,6 +69,7 @@ func register(server *connect.Server, h Handlers) {
 	apiv1connect.RegisterPackageServiceHandler(server, or[apiv1connect.PackageServiceHandler](h.Package, apiv1connect.UnimplementedPackageServiceHandler{}))
 	apiv1connect.RegisterProgressServiceHandler(server, or[apiv1connect.ProgressServiceHandler](h.Progress, apiv1connect.UnimplementedProgressServiceHandler{}))
 	apiv1connect.RegisterLegalServiceHandler(server, or[apiv1connect.LegalServiceHandler](h.Legal, apiv1connect.UnimplementedLegalServiceHandler{}))
+	apiv1connect.RegisterWorkServiceHandler(server, or[apiv1connect.WorkServiceHandler](h.Work, apiv1connect.UnimplementedWorkServiceHandler{}))
 }
 
 // or is the handler set, or the one that answers unimplemented.

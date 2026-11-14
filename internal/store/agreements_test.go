@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/altnovatrail/spec/types/exportv1"
+	"github.com/altnovatrail/spec/types/exportv2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -104,7 +104,7 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 
 	r := newRich(t)
 	var e store.ExportedProfile
-	var a exportv1.Account
+	var a exportv2.Account
 	err := pgx.BeginFunc(t.Context(), r.pool, func(tx pgx.Tx) error {
 		var err error
 		if e, err = store.ExportProfile(t.Context(), tx, r.account, r.profile); err != nil {
@@ -117,15 +117,15 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := e.Profile
-	if p.Format != store.ExportFormat || p.ProfileID != exportv1.ID(r.profile) || !p.Owner || p.Grade == nil || *p.Grade != 4 ||
-		p.Consent.Giver != exportv1.ConsentGiverOwner || len(p.Consent.Texts) != 2 {
+	if p.Format != store.ExportFormat || p.ProfileID != exportv2.ID(r.profile) || !p.Owner || p.Grade == nil || *p.Grade != 4 ||
+		p.Consent.Giver != exportv2.ConsentGiverOwner || len(p.Consent.Texts) != 2 {
 		t.Errorf("the profile = %+v", p)
 	}
 	if len(p.ConnectedModules) != 1 || len(p.LessonRuns) != 1 || p.LessonRuns[0].EndReason == nil || len(p.StorageConsents) != 1 ||
 		p.StorageConsents[0].WithdrawnAt == nil || len(p.ProblemReports) != 1 || p.ProblemReports[0].Rung == nil || p.ProblemReports[0].ReviewedAt == nil {
 		t.Errorf("the records of the profile = %+v", p)
 	}
-	if len(p.Choices) != 1 || p.Choices[0].ReasonCode != exportv1.ChoiceReasonCodeRotation || p.Choices[0].Task == nil ||
+	if len(p.Choices) != 1 || p.Choices[0].ReasonCode != exportv2.ChoiceReasonCodeRotation || p.Choices[0].Task == nil ||
 		*p.Choices[0].Task != "example/m/task/t1" || len(p.Choices[0].PackageDigests) != 2 || !p.Choices[0].PackageDigests[0].EngineModule ||
 		p.Choices[0].Grade == nil || !p.Choices[0].PoolWithoutAi || p.Choices[0].Skill == nil {
 		t.Errorf("the choices = %+v", p.Choices)
@@ -143,7 +143,7 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		p.State.LastSeq != 1 || p.State.LearnerModelVersion != "v0.1.4" {
 		t.Errorf("the records of protobuf = %d observations, %d evidence, state %q, %+v", len(e.Observations[r.attempt]), len(e.Evidence), e.State, p.State)
 	}
-	if a.AccountID != exportv1.ID(r.account) || a.Tariff != "closed_slice" || a.UtcOffsetMinutes == nil || a.DayEndsAt == nil ||
+	if a.AccountID != exportv2.ID(r.account) || a.Tariff != "closed_slice" || a.UtcOffsetMinutes == nil || a.DayEndsAt == nil ||
 		len(a.ProfileIds) != 1 || len(a.Consents) != 3 || len(a.QuotaCounters) != 1 || a.QuotaCounters[0].DayStart != "2026-11-12T05:00:00Z" ||
 		a.QuotaCounters[0].SpentMicroUsd != 21000 || a.QuotaCounters[0].ReservedMicroUsd != 9343 || len(p.QuotaCounters) != 1 ||
 		p.QuotaCounters[0].SpentMicroUsd != 21000 {
@@ -152,9 +152,9 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 	var parent, learner bool
 	for _, c := range a.Consents {
 		switch {
-		case c.Giver == exportv1.ConsentGiverParent && c.RequestCode != nil && c.Form != nil && len(c.Texts) == 1 && c.Texts[0].ID == "parent-consent":
+		case c.Giver == exportv2.ConsentGiverParent && c.RequestCode != nil && c.Form != nil && len(c.Texts) == 1 && c.Texts[0].ID == "parent-consent":
 			parent = true
-		case c.Giver == exportv1.ConsentGiverLearner && c.RequestCode == nil && len(c.Texts) == 1 && c.Texts[0].ID == "teen-consent":
+		case c.Giver == exportv2.ConsentGiverLearner && c.RequestCode == nil && len(c.Texts) == 1 && c.Texts[0].ID == "teen-consent":
 			learner = true
 		}
 	}

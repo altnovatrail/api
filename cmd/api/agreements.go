@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"golang.org/x/oauth2/google"
 
@@ -16,12 +17,13 @@ import (
 const storageScope = "https://www.googleapis.com/auth/devstorage.read_write"
 
 // legalTexts is the legal texts api serves: a self-hosted copy's folder, read
-// by the rules of the part, or the texts of its tag of spec (R52).
+// by the rules of the part on the day api starts, or the texts of its tag of
+// spec (R52).
 func legalTexts(a config.Agreements) (*legal.Texts, error) {
 	if a.LegalDir == "" {
 		return legal.Spec(), nil
 	}
-	return legal.LoadDir(a.LegalDir)
+	return legal.LoadDir(a.LegalDir, time.Now())
 }
 
 // newBucketClient is the client of the bucket of the forms, with the token of

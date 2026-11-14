@@ -80,7 +80,8 @@ var choices *modulepackage.Package
 // The export of a profile with an attempt, its submissions, its evidence and its
 // state, a lesson run, a choice, the storage of works and a problem report, and
 // of its account, is api.zip whose every file passes its schema of spec's part
-// export/, and keeps its rules of the layout and the .proto files (R135 spec).
+// export/, version 2, and keeps its rules of the layout and the .proto files
+// (R135 spec). The server keeps no work yet, so works is there and empty.
 func TestTheExportPassesItsSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -201,7 +202,8 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	}
 	text := string(files["profiles/"+profile+".json"])
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
-		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`} {
+		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
+		`"works":[]`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
 		}

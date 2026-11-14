@@ -1,6 +1,7 @@
 package legal
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,14 +10,16 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/altnovatrail/spec"
-	"github.com/altnovatrail/spec/types/legalv2"
+	"github.com/altnovatrail/spec/types/legalv3"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -28,8 +31,14 @@ const (
 	RuleVersions         = "legal.versions"
 	RuleSetTexts         = "legal.set-texts"
 	RuleMarkdown         = "legal.markdown"
+	RuleOperator         = "legal.operator"
 	RuleInForceUnchanged = "legal.in-force-unchanged"
 )
+
+// whoWeAre is the heading, of the second level, of the section of the privacy
+// policy that names the operator, which the pages of app that name it open
+// (R115 spec).
+const whoWeAre = "Who we are"
 
 // Part is a part of the legal texts as it is read: its passport as a JSON value
 // and its files under texts/, by their paths from the part.
@@ -50,26 +59,30 @@ func (r *Refusal) Error() string {
 	return fmt.Sprintf("legal: the part breaks %s: %s", r.Step, strings.Join(r.Names, ", "))
 }
 
-// Read reads the part by section 5: the schema of the passport, then legal.files,
-// legal.versions, legal.set-texts and legal.markdown, then, when previous is
-// the part of the release before, legal.in-force-unchanged. It gives the
-// passport, or the Refusal of the first step that refuses the part: a part is
-// never read in part.
-func Read(part Part, previous *Part) (legalv2.Legal, error) {
+// Read reads the part by section 5 on the day today, YYYY-MM-DD in UTC (section
+// 2): the schema of the passport, then legal.files, legal.versions,
+// legal.set-texts, legal.markdown and legal.operator, then, when previous is the
+// part of the release before, legal.in-force-unchanged. It gives the passport,
+// or the Refusal of the first step that refuses the part: a part is never read
+// in part. A today that is no day is an error, and no Refusal.
+func Read(part Part, previous *Part, today string) (legalv3.Legal, error) {
+	if on, err := time.Parse(time.DateOnly, today); err != nil || on.Format(time.DateOnly) != today {
+		return legalv3.Legal{}, fmt.Errorf("legal: a part is read on a day, YYYY-MM-DD, and %q is none", today)
+	}
 	schema, err := passportSchema()
 	if err != nil {
-		return legalv2.Legal{}, err
+		return legalv3.Legal{}, err
 	}
 	value, err := jsonschema.UnmarshalJSON(bytes.NewReader(part.Passport))
 	if err != nil {
-		return legalv2.Legal{}, &Refusal{Step: StepSchema}
+		return legalv3.Legal{}, &Refusal{Step: StepSchema}
 	}
 	if err := schema.Validate(value); err != nil {
-		return legalv2.Legal{}, &Refusal{Step: StepSchema, Names: schemaNames(err)}
+		return legalv3.Legal{}, &Refusal{Step: StepSchema, Names: schemaNames(err)}
 	}
-	var passport legalv2.Legal
+	var passport legalv3.Legal
 	if err := json.Unmarshal(part.Passport, &passport); err != nil {
-		return legalv2.Legal{}, &Refusal{Step: StepSchema}
+		return legalv3.Legal{}, &Refusal{Step: StepSchema}
 	}
 	rules := []struct {
 		name     string
@@ -79,6 +92,7 @@ func Read(part Part, previous *Part) (legalv2.Legal, error) {
 		{RuleVersions, func() []string { return versionBreaches(passport) }},
 		{RuleSetTexts, func() []string { return setTextBreaches(passport) }},
 		{RuleMarkdown, func() []string { return markdownBreaches(passport, part.Files) }},
+		{RuleOperator, func() []string { return operatorBreaches(passport, part.Files, today) }},
 		{RuleInForceUnchanged, func() []string {
 			if previous == nil {
 				return nil
@@ -89,7 +103,7 @@ func Read(part Part, previous *Part) (legalv2.Legal, error) {
 	for _, rule := range rules {
 		if names := rule.breaches(); len(names) > 0 {
 			slices.Sort(names)
-			return legalv2.Legal{}, &Refusal{Step: rule.name, Names: slices.Compact(names)}
+			return legalv3.Legal{}, &Refusal{Step: rule.name, Names: slices.Compact(names)}
 		}
 	}
 	return passport, nil
@@ -150,7 +164,7 @@ func fileOf(id string, version int64, tag string) string {
 
 // filesOf is the files of a version of a text: its own, then its translations',
 // in the order the passport names them.
-func filesOf(id string, v legalv2.TextVersion) []string {
+func filesOf(id string, v legalv3.TextVersion) []string {
 	files := []string{fileOf(id, v.Version, "")}
 	for _, tag := range v.Translations {
 		files = append(files, fileOf(id, v.Version, string(tag)))
@@ -160,7 +174,7 @@ func filesOf(id string, v legalv2.TextVersion) []string {
 
 // fileBreaches is legal.files: every version and every translation has its
 // file, and every file is one of theirs.
-func fileBreaches(passport legalv2.Legal, files map[string][]byte) []string {
+func fileBreaches(passport legalv3.Legal, files map[string][]byte) []string {
 	wanted := map[string]bool{}
 	for id, t := range passport.Texts {
 		for _, v := range t.Versions {
@@ -185,15 +199,15 @@ func fileBreaches(passport legalv2.Legal, files map[string][]byte) []string {
 
 // versionBreaches is legal.versions: 1, 2, 3… in order, every draft after every
 // version in force, and the dates of the versions in force never going back.
-func versionBreaches(passport legalv2.Legal) []string {
+func versionBreaches(passport legalv3.Legal) []string {
 	var names []string
-	broken := func(statuses []legalv2.Status) bool {
+	broken := func(statuses []legalv3.Status) bool {
 		draft, since := false, ""
 		for i, s := range statuses {
 			if s.Version != int64(i+1) {
 				return true
 			}
-			if s.Status != legalv2.StatusStatusInForce {
+			if s.Status != legalv3.StatusStatusInForce {
 				draft = true
 				continue
 			}
@@ -210,18 +224,18 @@ func versionBreaches(passport legalv2.Legal) []string {
 		return false
 	}
 	for id, t := range passport.Texts {
-		var statuses []legalv2.Status
+		var statuses []legalv3.Status
 		for _, v := range t.Versions {
-			statuses = append(statuses, legalv2.Status{Version: v.Version, Status: v.Status, InForceSince: v.InForceSince})
+			statuses = append(statuses, legalv3.Status{Version: v.Version, Status: v.Status, InForceSince: v.InForceSince})
 		}
 		if broken(statuses) {
 			names = append(names, "texts."+string(id))
 		}
 	}
 	for id, s := range passport.Sets {
-		var statuses []legalv2.Status
+		var statuses []legalv3.Status
 		for _, v := range s.Versions {
-			statuses = append(statuses, legalv2.Status{Version: v.Version, Status: v.Status, InForceSince: v.InForceSince})
+			statuses = append(statuses, legalv3.Status{Version: v.Version, Status: v.Status, InForceSince: v.InForceSince})
 		}
 		if broken(statuses) {
 			names = append(names, "sets."+string(id))
@@ -232,13 +246,13 @@ func versionBreaches(passport legalv2.Legal) []string {
 
 // setTextBreaches is legal.set-texts: a version of a set names versions that
 // exist, of texts of the places of its notice and its form, and a version in
-// force names versions in force.
-func setTextBreaches(passport legalv2.Legal) []string {
+// force names versions in force that apply by its own day.
+func setTextBreaches(passport legalv3.Legal) []string {
 	var names []string
 	for id, s := range passport.Sets {
 		for _, v := range s.Versions {
-			if !setNames(passport, v.Notice, legalv2.TextPlaceSamplesPage, v.Status) ||
-				!setNames(passport, v.Form, legalv2.TextPlaceForm, v.Status) {
+			if !setNames(passport, v.Notice, legalv3.TextPlaceSamplesPage, v) ||
+				!setNames(passport, v.Form, legalv3.TextPlaceForm, v) {
 				names = append(names, "sets."+string(id))
 				break
 			}
@@ -247,16 +261,85 @@ func setTextBreaches(passport legalv2.Legal) []string {
 	return names
 }
 
-// setNames says whether a version of a set of status names by ref a version that
-// exists, of a text of place, in force when the set's is.
-func setNames(passport legalv2.Legal, ref legalv2.TextRef, place legalv2.TextPlace, status legalv2.StatusStatus) bool {
+// setNames says whether the version set of a set names by ref a version that
+// exists, of a text of place, in force when the set's is and applying by its
+// day.
+func setNames(passport legalv3.Legal, ref legalv3.TextRef, place legalv3.TextPlace, set legalv3.SetVersion) bool {
 	t, ok := passport.Texts[ref.Text]
 	if !ok || t.Place != place {
 		return false
 	}
 	for _, v := range t.Versions {
-		if v.Version == ref.Version {
-			return status != legalv2.StatusStatusInForce || v.Status == legalv2.StatusStatusInForce
+		if v.Version != ref.Version {
+			continue
+		}
+		if set.Status != legalv3.StatusStatusInForce {
+			return true
+		}
+		// YYYY-MM-DD compares as text.
+		return v.Status == legalv3.StatusStatusInForce && dayOf(v.InForceSince) <= dayOf(set.InForceSince)
+	}
+	return false
+}
+
+// dayOf is the day of a version in force, which the schema holds it always has.
+func dayOf(since *string) string {
+	if since == nil {
+		return ""
+	}
+	return *since
+}
+
+// operatorBreaches is legal.operator: the part has the privacy policy, at the
+// place app, with a version in force whose day has come by today, and every
+// version of it, a draft too, has the section "Who we are" (R115 spec). The
+// policy is named by its ID when it is missing, elsewhere or not yet in force,
+// and a version without the section by its file; a translation needs none.
+func operatorBreaches(passport legalv3.Legal, files map[string][]byte, today string) []string {
+	var names []string
+	policy, ok := passport.Texts[PrivacyPolicy]
+	if !ok || policy.Place != legalv3.TextPlaceApp {
+		names = append(names, "texts."+PrivacyPolicy)
+	} else if current, _ := pick(policy.Versions, today); current == 0 {
+		names = append(names, "texts."+PrivacyPolicy)
+	}
+	for _, v := range policy.Versions {
+		if file := fileOf(PrivacyPolicy, v.Version, ""); !WhoWeAre(files[file]) {
+			names = append(names, file)
+		}
+	}
+	return names
+}
+
+// WhoWeAre says whether source has the section "Who we are": a heading of the
+// second level, not inside another block, whose text is that alone, as
+// CommonMark reads it — no other case, level or emphasis. goldmark's GFM cuts a
+// run of text where an autolink of www. could begin, and micromark keeps it
+// whole, so the text is that of every node of the heading, each a text. goldmark
+// keeps the source of a text, where micromark resolves its character references
+// and backslash escapes; goldmark's writer of HTML resolves them as it does, and
+// leaves "Who we are" as it is while escaping whatever else.
+func WhoWeAre(source []byte) bool {
+	doc := markdown.Parser().Parse(text.NewReader(source))
+	for n := doc.FirstChild(); n != nil; n = n.NextSibling() {
+		heading, ok := n.(*ast.Heading)
+		if !ok || heading.Level != 2 {
+			continue
+		}
+		var words []byte
+		plain := true
+		for c := heading.FirstChild(); c != nil && plain; c = c.NextSibling() {
+			t, ok := c.(*ast.Text)
+			plain = ok
+			if ok {
+				words = append(words, t.Value(source)...)
+			}
+		}
+		var read bytes.Buffer
+		w := bufio.NewWriter(&read)
+		html.DefaultWriter.Write(w, words)
+		if plain && w.Flush() == nil && read.String() == whoWeAre {
+			return true
 		}
 	}
 	return false
@@ -265,7 +348,7 @@ func setNames(passport legalv2.Legal, ref legalv2.TextRef, place legalv2.TextPla
 // markdownBreaches is legal.markdown: each version and each translation begins
 // with a heading of the first level and holds no HTML, no image and no link.
 // legal.files has held, so every one has its file.
-func markdownBreaches(passport legalv2.Legal, files map[string][]byte) []string {
+func markdownBreaches(passport legalv3.Legal, files map[string][]byte) []string {
 	var names []string
 	for id, t := range passport.Texts {
 		for _, v := range t.Versions {
@@ -314,7 +397,7 @@ func Markdown(source []byte) bool {
 // text or a set whose entry changed or is gone is named by its ID; a file that
 // changed, by its path. The part before passed no schema here, so it is read
 // as a value of any shape.
-func changedBreaches(passport legalv2.Legal, part, previous Part) []string {
+func changedBreaches(passport legalv3.Legal, part, previous Part) []string {
 	var before struct {
 		Texts map[string]struct {
 			Place    any               `json:"place"`
@@ -336,7 +419,7 @@ func changedBreaches(passport legalv2.Legal, part, previous Part) []string {
 	_ = json.Unmarshal(part.Passport, &now)
 	var names []string
 	for id, then := range before.Texts {
-		t, there := passport.Texts[legalv2.ID(id)]
+		t, there := passport.Texts[legalv3.ID(id)]
 		for _, raw := range then.Versions {
 			entry, number, inForce := entryOf(raw)
 			if !inForce {
@@ -349,7 +432,7 @@ func changedBreaches(passport legalv2.Legal, part, previous Part) []string {
 			if !there || !found {
 				continue
 			}
-			var v legalv2.TextVersion
+			var v legalv3.TextVersion
 			if err := json.Unmarshal(raw, &v); err != nil {
 				continue
 			}
@@ -363,7 +446,7 @@ func changedBreaches(passport legalv2.Legal, part, previous Part) []string {
 		}
 	}
 	for id, then := range before.Sets {
-		_, there := passport.Sets[legalv2.SetID(id)]
+		_, there := passport.Sets[legalv3.SetID(id)]
 		for _, raw := range then.Versions {
 			entry, number, inForce := entryOf(raw)
 			if !inForce {
@@ -385,7 +468,7 @@ func entryOf(raw json.RawMessage) (any, any, bool) {
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		return nil, nil, false
 	}
-	return entry, entry["version"], entry["status"] == string(legalv2.StatusStatusInForce)
+	return entry, entry["version"], entry["status"] == string(legalv3.StatusStatusInForce)
 }
 
 // keptEntry is the entry of versions numbered number, as a value.

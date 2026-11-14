@@ -67,8 +67,9 @@ func requestCode() string {
 // digital consent; the age in years lives in this request's memory alone
 // (privacy 3.3 spec; R134 spec). Below the age of the country the consent is a
 // parent's, by a code of its request; from it, the learner's own. The request
-// names the current version of parent-consent whoever gives it. A repeat under
-// its key is the same consent, at the limit too, since the limit is checked
+// names the current version of parent-consent whoever gives it, on the day of
+// its time in UTC. A repeat under its key is the same consent, at the limit and
+// past the day of a new version too, since the limit and the texts are checked
 // after the key.
 func (s *Service) RequestChildConsent(ctx context.Context, req *v1.RequestChildConsentRequest) (*v1.RequestChildConsentResponse, error) {
 	if req.AgeYears == nil || req.GetAgeYears() < youngestAge || req.GetAgeYears() > oldestAge {
@@ -77,11 +78,11 @@ func (s *Service) RequestChildConsent(ctx context.Context, req *v1.RequestChildC
 	if !s.ages.Country(req.GetCountry()) {
 		return nil, rpc.Malformed("country")
 	}
-	if !s.texts.NamesOne(req.GetParentConsentText(), legal.ParentConsent) {
-		return nil, textNotCurrent(ctx)
-	}
 	return keyedOnce(ctx, s, apiv1connect.AccountServiceRequestChildConsentProcedure, req, true,
 		func(tx pgx.Tx, accountID string, now time.Time) (*v1.RequestChildConsentResponse, error) {
+			if !s.texts.On(now).NamesOne(req.GetParentConsentText(), legal.ParentConsent) {
+				return nil, textNotCurrent(ctx)
+			}
 			if err := accepted(ctx, tx, req.GetCountry()); err != nil {
 				return nil, err
 			}
@@ -283,7 +284,7 @@ func (s *Service) GiveOwnConsent(ctx context.Context, req *v1.GiveOwnConsentRequ
 			return err
 		case c.Giver != store.GiverLearner:
 			return adultNeeded(ctx)
-		case c.State == store.ConsentWaiting && !s.texts.NamesOne(req.GetText(), legal.TeenConsent):
+		case c.State == store.ConsentWaiting && !s.texts.On(s.now()).NamesOne(req.GetText(), legal.TeenConsent):
 			return textNotCurrent(ctx)
 		case c.State == store.ConsentWaiting:
 			if _, err := store.GiveOwnConsent(ctx, tx, c.ProfileID, textVersion(req.GetText())); err != nil {
@@ -336,11 +337,11 @@ func (s *Service) RestateAge(ctx context.Context, req *v1.RestateAgeRequest) (*v
 	if !s.ages.Country(req.GetCountry()) {
 		return nil, rpc.Malformed("country")
 	}
-	if !s.texts.NamesOne(req.GetParentConsentText(), legal.ParentConsent) {
-		return nil, textNotCurrent(ctx)
-	}
 	return keyedOnce(ctx, s, apiv1connect.AccountServiceRestateAgeProcedure, req, true,
 		func(tx pgx.Tx, accountID string, now time.Time) (*v1.RestateAgeResponse, error) {
+			if !s.texts.On(now).NamesOne(req.GetParentConsentText(), legal.ParentConsent) {
+				return nil, textNotCurrent(ctx)
+			}
 			c, err := s.consentOf(ctx, tx, accountID, req.GetProfileId())
 			if err != nil {
 				return nil, err
@@ -440,7 +441,7 @@ func (s *Service) SetWorkStorage(ctx context.Context, req *v1.SetWorkStorageRequ
 		case s.need(c, now) != v1.ConsentNeed_CONSENT_NEED_NONE:
 			return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
 		case on && giver == c.Giver:
-		case !s.texts.NamesOne(req.GetText(), legal.StorageConsent):
+		case !s.texts.On(now).NamesOne(req.GetText(), legal.StorageConsent):
 			return textNotCurrent(ctx)
 		default:
 			err = store.SwitchWorkStorageOn(ctx, tx, c.ProfileID, c.Giver, textVersion(req.GetText()), now)

@@ -104,7 +104,7 @@ func (s *Service) CreateAccount(ctx context.Context, req *v1.CreateAccountReques
 	if !req.GetAdultStated() || !ok {
 		return nil, s.malformed(ctx, caller.UID, req.GetAdultStated())
 	}
-	if !s.texts.Names(req.GetAcceptedTexts(), legal.PrivacyPolicy, legal.TermsOfUse) {
+	if !s.texts.On(s.now()).Names(req.GetAcceptedTexts(), legal.PrivacyPolicy, legal.TermsOfUse) {
 		return nil, textNotCurrent(ctx)
 	}
 	var texts []store.TextRef
