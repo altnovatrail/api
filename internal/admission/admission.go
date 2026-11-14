@@ -67,9 +67,10 @@ type Provider struct {
 
 // ownKeyCalls are the kinds of call of tutor that api makes: the reading of a
 // sheet, the hint without the work and the words with it (R54, R68) — the
-// hint before the words, whose choice asks the hint's too. An own key is open
-// when tutor admits it for one of them at least (R72).
-var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords}
+// hint before the words, whose choice asks the hint's too —, and the words
+// after a correct answer (R76). An own key is open when tutor admits it for one
+// of them at least (R72).
+var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect}
 
 // Report is what a start says of admission to the operator: the version of the
 // table, whether the deployment gave a file of facts, and the stage and whether
@@ -336,6 +337,14 @@ func WordsCall(withWork bool) tutor.Call {
 	return tutor.CallHint
 }
 
+// CorrectWords says whether the tutor's words after a correct answer are
+// admitted for a learner of category, on the route Handwriting takes: whether
+// tutor chooses an entry for their call, CallCorrect, one kind with the work and
+// without it (R112 tutor; R76). tutor asks again, of the very model.
+func (g *Gate) CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return g.chooses(tutor.CallCorrect, g.route(category, ownKeyProvider))
+}
+
 // route is tutor's route for a learner of category: platform AI, or the own key
 // of ownKeyProvider. The choice reads only the key's provider, never the key,
 // which the gate does not hold: a stand-in stands for it.
@@ -357,6 +366,14 @@ func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetR
 // the first mistake when the work went, or the outcome of a call that gave none.
 func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
 	return g.tutor.Words(ctx, w)
+}
+
+// TellCorrectWords asks tutor for the words after a correct answer: the praise
+// of a step and a question on the technique that helped, or the outcome of a
+// call that gave none. api checks them for leaks and their form before they
+// reach the learner (R112 tutor).
+func (g *Gate) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
+	return g.tutor.CorrectAnswerWords(ctx, c)
 }
 
 // Price is what tutor expects a call of the kind to cost on the route, by the
