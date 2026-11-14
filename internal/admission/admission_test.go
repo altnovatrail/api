@@ -15,6 +15,7 @@ import (
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+	table "github.com/altnovatrail/tutor/admission"
 	"github.com/altnovatrail/tutor/provider"
 
 	"github.com/altnovatrail/api/internal/admission"
@@ -350,5 +351,137 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 	if _, err := dial("no-such-model", ""); err == nil {
 		t.Error("the stub's adapter dialled a model the catalog does not hold")
+	}
+}
+
+// chosen says whether tu chooses an entry for one of the kinds of call api
+// makes, on the route of the own key of p at category: what the gate's
+// OwnKeyOpen must answer.
+func chosen(tu *tutor.Tutor, category formatv0.AgeCategory, p admissionv0.Provider) bool {
+	route := tutor.Route{AI: admissionv0.AiRouteOwnKey, Category: admissionv0.AgeCategory(category),
+		Own: tutor.NewOwnKey(p, "own key")}
+	for _, call := range []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint} {
+		if entry, _, err := tu.ChooseCall(call, route); err == nil && len(entry.Models) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// The own key is open where tutor admits it for a kind of call api makes (R72):
+// an adult's of Anthropic at the stage author, with no facts or key of the
+// platform, which the own key needs none of; not OpenAI's, whose adapter api
+// does not give and whose model tutor admits none of, nor a provider the table
+// does not know, nor none; at the stage full nobody's, and below 18 none.
+func TestTheOwnKeyIsOpenWhereTutorChoosesACall(t *testing.T) {
+	t.Parallel()
+
+	author := load(t, config.Admission{Rung: config.RungAuthor})
+	full := load(t, config.Admission{Rung: config.RungFull})
+	for name, tc := range map[string]struct {
+		gate     *admission.Gate
+		category formatv0.AgeCategory
+		provider string
+		want     bool
+	}{
+		"Anthropic for an adult":             {author, formatv0.AgeCategoryAdult, "anthropic", true},
+		"OpenAI for an adult":                {author, formatv0.AgeCategoryAdult, "openai", false},
+		"Google for an adult":                {author, formatv0.AgeCategoryAdult, "google", false},
+		"a provider no table names":          {author, formatv0.AgeCategoryAdult, "acme", false},
+		"no provider":                        {author, formatv0.AgeCategoryAdult, "", false},
+		"Anthropic for a child":              {author, formatv0.AgeCategoryUnder13, "anthropic", false},
+		"Anthropic for a teen":               {author, formatv0.AgeCategoryFrom13ToConsent, "anthropic", false},
+		"Anthropic for one past consent":     {author, formatv0.AgeCategoryFromConsentTo18, "anthropic", false},
+		"Anthropic for an adult at full":     {full, formatv0.AgeCategoryAdult, "anthropic", false},
+		"a provider no table names, at full": {full, formatv0.AgeCategoryAdult, "acme", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := tc.gate.OwnKeyOpen(tc.category, tc.provider)
+			if got != tc.want {
+				t.Errorf("OwnKeyOpen(%s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
+			}
+			if tc.provider != "" {
+				if want := chosen(admission.TutorOf(tc.gate), tc.category, admissionv0.Provider(tc.provider)); got != want {
+					t.Errorf("OwnKeyOpen(%s, %q) = %v, but tutor's choice says %v", tc.category, tc.provider, got, want)
+				}
+			}
+		})
+	}
+	want := []admission.Provider{{Code: "anthropic", Name: "Anthropic"}}
+	if got := author.OwnKeyProviders(formatv0.AgeCategoryAdult); !slices.Equal(got, want) {
+		t.Errorf("OwnKeyProviders of an adult at author = %v, want %v", got, want)
+	}
+	if got := full.OwnKeyProviders(formatv0.AgeCategoryAdult); len(got) != 0 {
+		t.Errorf("OwnKeyProviders of an adult at full = %v, want none", got)
+	}
+	for _, category := range []formatv0.AgeCategory{formatv0.AgeCategoryUnder13, formatv0.AgeCategoryFrom13ToConsent,
+		formatv0.AgeCategoryFromConsentTo18} {
+		if got := author.OwnKeyProviders(category); len(got) != 0 {
+			t.Errorf("OwnKeyProviders of %s = %v, want none", category, got)
+		}
+	}
+}
+
+// With the adapters of Anthropic and OpenAI both, as api would give them with
+// a model of OpenAI's admitted, the list is still what the choice of the same
+// tutor gives, provider by provider, in the order of the table, at either
+// stage.
+func TestTheListOfProvidersIsTutorsChoice(t *testing.T) {
+	t.Parallel()
+
+	tbl, err := table.Platform()
+	if err != nil {
+		t.Fatal(err)
+	}
+	never := func(string, string) (provider.Model, error) { return nil, errors.New("the test dials nothing") }
+	for _, rung := range []string{config.RungAuthor, config.RungFull} {
+		tt, err := tutor.New(tutor.Config{Table: tbl, Least: table.Stage(rung),
+			Adapters: map[admissionv0.Provider]provider.Dial{"anthropic": never, "openai": never}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, err := admission.GateOn(tt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []admission.Provider
+		for _, p := range []admission.Provider{{"anthropic", "Anthropic"}, {"google", "Google"}, {"openai", "OpenAI"}} {
+			if chosen(tt, formatv0.AgeCategoryAdult, p.Code) {
+				want = append(want, p)
+			}
+		}
+		if got := g.OwnKeyProviders(formatv0.AgeCategoryAdult); !slices.Equal(got, want) {
+			t.Errorf("OwnKeyProviders at %s = %v, want tutor's choice %v", rung, got, want)
+		}
+		if rung == config.RungAuthor && len(want) == 0 {
+			t.Error("tutor chooses no own key at author: the test compares nothing")
+		}
+	}
+}
+
+// The providers come in the order the table's JSON writes them, whatever their
+// codes; a table that is no object of providers is a fault.
+func TestTheProvidersKeepTheTablesOrder(t *testing.T) {
+	t.Parallel()
+
+	got, err := admission.ReadProviders([]byte(`{"providers": {"openai": {"name": "OpenAI"}, "anthropic": {"name": "Anthropic"}},
+		"cells": []}`))
+	want := []admission.Provider{{Code: "openai", Name: "OpenAI"}, {Code: "anthropic", Name: "Anthropic"}}
+	if err != nil || !slices.Equal(got, want) {
+		t.Errorf("ReadProviders = %v, %v, want %v", got, err, want)
+	}
+	for name, data := range map[string]string{
+		"no JSON":            `{`,
+		"no providers":       `{}`,
+		"a name not text":    `{"providers": {"openai": {"name": 1}}}`,
+		"providers a list":   `{"providers": ["a", {"name": "A"}]}`,
+		"providers null":     `{"providers": null}`,
+		"providers a string": `{"providers": "anthropic"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got, err := admission.ReadProviders([]byte(data)); err == nil {
+				t.Errorf("ReadProviders = %v, want a fault", got)
+			}
+		})
 	}
 }
