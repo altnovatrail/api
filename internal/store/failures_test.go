@@ -170,6 +170,9 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 			_, err := store.CreateOwnerProfile(t.Context(), tx, id, p)
 			return err
 		}},
+		{"FOR NO KEY UPDATE", func(tx pgx.Tx) error {
+			return store.HoldProfile(t.Context(), tx, id, "00000000-0000-0000-0000-000000000000")
+		}},
 		{"FOR UPDATE", func(tx pgx.Tx) error {
 			_, err := store.ProfileFor(t.Context(), tx, id, "00000000-0000-0000-0000-000000000000")
 			return err

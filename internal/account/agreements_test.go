@@ -467,6 +467,74 @@ func TestTheStorageOfWorks(t *testing.T) {
 	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
 }
 
+// A write that changes the profile after its consent waits for the deletion of
+// the profile, which holds the profile and then reaches the consent by the
+// cascade, rather than deadlock with it: the deletion goes through, and the
+// write finds no profile (R74).
+func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
+	t.Parallel()
+
+	for name, write := range map[string]func(ctx context.Context, w *world, profileID string) error{
+		"SetWorkStorage": func(ctx context.Context, w *world, profileID string) error {
+			_, err := w.client.SetWorkStorage(ctx, &v1.SetWorkStorageRequest{ProfileId: profileID, Action: v1.Action_ACTION_ADULT})
+			return err
+		},
+		"RestateAge": func(ctx context.Context, w *world, profileID string) error {
+			_, err := w.client.RestateAge(ctx, &v1.RestateAgeRequest{ProfileId: profileID, IdempotencyKey: "k-restate",
+				Country: "CA", ParentConsentText: text(legal.ParentConsent)})
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			w := newWorld(t)
+			w.allow(t, "US", "CA")
+			ctx := w.owner(t, "uid-owner")
+			profileID := w.ownerProfile(t, ctx).GetProfileId()
+			if _, err := w.client.SetWorkStorage(ctx, &v1.SetWorkStorageRequest{ProfileId: profileID,
+				Action: v1.Action_ACTION_ADULT, Enabled: true, Text: text(legal.StorageConsent)}); err != nil {
+				t.Fatal(err)
+			}
+
+			deletion, err := w.pool.Begin(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = deletion.Rollback(t.Context()) }()
+			var pid int
+			if err := deletion.QueryRow(t.Context(), `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := deletion.Exec(t.Context(), `SELECT id FROM profiles WHERE id = $1 FOR UPDATE`, profileID); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- write(ctx, w, profileID) }()
+			for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+				var waiting int
+				if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity
+					WHERE $1 = ANY(pg_blocking_pids(pid))`, pid).Scan(&waiting); err != nil {
+					t.Fatal(err)
+				}
+				if waiting > 0 {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("the write never waited for the deletion")
+				}
+			}
+			if err := store.DeleteProfileRows(t.Context(), deletion, profileID); err != nil {
+				t.Fatalf("the deletion's cascade = %v, want it to go through", err)
+			}
+			if err := deletion.Commit(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			refusedAs(t, <-done, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+		})
+	}
+}
+
 // The export gives api.zip of a profile and of the account, by the version of
 // the part, and a learner's own only at a profile whose learner consents
 // themselves (R132, R135 spec).

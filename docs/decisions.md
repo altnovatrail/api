@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R74.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R75.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -2822,6 +2822,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Consequence:* the 2026-11-14 amendments to R15, R21, R27, R39, R52 and R69; Д12 closed, new Д37 and Д38; В68 «В реестр spec». — RUN.md, T75; [plan/E10.md](plan/E10.md), T75; [architecture.md](architecture.md), the status, sections 1, 2, 3.2, 3.8, 3.9, 3.10 and 3.11; [sources.md](sources.md), 11.8.
 
+— *Amendment 2026-11-14* (T79; R74): the deadlock "found on the way" is fixed. `SetWorkStorage` and `RestateAge`, with `GiveOwnConsent` and `WithdrawOwnConsent`, hold the profile's row `FOR NO KEY UPDATE` before its consent, in the order of the deletion of a profile, and wait for it rather than deadlock; Д38 is closed.
+
 ## The board module
 
 **R71. `modules.json` pins `modules` v0.2.7 — the latest release as of 2026-11-14 and the first with the module of `tutor`'s board, — with the index `sha256:6c46a1a9…2083a`: in window 0.4 it has six packages, and the current versions are those of R53 and `novatrail/check-board` 0.1.0. The test of the job "Modules" walks the owner's path on the board module too, in the dev mode. Wherever the least stage of admission is `full` — on every deployment — `api` refuses its tasks "not admitted", until a model of `tutor`'s admission table passes that stage and platform AI opens to others than the author.** Task T76 between epics, 2026-11-14: row 6.17 of `COORDINATION.md` and the 2026-11-14 amendment to R76 spec, in `spec` v0.17.2, read on GitHub; the submodule stays at v0.17.1.
@@ -2906,3 +2908,21 @@ This is how the author walked the path of the first app on 2026-11-12.
 - the kind of the error of a check that got no answer in the line `request`: it would make the line of a provider's silence an error of `api`'s, while a call of a model that failed is no error either (`ai_usage`, `failed`).
 
 — *Consequence:* the 2026-11-14 amendments to R54, R66 and R72; architecture 3.9, the requests "check a key" and their "In the code (R73)", and architecture 3.11, the row "own key" and "Order", item 3; README.md, "Status" and "Run locally with api". — `internal/admission/admission.go`, `internal/account/ownkey.go`, `internal/logging/events.go`, `internal/rpc/refusal.go`, `internal/rpc/rpc.go`, `scripts/dev.sh`; RUN.md, T78; [plan/E11.md](plan/E11.md), T78.
+
+## The order of a profile's locks
+
+**R74. A request that holds a profile's consent holds the profile's row first, `FOR NO KEY UPDATE`, by `store.HoldProfile`, and its consent after it: `SetWorkStorage`, `RestateAge`, `GiveOwnConsent` and `WithdrawOwnConsent`, all by `consentOf` of `internal/account`. That is the order of the deletion of a profile — the profile's row `FOR UPDATE`, then the consent by the cascade —, so the two wait for each other rather than deadlock, and the request that comes after the deletion answers `CAUSE_NO_PROFILE`. Д38 is closed.** Task T79 between epics, 2026-11-14, at the author's word «сделай что можешь сделать из Таблица 4» when epic E11 was archived.
+- **What was wrong** (R70, "found on the way"): `SetWorkStorage` held the consent `FOR UPDATE` and then updated the profile — `SwitchWorkStorageOn` and `SwitchWorkStorageOff` —, and `RestateAge` held it and then updated the profile's category and country, while the deletion of a profile, `deletion.Profile` and `IdleProfile`, held the profile `FOR UPDATE` and reached the consent by the `DELETE` of its cascade. Two such transactions on one profile took the two rows in opposite orders; Postgres broke the one that waited first, and it was `unavailable`.
+- **The lock** — `FOR NO KEY UPDATE`, the one an `UPDATE` of the profile's row takes anyway: it waits for the deletion's `FOR UPDATE` and for `PutWork`'s `FOR SHARE`, as the update after it did, and lets a row that references the profile — an attempt, a key record — be written meanwhile. Nothing else holds a consent of a profile and then its profile: `ConsentFor` of `CreateChildProfile`, `SendConsentForm` and `CancelChildConsent` holds a child's consent that has no profile yet, `WorkDecider` reads the consent without a lock, and the deletion of the account holds the account's row `FOR UPDATE` before any of them (R21).
+- **Checked 2026-11-14:** `ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses` and `dev-check`, all green. The test holds the owner's profile `FOR UPDATE` as the deletion does, waits by `pg_blocking_pids` until `SetWorkStorage`, and in its own case `RestateAge`, waits for it, and then deletes the profile's rows: the deletion goes through, and the request is `not_found` with `CAUSE_NO_PROFILE`. Without the change both cases are `unavailable` — the deadlock. `HoldProfile` is tested on the account's profile, another account's and a statement that fails. No fuzz run: no reader of foreign input changed. No call of AI, $0.
+
+— *Why:*
+- the profile before the consent, rather than the deletion's order turned: the deletion holds the profile to check it is the account's and to lock out every write of it, and its cascade order is Postgres's;
+- one place, `consentOf`: every request that holds a profile's consent goes through it, so the order cannot part between them.
+
+— *Rejected:*
+- the consent read without a lock, as `WorkDecider` reads it: `RestateAge` replaces the consent by a new one and `GiveOwnConsent` changes its state, and two such requests on one consent would then both write by what they read;
+- `FOR UPDATE` of the profile, as the deletion takes it: it would also make every attempt, run and key record written on the profile meanwhile wait, by their foreign keys, for no gain;
+- leaving it as it was: `app` repeats `unavailable`, but the user sees a refusal for nothing, and an `IdleProfile` of the daily job meets a learner's request too.
+
+— *Consequence:* the 2026-11-14 amendment to R70; Д38 closed. — [architecture.md](architecture.md), section 3.10, "Races"; `internal/store/profiles.go`, `internal/account/consents.go`; RUN.md, T79; [plan/E12.md](plan/E12.md), T79.
