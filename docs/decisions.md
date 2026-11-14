@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R71.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R72.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -320,6 +320,8 @@
 — *Amendment 2026-11-11* (T44; R53): `modules.json` pins `modules` v0.2.5, where there are five packages in the window 0.4, and each of the three modules has a current version. The image and the folder of the first app hold packages, not only the index, as the 2026-11-09 amendment (T31) said.
 
 — *Amendment 2026-11-12* (T57; R61): the delay of a withdrawal until the author's pull request is no longer silent. The job "Withdrawals" once a day takes the newest release of `modules`, checks the signature of its index by `release-verify` and fails while the newest index withdraws a version that the pinned release gives. A withdrawal still takes effect only with a pull request that pins a release with the mark — the rule of this entry does not change. Д9 is closed.
+
+— *Amendment 2026-11-14* (T76; R71): `modules.json` pins `modules` v0.2.7, where there are six packages in the window 0.4: the five of v0.2.5 and the module of `tutor`'s board, so four modules, each with a current version.
 
 ## Carrying progress over
 
@@ -1736,6 +1738,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-13* (T59; sources 4.5): unpacking also refuses a sparse file of PAX — an entry with a record whose key begins with `GNU.sparse.` —, before it reads the entry. A package holds no sparse file, and the reader of `archive/tar` unfolds one into the zeros of its holes: 3,584 bytes of tar became a file of 500 MB. Memory stays bounded by the limit of 512 MB, as before — a regular file of zeros reaches it from about 0.5 MB of gzip too (measurements 5) —; the refusal holds an archive to regular files whose bytes it holds, which `FuzzUnpack` checks, and the old sparse format of GNU, the type `S`, was refused already as another type of entry. The fuzz test `FuzzUnpack` led to it (the 2026-11-13 amendment to R27).
 
+— *Amendment 2026-11-14* (T76; R71): `modules` v0.2.7 is pinned, `sha256:6c46a1a9…2083a`; the test of the pinned release runs its subtest "the board module" in the dev mode, and `ci-modules` still looks for the line of the test's pass.
+
 ## Catalog and package in code
 
 **R42. `PackageService`, `ModuleService` and the files of the device parts are answered by the package `internal/catalog`, from the set of packages that `serve` read at start. The open views are built once, at start, and a package whose views do not build is a start failure. A `200` answer of an open view and of a file is cached for a day, a file also by an `ETag` of its digest, a refusal is cached by nobody, and a `503` of a file comes with `Retry-After: 30`. The connected modules are the table `connected_modules`: the profile's ID, the module's ID and the time of connection, without a version.** Task T32 of epic E3, 2026-11-09; the table in T32 and not in T33, and one task, are the author's decisions in the planning of T32.
@@ -2261,6 +2265,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 - choosing the test's task by ID: the next release of `modules` may rename or withdraw it.
 
 — *Consequence:* the 2026-11-11 amendments to R07, R41, R47, R49 and R52; Д8, Д17 and Д28 closed, Д24 and Д26 extended. The size of the image with packages is 130,402,471 bytes for the release image and the image from the source code, the job "Image" of pull request #58; the image of `main` after T43, without packages, is 115,392,656 bytes, so the packages add 15.0 MB. Д8 is closed. — `modules.json`; `go.mod`, `go.sum`; `internal/store/model.go`; `internal/model/`; `internal/export/`; `internal/learning/release_test.go`; `justfile`, `ci-modules`; `.github/modules.sh`; `.github/workflows/ci.yml`, the job "Modules"; `scripts/dev.sh`; RUN.md, T44; README.md; CLAUDE.md; [architecture.md](architecture.md).
+
+— *Amendment 2026-11-14* (T76; R71): `modules.json` pins `modules` v0.2.7, `sha256:6c46a1a9…2083a`, where the packages of v0.2.5 stand with one more, `novatrail/check-board` 0.1.0; its current versions are those above and that one. The release test walks the owner's path on the board module too, on the stub of `tutor`.
 
 ## `tutor` v0.1.24
 
@@ -2809,3 +2815,34 @@ This is how the author walked the path of the first app on 2026-11-12.
 - the kind sent by `app`: the contract sets it by the task.
 
 — *Consequence:* the 2026-11-14 amendments to R15, R21, R27, R39, R52 and R69; Д12 closed, new Д37 and Д38; В68 «В реестр spec». — RUN.md, T75; [plan/E10.md](plan/E10.md), T75; [architecture.md](architecture.md), the status, sections 1, 2, 3.2, 3.8, 3.9, 3.10 and 3.11; [sources.md](sources.md), 11.8.
+
+## The board module
+
+**R71. `modules.json` pins `modules` v0.2.7 — the latest release as of 2026-11-14 and the first with the module of `tutor`'s board, — with the index `sha256:6c46a1a9…2083a`: in window 0.4 it has six packages, and the current versions are those of R53 and `novatrail/check-board` 0.1.0. The test of the job "Modules" walks the owner's path on the board module too, in the dev mode. Wherever the least stage of admission is `full` — on every deployment — `api` refuses its tasks "not admitted", until a model of `tutor`'s admission table passes that stage and platform AI opens to others than the author.** Task T76 between epics, 2026-11-14: row 6.17 of `COORDINATION.md` and the 2026-11-14 amendment to R76 spec, in `spec` v0.17.2, read on GitHub; the submodule stays at v0.17.1.
+- **What the release carries** (the indexes of v0.2.5, v0.2.6 and v0.2.7 and the archive of `check-board` in v0.2.7, read 2026-11-14):
+  - the index of v0.2.6 is the bytes of v0.2.5, and that of v0.2.7 is it with one more entry: `novatrail/check-board` 0.1.0, format 0.4, in v0.2.7. The other packages and their current versions do not change;
+  - `check-board` 0.1.0 — "Задачи на листе", mathematics, for adults, explanations in `ru`: the eleven tasks of `internal/board/tasks.go` of `tutor`, `equation-1` to `album`, each on `handwriting_sheet`, one item and one answer slot bound `anywhere`, its check `number`, with a solution, traps and leak phrases, with no leading question or worked example; one lesson, `board`, of the eleven in the board's order; four skills, no `teaches`. Its device part is `LICENSE` alone, the same file as the other five packages';
+  - `module-kit` v0.3.2 reads it with no change: `api packages` lays six packages and 1179 files, 17 MB, as many files as v0.2.5, since the one new file is already there under its digest.
+- **What was decided:**
+  - **the pinning** — the rules of R07 and R41 are the same;
+  - **the release test** — `TestThePinnedReleaseIsLearnedOn` runs the subtest "the board module", `boardIsLearnedOn`, on the gate and the stub of `tutor` as `just dev` builds them (R66): every task and the lesson of the module reach the engine for an adult on platform AI, `ListCatalog` gives its current version, `ConnectModule`, `OpenLesson` of `board` and its first task segment begins; a tall crop is "not yet" with one wrong answer, `GetRungWords` on the work gives the stub's words, a wide crop closes the attempt "correct", and `GetProgress` writes its evidence;
+  - **where `api` answers "not admitted"** — the module's tasks are all read by AI, so:
+    - at the stage `full` `BeginAttempt` is `failed_precondition` with `CAUSE_NOT_ADMITTED`, by platform AI and by Anthropic's own key alike; the engine gets none of its tasks or lessons, and with it alone connected `ChooseNext` gives "nothing" with "not admitted". `author` is refused where `K_SERVICE` or `CLOUD_RUN_JOB` is set (R45), and `tutor` v0.1.33 admits no model at `full` (the 2026-11-08 amendment to R76 spec). The deployment has no facts and no key of a provider either, each of which closes platform AI by itself (R46; the fourth 2026-11-12 amendment to R76 spec). So on the site `infra` rolls out none of its tasks begins until platform AI opens to others than the author;
+    - `GetCorrectAnswerWords` is the outcome "not admitted", as on every module (Д26);
+    - a child does not see the module at all: its audience is adults, so it is not in the child's catalog, and that is no refusal of admission;
+    - locally — `just dev`, `just dev-ai` and `just dev-app`, at the stage `author` with the facts for an adult — every task begins;
+  - **README** — after `modules.json` changes, `just packages` lays the packages into an empty folder only, so the old folder is removed first; `just dev-app` and `just dev-check` lay their own.
+- **Checked on 2026-11-14:** `release-verify modules v0.2.7` — "signed by the shared release.yml of .github v0.1.15"; `modules-check` against `main`'s v0.2.5 prints the four current versions; `just ci-modules` — the release test and its subtest pass; at the stage `full` a test outside the suite, deleted after, got `CAUSE_NOT_ADMITTED` for both routes and "nothing" from `ChooseNext`; `just ci-test`, `just ci-lint` and `just dev-check`. No call of AI, $0.
+
+— *Why:*
+- v0.2.7 is the newest release and the first with the module, on the same format;
+- the subtest on the stub: the stub reads by the key, with no provider, through `tutor`'s own admission and prices, the way the author's `just dev` runs; the board's tasks have no tap to check them by;
+- a subtest of the same test: `ci-modules` runs that one test by name and looks for the line of its pass, which a failed subtest withholds.
+
+— *Rejected:*
+- v0.2.6 — it has no package of its own;
+- a reader of the test, as `WithReader`, in place of the stub: it would hold neither `tutor`'s admission nor the dev mode the author runs;
+- a test that `full` refuses the module: it would fail on the good news that a model passed the stage, and the test of the gate on the vectors, `TestATaskOfHandwritingAsksTheGate`, holds the rule;
+- moving the submodule to v0.17.2: it changes only `COORDINATION.md` and `spec`'s log, and a move to a tag is a task of its own.
+
+— *Consequence:* the 2026-11-14 amendments to R07, R41 and R53; В69 «В реестр spec». — `modules.json`; `internal/learning/release_test.go`, `stub_test.go`, `learning_test.go`; RUN.md, T76; [plan/E11.md](plan/E11.md), T76; README.md; CLAUDE.md; [architecture.md](architecture.md), sections 1 and 3.3.
