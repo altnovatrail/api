@@ -144,14 +144,22 @@ type ExportedAttempt struct {
 
 // ExportedProfile is a profile's part of the export as the database holds it,
 // with the bytes of its records of protobuf: each piece of evidence, by the
-// order of the log, the state, and each submission's observation, by the
-// attempt and the number of the submission.
+// order of the log, the state, each submission's observation, by the attempt
+// and the number of the submission, and each stored work, newest first.
 type ExportedProfile struct {
 	Profile      exportv2.Profile
 	Attempts     []ExportedAttempt
 	Evidence     [][]byte
 	State        []byte
 	Observations map[string]map[int64][]byte
+	Works        []ExportedWork
+}
+
+// ExportedWork is a stored work as the export names it, with the bytes it keeps:
+// the contract's StoredWork, which the package export writes.
+type ExportedWork struct {
+	Work  exportv2.Work
+	Bytes []byte
 }
 
 // ExportProfile is the profile's part of the export, of the account's profile,
@@ -205,6 +213,7 @@ func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) 
 		func() error { return exportReports(ctx, tx, profileID, &out) },
 		func() error { return exportAttempts(ctx, tx, profileID, &e) },
 		func() error { return exportJournal(ctx, tx, profileID, &out, &e) },
+		func() error { return exportWorks(ctx, tx, profileID, &e) },
 		func() (err error) {
 			out.QuotaCounters, err = exportCounters(ctx, tx, "profile_quota", "profile_id", profileID)
 			return err
@@ -355,6 +364,28 @@ func exportStorage(ctx context.Context, tx pgx.Tx, profileID string, out *export
 		return fmt.Errorf("store: read the storage of works: %w", err)
 	}
 	out.StorageConsents = append(out.StorageConsents, list...)
+	return nil
+}
+
+// exportWorks reads the profile's stored works, newest first, with their bytes,
+// which the package export writes: there are none while the storage is off.
+func exportWorks(ctx context.Context, tx pgx.Tx, profileID string, e *ExportedProfile) error {
+	rows, err := tx.Query(ctx, `SELECT attempt_id, kind, stored_at, work FROM works WHERE profile_id = $1
+		ORDER BY stored_at DESC, attempt_id`, profileID)
+	if err != nil {
+		return fmt.Errorf("store: read the works: %w", err)
+	}
+	works, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (ExportedWork, error) {
+		var w ExportedWork
+		var at time.Time
+		err := r.Scan(&w.Work.AttemptID, &w.Work.Kind, &at, &w.Bytes)
+		w.Work.StoredAt = timeOf(at)
+		return w, err
+	})
+	if err != nil {
+		return fmt.Errorf("store: read the works: %w", err)
+	}
+	e.Works = works
 	return nil
 }
 

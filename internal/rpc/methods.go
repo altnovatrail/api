@@ -109,7 +109,7 @@ var methods = map[string]rule{
 
 	apiv1connect.LegalServiceGetLegalTextsProcedure: openView,
 
-	// Answered unimplemented until T75 of RUN.md, behind their checks (R69).
+	// The stored works (R70).
 	apiv1connect.WorkServicePutWorkProcedure:    toLearn,
 	apiv1connect.WorkServiceListWorksProcedure:  toLearn,
 	apiv1connect.WorkServiceGetWorkProcedure:    toLearn,

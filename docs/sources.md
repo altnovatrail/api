@@ -393,6 +393,10 @@ For architecture 3.10; R38. Read 2026-11-09:
 
 For architecture 3.10; R38. `assets/migrations/postgres/001_initialize_schema.sql` in [openfga/openfga v1.22.1](https://github.com/openfga/openfga/blob/v1.22.1/assets/migrations/postgres/001_initialize_schema.sql), read 2026-11-09: `CREATE TABLE changelog` with the fields `store`, `object_type`, `object_id`, `relation`, `_user`, `operation`, `ulid`, `inserted_at TIMESTAMPTZ NOT NULL` and the key `PRIMARY KEY (store, ulid, object_type)`; there is no index by time.
 
+### 11.8. The size of a response of Cloud Run, 2026-11-14
+
+For architecture 3.9 and 3.10; R70. [Cloud Run quotas and limits](https://docs.cloud.google.com/run/quotas), read 2026-11-14: "Maximum HTTP/1 response size: 32 MiB per response. Limit applies if not using Transfer-Encoding: chunked or streaming". The export of `api` is one unary response of Connect, whose `api.zip` holds the profile's stored works, each up to 4 MiB.
+
 ## 12. canvas-api: decisions and specification
 
 A reading that several sections rest on at once — architecture 3.1, 3.2, 3.6, 3.9 and 3.10.

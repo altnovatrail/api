@@ -78,10 +78,11 @@ func answer(wrong int32, verdict, value string) []byte {
 var choices *modulepackage.Package
 
 // The export of a profile with an attempt, its submissions, its evidence and its
-// state, a lesson run, a choice, the storage of works and a problem report, and
-// of its account, is api.zip whose every file passes its schema of spec's part
-// export/, version 2, and keeps its rules of the layout and the .proto files
-// (R135 spec). The server keeps no work yet, so works is there and empty.
+// state, a lesson run, a choice, the storage of works, two stored works and a
+// problem report, and of its account, is api.zip whose every file passes its
+// schema of spec's part export/, version 2, and keeps its rules of the layout and
+// the .proto files (R135 spec). A stored work is written newest first, its
+// history and contexts as the JSON they are and its picture in base64 (R70).
 func TestTheExportPassesItsSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +161,16 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	exec(`INSERT INTO problem_reports (account_id, profile_id, attempt_id, reply, rung, words, kind, text, created_at)
 		VALUES ($1, $2, $3, 'rung', 1, 'The words of the rung.', 'unclear', '', now())`, account, profile, attempt)
 	exec(`INSERT INTO work_storage_consents (profile_id, giver, text_version, on_at, off_at) VALUES ($1, 'owner', 1, now(), now())`, profile)
+	// Two stored works, the one of the attempt that left the image the newer.
+	for i, a := range []string{attempt, gone} {
+		work, err := proto.Marshal(&v1.StoredWork{AttemptId: a, History: []byte(`[{"kind":"write","t":1}]`),
+			Submissions: []*v1.WorkSubmission{{Context: []byte(`{"answer_slot":1}`), HistoryLength: 1}}, Picture: []byte("\x89PNG\r\n\x1a\n")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		exec(`INSERT INTO works (profile_id, attempt_id, kind, size_bytes, work, stored_at)
+			VALUES ($1, $2, 'handwriting', 50, $3, now() - make_interval(mins => $4))`, profile, a, work, 1-i)
+	}
 	if err := pool.QueryRow(ctx, `WITH c AS (INSERT INTO engine_choices (profile_id, kind, module_id, lesson_id)
 			VALUES ($1, 'lesson', $2, 'basics') RETURNING id)
 		INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
@@ -203,7 +214,8 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	text := string(files["profiles/"+profile+".json"])
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
 		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
-		`"works":[]`} {
+		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting"`, `"history":[{"kind":"write","t":1}]`,
+		`"submissions":[{"context":{"answer_slot":1},"history_length":1}]`, `"picture":"iVBORw0KGgo="`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
 		}
@@ -307,6 +319,7 @@ func TestARecordThatIsNoMessageFailsTheExport(t *testing.T) {
 		"state":       `UPDATE skill_states SET state = '\xff' WHERE profile_id = $1 AND $2 <> ''`,
 		"answer":      `INSERT INTO submissions (profile_id, attempt_id, number, answer) SELECT $1, id, 1, '\xff' FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
 		"observation": `INSERT INTO submissions (profile_id, attempt_id, number, answer, observation) SELECT $1, id, 1, '', '\xff' FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
+		"work":        `INSERT INTO works (profile_id, attempt_id, kind, size_bytes, work, stored_at) SELECT $1, id, 'drawing', 1, '\xff', now() FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
 	} {
 		var account, profile string
 		if err := pool.QueryRow(ctx, `INSERT INTO accounts (auth_uid, last_request_on, adult_stated_at, tariff)

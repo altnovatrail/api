@@ -87,6 +87,7 @@ type world struct {
 	learning apiv1connect.LearningServiceClient
 	attempts apiv1connect.AttemptServiceClient
 	progress apiv1connect.ProgressServiceClient
+	works    apiv1connect.WorkServiceClient
 	// service is the service the server answers by.
 	service *learning.Service
 	current *modulepackage.Package
@@ -190,15 +191,19 @@ func worldOn(t *testing.T, set *packages.Set, g *admission.Gate, opts []learning
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
 		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Module: cat.Modules(w.pool), Learning: s.Learning(db),
-			Attempt: s.Attempts(db, adultRights{w}), Progress: s.Progress(db, adultRights{w})})
+			Attempt: s.Attempts(db, adultRights{w}), Progress: s.Progress(db, adultRights{w}), Work: s.Works(db, adultRights{w})})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
-	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL))
+	// The client reads a message as large as the server does: a stored work of
+	// 4 MiB is over the 4 MiB that Connect's client reads by default.
+	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL,
+		connecthttp.WithReadMaxBytes(rpc.MaxMessage)))
 	w.accounts = apiv1connect.NewAccountServiceClient(transport)
 	w.modules = apiv1connect.NewModuleServiceClient(transport)
 	w.learning = apiv1connect.NewLearningServiceClient(transport)
 	w.attempts = apiv1connect.NewAttemptServiceClient(transport)
 	w.progress = apiv1connect.NewProgressServiceClient(transport)
+	w.works = apiv1connect.NewWorkServiceClient(transport)
 	return w
 }
 

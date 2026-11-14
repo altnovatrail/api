@@ -51,10 +51,8 @@ type world struct {
 	rights *authz.Rights
 	signin *authntest.Fake
 	client apiv1connect.AccountServiceClient
-	// work is WorkService on the same server, which answers unimplemented.
-	work  apiv1connect.WorkServiceClient
-	clock *clock
-	log   *syncBuffer
+	clock  *clock
+	log    *syncBuffer
 	// forms is the folder the scans of the forms of the world lie in.
 	forms string
 	// ownerFails makes the writing of a tuple fail, and deleteFails its deletion.
@@ -186,7 +184,6 @@ func newWorldWith(t *testing.T, options []account.Option, wrap ...func(*pgxpool.
 	t.Cleanup(httpServer.Close)
 	transport := connect.NewClient(connecthttp.NewTransport(httpServer.Client(), httpServer.URL))
 	w.client = apiv1connect.NewAccountServiceClient(transport)
-	w.work = apiv1connect.NewWorkServiceClient(transport)
 	return w
 }
 

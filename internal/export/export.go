@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -163,7 +164,34 @@ func (x *Exporter) profile(ctx context.Context, tx pgx.Tx, accountID, profileID 
 		return exportv2.Profile{}, false, err
 	}
 	p.State.Modules = x.modules(p.Evidence)
+	for _, w := range e.Works {
+		work, err := storedWork(w)
+		if err != nil {
+			return exportv2.Profile{}, false, err
+		}
+		p.Works = append(p.Works, work)
+	}
 	return p, submissions, nil
+}
+
+// storedWork is the stored work w as the export writes it, as GetWork gives it
+// (R70; contracts/README.md of spec, section 15): its history and the context
+// of each submission as the JSON their bytes hold — PutWork took no other —,
+// and its picture in base64.
+func storedWork(w store.ExportedWork) (exportv2.Work, error) {
+	var stored v1.StoredWork
+	if err := proto.Unmarshal(w.Bytes, &stored); err != nil {
+		return exportv2.Work{}, fmt.Errorf("export: read a work: %w", err)
+	}
+	out := w.Work
+	out.History = json.RawMessage(stored.GetHistory())
+	out.Submissions = []exportv2.WorkSubmission{}
+	out.Picture = base64.StdEncoding.EncodeToString(stored.GetPicture())
+	for _, s := range stored.GetSubmissions() {
+		out.Submissions = append(out.Submissions, exportv2.WorkSubmission{Context: json.RawMessage(s.GetContext()),
+			HistoryLength: int64(s.GetHistoryLength())})
+	}
+	return out, nil
 }
 
 // modules is each module of the log with the version whose graph the state
