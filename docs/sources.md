@@ -33,6 +33,8 @@ For architecture 3.1; R03. Read 2026-11-02:
 
 For R03; Д3. [the enrollment terms](https://developer.apple.com/programs/enroll/), no date, read 2026-11-02: "The Apple Developer Program is 99 USD per membership year".
 
+This record is a reading of 2026-11-02, not a fact a decision of `api` rests on now (the 2026-11-14 amendment to R03): Т-41 in repositories 8 spec, at `spec` v0.17.9, says "on 2026-11-14 Apple's pages of the program did not give the price", and that the price and terms are read from Apple, into a record of sources, when the question is decided. `api` has not read Apple's pages again.
+
 ### 2.3. OpenFGA, 2026-11-02
 
 For architecture 3.1; R04. [openfga/openfga](https://github.com/openfga/openfga/tree/v1.22.1), release v1.22.1 of 2026-10-28 — the latest, commit 44054f5, license Apache-2.0, read 2026-11-02:
