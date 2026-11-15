@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/altnovatrail/api/internal/account"
@@ -65,6 +66,11 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	set, err := readPackages(opens.PackagesDir)
 	if err != nil {
 		return startupFailed(ctx, log, err)
+	}
+	// The deployment's list of modules narrows what the set offers, and an ID the
+	// pinned index does not hold is a failed start (R150 spec).
+	if err := set.List(moduleIDs(opens.Catalog)); err != nil {
+		return startupFailed(ctx, log, listRefused(err))
 	}
 	// Their open views are built once, here (R42).
 	cat, err := catalog.New(set)
@@ -223,6 +229,25 @@ func readPackages(dir string) (*packages.Set, error) {
 		return nil, err
 	}
 	return packages.Read(dir, modules)
+}
+
+// moduleIDs is the deployment's list of modules as the format types its IDs,
+// nil for no list.
+func moduleIDs(list []string) []formatv0.ModuleID {
+	if list == nil {
+		return nil
+	}
+	ids := make([]formatv0.ModuleID, 0, len(list))
+	for _, id := range list {
+		ids = append(ids, formatv0.ModuleID(id))
+	}
+	return ids
+}
+
+// listRefused is the refusal of the deployment's list of modules, by its
+// variable, as the configuration's refusals name theirs.
+func listRefused(err error) error {
+	return fmt.Errorf("%w: %s: %w", config.ErrInvalid, config.VarCatalogModules, err)
 }
 
 // newSignin builds the port to the sign-in service; a test of serve puts a fake

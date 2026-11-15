@@ -8,16 +8,18 @@ import (
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/packages"
 )
 
 // check checks what the deployment declares for admission to AI and serves
 // nothing (R45; the amendment of 2026-11-08 to R106 spec): the file of facts by
-// the admission table of this release, and the least stage; and a copy's folder
-// of legal texts by the rules of the part, and the store of the forms (R52). The rollout of
-// infra runs it as a Cloud Run job of the same image before the migrations, so
-// that a dictionary of facts that this release does not know stops the rollout
-// before anything changed, rather than the first start of the revision after
-// them. A refusal is the configuration's, printed before any log as every
+// the admission table of this release, and the least stage; a copy's folder of
+// legal texts by the rules of the part, and the store of the forms (R52); and
+// the deployment's list of modules against the pinned index the image laid
+// (R150 spec). The rollout of infra runs it as a Cloud Run job of the same
+// image before the migrations, so that a dictionary of facts that this release
+// does not know, or a module its index does not hold, stops the rollout before
+// anything changed, rather than the first start of the revision after them. A refusal is the configuration's, printed before any log as every
 // refusal of the configuration is; what it found, the line admission says.
 func check(_ context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	if err := flags("check", args, stderr); err != nil {
@@ -44,6 +46,25 @@ func check(_ context.Context, args, environ []string, stdout, stderr io.Writer) 
 	}
 	if _, err := legalTexts(agreements); err != nil {
 		return err
+	}
+	// The deployment's list of modules is checked against the pinned index the
+	// image laid, as serve checks it at its start (R150 spec).
+	catalog, err := config.CatalogFrom(environ)
+	if err != nil {
+		return err
+	}
+	if catalog.Modules != nil {
+		modules, err := modulesConfig()
+		if err != nil {
+			return err
+		}
+		index, err := packages.ReadIndex(catalog.PackagesDir, modules)
+		if err != nil {
+			return err
+		}
+		if err := packages.NotInIndex(index, moduleIDs(catalog.Modules)); err != nil {
+			return listRefused(err)
+		}
 	}
 	logAdmission(logging.New(stdout, cfg.LogLevel), report, agreements)
 	return nil

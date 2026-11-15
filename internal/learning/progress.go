@@ -49,8 +49,9 @@ func (s *Service) Progress(db rpc.DB, rights canner) *ProgressService {
 // action, whose profile's consent is confirmed, or by an adult's view, with the
 // right can_view, which the handler checks — the checks before it hold
 // can_learn alone. A module not connected is "not found", and one with no
-// current version for the learner says so. Each anchor skill has the modules
-// of the index that teach it, suit the learner and are not connected (R63 spec).
+// current version for the learner says so, as one the deployment's list leaves
+// out does (R150 spec). Each anchor skill has the modules of the index that
+// teach it, suit the learner, are on the list and are not connected (R63 spec).
 func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRequest) (*v1.GetSkillMapResponse, error) {
 	s := p.s
 	profileID := req.GetProfileId()
@@ -91,14 +92,14 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 		if !slices.ContainsFunc(connected, func(c store.ConnectedModule) bool { return c.ModuleID == string(module) }) {
 			return store.ErrNotFound
 		}
-		pkg, ok := s.set.CurrentFor(module, category)
+		pkg, ok := s.set.OfferedFor(module, category)
 		if !ok {
 			return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
 		}
 		// The modules of the engine: those connected and fit for the learner.
 		var engine []string
 		for _, c := range connected {
-			if _, ok := s.set.CurrentFor(formatv0.ModuleID(c.ModuleID), category); ok {
+			if _, ok := s.set.OfferedFor(formatv0.ModuleID(c.ModuleID), category); ok {
 				engine = append(engine, c.ModuleID)
 			}
 		}

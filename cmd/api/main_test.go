@@ -373,6 +373,7 @@ func TestWhatDoesNotOpenIsAFailedStart(t *testing.T) {
 		{"the rights, with no store", []string{"API_OPENFGA_DATABASE_URL=" + storetest.OpenFGAURL(t, false)}, "openfga"},
 		{"the sign-in service", []string{"API_FIREBASE_PROJECT_ID=broken"}, nil},
 		{"the packages, with no index", []string{"API_PACKAGES_DIR=" + t.TempDir()}, nil},
+		{"a module of the list the index does not hold", []string{"API_CATALOG_MODULES=example/missing"}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

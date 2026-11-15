@@ -232,7 +232,8 @@ exported() {
 
 # handwriting begins an attempt of the profile $1 on a task that AI reads and leaves its
 # AttemptStart in $work/attempt.json: the engine's task, or the next segment of the lesson it gives,
-# asking it again while what begins is checked by tap or is not admitted.
+# asking it again while what begins is checked by tap or is not admitted, and passing a lesson an
+# earlier run left open with its task segments all ended.
 handwriting() {
     local profile=$1 try kind choice run segment
     for try in $(seq 8); do
@@ -254,7 +255,13 @@ handwriting() {
             segment=$(jq -r '(.run.ended_segments // []) as $ended | .run.lesson.json | @base64d | fromjson |
                 [.segments | to_entries[] | select(.value.task != null) | .key + 1 | select(. as $p | $ended | index($p) | not)] |
                 first // empty' "$work/answer.json")
-            [[ -n $segment ]] || continue
+            # A run whose task segments have all ended, which an earlier run of the check left
+            # open, is passed, or the engine would give it again at every choice (R13, R50).
+            if [[ -z $segment ]]; then
+                call LearningService/CompleteLesson < <(PROFILE=$profile RUN=$run jq -cn '{profile_id: env.PROFILE, lesson_run_id: env.RUN}')
+                expect CompleteLesson
+                continue
+            fi
             call LearningService/BeginAttempt < <(PROFILE=$profile RUN=$run SEGMENT=$segment KEY=$(cat /proc/sys/kernel/random/uuid) \
                 jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY, segment: {lesson_run_id: env.RUN, segment: (env.SEGMENT | tonumber)}}')
             ;;

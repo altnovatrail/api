@@ -21,6 +21,7 @@ import (
 	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
+	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,6 +34,7 @@ import (
 	"github.com/altnovatrail/api/internal/invite"
 	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/packages/packagestest"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -69,6 +71,7 @@ type world struct {
 	packages                    apiv1connect.PackageServiceClient
 	older, newer, media, solver *modulepackage.Package
 	dir                         string
+	set                         *packages.Set
 }
 
 // syncBuffer is the log, which the server writes from its goroutines.
@@ -121,7 +124,7 @@ func newWorld(t *testing.T, wrap ...func(*pgxpool.Pool) catalog.DB) *world {
 	}
 	t.Cleanup(rights.Close)
 	w := &world{pool: storetest.DB(t), rights: rights, signin: &authntest.Fake{}, log: &syncBuffer{},
-		older: older, newer: newer, media: media, solver: solver, dir: set.Dir}
+		older: older, newer: newer, media: media, solver: solver, dir: set.Dir, set: set}
 	var db catalog.DB = w.pool
 	if len(wrap) > 0 {
 		db = wrap[0](w.pool)
@@ -510,6 +513,38 @@ func TestModulesAreConnectedAndDisconnected(t *testing.T) {
 	child, err := connectTo(l.child, "example/with-solver")
 	if err != nil || connectedOf(child.GetModules()) != "example/with-solver="+string(w.solver.Digest) {
 		t.Errorf("the child's connection = %v, %v", child, err)
+	}
+}
+
+// The deployment's list narrows the catalog (R150 spec): a module it leaves out
+// is given to nobody, is refused a connection as a module with no current
+// version is, and connected already, it stays, with no digest.
+func TestTheListOfTheDeploymentNarrowsTheCatalog(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	l := w.learner(t, "uid-owner")
+	if err := store.ConnectModule(t.Context(), w.pool, l.adult, "example/smallest"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.set.List([]formatv0.ModuleID{"example/with-media-and-notice"}); err != nil {
+		t.Fatal(err)
+	}
+	if adult := catalogOf(t, w, l.ctx, l.adult); len(adult) != 1 || adult["example/with-media-and-notice"] != string(w.media.Digest) {
+		t.Errorf("the catalog of an adult = %v, want the one with media alone", adult)
+	}
+	if child := catalogOf(t, w, l.ctx, l.child); len(child) != 1 || child["example/with-media-and-notice"] != string(w.media.Digest) {
+		t.Errorf("the catalog of a child = %v, want the one with media alone", child)
+	}
+	_, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.child, ModuleId: "example/with-solver"})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	connected, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: "example/with-media-and-notice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "example/smallest= example/with-media-and-notice=" + string(w.media.Digest)
+	if got := connectedOf(connected.GetModules()); got != want {
+		t.Errorf("connected = %s, want %s", got, want)
 	}
 }
 

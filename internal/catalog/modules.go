@@ -43,7 +43,8 @@ type ModuleService struct {
 func (c *Catalog) Modules(db DB) *ModuleService { return &ModuleService{c: c, db: db} }
 
 // ListCatalog gives the modules of the pinned index whose current version suits
-// the profile, connected ones too, by their IDs. An ID is lowercase ASCII by
+// the profile and which the deployment's list names, when it has one (R150
+// spec), connected ones too, by their IDs. An ID is lowercase ASCII by
 // the format's schema, so the order of its bytes is that of its UTF-16 code
 // units, as the contract asks.
 func (s *ModuleService) ListCatalog(ctx context.Context, req *v1.ListCatalogRequest) (*v1.ListCatalogResponse, error) {
@@ -53,7 +54,7 @@ func (s *ModuleService) ListCatalog(ctx context.Context, req *v1.ListCatalogRequ
 	}
 	var modules []*v1.CatalogModule
 	for _, id := range s.c.set.Modules() {
-		if pkg, ok := s.c.set.CurrentFor(id, category); ok {
+		if pkg, ok := s.c.set.OfferedFor(id, category); ok {
 			modules = append(modules, &v1.CatalogModule{ModuleId: string(id), PackageDigest: string(pkg.Digest)})
 		}
 	}
@@ -91,12 +92,13 @@ func (s *ModuleService) ConnectModule(ctx context.Context, req *v1.ConnectModule
 
 // unconnectable says why the module id cannot be connected to a learner of
 // category, by the code and cause of its refusal: the index does not name it,
-// or it has no current version for the learner.
+// or it has no current version for the learner — none, too, when the
+// deployment's list leaves it out (R150 spec).
 func (c *Catalog) unconnectable(id formatv0.ModuleID, category formatv0.AgeCategory) (connect.Code, v1.Cause, bool) {
 	if !c.set.Names(id) {
 		return connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND, true
 	}
-	if _, ok := c.set.CurrentFor(id, category); !ok {
+	if _, ok := c.set.OfferedFor(id, category); !ok {
 		return connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION, true
 	}
 	return 0, v1.Cause_CAUSE_UNSPECIFIED, false
@@ -162,12 +164,13 @@ func (s *ModuleService) change(ctx context.Context, profileID string, fn func(pg
 }
 
 // connected is the modules connected in the contract's words, each with the
-// digest of its current version for a learner of category.
+// digest of its current version for a learner of category: none for a module
+// the deployment's list leaves out, which stays connected (R150 spec).
 func (c *Catalog) connected(rows []store.ConnectedModule, category formatv0.AgeCategory) []*v1.ConnectedModule {
 	modules := make([]*v1.ConnectedModule, 0, len(rows))
 	for _, row := range rows {
 		m := &v1.ConnectedModule{ModuleId: row.ModuleID, ConnectedAt: timestamppb.New(row.ConnectedAt)}
-		if pkg, ok := c.set.CurrentFor(formatv0.ModuleID(row.ModuleID), category); ok {
+		if pkg, ok := c.set.OfferedFor(formatv0.ModuleID(row.ModuleID), category); ok {
 			m.PackageDigest = string(pkg.Digest)
 		}
 		modules = append(modules, m)

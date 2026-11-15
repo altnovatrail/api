@@ -541,3 +541,76 @@ func TestTheTeachersOfAnAnchorSkillAreTheCurrentVersionsThatSuit(t *testing.T) {
 		t.Error("CurrentFor gives an adult no module for adults")
 	}
 }
+
+// The deployment's list narrows what the set offers (R150 spec): a module it
+// leaves out has no package to offer and teaches nothing, but keeps its current
+// version, for the runs open on it. An ID the index does not hold is refused,
+// with the set as it was, and no list offers the whole index again.
+func TestTheListOfTheDeploymentNarrowsWhatTheSetOffers(t *testing.T) {
+	t.Parallel()
+
+	set := packagestest.Set(t,
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", packagestest.As("example/young", "[under_13, adult]")), Release: "v0.1.0"},
+		packagestest.Entry{Pkg: packagestest.OwnEdited(t, "choices", "1.0.0", packagestest.As("example/grown", "[adult]")), Release: "v0.1.0"},
+	)
+	adult := formatv0.AgeCategoryAdult
+	if _, ok := set.OfferedFor("example/young", adult); !ok || !set.Listed("example/young") {
+		t.Error("with no list, the set does not offer a module of the index")
+	}
+	if err := set.List([]formatv0.ModuleID{"example/grown"}); err != nil {
+		t.Fatalf("List of a module of the index: %v", err)
+	}
+	if _, ok := set.OfferedFor("example/young", adult); ok || set.Listed("example/young") {
+		t.Error("the set offers a module the list leaves out")
+	}
+	if _, ok := set.CurrentFor("example/young", adult); !ok {
+		t.Error("a module the list leaves out lost its current version")
+	}
+	if _, ok := set.OfferedFor("example/grown", adult); !ok {
+		t.Error("the set does not offer the module the list names")
+	}
+	if _, ok := set.OfferedFor("example/grown", formatv0.AgeCategoryUnder13); ok {
+		t.Error("the list offers a child a module for adults")
+	}
+	if got := set.Teachers(adult); !slices.Equal(got["core.multiplication-table"], []formatv0.ModuleID{"example/grown"}) {
+		t.Errorf("Teachers = %v, want example/grown alone", got)
+	}
+
+	err := set.List([]formatv0.ModuleID{"example/young", "example/missing", "example/gone"})
+	if !errors.Is(err, packages.ErrNotListed) || !strings.HasSuffix(err.Error(), ": example/missing, example/gone") {
+		t.Errorf("List of IDs the index does not hold: %v, want %v naming them", err, packages.ErrNotListed)
+	}
+	if set.Listed("example/young") {
+		t.Error("a refused list changed the set")
+	}
+	if err := set.List(nil); err != nil || !set.Listed("example/young") {
+		t.Errorf("List(nil) = %v, and the set does not offer the whole index again", err)
+	}
+}
+
+// ReadIndex reads the index of a laid folder by the digest pinned, and none of
+// its packages.
+func TestReadIndexReadsThePinnedIndexAlone(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	dir := filepath.Join(t.TempDir(), "packages")
+	if _, err := packages.Lay(t.Context(), w.src, w.cfg, dir); err != nil {
+		t.Fatal(err)
+	}
+	index, err := packages.ReadIndex(dir, w.cfg)
+	if err != nil || len(index.Modules) != 3 {
+		t.Fatalf("ReadIndex = %d modules, %v; want the three of the index", len(index.Modules), err)
+	}
+	if err := packages.NotInIndex(index, []formatv0.ModuleID{"example/older"}); err != nil {
+		t.Errorf("Unlisted of a module of the index: %v", err)
+	}
+	other := w.cfg
+	other.Index = outOfWindow
+	if _, err := packages.ReadIndex(dir, other); !errors.Is(err, packages.ErrIndex) {
+		t.Errorf("ReadIndex by another digest: %v, want %v", err, packages.ErrIndex)
+	}
+	if _, err := packages.ReadIndex(t.TempDir(), w.cfg); err == nil {
+		t.Error("ReadIndex of a folder with no index gave no error")
+	}
+}

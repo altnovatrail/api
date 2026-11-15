@@ -84,12 +84,13 @@ func suits(pkg *modulepackage.Package, category formatv0.AgeCategory) bool {
 
 // Teachers is, by each anchor skill, the ID of each module whose current version
 // for a learner of category names it in teaches of its entry of the index, in
-// the order of their bytes (R63 spec).
+// the order of their bytes (R63 spec), among those the deployment's list names
+// (R150 spec).
 func (s *Set) Teachers(category formatv0.AgeCategory) map[formatv0.AnchorSkillID][]formatv0.ModuleID {
 	out := map[formatv0.AnchorSkillID][]formatv0.ModuleID{}
 	for _, id := range s.Modules() {
 		entry, pkg, ok := s.current(id)
-		if !ok || !suits(pkg, category) {
+		if !ok || !suits(pkg, category) || !s.Listed(id) {
 			continue
 		}
 		for _, anchor := range entry.Teaches {

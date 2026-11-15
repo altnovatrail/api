@@ -90,6 +90,8 @@ type world struct {
 	works    apiv1connect.WorkServiceClient
 	// service is the service the server answers by.
 	service *learning.Service
+	// set is the packages it reads, whose list a test narrows (R150 spec).
+	set     *packages.Set
 	current *modulepackage.Package
 	earlier *modulepackage.Package
 	// connected is the modules each learner's profiles have connected.
@@ -187,7 +189,7 @@ func worldOn(t *testing.T, set *packages.Set, g *admission.Gate, opts []learning
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.service = s
+	w.service, w.set = s, set
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
 		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Module: cat.Modules(w.pool), Learning: s.Learning(db),
