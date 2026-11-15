@@ -156,3 +156,21 @@ For R73. `just dev-ai` — `serve` on the models, at the stage `author`, on the 
 | a synthetic key of OpenAI | `OWN_KEY_CHECK_PROVIDER_CLOSED` | 323 | 353 | none |
 
 The two requests are those of the two models `tutor` v0.1.33 would call with the key — Opus 5.5 and Haiku 5.5 —, one after the other: a gate with a counting adapter dials two models for one check. The log held neither key, and its lines `request` named the end alone, `key_check`. Token counting is free (sources 10.7): four requests, $0.
+
+## 7. The words after a correct answer on a model, T84, 2026-11-15
+
+For R77. `serve` on the models, as `just dev-ai serve` runs it — the dev file's key of platform AI, `tutor` v0.1.35, at the stage `author`, on the dev projects of Firebase and Neon (R39, R45) —, from the devcontainer, 2026-11-15 at about 15:35 UTC. The texts of the tag hold the words "not admitted" until 2026-11-27, the day version 3 of the privacy policy is in force (R77); by the author's word of 2026-11-15 the run went before it, on a copy of the legal texts by `API_LEGAL_DIR`: the tag's texts with version 3 of `privacy-policy` in force from 2026-11-15. The code and its rule of the day are R77's; only the copy's day differs, and a copy's history is its operator's (R77). The account is a synthetic one of its own, `dev-t84`, by an invite code, on `closed_slice`: an owner's profile, adult, on platform AI, with `novatrail/olympiad-math` 0.3.0 of `modules` v0.2.7. The dev account's family day had no room left for a task AI reads, since the runs of `dev-check` on the stub keep their reserves as spent. The requests went by `curl`, as `app` sends them, through the functions of `scripts/dev.sh`; the work was a synthetic PNG of the number, in thick strokes.
+
+| Request | Task | Answer | Tokens: input, output (of them thinking) | The model, ms (first token) | `request.duration_ms` | Cost |
+|---|---|---|---|---|---|---|
+| `SubmitWork` with the work, the pair | `tri-12-d1-1`, a sum, by handwriting | correct, read as the right value | Opus 5.5: 1,441, 61 (0); Haiku 5.5: 1,441, 173 (112) | 3,412; 2,667 | 6,942 | $0.0072 |
+| `GetCorrectAnswerWords` with the work | the same | words | Opus 5.5: 1,315, 351 (316) | 5,704 (5,395) | 7,686 | $0.0123 |
+| `SubmitWork` by tap | `kl-34-d1-2`, knights and liars, `choice` alone | correct | — | — | 1,642 | $0 |
+| `GetCorrectAnswerWords` without work | the same | words | Opus 5.5: 1,252, 440 (371) | 6,144 (5,538) | 8,020 | $0.0138 |
+| `GetCorrectAnswerWords` again, a new key | the same | `failed_precondition`, `CAUSE_NO_MORE_WORDS` | — | — | 815 | $0 |
+
+- **The words**, retold (R09 spec): with the work — praise that the total written is right, and the question how the learner found the sum of the numbers; without work — one sentence on which statement settles the task first, and the question whether supposing the opposite helped. Both ended with a question and passed the leak check and `words.Correct`: the answers held the words, and no line `request` held `words_check`. No words failed a check.
+- **The time** of the words is the model's thinking: of 351 and 440 output tokens, 316 and 371 are thinking, and the first token comes at 5.4–5.5 s. The request as a whole takes 7.7–8.0 s, less than the words of a rung of measurements 2.2, p50 10.6 s.
+- **The quota:** the export after the run — 33,303 micro-dollars spent of the profile and of the account, nothing in reserve, from 0 before; the sum of `cost_micro_usd` of the four lines `ai_usage`, to the micro-dollar. The prices are those of sources 7.1: Opus 5.5 $4 and $20 per MTok, Haiku 5.5 $0.10 and $0.50.
+- **The log of `serve`** — 52 lines of JSON; the check `clean` of `scripts/dev.sh` passed: no UID, email, connection string, key or token. Neither words, the tasks' statements nor the crop were in it.
+- **In all:** Anthropic, 4 calls — the reading by the pair and two words —, $0.0333.
