@@ -105,8 +105,13 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 		"an own key at the stage full":  {config.Admission{Rung: config.RungFull}, formatv0.AgeCategoryAdult, "anthropic", false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := load(t, tc.cfg).Handwriting(tc.category, tc.provider); got != tc.want {
-				t.Errorf("Handwriting(%s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
+			g := load(t, tc.cfg)
+			if got := g.Reads(tutor.CallSheet, tc.category, tc.provider); got != tc.want {
+				t.Errorf("Reads(sheet, %s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
+			}
+			// No entry of tutor v0.1.35 measured the prompt of the workbook (В72).
+			if g.Reads(tutor.CallWorkbook, tc.category, tc.provider) {
+				t.Errorf("Reads(workbook, %s, %q) = true, want no entry", tc.category, tc.provider)
 			}
 		})
 	}
@@ -202,7 +207,8 @@ func TestTheReportCountsThePlatformsKeys(t *testing.T) {
 	}
 }
 
-// The gate reads by tutor, which calls no model for a reading with no task.
+// The gate reads a sheet and a workbook page by tutor, which calls no model for
+// a reading with no task.
 func TestTheGateReadsByTutor(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +217,12 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	})
 	if read.Outcome.Kind != tutor.Failed || len(read.Observations) != 0 || len(read.Outcome.Usage) != 0 {
 		t.Errorf("ReadSheet with no task = %v, want a failure with no call", read.Outcome.Kind)
+	}
+	page := load(t, keyed(t, "", config.RungAuthor)).ReadWorkbook(t.Context(), tutor.WorkbookReading{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if page.Outcome.Kind != tutor.Failed || len(page.Observations) != 0 || len(page.Outcome.Usage) != 0 {
+		t.Errorf("ReadWorkbook with no task = %v, want a failure with no call", page.Outcome.Kind)
 	}
 }
 
@@ -391,7 +403,7 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	if !r.Stub || r.PlatformKeys != 0 {
 		t.Errorf("Report = %+v, want the stub and no key of the platform", r)
 	}
-	if !g.Handwriting(formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") ||
+	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") ||
 		!g.CorrectWords(formatv0.AgeCategoryAdult, "") {
 		t.Error("the stub's gate does not admit the reading, the words and the words after a correct answer for an adult")
 	}
@@ -420,10 +432,10 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 }
 
-// apiCalls are the kinds of call api makes (R72, R76), and before are those it
+// apiCalls are the kinds of call api makes (R72, R76, R81), and before are those it
 // made before tutor v0.1.35 brought the words after a correct answer.
 var (
-	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect}
+	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook}
 	before   = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
 )
 

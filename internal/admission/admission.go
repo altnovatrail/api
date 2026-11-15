@@ -68,9 +68,9 @@ type Provider struct {
 // ownKeyCalls are the kinds of call of tutor that api makes: the reading of a
 // sheet, the hint without the work and the words with it (R54, R68) — the
 // hint before the words, whose choice asks the hint's too —, and the words
-// after a correct answer (R76). An own key is open when tutor admits it for one
-// of them at least (R72).
-var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect}
+// after a correct answer (R76), and the reading of a workbook page (R81). An
+// own key is open when tutor admits it for one of them at least (R72).
+var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect, tutor.CallWorkbook}
 
 // Report is what a start says of admission to the operator: the version of the
 // table, whether the deployment gave a file of facts, and the stage and whether
@@ -307,19 +307,20 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 	return out
 }
 
-// Handwriting says whether the reading of handwriting is admitted for a learner
-// of category: by platform AI, or, when ownKeyProvider names one, by the own
-// key of that provider alone. It is admitted when tutor chooses, for the call
-// that reads a sheet, an entry all of whose models the table admits at the
-// deployment's stage or above. On platform AI only the providers the platform
-// holds a key of serve, and on either route only those api gives an adapter
-// of; the reading asks again (R46).
-func (g *Gate) Handwriting(category formatv0.AgeCategory, ownKeyProvider string) bool {
-	return g.chooses(tutor.CallSheet, g.route(category, ownKeyProvider))
+// Reads says whether the reading of handwriting by the call of the kind — of a
+// sheet, CallSheet, or of a workbook page, CallWorkbook — is admitted for a
+// learner of category: by platform AI, or, when ownKeyProvider names one, by
+// the own key of that provider alone. It is admitted when tutor chooses, for
+// the call, an entry all of whose models the table admits at the deployment's
+// stage or above. On platform AI only the providers the platform holds a key
+// of serve, and on either route only those api gives an adapter of; the
+// reading asks again (R46, R81).
+func (g *Gate) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return g.chooses(call, g.route(category, ownKeyProvider))
 }
 
 // Words says whether the tutor's words are admitted for a learner of category,
-// on the route Handwriting takes: the hint of a rung by the call of the hint
+// on the route Reads takes: the hint of a rung by the call of the hint
 // without the work, and, with the work, the call of words, which serves the
 // analysis of its steps and the hint at once, and which tutor admits only with
 // the hint on the model of the analysis (R84 spec; R106, R111 tutor). tutor
@@ -340,7 +341,7 @@ func WordsCall(withWork bool) tutor.Call {
 }
 
 // CorrectWords says whether the tutor's words after a correct answer are
-// admitted for a learner of category, on the route Handwriting takes: whether
+// admitted for a learner of category, on the route Reads takes: whether
 // tutor chooses an entry for their call, CallCorrect, one kind with the work and
 // without it (R112 tutor; R76). tutor asks again, of the very model.
 func (g *Gate) CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool {
@@ -362,6 +363,13 @@ func (g *Gate) route(category formatv0.AgeCategory, ownKeyProvider string) tutor
 // observation of each, or the outcome of a call that gave none.
 func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead {
 	return g.tutor.ReadSheet(ctx, r)
+}
+
+// ReadWorkbook reads the filled boxes of a workbook page by tutor's two
+// readers: the observation of each over every box of the page, or the outcome
+// of a call that gave none (R81).
+func (g *Gate) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead {
+	return g.tutor.ReadWorkbook(ctx, r)
 }
 
 // TellWords asks tutor for the words of a rung: its question, with the box of

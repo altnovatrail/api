@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69) and the same day to v0.17.9 (R75), and 2026-11-15 to v0.17.12 (R79). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R81.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69) and the same day to v0.17.9 (R75), and 2026-11-15 to v0.17.12 (R79). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R82.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -1132,6 +1132,8 @@ Opus thought 408–802 tokens, and the estimate by T76 of `tutor` is p50 5.1 s. 
 
 — *Amendment 2026-11-14* (T75; R70): a new reader of foreign input — the form of a stored work that `PutWork` checks, `learning.WorkMalformed` — has `FuzzStoredWork` of `internal/export`: whatever work the form lets through, the export writes as the JSON it is and reads back as it was put, the picture in base64 too. The test is in `internal/export`, since the unpacking it holds is that package's own, and `.claude/rules/go.md` names the package among those of fuzz tests. `just fuzz 5m FuzzStoredWork` — 3.89 million runs in 5 minutes, no failure.
 
+— *Amendment 2026-11-15* (T87; R81): a new reader of foreign input — the work of a workbook page that `SubmitWork` checks, `boxesTaken` — has `FuzzWorkbookWork` of `internal/learning`: whatever `WorkbookWork` it takes, every box is of a box of the page, by its places, none twice, no more than 20, its crop the PNG sent, whole and no larger than 512 px a side.
+
 ## Release
 
 **R28. A release of `api` comes out by itself, by the shared `release.yml` of `.github` v0.1.21, after green CI on `main`: the static binaries `api_<version>_linux_amd64` and `api_<version>_linux_arm64`, the `Dockerfile` by which the deployment builds the image, the licenses the binaries come with, and `SHA256SUMS`, each file with its signature. The binary takes its commit and that commit's time from a file that `git archive` writes, so the build is reproducible. CI's job "Image" checks the `Dockerfile`: it builds the image the same way as the deployment does, and from the source code. The first release is v0.1.0, with the merge of T19.** The author's decisions of 2026-11-08 in the planning of T19: the first release now, the commit and the time through `export-subst`, a CI job of its own checks the image, and the executor sets GitHub's settings once the author confirms. Task T19 of epic E2.
@@ -1930,6 +1932,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-15* (T92; R79): "author" on a deployment is no longer a configuration refusal: `API_ADMISSION_RUNG=author` with `K_SERVICE` or `CLOUD_RUN_JOB` is taken, as R149 spec has the deployment `novatrail` run at it. Without a value the rung is still `full`, and the stub of `tutor` is still refused on a deployment (R66).
 
+— *Amendment 2026-11-15* (T87; R81): the gate's `Handwriting` is `Reads(call, category, provider)`, by the kind of call — `CallSheet` or `CallWorkbook` —, and the gate reads a workbook page too, `ReadWorkbook`.
+
 ## Handwriting check in code
 
 **R46. The submission of a handwriting sheet is `SubmitWork` with a crop: the reading by two readers of `tutor` `v0.1.21` (`ReadSheet`), the join and the verdict of `module-kit` (`observation.Join`, `observation.Verdicts`), the observation at the submission. The request goes in three parts by `rpc.Across`: the checks and the key record "going" in one transaction, the AI call outside transactions, the verdict and the record "done" in the second. The platform AI keys are the secrets `API_ANTHROPIC_KEY` and `API_OPENAI_KEY`. AI spending is written by the row `ai_usage`, and the message limit is 4 MiB.** Task T36 of epic E3, 2026-11-10; one task, "attempt closed" for an attempt closed during the reading, "not admitted" for a task that `tutor` does not read, and a secret per provider are the author's decisions in planning.
@@ -1978,6 +1982,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Amendment 2026-11-13* (T73; R68): the line `ai_usage` of each model also carries `model_ms` — how long its call took at `tutor`, the SDK's retries counted in (`Usage.Latency`) —, `retries` and `first_token_ms`, beside the call's `duration_ms` (R107 `tutor`). They are durations and a count, which R09 spec lets in.
 
 — *Amendment 2026-11-15* (T85; R80): `LimitReached` for an own key is `CAUSE_LIMIT_REACHED` with `own_key_limit`, which names the limit by `Outcome.Limit` of `tutor`, and never `access_returns`; the outcome is built by `outcomeOf`, in place of `outcomeCause`, for the words too.
+
+— *Amendment 2026-11-15* (T87; R81): a task on a workbook begins where the gate admits `CallWorkbook`, and its submission is `WorkbookWork`: the crops of the filled boxes, each of a box of the task, none twice, no more than 20, each no larger than 512 px a side, read by `ReadWorkbook` through the port `workbookReader`, and judged as a sheet is; a page left blank is no error. The work of a sheet on a workbook and of a page on a sheet are `invalid_argument`. "A workbook … not admitted until the release of `tutor`" above no longer holds in the code; on the real table it still is, by the admission (В72).
 
 ## The hint ladder in code
 
@@ -2167,6 +2173,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Amendment 2026-11-13* (T68; R65): the pool, the lessons and the open runs the engine gets go by the route to AI that the request names — `own_key_provider`, or at `SubmitWork` the provider of `own_key` —, as `BeginAttempt` by the same route would begin: the rule `admitted` takes the provider, and "handwriting not admitted for the learner" above is on that route. Every request that gives a choice — `ChooseNext`, `next`, `RunEnd` — passes its route, and a repeat gives the choice from the record as before. The record of a choice gets no field for it.
 
 — *Amendment 2026-11-15* (T92; R79): the engine's modules are the connected ones with a current version for the learner that the deployment's list names, when it has one (R150 spec): the engine chooses none of the lessons and tasks of a module the list leaves out.
+
+— *Amendment 2026-11-15* (T87; R81): the rule `admitted` asks the gate of the task's kind of call — `CallSheet` for a sheet with one slot `anywhere`, `CallWorkbook` for a workbook —, so "a task on a workbook" above is not begun only while its call is not admitted, which on `tutor` v0.1.35 it never is (В72). "Handwriting not admitted for the learner" is neither kind admitted, and a workbook left out by its admission alone narrows the pool, so "nothing to give" carries "not admitted" for it too.
 
 ## Deployment jobs in code
 
@@ -2442,6 +2450,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Consequence:* Д11 narrowed: the reserve and the settlement on the calls exist, and the quota at the start of a task, in the engine choice and the flag do not yet — T51. — RUN.md, T50; [architecture.md](architecture.md), section 3.6.
 
 — *Amendment 2026-11-13* (T73; R68): the words of a rung and "explain differently" reserve by the kind of call of the request they send — `CallWords` when the crop goes, `CallHint` without it, as `tutor` picks it —, and `CallHint` reserves its value from `internal/quota`, since `tutor` expects no price of it (the 2026-11-13 amendment to R55).
+
+— *Amendment 2026-11-15* (T87; R81): the reading of a workbook page reserves by `Price(CallWorkbook)`, or else by the value of `internal/quota` for each filled box (R55), and a page left blank, which goes to no model, reserves nothing.
 
 **R59. Platform AI is closed to a new task with handwriting — by a quota that is not enough for a typical task, by the flag "platform limit" or by a tariff without caps — by one rule at the start of a task, of a segment and in the engine choice. The flag is set by the outcome "limit reached" of a call on the platform's key and is read on every request; the operator's command `api reopen` opens it. The cause of "nothing to give" is kept by the choice's record, migration `0016`.** Task T51 of epic E6, 2026-11-12; the executor's decisions in planning and by the review.
 - **What was decided:**
@@ -2932,6 +2942,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-15* (T92; R79): the list follows the deployment's rung, as decided here, with no change of code: on `novatrail`, at `author` since R149 spec, it is Anthropic, and "nobody at `full`" holds where the rung is `full`.
 
+— *Amendment 2026-11-15* (T87; R81): the kinds of call `api` makes are five — `CallWorkbook`, the reading of a workbook page, too. On `tutor` v0.1.35 no entry admits it, so the list is as above.
+
 **R73. `CheckOwnKey` checks the owner's key by `Tutor.CheckKey`, through the gate's `CheckKey`, and gives the contract's five ends: `ACCEPTED`, `INVALID`, `NO_PERMISSION`, `PROVIDER_CLOSED` and `UNSPECIFIED` with the outcome `CAUSE_AI_FAILURE`. A provider `OwnKeyOpen` closes is `PROVIDER_CLOSED` with no call. The key lives in the request's memory alone, and the line `request` names the end by the field `key_check`. The stub of the dev mode answers the check by the ending of a synthetic key.** Task T78 of epic E11, 2026-11-14; the stub's answers by the ending, and no limit of `api`'s own on the checks, were decided by the author when the epic was set up, by the executor's recommendation.
 - **What was decided** (the contract `contracts/v0.16.3` and later; [contracts text](../spec/contracts/README.md), section 15; R84, R98 spec; R96 `tutor`):
   - **the handler** — `internal/account/ownkey.go`, after the checks of `toManage`. The profile's category is read by `store.LearnerOf`, as for the list (R72), and a profile gone since is `CAUSE_NO_PROFILE`. Then come two refusals, with no call. An `own_key` that is not there, or has no provider or no key, is `invalid_argument` with no cause, as `ownKeySent` of the requests of an attempt: the key is malformed before it is anybody's. A category not `adult` is `CAUSE_KEY_NOT_FOR_PROFILE`, `invalid_argument`;
@@ -3145,3 +3157,28 @@ This is how the author walked the path of the first app on 2026-11-12.
 - which limit in the request's line of the log — above.
 
 — *Consequence:* the 2026-11-15 amendments to R46 and R54; В73 — `api`'s part done. — `internal/learning/attempt.go`, `internal/learning/hints.go`; RUN.md, T85; [architecture.md](architecture.md), section 3.9.
+
+## The workbook page in code
+
+**R81. A task on a workbook begins, enters the engine's pool and is checked by its kind of call: the beginning and the pool ask the gate of `Reads(CallWorkbook)` for a workbook and of `Reads(CallSheet)` for a sheet with one slot `anywhere`, and `SubmitWork` with `WorkbookWork` reads the crops of the filled boxes by `ReadWorkbook` of `tutor` v0.1.35, the verdict of each box and each item by `module-kit`, as on a sheet. On the real admission table no entry admits `CallWorkbook` (В72), so on the models a workbook is still "not admitted"; the path is checked on a test's own admission and readers.** Task T87 of epic E13, 2026-11-15, by T48 `app` and Д24; one task, not two — the admission by the kind of call is a small change beside `SubmitWork` —, the decision of the author's plan of the epic; the rest by the executor, below.
+- **What was decided** (`workbook.go` and `price.go` of `tutor` v0.1.35; `attempt.proto` of `spec` v0.17.12; [format](../spec/format/README.md), section 14):
+  - **the kind of call** of a task is `callOf` of `internal/learning`, by its canvas: `CallSheet` for a handwriting sheet with one answer slot `anywhere` and the others `choice`, `CallWorkbook` for a workbook with a box at least, every answer slot of which is a box, as the format has it; none for a task a tap checks, a zone or the whole sheet. The rule `admitted` of the beginning, the pool and the lessons (R50) asks the gate's `Reads(call, category, provider)`, which replaces `Handwriting`, through a port of `internal/learning`, `admitter`, the gate's by default; "AI not admitted" of the pool is neither kind admitted, and a workbook left out by its admission alone narrows the pool, as a sheet does;
+  - **the form of `WorkbookWork`**: each `BoxCrop` names by `answer_slot` an item of the task and a slot of it bound `box`, from 1 — the place of the box among the item's boxes, since a workbook's every slot is one —, no box twice, no more than 20 boxes, and each crop a PNG whole and no larger than 512 px a side, as `tutor` reads it; the boxes go in the order sent, which `tutor` puts in the task's. No box at all is a page left blank and no error: `tutor` reads its every box blank, "unreadable". Anything else, the work of a sheet on a workbook and of a page on a sheet among it, is `invalid_argument`, before the record "going";
+  - **the reading** is a port beside `sheetReader`, `workbookReader`, the gate's `ReadWorkbook` by default; it takes the instance and the own key for the stub, as `sheetReader` does, and the gate's adapter drops both. What it gives has the shape of a sheet's reading, and goes the same way: `observation.Join` of the two readers, `observation.Verdicts`, the observation kept, the outcome by `outcomeOf` (R80);
+  - **the quota**: the reading reserves by `Price(CallWorkbook)`, or else by the value of `internal/quota`, 14,000 microdollars, for each filled box (R55); `reserveFor` takes the number of crops. A page left blank goes to no model, and reserves and spends nothing;
+  - **the words**: a rung's words and those after a correct answer take no work of a workbook page — with it `invalid_argument` —, and without it go as for a task a tap checks, by the hint without the work; the rung is the first slot "not yet" by the order of items and slots, as on a sheet (architecture 3.5);
+  - **the kinds of call** `api` makes, of which an own key is open when one is admitted (R72), hold `CallWorkbook` too; on `tutor` v0.1.35 it opens no own key that the four others left closed.
+- **Checked 2026-11-15:** `ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses` and `dev-check`; `just fuzz 5m FuzzWorkbookWork`; `just -f spec/justfile docs-check-repo`. The tests, on a test's own admission and readers: a workbook page begins where `CallWorkbook` is admitted and enters the pool, and not where only `CallSheet` is; a page read "not yet", correct, two readings that differ, blank, "not admitted", the own key's limit, one reader alone and a reading of no box; each wrong form refused with no reading, and a box of 512 × 512 read; a reserve of 14,000 per box, and none for a blank page; the words with the work refused and without it by the hint; on the real gate `Reads(CallWorkbook)` is false at every stage, category and route.
+
+— *Why:*
+- the admission by the kind of call, not by the form: `tutor` admits each kind by the prompt an entry measured (R70 spec), and the reading of a sheet admits nothing of a workbook's;
+- the order of the boxes free: `tutor` reads them in the task's order whatever they come in, and a refusal would make app's order a fault of the learner's submission;
+- no reserve for a blank page: it calls no model, and `cost` would spend the reserve of a call with no record of usage (R58);
+- the words without the work of a page: their request carries one crop of a sheet (`WordsRequest.Crop`), and the box of the first mistake on a page is no part of `tutor` v0.1.35.
+
+— *Rejected:*
+- the admission and the pool apart from `SubmitWork`, as two tasks: one check covers both (rule 11 of RUN.md);
+- the work of a page in the words — above; Д42;
+- a refusal of boxes out of the task's order — above.
+
+— *Consequence:* the 2026-11-15 amendments to R27, R45, R46, R50, R58 and R72; Д24 narrowed — on the stub it closes with T88, on the models with the release of `tutor` of В72 —; new Д42. — `internal/learning/task.go`, `internal/learning/attempt.go`, `internal/learning/begin.go`, `internal/admission/admission.go`; RUN.md, T87; [architecture.md](architecture.md), sections 3.5, 3.7 and 3.9.

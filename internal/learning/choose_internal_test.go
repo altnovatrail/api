@@ -86,7 +86,8 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 	t.Parallel()
 
 	pkg := packagestest.Own(t, "choices")
-	s := &Service{gate: noAI(t)}
+	g := noAI(t)
+	s := &Service{admits: gateTutor{g}}
 	m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryUnder13, "", true)
 	if err != nil {
 		t.Fatal(err)
@@ -122,12 +123,14 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 // deployment with no facts closes, leaves the tasks a tap checks and says so,
 // and so does the own key of a provider whose models are not admitted; the
 // adult's own key of Anthropic, which the stage "author" admits, gives the
-// handwriting too.
+// handwriting of a sheet too, and says so still of the workbook page, whose
+// reading no entry admits (R81).
 func TestThePoolGoesByTheRoute(t *testing.T) {
 	t.Parallel()
 
 	pkg := packagestest.Own(t, "choices")
-	s := &Service{gate: gateAt(t, "author")}
+	g := gateAt(t, "author")
+	s := &Service{admits: gateTutor{g}}
 	for _, tc := range []struct {
 		ownKey   string
 		apples   bool
@@ -135,7 +138,8 @@ func TestThePoolGoesByTheRoute(t *testing.T) {
 	}{
 		{"", false, true},
 		{"openai", false, true},
-		{"anthropic", true, false},
+		// The workbook page is left out by any route: no entry admits its reading (В72).
+		{"anthropic", true, true},
 	} {
 		m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryAdult, tc.ownKey, true)
 		if err != nil {

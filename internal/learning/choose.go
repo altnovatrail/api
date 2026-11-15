@@ -104,7 +104,7 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 	// left for a typical task (R11, R59): the pool is then of the tasks a tap
 	// checks. Neither the quota nor the limit closes an own key, so on it nothing
 	// to give says "not admitted" alone (R65).
-	admitted := s.gate.Handwriting(category, ownKey)
+	admitted := s.readsAdmitted(category, ownKey)
 	var closed *v1.Outcome
 	if admitted && ownKey == "" {
 		if closed, err = closedTo(ctx, tx, profileID, quota.TypicalHandwriting, now); err != nil {
@@ -217,9 +217,10 @@ func (s *Service) begins(pkg *modulepackage.Package, task formatv0.Task, categor
 
 // forAI says whether a task that does not begin is left out only for AI that is
 // not admitted or closed to read it: one that suits the learner, with no rubric,
-// on a sheet this release of tutor reads.
+// on a sheet or a workbook page this release of tutor reads (R81).
 func forAI(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory) bool {
-	return suits(pkg, task, category) && !rubric(task) && sheetRead(task)
+	_, read := callOf(task)
+	return suits(pkg, task, category) && !rubric(task) && read
 }
 
 // nextTask is the task of the first task segment of the lesson that has not

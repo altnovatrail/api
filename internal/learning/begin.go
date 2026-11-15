@@ -9,6 +9,7 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
@@ -39,9 +40,9 @@ type begun struct {
 // holds the task, and the task must suit the age category of the profile (R51
 // spec). A task with a rubric is not admitted: its path is not in this code
 // (R14). A task of handwriting begins when tutor reads its form — a
-// handwriting sheet with one answer slot bound anywhere — and the gate of
-// admission chooses models to read it, by platform AI or the own key named
-// (R45, R46). A task segment of a lesson run begins on the run's package, once
+// handwriting sheet with one answer slot bound anywhere, or a workbook — and
+// the gate of admission chooses models for its kind of call, by platform AI or
+// the own key named (R45, R46, R81). A task segment of a lesson run begins on the run's package, once
 // the run is checked whole and every task segment before it has ended, and it
 // has not; its open attempt is given as it is (R13, R48), and waits, if the
 // quota ran out on it. On platform AI a task that AI checks begins only with
@@ -310,10 +311,10 @@ func startOf(h held) (*v1.AttemptStart, error) {
 // of category, by the own key of ownKey when it names a provider: the same rule
 // for a beginning and for the pool the engine chooses from (R50). A task with a
 // rubric is not, as its path is not in this code (R14), so AI may not assess
-// one; nor is one AI would read on a workbook, a zone or the whole sheet, which
-// this release of tutor does not read (R46); nor one of handwriting whose
-// models the table, the facts, the stage and the platform's keys of the
-// deployment do not admit (R45).
+// one; nor is one AI would read in a zone or on the whole sheet, which this
+// release of tutor does not read (R46); nor one of handwriting whose kind of
+// call, a sheet's or a workbook page's, the table, the facts, the stage and the
+// platform's keys of the deployment do not admit models for (R45, R81).
 func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ownKey string) bool {
 	switch {
 	case rubric(task):
@@ -321,5 +322,13 @@ func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ow
 	case byTap(task):
 		return true
 	}
-	return sheetRead(task) && s.gate.Handwriting(category, ownKey)
+	call, ok := callOf(task)
+	return ok && s.admits.Reads(call, category, ownKey)
+}
+
+// readsAdmitted says whether AI that reads the work is admitted for a learner of
+// category on the route of ownKey, by one kind of call at least: what closes the
+// pool to the tasks a tap checks when it is not (R50, R81).
+func (s *Service) readsAdmitted(category formatv0.AgeCategory, ownKey string) bool {
+	return s.admits.Reads(tutor.CallSheet, category, ownKey) || s.admits.Reads(tutor.CallWorkbook, category, ownKey)
 }

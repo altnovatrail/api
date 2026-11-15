@@ -58,13 +58,14 @@ type reserve struct {
 
 // reserveFor reserves the call on platform AI by route, for the profile, on the
 // family day, in tx (R12): its expected price by tutor, or the value of its
-// kind when tutor has none. Platform AI that the limit of its provider closed
-// makes no call, with the outcome "platform limit" (R59). The quota of the
+// kind when tutor has none, for each of the crops it shows (R81). Platform AI
+// that the limit of its provider closed makes no call, with the outcome
+// "platform limit" (R59). The quota of the
 // profile or the account that does not hold it refuses it with the outcome
 // "quota" and when the next family day begins; an account whose tariff has no
 // caps, with "not admitted": platform AI is closed to it by default (R11).
 // Either is noted in the request's log, with the cap and no ID.
-func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, day quota.Day) (reserve, error) {
+func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, crops int, day quota.Day) (reserve, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, nil
 	}
@@ -73,7 +74,7 @@ func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, r
 	}
 	caller, _ := rpc.CallerFrom(ctx)
 	c := store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day,
-		Amount: quota.Reserve(call, s.price(call, route), 1)}
+		Amount: quota.Reserve(call, s.price(call, route), crops)}
 	spent, err := store.ReserveQuota(ctx, tx, c)
 	switch {
 	case err != nil:

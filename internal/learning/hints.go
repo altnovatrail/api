@@ -324,7 +324,10 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		},
 	}
 	route := routeOf(category, req.GetOwnKey())
-	withWork := s.readsAI(ctx, profileID, attemptID)
+	// The words take the work of a sheet alone: a workbook page asks them as a
+	// task a tap checks, with no work (R81).
+	task, known := s.attemptTask(ctx, profileID, attemptID)
+	withWork := known && sheetRead(task)
 	admitted := s.teller.Words(withWork, category, req.GetOwnKey().GetProvider())
 	prepare := func(tx pgx.Tx) (telling, error) {
 		h, err := s.hold(ctx, tx, profileID, attemptID, s.clock())
@@ -336,7 +339,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted && t.ready == nil {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
 		}
 		return t, err
 	}
@@ -376,9 +379,10 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 
 // rungAsked checks a request for the words of a rung on the attempt h, before
 // anything is called: the wrong answer it names, a rung that is new, and the
-// work, which goes when AI reads a slot of the task, and only then, as the crop
-// of a sheet. The rung whose words the attempt keeps already is answered with
-// them, with no call.
+// work, which goes when AI reads the task as a sheet, and only then, as its
+// crop: a workbook page asks as a task a tap checks, with no work (R81). The
+// rung whose words the attempt keeps already is answered with them, with no
+// call.
 func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetRungWordsRequest, route tutor.Route, admitted bool) (telling, error) {
 	if err := named(ctx, h, req.WrongAnswers, false); err != nil {
 		return telling{h: h}, err
@@ -387,7 +391,7 @@ func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetR
 		return telling{h: h}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	}
 	t := telling{h: h, rung: rungOf(h.row.WrongAnswers), wrong: h.row.WrongAnswers}
-	ai := !byTap(h.task)
+	ai := sheetRead(h.task)
 	if ai != (req.GetWork() != nil) {
 		return t, rpc.Malformed("work")
 	}
@@ -526,7 +530,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
 		}
 		if err == nil && t.reserve.refused != nil {
 			// "Explain differently" makes no call without the reserve, and the right stays.
@@ -722,7 +726,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 			p.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, p.day)
+			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, 1, p.day)
 		}
 		return p, err
 	}
@@ -762,8 +766,9 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 // praiseAsked checks a request for the words after a correct answer on the
 // attempt it names, held, before anything is called: an attempt the profile
 // has, whose words may still be given, on a package the index knows, and the
-// work, which goes when AI reads a slot of the task, and only then, as the crop
-// of a sheet. When the words are admitted, it gives their call.
+// work, which goes when AI reads the task as a sheet, and only then, as its
+// crop: a workbook page asks as a task a tap checks, with no work (R81). When
+// the words are admitted, it gives their call.
 func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrectAnswerWordsRequest, route tutor.Route, admitted bool) (praising, error) {
 	profileID := req.GetProfileId()
 	if !store.CanonicalID(req.GetAttemptId()) {
@@ -785,7 +790,7 @@ func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrect
 		return p, err
 	}
 	p.pkg = pkg
-	ai := !byTap(p.task)
+	ai := sheetRead(p.task)
 	var crop []byte
 	if ai {
 		crop = req.GetWork().GetSheet().GetCrop()

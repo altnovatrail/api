@@ -46,13 +46,16 @@ var (
 
 // Service runs the attempts of the profiles on the packages the image holds.
 type Service struct {
-	set  *packages.Set
-	gate *admission.Gate
+	set *packages.Set
 	// reader reads the work of a handwriting sheet, teller words the tutor's
 	// words, and praiser the words after a correct answer: the gate's tutor.
 	reader  sheetReader
 	teller  wordsTeller
 	praiser correctTeller
+	// admits says whether a kind of call that reads the work is admitted, and
+	// workbook reads the work of a workbook page: the gate's tutor (R81).
+	admits   admitter
+	workbook workbookReader
 	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
 	// provider: its words after a correct answer go whatever the day (R66).
 	stubbed bool
@@ -111,12 +114,30 @@ type sheetReader interface {
 	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead
 }
 
-// gateTutor reads and words by the gate's tutor, which never sees the instance
-// and takes the own key from the route alone: it drops both.
+// admitter says whether tutor's call of the kind that reads the work, of a
+// sheet or of a workbook page, is admitted for a learner of category, by the own
+// key of ownKeyProvider when it names one, as the gate says through tutor's
+// choice (R45, R81).
+type admitter interface {
+	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
+}
+
+// workbookReader reads the filled boxes of a workbook page, as tutor does; task
+// and own are as sheetReader has them (R81).
+type workbookReader interface {
+	ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead
+}
+
+// gateTutor admits, reads and words by the gate's tutor, which never sees the
+// instance and takes the own key from the route alone: it drops both.
 type gateTutor struct{ *admission.Gate }
 
 func (g gateTutor) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
 	return g.Gate.ReadSheet(ctx, r)
+}
+
+func (g gateTutor) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ formatv0.Task, _ string) tutor.WorkbookRead {
+	return g.Gate.ReadWorkbook(ctx, r)
 }
 
 func (g gateTutor) TellWords(ctx context.Context, w tutor.WordsRequest, _ string) tutor.WordsAnswer {
@@ -134,7 +155,8 @@ func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest,
 // of learner-model, which the mark of the learner model's cache names, or of
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
+		admits: gateTutor{gate}, workbook: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
