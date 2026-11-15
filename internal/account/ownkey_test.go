@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -280,5 +281,118 @@ func TestACheckWithTooLittleTimeIsTheClients(t *testing.T) {
 		OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic"}})
 	if connect.CodeOf(err) != connect.CodeDeadlineExceeded {
 		t.Errorf("CheckOwnKey with 1.5 s left = %v, want deadline_exceeded", err)
+	}
+}
+
+// No more than ten checks of a key fit in any hour on the account (R78): the
+// eleventh is resource_exhausted with no cause and no check, a provider closed
+// with no call counts as a check, and the hour slides, so that a check opens as
+// the oldest leaves it.
+func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
+	t.Parallel()
+
+	w, keys := stubKeyWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	owner := w.ownerProfile(t, ctx).GetProfileId()
+	check := func(provider string) error {
+		_, err := w.client.CheckOwnKey(ctx, &v1.CheckOwnKeyRequest{ProfileId: owner,
+			OwnKey: &v1.OwnKey{Provider: provider, Key: "sk-ant-synthetic"}})
+		return err
+	}
+	start := w.clock.Now()
+	if err := check("anthropic"); err != nil {
+		t.Fatalf("the first check = %v", err)
+	}
+	// The nine others at minute 59, OpenAI's, closed with no call, among them.
+	w.clock.set(start.Add(59 * time.Minute))
+	for i := range account.MaxKeyChecks - 1 {
+		provider := "anthropic"
+		if i%3 == 0 {
+			provider = "openai"
+		}
+		if err := check(provider); err != nil {
+			t.Fatalf("check %d = %v", i+2, err)
+		}
+	}
+	refusedAs(t, check("anthropic"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	refusedAs(t, check("openai"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	if n := keys.checks.Load(); n != account.MaxKeyChecks {
+		t.Fatalf("the gate checked %d keys, want %d: a check beyond the limit reached it", n, account.MaxKeyChecks)
+	}
+	// An hour from the first, it has left the window, and one check opens.
+	w.clock.set(start.Add(account.KeyCheckWindow))
+	if err := check("anthropic"); err != nil {
+		t.Fatalf("the check an hour after the first = %v", err)
+	}
+	refusedAs(t, check("anthropic"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	// An hour from the nine, only the check of the last hour counts.
+	w.clock.set(start.Add(59*time.Minute + account.KeyCheckWindow))
+	for i := range account.MaxKeyChecks - 1 {
+		if err := check("anthropic"); err != nil {
+			t.Fatalf("check %d of the next hour = %v", i+1, err)
+		}
+	}
+	refusedAs(t, check("anthropic"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	if n, want := keys.checks.Load(), 2*account.MaxKeyChecks; n != int32(want) {
+		t.Errorf("the gate checked %d keys, want %d", n, want)
+	}
+	// The limit is the account's: another account checks as it was.
+	other := w.owner(t, "uid-other")
+	_, err := w.client.CheckOwnKey(other, &v1.CheckOwnKeyRequest{ProfileId: w.ownerProfile(t, other).GetProfileId(),
+		OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic"}})
+	if err != nil {
+		t.Errorf("another account's check = %v", err)
+	}
+}
+
+// Checks of one account side by side are counted one after the other: twelve
+// at once give ten checks and two refusals, never an eleventh check.
+func TestChecksOfAKeySideBySideGiveNoEleventh(t *testing.T) {
+	t.Parallel()
+
+	w, keys := stubKeyWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	owner := w.ownerProfile(t, ctx).GetProfileId()
+	var wg sync.WaitGroup
+	var refused atomic.Int32
+	for range account.MaxKeyChecks + 2 {
+		wg.Go(func() {
+			_, err := w.client.CheckOwnKey(as(t, "uid-owner"), &v1.CheckOwnKeyRequest{ProfileId: owner,
+				OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic"}})
+			switch {
+			case connect.CodeOf(err) == connect.CodeResourceExhausted:
+				refused.Add(1)
+			case err != nil:
+				t.Errorf("a check side by side = %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	if n, r := keys.checks.Load(), refused.Load(); n != account.MaxKeyChecks || r != 2 {
+		t.Errorf("twelve checks at once = %d checked and %d refused, want %d and 2", n, r, account.MaxKeyChecks)
+	}
+}
+
+// The dev mode's stub calls no provider, and with WithoutKeyCheckLimit the
+// checks of a key have no limit there (R78).
+func TestTheChecksOfAKeyOnTheStubHaveNoLimit(t *testing.T) {
+	t.Parallel()
+
+	gate, _, err := admission.Load(config.Admission{Rung: config.RungAuthor, Stub: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := newWorldWith(t, []account.Option{account.WithOwnKeys(gate), account.WithoutKeyCheckLimit()})
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	owner := w.ownerProfile(t, ctx).GetProfileId()
+	for i := range account.MaxKeyChecks + 2 {
+		_, err := w.client.CheckOwnKey(ctx, &v1.CheckOwnKeyRequest{ProfileId: owner,
+			OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic"}})
+		if err != nil {
+			t.Fatalf("check %d on the stub = %v", i+1, err)
+		}
 	}
 }

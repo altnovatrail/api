@@ -36,7 +36,9 @@ type Service struct {
 	forms   forms.Store
 	export  *export.Exporter
 	ownKeys OwnKeys
-	now     func() time.Time
+	// unlimitedChecks lifts the limit of the checks of a key (R78).
+	unlimitedChecks bool
+	now             func() time.Time
 }
 
 // Rights is what writes the tuple of a profile it makes, and deletes the tuples

@@ -3,11 +3,13 @@ package account
 import (
 	"context"
 	"errors"
+	"time"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/consentage"
@@ -27,6 +29,11 @@ type OwnKeys interface {
 // WithOwnKeys is the gate the own key's requests ask; with none, they are
 // refused unimplemented.
 func WithOwnKeys(gate OwnKeys) Option { return func(s *Service) { s.ownKeys = gate } }
+
+// WithoutKeyCheckLimit lifts the limit of the checks of a key, for the dev
+// mode's stub of tutor: it calls no provider, so no key is tried there, and the
+// runs of app in Playwright check keys again and again (R78).
+func WithoutKeyCheckLimit() Option { return func(s *Service) { s.unlimitedChecks = true } }
 
 // ListOwnKeyProviders names the providers of the admission table, in its order,
 // whose own key tutor admits at the profile's category for one kind of call
@@ -62,7 +69,8 @@ func (s *Service) ListOwnKeyProviders(ctx context.Context, req *v1.ListOwnKeyPro
 // on the requests of an attempt, and a profile not of the category adult is
 // CAUSE_KEY_NOT_FOR_PROFILE, both with no call; a provider closed to the key
 // at the profile is PROVIDER_CLOSED with no call, as ListOwnKeyProviders
-// leaves it out. A provider that gave no answer is no refusal: the check is
+// leaves it out. A check beyond the account's limit is resource_exhausted with
+// no call (R78). A provider that gave no answer is no refusal: the check is
 // OWN_KEY_CHECK_UNSPECIFIED with the outcome CAUSE_AI_FAILURE. The key lives
 // in the request's memory alone: the log line names how the check ended.
 func (s *Service) CheckOwnKey(ctx context.Context, req *v1.CheckOwnKeyRequest) (*v1.CheckOwnKeyResponse, error) {
@@ -81,6 +89,9 @@ func (s *Service) CheckOwnKey(ctx context.Context, req *v1.CheckOwnKeyRequest) (
 	if l.AgeCategory != consentage.Adult {
 		return nil, rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
 	}
+	if err := s.countKeyCheck(ctx, caller.AccountID); err != nil {
+		return nil, err
+	}
 	check, err := s.ownKeys.CheckKey(ctx, formatv0.AgeCategoryAdult, own.GetProvider(), own.GetKey())
 	if errors.Is(err, admission.ErrTooLittleTime) {
 		// The client's deadline, not the provider, left no time, as on the
@@ -95,6 +106,49 @@ func (s *Service) CheckOwnKey(ctx context.Context, req *v1.CheckOwnKeyRequest) (
 		rpc.NoteOutcome(ctx, c)
 	}
 	return out, nil
+}
+
+// The limit of the checks of a key (R78): no more than MaxKeyChecks on the
+// account in any KeyCheckWindow, across the edge of a window too, so that
+// CheckOwnKey is no way to try keys one after another.
+const (
+	MaxKeyChecks   = 10
+	KeyCheckWindow = time.Hour
+)
+
+// countKeyCheck counts a check of a key on the account, in a transaction that
+// holds its row, and commits before the check, so that a check beside it waits
+// and counts it: a check that MaxKeyChecks of the last KeyCheckWindow leave no
+// room for is resource_exhausted with no cause, until spec gives one, and is
+// counted not. Every check that reaches the gate counts, a provider closed with
+// no call too, so that trying providers does not get round the limit.
+func (s *Service) countKeyCheck(ctx context.Context, accountID string) error {
+	if s.unlimitedChecks {
+		return nil
+	}
+	err := store.WriteUnderAccount(ctx, s.db, accountID, func(tx pgx.Tx) error {
+		checked, err := store.HoldKeyChecks(ctx, tx, accountID)
+		if err != nil {
+			return err
+		}
+		// The time once the row is held: a check that waited for another is
+		// counted after it, and the times stay in the order they were counted.
+		now := s.now().UTC().Truncate(time.Microsecond)
+		recent := checked[:0:0]
+		for _, at := range checked {
+			if now.Before(at.Add(KeyCheckWindow)) {
+				recent = append(recent, at)
+			}
+		}
+		if len(recent) >= MaxKeyChecks {
+			return rpc.Refuse(ctx, connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+		}
+		return store.WriteKeyChecks(ctx, tx, accountID, append(recent, now))
+	})
+	if err != nil {
+		return refusedProfile(ctx, err)
+	}
+	return nil
 }
 
 // checked is the answer of a check that ended so, and its word in the log: an

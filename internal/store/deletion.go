@@ -58,7 +58,7 @@ func ClearAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
 		{"delete the texts accepted", `DELETE FROM account_texts WHERE account_id = $1`},
 		{"unbind the reports", `UPDATE problem_reports SET account_id = NULL WHERE account_id = $1`},
 		{"clear the account", `UPDATE accounts SET adult_stated_at = NULL, pin_hash = NULL, pin_failures = NULL,
-			pin_failures_since = NULL, pin_locked_until = NULL, pin_failed_at = '{}', tariff = NULL,
+			pin_failures_since = NULL, pin_locked_until = NULL, pin_failed_at = '{}', key_checked_at = '{}', tariff = NULL,
 			utc_offset_minutes = NULL, day_starts_at = NULL, day_ends_at = NULL, last_request_on = NULL WHERE id = $1`},
 		{"unbind the code", `UPDATE invite_codes SET account_id = NULL WHERE account_id = $1`},
 	} {
