@@ -4,10 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
@@ -35,8 +37,23 @@ func newStubWorld(t *testing.T) (*world, *admission.Gate) {
 // adult, the author's stage and the stub's adapter.
 func stubGate(t *testing.T) *admission.Gate {
 	t.Helper()
+	return stubGateOf(t, adultFacts)
+}
+
+// childFacts are the facts that open the reading of handwriting by Anthropic's
+// models on platform AI for a child under 13 too, as dev-check declares them to
+// its server on the stub, which sends nothing to a provider.
+const childFacts = `anthropic:
+  data_processing_agreement: [adult, under_13]
+  minimal_retention: [adult, under_13]
+  minor_safeguards: [under_13]
+`
+
+// stubGateOf is the gate of the dev mode on the facts given.
+func stubGateOf(t *testing.T, given string) *admission.Gate {
+	t.Helper()
 	facts := filepath.Join(t.TempDir(), "facts.yaml")
-	if err := os.WriteFile(facts, []byte(adultFacts), 0o600); err != nil {
+	if err := os.WriteFile(facts, []byte(given), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := config.AdmissionFrom([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author", "API_ADMISSION_FACTS_FILE=" + facts})
@@ -251,5 +268,75 @@ func TestTheGateHearsNoEndingOfAnOwnKey(t *testing.T) {
 	failed("the words after a correct answer on -limit-payment", praise.GetOutcome())
 	if log := w.log.String(); strings.Count(log, `"ai_outcome":"failed"`) != 3 {
 		t.Errorf("the log = %s, want three calls of AI that failed", log)
+	}
+}
+
+// A workbook page runs on the stub (the 2026-11-15 amendment to R66): the stub
+// admits its reading where the gate admits a sheet's, so the page begins for an
+// adult and enters the pool, but not for a child, whose sheet the facts of an
+// adult do not admit; by the facts of a child it begins for the child too, as
+// dev-check declares them to its server on the stub. A tall crop of the box reads a wrong value, and a wide
+// one the right value, which solves the task and gives its evidence. tutor
+// expects no price of the page, so each reading keeps the reserve of the kind,
+// 14,000 micro-dollars a box, as spent (R12, R81), with nothing left in
+// reserve. On an own key the stub refuses the page by the key's ending.
+func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
+	t.Parallel()
+
+	w, g := newStubWorld(t)
+	l := w.learner(t)
+	pool, _, err := w.service.Candidates(w.current, formatv0.AgeCategoryAdult, "")
+	if err != nil || !slices.Contains(pool, module+"/task/table") {
+		t.Errorf("the pool = %v, %v; want table in it", pool, err)
+	}
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, l.child, "table")}})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+	young := stubGateOf(t, childFacts)
+	children := worldOf(t, young, []learning.Option{learning.WithTutor(tutorstub.New(young))})
+	kid := children.learner(t)
+	if pool, _, err := children.service.Candidates(children.current, formatv0.AgeCategoryUnder13, ""); err != nil ||
+		!slices.Contains(pool, module+"/task/table") {
+		t.Errorf("the pool of a child by the facts of a child = %v, %v; want table in it", pool, err)
+	}
+	children.begin(t, kid, kid.child, "table")
+
+	a := w.begin(t, l, l.adult, "table").GetAttemptId()
+	submit := func(width, height int, own *v1.OwnKey) *v1.SubmitWorkResponse {
+		t.Helper()
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a,
+			IdempotencyKey: uuid.NewString(), Work: page(boxCrop(1, 1, pngOf(t, width, height))), OwnKey: own})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	res := submit(40, 10, &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic" + tutorstub.KeyLimitTier})
+	if o := res.GetOutcome(); o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || o.GetOwnKeyLimit().GetCause() != v1.LimitCause_LIMIT_CAUSE_TIER ||
+		res.GetSolved() != nil {
+		t.Errorf("a page on -limit-tier = %v, solved %v; want the limit of the tier and nothing checked", o, res.GetSolved())
+	}
+	if res := submit(10, 10, nil); verdicts(res) != "unreadable[unreadable illegible]" {
+		t.Errorf("a square box = %s, want illegible", verdicts(res))
+	}
+	if res := submit(10, 40, nil); !strings.HasPrefix(verdicts(res), "not_yet") || res.GetWrongAnswers() != 1 {
+		t.Errorf("a tall box = %s, %d wrong; want not yet, one wrong", verdicts(res), res.GetWrongAnswers())
+	}
+	if res := submit(40, 10, nil); verdicts(res) != "correct[correct 4]" || res.GetSolved() == nil {
+		t.Fatalf("a wide box = %s, solved %v; want correct and solved", verdicts(res), res.GetSolved())
+	}
+	if n := w.evidenceOf(t, a); n != 1 {
+		t.Errorf("the journal holds %d pieces of evidence of the page, want 1", n)
+	}
+
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
+	box := quota.Reserve(tutor.CallWorkbook, g.Price(tutor.CallWorkbook, adult), 1)
+	want := quota.Counter{Spent: 3 * box}
+	if profile, account := w.counted(t, l.accountID, l.adult); box != 14_000 || profile != want || account != want {
+		t.Errorf("the counters = %+v, %+v by %d a box; want 14,000 a box and three readings on platform AI kept as spent, %+v",
+			profile, account, box, want)
+	}
+	if log := w.log.String(); !strings.Contains(log, `"model":"stub"`) || strings.Contains(log, "sk-ant-synthetic") {
+		t.Errorf("the log = %s, want the stub's usage and no own key", log)
 	}
 }

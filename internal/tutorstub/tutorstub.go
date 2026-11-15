@@ -7,7 +7,10 @@
 //
 // The stub reads a sheet by the shape of its crop: wider than tall is the right
 // value, taller than wide a wrong one — the slot's first trap value, or the
-// first value its check holds not right —, and square is illegible. It finds
+// first value its check holds not right —, and square is illegible. It reads
+// each filled box of a workbook page the same way, by the shape of the box's
+// crop, and admits that reading itself wherever the gate admits a sheet's, for
+// the same category and route: tutor v0.1.35 admits it nowhere (В72). It finds
 // the values by module-kit's verdict on the instance, the key with it, which
 // the stub alone is given: tutor sees the open view (R67 spec). Its words — a
 // rung's questions and the praise after a correct answer — are its own, which
@@ -29,6 +32,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"image/png"
 	"slices"
 	"strconv"
@@ -39,6 +43,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	tutorprovider "github.com/altnovatrail/tutor/provider"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/quota"
@@ -118,9 +123,10 @@ func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 	return o, true
 }
 
-// Gate is what the stub asks of the gate of admission: whether the tutor's
-// words are admitted, and what a call is expected to cost.
+// Gate is what the stub asks of the gate of admission: whether a reading and
+// the tutor's words are admitted, and what a call is expected to cost.
 type Gate interface {
+	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
@@ -179,6 +185,141 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 			AnswerSlots: []*observationv1.AnswerSlotObservation{answer}})
 	}
 	return read
+}
+
+// Reads says whether the reading by the call of the kind is admitted for a
+// learner of category, on the route of ownKeyProvider: the reading of a
+// workbook page wherever the gate admits a sheet's, CallSheet, for the same
+// category and route, since no entry of tutor v0.1.35 admits it (В72; the
+// 2026-11-15 amendment to R66), and any other kind as the gate says.
+func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	if call == tutor.CallWorkbook {
+		call = tutor.CallSheet
+	}
+	return s.gate.Reads(call, category, ownKeyProvider)
+}
+
+// ReadWorkbook reads the filled boxes of the workbook page of r, on task, the
+// instance whose open view r holds, each by the shape of its crop as ReadSheet
+// reads a sheet's: wider than tall the box's right value, taller than wide a
+// wrong one, square illegible. The observation holds every box of the page in
+// the task's order, a box that sent no crop unreadable, blank, and a value with
+// no crop box, as tutor's does; both readers read the same. Of tutor's checks
+// before its call the stub keeps those of the request's form: a task that is no
+// workbook page, a crop of a place the page has no box of or of one box twice,
+// more than maxBoxes crops, or a crop that is no PNG or is larger than
+// maxBoxSide on a side fails, as does a request whose context ended while the
+// stub looked for the values. A page with no crop goes to no model and spends
+// nothing, as tutor's does; past those checks an own key of an ending of the
+// stub's, own being its value, is refused by it. The call spends the expected
+// price of CallWorkbook on the route, which tutor v0.1.35 does not give: none,
+// so the quota keeps its reserve by the value of the kind as spent (R12, R81).
+func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead {
+	fail := func(err error) tutor.WorkbookRead {
+		return tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
+	}
+	places, boxes, err := boxesOf(task)
+	if err != nil {
+		return fail(err)
+	}
+	if len(r.Boxes) > maxBoxes {
+		return fail(fmt.Errorf("tutorstub: %d filled boxes, more than the %d a reading shows", len(r.Boxes), maxBoxes))
+	}
+	read := make(map[box]*observationv1.AnswerSlotObservation, len(r.Boxes))
+	shapes := make(map[box]image.Config, len(r.Boxes))
+	for _, b := range r.Boxes {
+		at := box{b.Item, b.Slot}
+		_, onPage := boxes[at]
+		if _, twice := shapes[at]; !onPage || twice {
+			return fail(fmt.Errorf("tutorstub: no box %d of item %d on the page, or two crops of it", b.Slot, b.Item))
+		}
+		cfg, err := png.DecodeConfig(bytes.NewReader(b.Crop))
+		if err == nil && (cfg.Width > maxBoxSide || cfg.Height > maxBoxSide) {
+			err = fmt.Errorf("%d × %d pixels, more than %d on a side of a box", cfg.Width, cfg.Height, maxBoxSide)
+		}
+		if err != nil {
+			return fail(fmt.Errorf("tutorstub: the crop of item %d, box %d: %w", b.Item, b.Slot, err))
+		}
+		shapes[at] = cfg
+	}
+	if len(r.Boxes) > 0 {
+		if o, refused := refusal(ctx, own); refused {
+			return tutor.WorkbookRead{Outcome: o}
+		}
+	}
+	for at, cfg := range shapes {
+		value, found := "", false
+		switch slot := boxes[at]; {
+		case cfg.Width > cfg.Height:
+			value, found = right(ctx, slot)
+		case cfg.Height > cfg.Width:
+			value, found = wrong(ctx, slot)
+		}
+		answer := &observationv1.AnswerSlotObservation{Read: &observationv1.AnswerSlotObservation_Unreadable{
+			Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}}
+		if found {
+			answer.Read = &observationv1.AnswerSlotObservation_Value{Value: value}
+		}
+		read[at] = answer
+	}
+	if err := ctx.Err(); err != nil {
+		return fail(err)
+	}
+	page := &observationv1.Observation{}
+	for _, at := range places {
+		answer, ok := read[at]
+		if !ok {
+			answer = &observationv1.AnswerSlotObservation{Read: &observationv1.AnswerSlotObservation_Unreadable{
+				Unreadable: observationv1.Unreadable_UNREADABLE_BLANK}}
+		}
+		answer.AnswerSlot = &observationv1.AnswerSlotPlace{Item: int32(at.item), Slot: int32(at.slot)}
+		page.AnswerSlots = append(page.AnswerSlots, answer)
+	}
+	out := tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Answered}}
+	if len(r.Boxes) > 0 {
+		out.Outcome.Usage = s.usage(tutor.CallWorkbook, r.Route, readers)
+	}
+	for range readers {
+		out.Observations = append(out.Observations, proto.CloneOf(page))
+	}
+	return out
+}
+
+// The bounds of a reading of a workbook page, as tutor's ReadWorkbook takes
+// them: the most filled boxes, and the longest side of a box's crop in pixels.
+const (
+	maxBoxes   = 20
+	maxBoxSide = 512
+)
+
+// box is the place of a box of a workbook page: its item and its place among
+// the item's boxes, from 1, as tutor's BoxCrop names it.
+type box struct{ item, slot int }
+
+// boxesOf is the places of the boxes of task, a workbook page, in the task's
+// order, and the answer slot of each: each answer slot of an item bound box,
+// counted among the item's boxes, as tutor counts them. A task that is no
+// workbook page, or has no box, is refused, as tutor's reading refuses it.
+func boxesOf(task formatv0.Task) ([]box, map[box]verdict.AnswerSlot, error) {
+	if task.Canvas.Kind != formatv0.CanvasKindWorkbook {
+		return nil, nil, errors.New("tutorstub: the task is no workbook page")
+	}
+	var places []box
+	slots := map[box]verdict.AnswerSlot{}
+	for i, item := range task.Items {
+		n := 0
+		for _, slot := range verdict.AnswerSlots(item) {
+			if slot.Binding == string(formatv0.LinePartBindingBox) {
+				n++
+				places = append(places, box{i + 1, n})
+				slots[box{i + 1, n}] = slot
+			}
+		}
+	}
+	if len(places) == 0 {
+		return nil, nil, errors.New("tutorstub: the workbook page has no box")
+	}
+	return places, slots, nil
 }
 
 // Words says whether the tutor's words are admitted, as the gate says.

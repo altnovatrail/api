@@ -7,7 +7,8 @@
 # server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
 # else", the own key's providers and its check, a reading of handwriting with its reserve and
 # settlement of the quota, a stored work by the storage switched on and off, a parent's consent by
-# its form, then the job after a rollout — and
+# its form, on the stub of tutor an own key refused by its ending, the words after a correct answer
+# and a child's workbook page, then the job after a rollout — and
 # checks the answers and the logs. The server's key of
 # platform AI is one Anthropic refuses, so that no call of the check reaches a model. `just dev-app`
 # keeps the server up on the stub for the local build of app, which signs in by a custom token this
@@ -20,8 +21,8 @@
 # binary ignores. No secret goes on a command line, where any process could read it: they go
 # through the environment, files and pipes.
 #
-# scripts/dev_test.go tests the loader, the custom token and how it is laid for app, the task AI reads
-# and the counters in CI.
+# scripts/dev_test.go tests the loader, the custom token and how it is laid for app, the task AI
+# reads, the workbook page and its boxes, and the counters in CI.
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -55,6 +56,17 @@ pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQ
 # The work the check sends to the stub of tutor: a synthetic PNG of two white pixels, wider than
 # tall, which the stub reads as the right value (R66).
 wide=iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAAAAADRSSBWAAAAEElEQVR4nAADAPz/BP8AAwACDQEEd5QFkQAAAABJRU5ErkJggg==
+# The facts the check's server on the stub of tutor declares instead of the dev file's: Anthropic's
+# for an adult and for a child under 13 too, so that the stub admits a child's workbook page (R66).
+# On the stub nothing reaches a provider, and these facts govern its admission alone; the dev file,
+# `api check` and the first server keep the facts the author declared.
+child_facts='anthropic:
+  data_processing_agreement: [adult, under_13]
+  minimal_retention: [adult, under_13]
+  minor_safeguards: [under_13]
+'
+# The pseudonym of the synthetic child of the check, by which a profile an earlier run left is found.
+child_name="Dev child"
 
 die() {
     echo "dev: $*" >&2
@@ -235,12 +247,27 @@ exported() {
     unzip -q -o "$1.zip" -d "$1" || die "ExportAccount gave a part that is not a zip"
 }
 
+# on_workbook says whether the attempt $1, an AttemptStart as JSON, is on a workbook page (R81).
+on_workbook() {
+    jq -e '.task.json | @base64d | fromjson | .canvas.kind == "workbook"' "$1" > /dev/null
+}
+
+# page prints the boxes of the workbook page of the attempt $1, an AttemptStart as JSON, as
+# WorkbookWork's boxes, each with the crop $2: every box of each item's line, by the places of the
+# item and of the box among its boxes, from 1 (R81).
+page() {
+    CROP=$2 jq -c '[.task.json | @base64d | fromjson | .items | to_entries[] | .key as $item |
+        [.value.line[]? | select(.binding? == "box")] | to_entries[] |
+        {answer_slot: {item: ($item + 1), slot: (.key + 1)}, crop: env.CROP}]' "$1"
+}
+
 # handwriting begins an attempt of the profile $1 on a task that AI reads and leaves its
 # AttemptStart in $work/attempt.json: the engine's task, or the next segment of the lesson it gives,
-# asking it again while what begins is checked by tap or is not admitted, and passing a lesson an
-# earlier run left open with its task segments all ended.
+# asking it again while what begins is checked by tap, is not admitted or is not what the test $2
+# takes — handwritten by default —, and passing a lesson an earlier run left open with its task
+# segments all ended.
 handwriting() {
-    local profile=$1 try kind choice run segment
+    local profile=$1 takes=${2:-handwritten} try kind choice run segment
     for try in $(seq 8); do
         call LearningService/ChooseNext < <(PROFILE=$profile KEY=$(cat /proc/sys/kernel/random/uuid) \
             jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY}')
@@ -276,9 +303,9 @@ handwriting() {
         esac
         [[ $status == 200 ]] || continue
         jq .attempt "$work/answer.json" > "$work/attempt.json"
-        handwritten "$work/attempt.json" && return 0
+        "$takes" "$work/attempt.json" && return 0
     done
-    die "the engine gave no task that AI reads in 8 choices; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
+    die "the engine gave no task that AI reads and $takes takes in 8 choices; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
 }
 
 stop_serve() {
@@ -561,11 +588,13 @@ check() {
     # The words after a correct answer on the stub of tutor (R66; R77), by a server of its own with
     # no key of platform AI: the stub reads the wide crop as the right value, which solves the task,
     # and words a praise with its question last on any day, since nothing goes to a provider. Its
-    # log holds no words.
+    # log holds no words. Its facts are the check's own, which admit a child's reading too.
     echo "$who: serve, on the stub of tutor"
+    printf '%s' "$child_facts" > "$work/facts.yaml"
     (
         stubbed
-        API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=0 exec "$binary" serve
+        API_ADMISSION_FACTS_FILE="$work/facts.yaml" API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=0 \
+            exec "$binary" serve
     ) > "$work/stub.log" 2>&1 &
     serve_pid=$!
     port=$(started "$work/stub.log")
@@ -595,10 +624,82 @@ check() {
     local praise
     praise=$(jq -r '.words // empty' "$work/answer.json")
     [[ $praise == *"?" ]] || die "GetCorrectAnswerWords on the stub gave the outcome $(jq -c .outcome "$work/answer.json"), want words with the question last"
+    echo "$who: the stub words the praise after a correct answer"
+
+    # A workbook page on the stub (R66; R81), which no entry of tutor admits on the models (В72). The
+    # workbook pages of the pinned release, novatrail/grade-3-math, are for a child under 13 alone,
+    # so a synthetic child of 9 gets a parent's consent by its form, which the operator's command
+    # confirms (R52; R116 spec), and a profile, by a fresh sign-in; a profile of its pseudonym an
+    # earlier run left is deleted first, and a consent with no profile one left is taken back — the
+    # consent step above takes its own back, so any here is an earlier run's. A wide crop in every
+    # box of the page reads its right value, which solves the task and gives its evidence. Then the
+    # child's profile is deleted, which withdraws the consent and leaves its minimal record alone
+    # (R117 spec).
+    local signed=$token
+    token=$(id_token "${API_DEV_UID:-$uid_default}")
+    call GetAccount <<< '{}'
+    expect GetAccount
+    cp "$work/answer.json" "$work/account.json"
+    local left child boxes
+    for left in $(NAME=$child_name jq -r '.account.profiles[]? | select(.owner | not) | select(.pseudonym == env.NAME) | .profile_id' \
+        "$work/account.json"); do
+        call DeleteProfile < <(PROFILE=$left jq -cn '{profile_id: env.PROFILE}')
+        expect DeleteProfile
+        echo "$who: a child's profile an earlier run left is deleted"
+    done
+    for left in $(jq -r '.account.child_consents[]?.consent_id' "$work/account.json"); do
+        call CancelChildConsent < <(CONSENT=$left jq -cn '{consent_id: env.CONSENT}')
+        expect CancelChildConsent
+        echo "$who: a consent an earlier run left is taken back"
+    done
+    call RequestChildConsent < <(KEY=$(cat /proc/sys/kernel/random/uuid) jq -c '{idempotency_key: env.KEY, age_years: 9,
+        country: "US", parent_consent_text: (.texts[] | select(.id == "parent-consent") | {id, version})}' "$work/texts.json")
+    expect RequestChildConsent
+    consent=$(jq -r .consent.consent_id "$work/answer.json")
+    request=$(jq -r .consent.request_code "$work/answer.json")
+    call SendConsentForm < <(CONSENT=$consent KEY=$(cat /proc/sys/kernel/random/uuid) jq -cn '{consent_id: env.CONSENT,
+        idempotency_key: env.KEY, form: ("synthetic scan" | @base64), media_type: "image/png"}')
+    expect SendConsentForm
+    "$binary" consents confirm "$request" > "$work/confirm.out" 2> "$work/confirm.log" ||
+        die "consents confirm failed: $(cat "$work/confirm.out" "$work/confirm.log")"
+    grep -qF -- "$request confirmed" "$work/confirm.out" || die "consents confirm did not confirm the form: $(cat "$work/confirm.out")"
+    # The operator's command logs only what failed: a log it leaves is checked as the others are.
+    [[ ! -s $work/confirm.log ]] || clean "$work/confirm.log"
+    call CreateChildProfile < <(CONSENT=$consent NAME=$child_name jq -cn '{consent_id: env.CONSENT, settings: {pseudonym: env.NAME}}')
+    expect CreateChildProfile
+    child=$(jq -r .profile.profile_id "$work/answer.json")
+    call ModuleService/ConnectModule < <(PROFILE=$child jq -cn '{profile_id: env.PROFILE, module_id: "novatrail/grade-3-math"}')
+    expect ConnectModule
+    handwriting "$child" on_workbook
+    attempt=$(jq -r .attempt_id "$work/attempt.json")
+    boxes=$(page "$work/attempt.json" "$wide")
+    call AttemptService/SubmitWork < <(PROFILE=$child ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) BOXES=$boxes \
+        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY,
+            work: {workbook: {boxes: (env.BOXES | fromjson)}}, clock_offset_minutes: 0}')
+    expect SubmitWork
+    # A page keeps 14,000 micro-dollars a box of the account's family day as spent (R81), up to
+    # 224,000 of its 1,500,000 on the closed slice, and the child's deletion gives none of it back:
+    # the account's quota is named apart, not taken for a fault of the stub.
+    ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
+        die "the quota of platform AI of the account's family day has no room left for a page of $(jq length <<< "$boxes") boxes: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
+    jq -e '.solved != null and all(.items[]; .verdict == "correct")' "$work/answer.json" > /dev/null ||
+        die "SubmitWork of a page of $(jq length <<< "$boxes") wide boxes on the stub gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the task solved"
+    exported "$work/child"
+    ATTEMPT=$attempt jq -e 'any(.evidence[]?; .attempt_id == env.ATTEMPT)' "$work/child/profiles/$child.json" > /dev/null ||
+        die "the export holds no evidence of the child's workbook page"
+    call DeleteProfile < <(PROFILE=$child jq -cn '{profile_id: env.PROFILE}')
+    expect DeleteProfile
+    call GetAccount <<< '{}'
+    expect GetAccount
+    CHILD=$child jq -e 'all(.account.profiles[]?; .profile_id != env.CHILD)' "$work/answer.json" > /dev/null ||
+        die "GetAccount still holds the child's profile after DeleteProfile"
+    echo "$who: a child's workbook page of $(jq length <<< "$boxes") boxes is read and solved on the stub, with its evidence, and the child is deleted"
     stop_serve
     clean "$work/stub.log"
     ! grep -qF -- "$praise" "$work/stub.log" || die "stub.log holds the words after a correct answer"
-    echo "$who: the stub words the praise after a correct answer, and its log holds none of it"
+    ! grep -qF -- "$request" "$work/stub.log" || die "stub.log holds the code of the consent's request"
+    ! grep -qF -- "$signed" "$work/stub.log" || die "stub.log holds the token of the first sign-in"
+    echo "$who: the stub's log holds neither the praise nor the code of the request"
 
     # The job after a rollout, on the database itself (R51): it asks what is open on the versions
     # the image no longer gives, of the pinned release, and closes it.
