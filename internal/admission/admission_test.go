@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
+	"github.com/altnovatrail/api/internal/quota"
 )
 
 // adultFacts open the reading of handwriting by Anthropic's models on platform
@@ -266,6 +268,57 @@ func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	}
 }
 
+// The words after a correct answer are admitted exactly where tutor chooses an
+// entry for their kind of call, CallCorrect (R112, R113 tutor; R76): at the
+// stage author for an adult, by the platform's key of Anthropic or an own key
+// of Anthropic; not at the stage full, for a child or a teen, with no key of the
+// platform, or by an own key of OpenAI. The call with no task asks no model.
+func TestTheGateAdmitsCorrectWordsWhereTutorChooses(t *testing.T) {
+	t.Parallel()
+
+	facts := keyed(t, file(t, adultFacts), config.RungAuthor)
+	full := keyed(t, file(t, adultFacts), config.RungFull)
+	unkeyed := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungAuthor}
+	for name, tc := range map[string]struct {
+		cfg      config.Admission
+		category formatv0.AgeCategory
+		provider string
+		want     bool
+	}{
+		"facts for an adult":                {facts, formatv0.AgeCategoryAdult, "", true},
+		"facts for an adult, a child":       {facts, formatv0.AgeCategoryUnder13, "", false},
+		"facts for an adult, a teen":        {facts, formatv0.AgeCategoryFrom13ToConsent, "", false},
+		"facts at the stage full":           {full, formatv0.AgeCategoryAdult, "", false},
+		"facts, no key of the platform":     {unkeyed, formatv0.AgeCategoryAdult, "", false},
+		"an own key of Anthropic":           {unkeyed, formatv0.AgeCategoryAdult, "anthropic", true},
+		"an own key of Anthropic, at full":  {config.Admission{Rung: config.RungFull}, formatv0.AgeCategoryAdult, "anthropic", false},
+		"an own key of Anthropic, a child":  {unkeyed, formatv0.AgeCategoryUnder13, "anthropic", false},
+		"an own key of OpenAI":              {unkeyed, formatv0.AgeCategoryAdult, "openai", false},
+		"an own key of a provider no table": {unkeyed, formatv0.AgeCategoryAdult, "acme", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := load(t, tc.cfg)
+			got := g.CorrectWords(tc.category, tc.provider)
+			if got != tc.want {
+				t.Errorf("CorrectWords(%s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
+			}
+			route := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(tc.category)}
+			if tc.provider != "" {
+				route.AI, route.Own = admissionv0.AiRouteOwnKey, tutor.NewOwnKey(admissionv0.Provider(tc.provider), "own key")
+			}
+			entry, _, err := admission.TutorOf(g).ChooseCall(tutor.CallCorrect, route)
+			if chosen := err == nil && len(entry.Models) > 0; got != chosen {
+				t.Errorf("CorrectWords = %v, but ChooseCall(%s) chose an entry: %v", got, tutor.CallCorrect, chosen)
+			}
+		})
+	}
+	told := load(t, facts).TellCorrectWords(t.Context(), tutor.CorrectRequest{Route: tutor.Route{
+		AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}, Style: "an adult"})
+	if told.Outcome.Kind != tutor.Failed || told.Words != "" || len(told.Outcome.Usage) != 0 {
+		t.Errorf("TellCorrectWords with no task = %v, %q, want a failure with no call", told.Outcome.Kind, told.Words)
+	}
+}
+
 // The gate gives tutor Anthropic's adapter alone, and OpenAI's is not given
 // (R54).
 func TestTheGateGivesAnthropicsAdapterAlone(t *testing.T) {
@@ -287,17 +340,21 @@ func TestAConfigurationTutorRefusesIsInvalid(t *testing.T) {
 }
 
 // The price of a call is tutor's, on a route it admits a model for: the
-// expected price of a sheet read by the pair and of the words, which the quota
-// reserves; on a route it admits none for, no price, and the quota reserves its
-// own value (R58).
+// expected price of a sheet read by the pair, of the words and of the words
+// after a correct answer (R113 tutor), which the quota reserves; on a route it
+// admits none for, no price, and the quota reserves its own value (R58).
 func TestTheGatePricesWhatItAdmits(t *testing.T) {
 	t.Parallel()
 
 	g := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(formatv0.AgeCategoryAdult)}
-	for _, call := range []tutor.Call{tutor.CallSheet, tutor.CallWords} {
-		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
+	for _, call := range []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallCorrect} {
+		p := g.Price(call, adult)
+		if !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
 			t.Errorf("the price of %s for an adult = %+v, want an expected price of cents", call, p)
+		}
+		if got := quota.Reserve(call, p, 1); got != quota.USD(p.ExpectedUSD) {
+			t.Errorf("%s reserves %d, want its expected price, %d", call, got, quota.USD(p.ExpectedUSD))
 		}
 	}
 	// The hint without the work has no expected tokens at tutor (R106 tutor), so
@@ -333,12 +390,15 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	if !r.Stub || r.PlatformKeys != 0 {
 		t.Errorf("Report = %+v, want the stub and no key of the platform", r)
 	}
-	if !g.Handwriting(formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") {
-		t.Error("the stub's gate does not admit the reading and the words for an adult")
+	if !g.Handwriting(formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") ||
+		!g.CorrectWords(formatv0.AgeCategoryAdult, "") {
+		t.Error("the stub's gate does not admit the reading, the words and the words after a correct answer for an adult")
 	}
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
-	if p := g.Price(tutor.CallSheet, adult); !p.Expected || p.ExpectedUSD <= 0 {
-		t.Errorf("the price of a sheet on the stub = %+v, want tutor's expected price", p)
+	for _, call := range []tutor.Call{tutor.CallSheet, tutor.CallCorrect} {
+		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 {
+			t.Errorf("the price of %s on the stub = %+v, want tutor's expected price", call, p)
+		}
 	}
 	dial := admission.StubAdapters()["anthropic"]
 	m, err := dial("claude-opus-5-5", "sk-never")
@@ -359,18 +419,99 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 }
 
+// apiCalls are the kinds of call api makes (R72, R76), and before are those it
+// made before tutor v0.1.35 brought the words after a correct answer.
+var (
+	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect}
+	before   = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
+)
+
 // chosen says whether tu chooses an entry for one of the kinds of call api
 // makes, on the route of the own key of p at category: what the gate's
 // OwnKeyOpen must answer.
 func chosen(tu *tutor.Tutor, category formatv0.AgeCategory, p admissionv0.Provider) bool {
+	return chosenOf(tu, apiCalls, category, p)
+}
+
+// chosenOf says whether tu chooses an entry for one of calls, on the route of
+// the own key of p at category.
+func chosenOf(tu *tutor.Tutor, calls []tutor.Call, category formatv0.AgeCategory, p admissionv0.Provider) bool {
 	route := tutor.Route{AI: admissionv0.AiRouteOwnKey, Category: admissionv0.AgeCategory(category),
 		Own: tutor.NewOwnKey(p, "own key")}
-	for _, call := range []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint} {
+	for _, call := range calls {
 		if entry, _, err := tu.ChooseCall(call, route); err == nil && len(entry.Models) > 0 {
 			return true
 		}
 	}
 	return false
+}
+
+// The words after a correct answer open no own key that the three kinds of call
+// before them left closed (R76): at either stage, for every category and every
+// provider of the table, OwnKeyOpen answers as the choice of the reading and
+// the words alone did, so ListOwnKeyProviders lists what it listed on tutor
+// v0.1.33.
+func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
+	t.Parallel()
+
+	providers, err := admission.TableProviders()
+	if err != nil {
+		t.Fatal(err)
+	}
+	categories := []formatv0.AgeCategory{formatv0.AgeCategoryUnder13, formatv0.AgeCategoryFrom13ToConsent,
+		formatv0.AgeCategoryFromConsentTo18, formatv0.AgeCategoryAdult}
+	for _, rung := range []string{config.RungAuthor, config.RungFull} {
+		g := load(t, config.Admission{Rung: rung})
+		for _, category := range categories {
+			for _, p := range providers {
+				if got, want := g.OwnKeyOpen(category, string(p.Code)), chosenOf(admission.TutorOf(g), before, category, p.Code); got != want {
+					t.Errorf("at %s, OwnKeyOpen(%s, %s) = %v, while the kinds of call before give %v", rung, category, p.Code, got, want)
+				}
+			}
+		}
+	}
+}
+
+// The check of a key asks the models it asked on tutor v0.1.33, Opus 5.5 and
+// Haiku 5.5, each once: the words after a correct answer are on Opus 5.5, as
+// the words, so tutor v0.1.35 checks no other model (R73, R76).
+func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
+	t.Parallel()
+
+	tbl, err := table.Platform()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var (
+		mu     sync.Mutex
+		dialed []string
+	)
+	dial := func(id, _ string) (provider.Model, error) {
+		mu.Lock()
+		dialed = append(dialed, id)
+		mu.Unlock()
+		m, err := claude.Dial(id, "")
+		if err != nil {
+			return nil, err
+		}
+		return checkingModel{Model: m}, nil
+	}
+	tt, err := tutor.New(tutor.Config{Table: tbl, Least: table.Stage(config.RungAuthor),
+		Adapters: map[admissionv0.Provider]provider.Dial{"anthropic": dial}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := admission.GateOn(tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := g.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "anthropic", "sk-ant-synthetic"); got != tutor.KeyAccepted {
+		t.Fatalf("CheckKey = %v, %v, want accepted", got, err)
+	}
+	slices.Sort(dialed)
+	if want := []string{"claude-haiku-5-5", "claude-opus-5-5"}; !slices.Equal(dialed, want) {
+		t.Errorf("the check dialled %v, want %v", dialed, want)
+	}
 }
 
 // The own key is open where tutor admits it for a kind of call api makes (R72):

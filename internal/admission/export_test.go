@@ -15,3 +15,7 @@ func GateOn(t *tutor.Tutor) (*Gate, error) {
 
 // ReadProviders reads the providers of a table of the test's own.
 var ReadProviders = readProviders
+
+// TableProviders are the providers of spec's admission table, as the gate
+// reads them.
+var TableProviders = tableProviders

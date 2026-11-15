@@ -7,11 +7,14 @@ import (
 	"image/png"
 	"testing"
 
+	"github.com/altnovatrail/module-kit/leak"
 	"github.com/altnovatrail/module-kit/observation"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"github.com/altnovatrail/spec/types/formatv0/open"
 	"github.com/altnovatrail/tutor"
+	"github.com/altnovatrail/tutor/words"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/quota"
@@ -26,15 +29,18 @@ type gate struct {
 
 func (g gate) Words(bool, formatv0.AgeCategory, string) bool { return g.admitted }
 
+func (g gate) CorrectWords(formatv0.AgeCategory, string) bool { return g.admitted }
+
 func (g gate) Price(call tutor.Call, _ tutor.Route) tutor.CallPrice { return g.prices[call] }
 
 // priced is a gate that admits, and expects a sheet to cost $0.020001, which
-// the two readers do not share evenly, the words with the work a cent, and the
-// hint without it half a cent.
+// the two readers do not share evenly, the words with the work a cent, the
+// hint without it half a cent, and the words after a correct answer $0.013524.
 var priced = gate{admitted: true, prices: map[tutor.Call]tutor.CallPrice{
-	tutor.CallSheet: {ExpectedUSD: 0.020001, Expected: true},
-	tutor.CallWords: {ExpectedUSD: 0.01, Expected: true},
-	tutor.CallHint:  {ExpectedUSD: 0.005, Expected: true},
+	tutor.CallSheet:   {ExpectedUSD: 0.020001, Expected: true},
+	tutor.CallWords:   {ExpectedUSD: 0.01, Expected: true},
+	tutor.CallHint:    {ExpectedUSD: 0.005, Expected: true},
+	tutor.CallCorrect: {ExpectedUSD: 0.013524, Expected: true},
 }}
 
 var adult = tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
@@ -232,5 +238,78 @@ func TestTheStubFailsAReadingCutShort(t *testing.T) {
 	r := tutorstub.New(priced).ReadSheet(ctx, tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk)
 	if r.Outcome.Kind != tutor.Failed || len(r.Observations) != 0 || len(r.Outcome.Usage) != 0 {
 		t.Errorf("ReadSheet cut short = %v with %d observations, want a failure", r.Outcome.Kind, len(r.Observations))
+	}
+}
+
+// The words after a correct answer are the stub's praise — of a step with the
+// work, of the option chosen without it — and a question as their last
+// sentence, on the technique when the task names one and on how the answer was
+// found when it names none, in English and Russian, and English in another
+// language, which the form check of that language takes too. On both languages
+// they pass the leak check of module-kit on the task and words.Correct of
+// tutor, as api checks them (R112 tutor; R76). A call spends the expected price
+// of CallCorrect, with the work and without it; admission is the gate's.
+func TestTheStubPraisesACorrectAnswer(t *testing.T) {
+	t.Parallel()
+
+	tk := task(formatv0.Check{Kind: formatv0.CheckKindNumber, Key: ptr("12"),
+		TrapValues: []formatv0.TrapValue{{Value: "7", Trap: "adds"}}})
+	search, err := leak.For(tk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := &open.Task{}
+	s := tutorstub.New(priced)
+	seen := map[string]bool{}
+	for _, language := range []string{"en", "ru", "ru-RU", "en_US"} {
+		for _, techniques := range [][]string{nil, {"count-on"}} {
+			for _, work := range [][]byte{nil, crop(t, 40, 20)} {
+				c := tutor.CorrectRequest{Route: adult, Task: view, Crop: work, Key: "12", Solution: []string{"7 + 5 = 12"},
+					Techniques: techniques, Language: language, Style: "an adult"}
+				got := s.TellCorrectWords(t.Context(), c)
+				if got.Outcome.Kind != tutor.Answered || got.Words == "" {
+					t.Fatalf("TellCorrectWords(%s, %v) = %+v, want words", language, techniques, got)
+				}
+				if found := search.In(got.Words); len(found) > 0 {
+					t.Errorf("the words %q leak %v", got.Words, found)
+				}
+				if breaches := words.Correct(got.Words, language, ""); len(breaches) > 0 {
+					t.Errorf("the words %q in %s break %v of their form", got.Words, language, breaches)
+				}
+				if u := got.Outcome.Usage; len(u) != 1 || u[0].Model != tutorstub.Model || u[0].USD != 0.013524 || !u[0].Priced {
+					t.Errorf("the words after a correct answer spent %+v, want the expected 0.013524 by the model stub", u)
+				}
+				seen[got.Words] = true
+			}
+		}
+	}
+	if len(seen) != 8 {
+		t.Errorf("the stub gave %d different words, want 8: two languages, with a technique and without, with the work and without", len(seen))
+	}
+	if other := s.TellCorrectWords(t.Context(), tutor.CorrectRequest{Route: adult, Task: view, Language: "de",
+		Style: "an adult"}); !seen[other.Words] || words.Correct(other.Words, "de", "") != nil {
+		t.Errorf("the words in German = %q, want English", other.Words)
+	}
+	if !s.CorrectWords(formatv0.AgeCategoryAdult, "") || tutorstub.New(gate{}).CorrectWords(formatv0.AgeCategoryAdult, "") {
+		t.Error("CorrectWords is not the gate's admission")
+	}
+}
+
+// A request with no task, no style of presentation or no language, or a crop
+// that is no PNG, fails the words after a correct answer with no usage, as
+// tutor's call does.
+func TestTheStubFailsTheWordsTutorFails(t *testing.T) {
+	t.Parallel()
+
+	for name, c := range map[string]tutor.CorrectRequest{
+		"no task":     {Route: adult, Language: "en", Style: "an adult"},
+		"no style":    {Route: adult, Task: &open.Task{}, Language: "en", Style: " "},
+		"no PNG":      {Route: adult, Task: &open.Task{}, Crop: []byte("not a picture"), Language: "en", Style: "an adult"},
+		"no language": {Route: adult, Task: &open.Task{}, Language: " ", Style: "an adult"},
+	} {
+		got := tutorstub.New(priced).TellCorrectWords(t.Context(), c)
+		if got.Outcome.Kind != tutor.Failed || got.Words != "" || len(got.Outcome.Usage) != 0 {
+			t.Errorf("%s: TellCorrectWords = %+v, want a failure with no usage", name, got)
+		}
 	}
 }

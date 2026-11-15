@@ -47,10 +47,11 @@ var (
 type Service struct {
 	set  *packages.Set
 	gate *admission.Gate
-	// reader reads the work of a handwriting sheet, and teller words the
-	// tutor's words: the gate's tutor.
-	reader sheetReader
-	teller wordsTeller
+	// reader reads the work of a handwriting sheet, teller words the tutor's
+	// words, and praiser the words after a correct answer: the gate's tutor.
+	reader  sheetReader
+	teller  wordsTeller
+	praiser correctTeller
 	// price is what tutor expects a call to cost, which the quota reserves (R58):
 	// the gate's.
 	price func(call tutor.Call, route tutor.Route) tutor.CallPrice
@@ -77,13 +78,15 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
-// WithTutor is what reads the sheets and words the tutor's words in place of
-// the gate's tutor: the dev mode's stub (R66), which calls no provider.
+// WithTutor is what reads the sheets and words the tutor's words, those after a
+// correct answer too, in place of the gate's tutor: the dev mode's stub (R66),
+// which calls no provider.
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
+	correctTeller
 }) Option {
-	return func(s *Service) { s.reader, s.teller = t, t }
+	return func(s *Service) { s.reader, s.teller, s.praiser = t, t, t }
 }
 
 // sheetReader reads the work of a handwriting sheet, as tutor does. task is the
@@ -107,7 +110,7 @@ func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ forma
 // of learner-model, which the mark of the learner model's cache names, or of
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, praiser: gate, now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)

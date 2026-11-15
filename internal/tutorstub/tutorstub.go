@@ -9,10 +9,11 @@
 // value, taller than wide a wrong one — the slot's first trap value, or the
 // first value its check holds not right —, and square is illegible. It finds
 // the values by module-kit's verdict on the instance, the key with it, which
-// the stub alone is given: tutor sees the open view (R67 spec). Its words are
-// questions of its own, which pass the leak check and the form check. Each call
-// spends what tutor expects a call of its kind to cost on its route, so that the
-// quota runs out as on the models.
+// the stub alone is given: tutor sees the open view (R67 spec). Its words — a
+// rung's questions and the praise after a correct answer — are its own, which
+// pass the leak check and the form check. Each call spends what tutor expects a
+// call of its kind to cost on its route, so that the quota runs out as on the
+// models.
 //
 // api takes the stub off a deployment alone: the configuration refuses it
 // there, as R32 refuses the emulator of the sign-in service.
@@ -59,6 +60,7 @@ const wholeCrop = 1000
 // words are admitted, and what a call is expected to cost.
 type Gate interface {
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
+	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
 }
 
@@ -151,6 +153,64 @@ var questions = map[string][]string{
 		"Что нужно найти в этой задаче?",
 		"Что дано в задаче, если сказать своими словами?",
 	},
+}
+
+// CorrectWords says whether the tutor's words after a correct answer are
+// admitted, as the gate says.
+func (s *Stub) CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return s.gate.CorrectWords(category, ownKeyProvider)
+}
+
+// TellCorrectWords words the stub's praise in the language of c — of a step of
+// the work when the work went, of the option chosen when it did not — with a
+// question on the technique that helped as its last sentence, or, when the task
+// names no technique, on how the answer was found, as tutor's prompt asks (R112
+// tutor). They hold no number and tell no sex, so they pass the leak check and
+// words.Correct. A language the stub has no words of gets English. Of tutor's
+// checks before its call the stub keeps those of the request's form: no task,
+// no style, no language, or a crop that is no PNG fails with no usage; the
+// words of the task and the size of the crop it does not read. The call spends
+// the expected price of CallCorrect, with the work or without it.
+func (s *Stub) TellCorrectWords(_ context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
+	fail := func(err error) tutor.CorrectAnswer {
+		return tutor.CorrectAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
+	}
+	switch {
+	case c.Task == nil:
+		return fail(errors.New("tutorstub: the words after a correct answer have no task"))
+	case strings.TrimSpace(c.Style) == "":
+		return fail(errors.New("tutorstub: the words after a correct answer have no style of presentation"))
+	case strings.TrimSpace(c.Language) == "":
+		return fail(errors.New("tutorstub: the words after a correct answer have no language"))
+	}
+	if len(c.Crop) > 0 {
+		if _, err := png.DecodeConfig(bytes.NewReader(c.Crop)); err != nil {
+			return fail(err)
+		}
+	}
+	words, ok := praise[base(c.Language)]
+	if !ok {
+		words = praise["en"]
+	}
+	first, question := words.choice, words.technique
+	if len(c.Crop) > 0 {
+		first = words.step
+	}
+	if len(c.Techniques) == 0 {
+		question = words.found
+	}
+	return tutor.CorrectAnswer{Words: first + " " + question, Outcome: tutor.Outcome{Kind: tutor.Answered,
+		Usage: s.usage(tutor.CallCorrect, c.Route, 1)}}
+}
+
+// praise are the stub's words after a correct answer, by language: the praise
+// of a step of the work, or of the option chosen, then the question on the
+// technique, or on how the answer was found when the task names none.
+var praise = map[string]struct{ step, choice, technique, found string }{
+	"en": {"This step of the solution is clear and in good order.", "The right option is chosen.",
+		"Which technique helped you here?", "How did you find the answer?"},
+	"ru": {"Этот шаг решения записан ясно и по порядку.", "Верный вариант выбран.",
+		"Какой приём тебе здесь помог?", "Каким путём удалось найти ответ?"},
 }
 
 // usage is what the call spends: what tutor expects a call of its kind to cost

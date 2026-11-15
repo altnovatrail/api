@@ -96,6 +96,14 @@ type wordsTeller interface {
 	TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer
 }
 
+// correctTeller words the tutor's words after a correct answer, as the gate of
+// admission does through tutor: whether they are admitted for a learner, by
+// their kind of call, CallCorrect, and the call (R112 tutor; R76).
+type correctTeller interface {
+	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
+	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer
+}
+
 // telling is a request for words between the parts of its request: the attempt
 // and its rung, the answer slot the rung speaks of, the call of words and what
 // came of it — or, when no call goes, the answer it gets already.

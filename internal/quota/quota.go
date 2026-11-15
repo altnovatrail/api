@@ -92,8 +92,9 @@ func CapsOf(tariff string) (Caps, bool) {
 const (
 	// TypicalHandwriting is a task of handwriting: two checks and the words of a
 	// rung and of praise. By tutor v0.1.24's expected prices, $0.0093 a check by
-	// the pair and $0.0182 the words (Tutor.Price), it is $0.055; the first app
-	// measured $0.014 a check (T42), and this is $0.06.
+	// the pair and $0.0182 the words (Tutor.Price), with praise as the words, it
+	// is $0.055; by tutor v0.1.35's, praise is $0.0135 (CallCorrect; R76), and it
+	// is $0.050. The first app measured $0.014 a check (T42), and this is $0.06.
 	TypicalHandwriting Micro = 60_000
 	// TypicalRubric is a task with a rubric: two readings of the essay with their
 	// assessment, the first submission and one rewrite, ≈ $0.06 by the price of
@@ -110,7 +111,8 @@ const wordsReserve Micro = 18_200
 // the same prompt and model with no picture, so no dearer, while tutor v0.1.33
 // expects no tokens of it (R106 tutor) —, the essay's reading and assessment
 // half each of $0.030 (architecture 3.4 tutor), and a page of a workbook by each
-// of its crops, as a sheet.
+// of its crops, as a sheet. The words after a correct answer have no value here:
+// tutor v0.1.35 expects their tokens (CallCorrect; R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:    14_000,
 	tutor.CallWords:    wordsReserve,
