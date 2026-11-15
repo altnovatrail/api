@@ -350,7 +350,7 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	}
 	r := out.read
 	if r.Outcome.Kind != tutor.Answered {
-		return nil, &v1.Outcome{Cause: outcomeCause(r.Outcome.Kind, out.route.AI)}
+		return nil, outcomeOf(r.Outcome, out.route.AI)
 	}
 	if len(r.Observations) != 2 {
 		return nil, &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
@@ -363,21 +363,32 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	return joined, nil
 }
 
-// outcomeCause is the cause of an outcome of tutor that gave no reading, on the
-// route: a limit is the platform's on platform AI and the key's own on an own key.
-func outcomeCause(k tutor.Kind, route admissionv0.AiRoute) v1.Cause {
-	switch k {
+// outcomeOf is the outcome of a call of tutor that gave no reading or no words,
+// on the route: a limit is the platform's on platform AI and the key's own on an
+// own key, which names which limit by the reason tutor gives, and not when
+// access returns: tutor gives no such time (R80).
+func outcomeOf(o tutor.Outcome, route admissionv0.AiRoute) *v1.Outcome {
+	switch o.Kind {
 	case tutor.NotAdmitted:
-		return v1.Cause_CAUSE_NOT_ADMITTED
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}
 	case tutor.LimitReached:
 		if route == admissionv0.AiRouteOwnKey {
-			return v1.Cause_CAUSE_LIMIT_REACHED
+			return &v1.Outcome{Cause: v1.Cause_CAUSE_LIMIT_REACHED, OwnKeyLimit: &v1.OwnKeyLimit{Cause: limitCauses[o.Limit]}}
 		}
-		return v1.Cause_CAUSE_PLATFORM_LIMIT
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_PLATFORM_LIMIT}
 	case tutor.KeyRefused:
-		return v1.Cause_CAUSE_KEY_REFUSED
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_KEY_REFUSED}
 	}
-	return v1.Cause_CAUSE_AI_FAILURE
+	return &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
+}
+
+// limitCauses are the causes of the contract by the reasons of tutor's limits;
+// no reason, or one not here, is LIMIT_CAUSE_UNSPECIFIED.
+var limitCauses = map[tutor.LimitReason]v1.LimitCause{
+	tutor.LimitOwner:   v1.LimitCause_LIMIT_CAUSE_LIMIT,
+	tutor.LimitTier:    v1.LimitCause_LIMIT_CAUSE_TIER,
+	tutor.LimitBalance: v1.LimitCause_LIMIT_CAUSE_BALANCE,
+	tutor.LimitBilling: v1.LimitCause_LIMIT_CAUSE_PAYMENT,
 }
 
 // BeginStep begins a solving step whose gives gives techniques, by its place:

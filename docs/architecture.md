@@ -1201,7 +1201,7 @@ How `api` checks them (`internal/learning`, `WorkService`):
 | "platform limit" | the same (R11) | `resource_exhausted` | — |
 | "not admitted" | the same (R11; architecture 3.9 tutor) | `failed_precondition` | — |
 | "AI failure" | an outcome of a submission and of words (R04 spec; R10) | — | — |
-| "limit reached" | an outcome of a call with an own key (R84 spec; R55 tutor) | — | a limit, the provider's tier limit, the balance or payment; when access comes back, if the provider named it |
+| "limit reached" | an outcome of a call with an own key (R84 spec; R55 tutor): of `SubmitWork` with work, `GetRungWords`, `ExplainDifferently` and `GetCorrectAnswerWords`, and of their repeats (R80) | — | `own_key_limit` with which limit, by the reason `tutor` gives: `owner_limit` — `LIMIT_CAUSE_LIMIT`, `tier` — `_TIER`, `balance` — `_BALANCE`, `billing` — `_PAYMENT`, none or another — `_UNSPECIFIED`; no `access_returns`, since `tutor` v0.1.35 gives no such time (R80) |
 | "key refused" | an outcome of a call with an own key: the key is wrong or revoked (R84 spec) | — | — |
 | "key not for this profile" | an own key, or its provider alone, with a request of a profile whose category is not `adult` (R04; R65) | `invalid_argument` | — |
 | checks of a key beyond the limit | more than 10 checks of an own key in an hour on the account (R78); the contract names no cause yet | `resource_exhausted`, the cause unspecified | — |

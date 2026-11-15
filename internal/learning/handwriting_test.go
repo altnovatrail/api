@@ -116,7 +116,8 @@ func TestAHandwritingSheetIsReadByTwoReaders(t *testing.T) {
 	w := newReadingWorld(t, rs)
 	l := w.learner(t)
 	png := crop(t)
-	limited := tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.LimitReached}}
+	// A limit with its reason: on platform AI the answer names no limit of an own key.
+	limited := tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.LimitReached, Limit: tutor.LimitBilling}}
 	for _, tc := range []struct {
 		name    string
 		got     tutor.SheetRead
@@ -149,6 +150,10 @@ func TestAHandwritingSheetIsReadByTwoReaders(t *testing.T) {
 			if got := verdicts(res); got != tc.verdict || res.GetWrongAnswers() != tc.wrong || res.GetOutcome().GetCause() != tc.cause {
 				t.Errorf("SubmitWork = %s, %d wrong, %v; want %s, %d, %v", got, res.GetWrongAnswers(), res.GetOutcome().GetCause(),
 					tc.verdict, tc.wrong, tc.cause)
+			}
+			// Only the own key's limit says which limit ran out.
+			if limit := res.GetOutcome().GetOwnKeyLimit(); (limit != nil) != (tc.cause == v1.Cause_CAUSE_LIMIT_REACHED) {
+				t.Errorf("SubmitWork names the limit %v beside %v", limit, tc.cause)
 			}
 		})
 		if tc.cause == v1.Cause_CAUSE_PLATFORM_LIMIT {

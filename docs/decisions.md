@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69) and the same day to v0.17.9 (R75), and 2026-11-15 to v0.17.12 (R79). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R80.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69) and the same day to v0.17.9 (R75), and 2026-11-15 to v0.17.12 (R79). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R81.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -1977,6 +1977,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-13* (T73; R68): the line `ai_usage` of each model also carries `model_ms` — how long its call took at `tutor`, the SDK's retries counted in (`Usage.Latency`) —, `retries` and `first_token_ms`, beside the call's `duration_ms` (R107 `tutor`). They are durations and a count, which R09 spec lets in.
 
+— *Amendment 2026-11-15* (T85; R80): `LimitReached` for an own key is `CAUSE_LIMIT_REACHED` with `own_key_limit`, which names the limit by `Outcome.Limit` of `tutor`, and never `access_returns`; the outcome is built by `outcomeOf`, in place of `outcomeCause`, for the words too.
+
 ## The hint ladder in code
 
 **R47. The hint ladder and showing the solution — `GetHint`, `GetRungWords`, `ExplainDifferently`, `GetCorrectAnswerWords` and `ShowSolution` and the fields of the open attempt. `api` derives the rung and its answer slot from the answers of the submissions, the fallback text by the chain of the format, and the model's words pass `leak` of `module-kit` and `words.Hint` of `tutor`. The words of the rungs are stored by the table `attempt_rungs`, and the closing of the attempt deletes them by a database trigger. `tutor` v0.1.21 admits no models for words, so the learner reads the fallback text.** Task T37 of epic E3, 2026-11-10; one task, the path of the words call in it too, and an answer without words with the outcome "not admitted" for the correct answer words — the author's decisions in planning.
@@ -2328,6 +2330,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Amendment 2026-11-14* (T78; R73): `api` calls `Tutor.CheckKey`, by the gate's `CheckKey`, for `CheckOwnKey`. The stub's adapter no longer refuses every check of a key: it answers by the key's ending, while it still refuses every call.
 
 — *Amendment 2026-11-14* (T81; R76): on `tutor` v0.1.35 the gate also asks the words after a correct answer by their kind of call, `ChooseCall(CallCorrect)` in `CorrectWords`, and calls them by `TellCorrectWords`, `Tutor.CorrectAnswerWords`. The release that the item "the dependency" waited for with Д25 is this one; the handler is T82.
+
+— *Amendment 2026-11-15* (T85; R80): `outcomeCause` is now `outcomeOf`, which takes the whole outcome of `tutor` and gives the reason of a limit of the own key as `own_key_limit` too.
 
 ## Quota in code
 
@@ -3106,3 +3110,26 @@ This is how the author walked the path of the first app on 2026-11-12.
 - a refusal of the requests of a connected module out of the list beyond the new ones, such as its open views: the open views are given by digest without a token, for any package the image gives (R18).
 
 — *Consequence:* the 2026-11-15 amendments to R07, R25, R42, R45, R50 and R72; В77 «В реестр spec» — row 6.20 done, and the variable for row 6.21 of `infra`. — `internal/config/admission.go`, `internal/config/catalog.go`, `internal/config/serve.go`, `internal/packages/listed.go`, `internal/packages/read.go`, `internal/packages/set.go`, `internal/catalog/modules.go`, `internal/learning/begin.go`, `internal/learning/choose.go`, `internal/learning/lesson.go`, `internal/learning/progress.go`, `cmd/api/check.go`, `cmd/api/serve.go`, `scripts/dev.sh`; RUN.md, T92; README.md; [architecture.md](architecture.md), the status, sections 3.1, 3.3, 3.9 and 3.11.
+
+## Which limit of the own key ran out
+
+**R80. The outcome "limit reached" of an own key carries `own_key_limit`, which names the limit that ran out by the reason `tutor` gives, `Outcome.Limit`: `owner_limit` — `LIMIT_CAUSE_LIMIT`, `tier` — `LIMIT_CAUSE_TIER`, `balance` — `LIMIT_CAUSE_BALANCE`, `billing` — `LIMIT_CAUSE_PAYMENT`, and none or a reason `api` does not know — `LIMIT_CAUSE_UNSPECIFIED`. `access_returns` is never set: `tutor` v0.1.35 gives no such time. It holds in every answer whose call may meet the limit — `SubmitWork` with work, `GetRungWords`, `ExplainDifferently` and `GetCorrectAnswerWords` — and in their repeats under the idempotency key; on platform AI the limit is `CAUSE_PLATFORM_LIMIT`, with no `own_key_limit`.** Task T85 of epic E13, 2026-11-15, by В65 and Д22 `app` and `api`'s answer, В73; the causes by the reasons and no `access_returns` were decided by the author when the epic was set up, by the executor's recommendation; the rest by the executor, below.
+- **What was decided** (`provider/refusal.go` and `tutor.go` of `tutor` v0.1.35; `cause.proto` of `spec` v0.17.12):
+  - **the function** — `outcomeOf(tutor.Outcome, route)` of `internal/learning`, in place of `outcomeCause(kind, route)`, which gave the cause alone, builds the outcome of a call that gave no reading or no words: `joined` of `SubmitWork`, `worded` of `GetRungWords` and `ExplainDifferently`, and `praised` of `GetCorrectAnswerWords`. The other outcomes are as R46 has them;
+  - **the reasons** — a map by the constants of `tutor`, `LimitOwner`, `LimitTier`, `LimitBalance` and `LimitBilling`; a reason it does not hold — of a newer `tutor` — is `LIMIT_CAUSE_UNSPECIFIED`, and so is none;
+  - **`own_key_limit` with no reason** — the field is there beside every `CAUSE_LIMIT_REACHED`, with the cause unspecified when `tutor` names none, which is the contract's "the provider said no more than that a limit ran out";
+  - **the repeat** — every answer kept under the key is the protobuf the first answer wrote, with its outcome: `submissions.answer` for `SubmitWork`, and the key's record for the words of a rung, "explain differently" and the words after a correct answer. So `own_key_limit` comes back as it went, with no change of the store;
+  - **the log** — the request's line names `CAUSE_LIMIT_REACHED` by `outcome_cause`, as before, and not which limit: the limit is of the owner's account at the provider, which the operator has nothing to do with.
+- **Checked 2026-11-15:** `ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses` and `dev-check`; `just -f spec/justfile docs-check-repo`. The tests of `internal/learning`: for each reason, none and one `tutor` does not name, `SubmitWork`, `GetRungWords`, `ExplainDifferently` and `GetCorrectAnswerWords` on the own key give `CAUSE_LIMIT_REACHED` with its cause and no `access_returns`, and so does the repeat of each; the limit of platform AI, with a reason, in the tables of the reading and of the words of a rung gives no `own_key_limit`.
+
+— *Why:*
+- the reason of `tutor`, not `api`'s own reading of the provider's refusal: the adapters of `tutor` read it (R95 `tutor`), and `api` sees the outcome alone;
+- the field with no reason too: `app` reads one shape beside every limit of the own key, and "not named" is a value of the contract;
+- an unknown reason as unspecified, not as a failure of AI: the limit still ran out at the provider, and the owner still has it to lift.
+
+— *Rejected:*
+- `access_returns` — `tutor` gives no time, and its adapter of Claude reads none from the refusal (В73); a time of `api`'s own would promise what the provider did not say;
+- no `own_key_limit` when `tutor` names no reason — two shapes of one outcome for `app`;
+- which limit in the request's line of the log — above.
+
+— *Consequence:* the 2026-11-15 amendments to R46 and R54; В73 — `api`'s part done. — `internal/learning/attempt.go`, `internal/learning/hints.go`; RUN.md, T85; [architecture.md](architecture.md), section 3.9.

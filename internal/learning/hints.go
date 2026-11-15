@@ -193,7 +193,7 @@ func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
 	case t.answer.Outcome.Kind == tutor.Answered:
 		return words, nil
 	}
-	return words, &v1.Outcome{Cause: outcomeCause(t.answer.Outcome.Kind, t.request.Route.AI)}
+	return words, outcomeOf(t.answer.Outcome, t.request.Route.AI)
 }
 
 // routeOf is the route of a learner of category to AI: the own key, when the
@@ -852,7 +852,7 @@ func (s *Service) praised(ctx context.Context, tx pgx.Tx, profileID string, p pr
 	case p.reserve.refused != nil:
 		answer.Outcome = p.reserve.refused
 	case p.answer.Outcome.Kind != tutor.Answered:
-		answer.Outcome = &v1.Outcome{Cause: outcomeCause(p.answer.Outcome.Kind, p.request.Route.AI)}
+		answer.Outcome = outcomeOf(p.answer.Outcome, p.request.Route.AI)
 	default:
 		if check := turnedDown(p.pkg, p.task, p.answer.Words, words.Correct); check != "" {
 			rpc.NoteWordsCheck(ctx, check)
