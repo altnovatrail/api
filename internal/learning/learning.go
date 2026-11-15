@@ -1,12 +1,11 @@
 // Package learning runs attempts of tasks (R44, R46, R47): their beginning, the
 // open attempt, the submission of the work and its verdict by module-kit, on
-// the options tapped and on what tutor read, the techniques a solving step
-// gives, "Done", the hint ladder with the tutor's words and their fallback
-// texts, the showing of the solution, and lesson runs with their segments
-// (R48). It answers the methods of LearningService and AttemptService that it
-// has; the others answer unimplemented, until the tasks of epic E3 that build
-// them — the engine's choice. It keeps the stored works of WorkService too
-// (R70), whose kind is the attempt's task's.
+// the options tapped and on what tutor read, the submission of an essay and its
+// feedback by the rubric (R82), the techniques a solving step gives, "Done",
+// the hint ladder with the tutor's words and their fallback texts, the showing
+// of the solution, and lesson runs with their segments (R48). It answers the
+// methods of LearningService and AttemptService, and keeps the stored works of
+// WorkService too (R70), whose kind is the attempt's task's.
 //
 // Every request is a learning request on a profile, whose right the checks hold
 // before it (R33), and a profile whose consent is not confirmed is refused. An
@@ -46,13 +45,20 @@ var (
 
 // Service runs the attempts of the profiles on the packages the image holds.
 type Service struct {
-	set  *packages.Set
-	gate *admission.Gate
+	set *packages.Set
 	// reader reads the work of a handwriting sheet, teller words the tutor's
 	// words, and praiser the words after a correct answer: the gate's tutor.
 	reader  sheetReader
 	teller  wordsTeller
 	praiser correctTeller
+	// admits says whether a kind of call that reads the work is admitted, and
+	// workbook reads the work of a workbook page: the gate's tutor (R81).
+	admits   admitter
+	workbook workbookReader
+	// essay reads the essay of a task with a rubric, and assessor assesses its text
+	// by the criteria: the gate's tutor (R82).
+	essay    essayReader
+	assessor rubricAssessor
 	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
 	// provider: its words after a correct answer go whatever the day (R66).
 	stubbed bool
@@ -86,15 +92,24 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
-// WithTutor is what reads the sheets and words the tutor's words, those after a
-// correct answer too, in place of the gate's tutor: the dev mode's stub (R66),
-// which calls no provider.
+// WithTutor is what reads the sheets, the workbook pages and the essays,
+// assesses the essays by their rubrics and words the tutor's words, those after
+// a correct answer too, and says which kinds of reading are admitted, in place
+// of the gate's tutor: the dev mode's stub (R66), which calls no provider and
+// admits a workbook page, an essay and its assessment itself (the 2026-11-15
+// amendments to R66).
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
 	correctTeller
+	admitter
+	workbookReader
+	essayReader
+	rubricAssessor
 }) Option {
-	return func(s *Service) { s.reader, s.teller, s.praiser, s.stubbed = t, t, t, true }
+	return func(s *Service) {
+		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.stubbed = t, t, t, t, t, t, t, true
+	}
 }
 
 // WithTexts is the legal texts api serves, those of the tag by default
@@ -103,16 +118,46 @@ func WithTexts(texts *legal.Texts) Option { return func(s *Service) { s.texts = 
 
 // sheetReader reads the work of a handwriting sheet, as tutor does. task is the
 // instance, its key with it, which the dev mode's stub alone reads, to read a
-// right value (R66): tutor is given the open view of r alone (R67 spec).
+// right value (R66): tutor is given the open view of r alone (R67 spec). own is
+// the value of the request's own key, empty on platform AI, whose ending the
+// stub alone reads, to refuse as a provider would (the 2026-11-15 amendment to
+// R66): tutor takes the key from the route, which it alone opens.
 type sheetReader interface {
-	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task) tutor.SheetRead
+	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead
 }
 
-// gateReader reads by the gate's tutor, which never sees the instance.
-type gateReader struct{ gate *admission.Gate }
+// admitter says whether tutor's call of the kind that reads the work, of a
+// sheet or of a workbook page, is admitted for a learner of category, by the own
+// key of ownKeyProvider when it names one, as the gate says through tutor's
+// choice (R45, R81).
+type admitter interface {
+	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
+}
 
-func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task) tutor.SheetRead {
-	return g.gate.ReadSheet(ctx, r)
+// workbookReader reads the filled boxes of a workbook page, as tutor does; task
+// and own are as sheetReader has them (R81).
+type workbookReader interface {
+	ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead
+}
+
+// gateTutor admits, reads and words by the gate's tutor, which never sees the
+// instance and takes the own key from the route alone: it drops both.
+type gateTutor struct{ *admission.Gate }
+
+func (g gateTutor) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
+	return g.Gate.ReadSheet(ctx, r)
+}
+
+func (g gateTutor) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ formatv0.Task, _ string) tutor.WorkbookRead {
+	return g.Gate.ReadWorkbook(ctx, r)
+}
+
+func (g gateTutor) TellWords(ctx context.Context, w tutor.WordsRequest, _ string) tutor.WordsAnswer {
+	return g.Gate.TellWords(ctx, w)
+}
+
+func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, _ string) tutor.CorrectAnswer {
+	return g.Gate.TellCorrectWords(ctx, c)
 }
 
 // New is the Service of the packages of set, which asks gate before a task that
@@ -122,7 +167,9 @@ func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ forma
 // of learner-model, which the mark of the learner model's cache names, or of
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, praiser: gate, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
+		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
+		texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
@@ -198,8 +245,12 @@ type held struct {
 	task formatv0.Task
 }
 
-// closedError is an attempt closed, by its reason.
-type closedError struct{ reason string }
+// closedError is an attempt closed, by its reason, with its row as the check
+// of a request read it, when it was closed before.
+type closedError struct {
+	reason string
+	row    store.Attempt
+}
 
 func (e *closedError) Error() string { return "learning: the attempt is closed " + e.reason }
 
@@ -239,7 +290,7 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 		return held{}, err
 	}
 	if row.CloseReason != nil {
-		return held{}, &closedError{reason: *row.CloseReason}
+		return held{}, &closedError{reason: *row.CloseReason, row: row}
 	}
 	digest := formatv0.Digest(row.PackageDigest)
 	if s.set.Status(digest) == packages.Unknown {

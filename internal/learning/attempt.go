@@ -3,6 +3,7 @@ package learning
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image/png"
 	"slices"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/altnovatrail/module-kit/observation"
 	"github.com/altnovatrail/module-kit/openview"
+	"github.com/altnovatrail/module-kit/verdict"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
@@ -19,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -32,8 +35,9 @@ const finishReserve = 3 * time.Second
 // SubmitWork checks a submission of a task with a verdict, under its idempotency
 // key: the verdict of every item and answer slot, by module-kit, on the options
 // tapped and on what tutor's two readers read of the crop of a handwriting
-// sheet (R46). A submission with an answer slot "not_yet" is a wrong answer;
-// "unreadable" and "unchecked" are none (R09). One whose every item is correct
+// sheet (R46) or of the crops of a workbook page's filled boxes (R81). A
+// submission with an answer slot "not_yet" is a wrong answer; "unreadable" and
+// "unchecked" are none (R09). One whose every item is correct
 // closes the attempt "correct", and its answer holds the task solved, its keys
 // and its solution (R05 spec). A call of AI that gives no reading is no
 // refusal: the slots AI reads get "unchecked", and the answer names the
@@ -110,14 +114,15 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 				h, out, err := prepare(tx)
 				if err == nil && out.ai {
 					// The reading takes its reserve here, beside the record going, and
-					// settles it after the call (R58).
-					if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err == nil {
-						out.reserve, err = s.reserveFor(ctx, tx, profileID, out.route, tutor.CallSheet, out.day)
+					// settles it after the call (R58): a workbook page by its crops, and a
+					// page left blank, which goes to no model, none (R81).
+					if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err == nil && !out.blank() {
+						out.reserve, err = s.reserveFor(ctx, tx, profileID, out.route, out.call, out.crops(), out.day)
 					}
 				}
 				return out, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, err
 			},
-			Call: func(ctx context.Context, out sending) sending { return s.read(ctx, out) },
+			Call: func(ctx context.Context, out sending) sending { return s.read(ctx, out, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
 				// Held again: another device may have closed it while AI read.
 				h, err := s.hold(ctx, tx, profileID, out.attemptID, s.clock())
@@ -150,19 +155,27 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 // cannot tell of — none, or on a package the index does not know — goes the
 // way of a task tapped, whose checks refuse it.
 func (s *Service) readsAI(ctx context.Context, profileID, attemptID string) bool {
+	task, ok := s.attemptTask(ctx, profileID, attemptID)
+	return ok && !byTap(task)
+}
+
+// attemptTask is the task of the profile's attempt, read with no lock, as the
+// package holds it — a template, when the attempt got an instance of one, of the
+// same canvas and answer slots —; false for an attempt this cannot tell of.
+func (s *Service) attemptTask(ctx context.Context, profileID, attemptID string) (formatv0.Task, bool) {
 	if !store.CanonicalID(attemptID) {
-		return false
+		return formatv0.Task{}, false
 	}
 	digest, taskID, err := store.AttemptTask(ctx, s.db, profileID, attemptID)
 	if err != nil {
-		return false
+		return formatv0.Task{}, false
 	}
 	pkg, ok := s.set.Packages[formatv0.Digest(digest)]
 	if !ok {
-		return false
+		return formatv0.Task{}, false
 	}
 	task, ok := pkg.View.Tasks[formatv0.TaskID(taskID)]
-	return ok && !byTap(task)
+	return task, ok
 }
 
 // record writes the submission out on the profile's attempt h: its verdict, the close of
@@ -205,7 +218,8 @@ func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, categ
 
 // sending is a submission between the parts of its request: the attempt and
 // the instance it was checked on, the options tapped, and, for a task that AI
-// reads, the crop with its route and what came of reading it.
+// reads, its kind of call, the crop of a sheet or the crops of a workbook page's
+// filled boxes, with its route and what came of reading it.
 type sending struct {
 	attemptID string
 	task      formatv0.Task
@@ -213,19 +227,37 @@ type sending struct {
 	values    map[string]string
 	// ai says whether AI reads a slot of the task.
 	ai    bool
+	call  tutor.Call
 	crop  []byte
+	boxes []tutor.BoxCrop
 	route tutor.Route
 	// day is the family day of the account on platform AI (R11), and reserve
 	// what the reading took of its quota (R58).
 	day     quota.Day
 	reserve reserve
-	read    tutor.SheetRead
+	// read is what the reading came to: of a sheet, or of a workbook page, whose
+	// reading has the same two fields.
+	read tutor.SheetRead
+}
+
+// blank says whether the submission is a workbook page with no box filled,
+// which goes to no model and spends nothing (tutor's ReadWorkbook).
+func (out sending) blank() bool { return out.call == tutor.CallWorkbook && len(out.boxes) == 0 }
+
+// crops is how many crops the reading shows: a sheet's one, or a workbook
+// page's filled boxes, by which the quota reserves (R58).
+func (out sending) crops() int {
+	if out.call == tutor.CallWorkbook {
+		return len(out.boxes)
+	}
+	return 1
 }
 
 // sent checks the submission's form on the attempt h, before anything is
 // called: a task with a rubric goes as an essay; the work goes when AI reads a
-// slot, and only then, as the crop of a sheet in PNG; and every tap must be of a
-// slot bound choice, in order and once.
+// slot, and only then, in the form of the task's kind of call — the crop of a
+// sheet in PNG, or the crops of a workbook page's filled boxes (boxesTaken) —;
+// and every tap must be of a slot bound choice, in order and once.
 func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, category formatv0.AgeCategory) (sending, error) {
 	if rubric(h.task) {
 		return sending{}, rpc.Malformed("attempt_id")
@@ -235,9 +267,20 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 		return sending{}, rpc.Malformed("work")
 	}
 	if out.ai {
-		out.crop = req.GetWork().GetSheet().GetCrop()
-		if !cropTaken(out.crop) {
-			// A workbook is no sheet, and no task that tutor reads begins on one.
+		var ok bool
+		out.call, ok = callOf(h.task)
+		switch work := req.GetWork(); {
+		case out.call == tutor.CallSheet:
+			out.crop = work.GetSheet().GetCrop()
+			ok = cropTaken(out.crop)
+		case ok && work.GetWorkbook() != nil:
+			out.boxes, ok = boxesTaken(h.task, work.GetWorkbook().GetBoxes())
+		default:
+			// A sheet's work on a workbook, or a task no kind of call reads, which
+			// does not begin.
+			ok = false
+		}
+		if !ok {
 			return sending{}, rpc.Malformed("work")
 		}
 		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
@@ -267,29 +310,34 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 	return out, nil
 }
 
-// read reads the crop of out by tutor, when AI reads a slot of its task, until
-// finishReserve before the request's deadline, and notes the call in the
-// request's log. A reading the quota does not hold is not called, and one
-// called settles its reserve by what it cost.
-func (s *Service) read(ctx context.Context, out sending) sending {
+// read reads the crop of out, or the crops of its workbook page, by tutor, when
+// AI reads a slot of its task, until finishReserve before the request's
+// deadline, and notes the call in the request's log; own is the value of the
+// request's own key, for the stub. A reading the quota does not hold is not
+// called, and one called settles its reserve by what it cost.
+func (s *Service) read(ctx context.Context, out sending, own string) sending {
 	if !out.ai {
 		return out
 	}
 	if out.reserve.refused != nil {
-		out.crop = nil
+		out.crop, out.boxes = nil, nil
 		return out
 	}
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	view, err := openview.Task(out.task)
 	start := time.Now()
-	if err != nil {
+	switch {
+	case err != nil:
 		out.read = tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
-	} else {
-		out.read = s.reader.ReadSheet(ctx, tutor.SheetReading{Route: out.route, Task: &view, Crop: out.crop}, out.task)
+	case out.call == tutor.CallWorkbook:
+		page := tutor.WorkbookReading{Route: out.route, Task: &view, Boxes: out.boxes}
+		out.read = tutor.SheetRead(s.workbook.ReadWorkbook(ctx, page, out.task, own))
+	default:
+		out.read = s.reader.ReadSheet(ctx, tutor.SheetReading{Route: out.route, Task: &view, Crop: out.crop}, out.task, own)
 	}
-	// The crop goes no further than the reading.
-	out.crop = nil
+	// The crops go no further than the reading.
+	out.crop, out.boxes = nil, nil
 	noteCall(ctx, out.read.Outcome, time.Since(start))
 	s.afterCall(ctx, out.reserve, out.read.Outcome)
 	return out
@@ -350,7 +398,7 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	}
 	r := out.read
 	if r.Outcome.Kind != tutor.Answered {
-		return nil, &v1.Outcome{Cause: outcomeCause(r.Outcome.Kind, out.route.AI)}
+		return nil, outcomeOf(r.Outcome, out.route.AI)
 	}
 	if len(r.Observations) != 2 {
 		return nil, &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
@@ -363,21 +411,32 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	return joined, nil
 }
 
-// outcomeCause is the cause of an outcome of tutor that gave no reading, on the
-// route: a limit is the platform's on platform AI and the key's own on an own key.
-func outcomeCause(k tutor.Kind, route admissionv0.AiRoute) v1.Cause {
-	switch k {
+// outcomeOf is the outcome of a call of tutor that gave no reading or no words,
+// on the route: a limit is the platform's on platform AI and the key's own on an
+// own key, which names which limit by the reason tutor gives, and not when
+// access returns: tutor gives no such time (R80).
+func outcomeOf(o tutor.Outcome, route admissionv0.AiRoute) *v1.Outcome {
+	switch o.Kind {
 	case tutor.NotAdmitted:
-		return v1.Cause_CAUSE_NOT_ADMITTED
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}
 	case tutor.LimitReached:
 		if route == admissionv0.AiRouteOwnKey {
-			return v1.Cause_CAUSE_LIMIT_REACHED
+			return &v1.Outcome{Cause: v1.Cause_CAUSE_LIMIT_REACHED, OwnKeyLimit: &v1.OwnKeyLimit{Cause: limitCauses[o.Limit]}}
 		}
-		return v1.Cause_CAUSE_PLATFORM_LIMIT
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_PLATFORM_LIMIT}
 	case tutor.KeyRefused:
-		return v1.Cause_CAUSE_KEY_REFUSED
+		return &v1.Outcome{Cause: v1.Cause_CAUSE_KEY_REFUSED}
 	}
-	return v1.Cause_CAUSE_AI_FAILURE
+	return &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
+}
+
+// limitCauses are the causes of the contract by the reasons of tutor's limits;
+// no reason, or one not here, is LIMIT_CAUSE_UNSPECIFIED.
+var limitCauses = map[tutor.LimitReason]v1.LimitCause{
+	tutor.LimitOwner:   v1.LimitCause_LIMIT_CAUSE_LIMIT,
+	tutor.LimitTier:    v1.LimitCause_LIMIT_CAUSE_TIER,
+	tutor.LimitBalance: v1.LimitCause_LIMIT_CAUSE_BALANCE,
+	tutor.LimitBilling: v1.LimitCause_LIMIT_CAUSE_PAYMENT,
 }
 
 // BeginStep begins a solving step whose gives gives techniques, by its place:
@@ -414,11 +473,17 @@ func givesTechniques(steps *formatv0.SolvingSteps, place int32) bool {
 	return slices.Contains(steps.Steps[place-1].Gives, formatv0.StepGivesTechniques)
 }
 
-// Done ends an attempt of a task with a rubric (R14). A task with a verdict
-// takes no "Done", and an attempt of a task with a rubric has no submission
-// before the rubric's code sends one: it is "no submission". A provider named
-// for a learner who is not an adult is refused, as at every request whose
-// answer may give an engine's choice (R65).
+// Done ends an attempt of a task with a rubric by the learner's "Done" (R14):
+// once it has a submission, however that ended, the attempt is closed "done" in
+// one transaction, with no evidence, and the answer is the task solved — the
+// criteria of its rubric and its solution, if it has one (R87 spec) — and what
+// comes next: in a lesson the segment after its own, which "done" ends (R13),
+// and outside a lesson the engine's choice (R50). A task with a verdict takes no
+// "Done", and an attempt with no submission yet is "no submission". It carries
+// no key: a repeat on an attempt closed "done" gets the same answer, by the
+// state of the attempt, with the choice the close gave; one closed otherwise is
+// "closed". A provider named for a learner who is not an adult is refused, as
+// at every request whose answer may give an engine's choice (R65).
 func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.DoneResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -428,27 +493,126 @@ func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.Don
 	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
 		return nil, err
 	}
-	err = s.act(ctx, req.GetProfileId(), req.GetAttemptId(), func(_ pgx.Tx, h held, _ time.Time) error {
+	profileID, ownKey := req.GetProfileId(), req.GetOwnKeyProvider()
+	var answer *v1.DoneResponse
+	err = s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+		h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), now)
+		var closed *closedError
+		if errors.As(err, &closed) && closed.reason == closeDone {
+			answer, err = s.doneAgain(ctx, tx, profileID, closed.row, category, ownKey, now)
+			return err
+		}
+		if err != nil {
+			return err
+		}
 		if !rubric(h.task) {
 			return rpc.Malformed("attempt_id")
 		}
-		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SUBMISSION)
+		switch submitted, err := store.Submitted(ctx, tx, profileID, h.row.ID); {
+		case err != nil:
+			return err
+		case !submitted:
+			return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SUBMISSION)
+		}
+		out, err := solved(h.pkg, h.task)
+		if err != nil {
+			return err
+		}
+		// The model gives an attempt with a rubric no evidence (О-17): the close
+		// settles only what the profile's other closed attempts owe.
+		if err := s.close(ctx, tx, profileID, h.row.ID, closeDone, now); err != nil {
+			return err
+		}
+		next, err := s.nextAfter(ctx, tx, profileID, h.row, category, ownKey, now, false)
+		answer = &v1.DoneResponse{Solved: out, Next: next}
+		return err
 	})
-	return nil, err
+	if err != nil {
+		return nil, err
+	}
+	return answer, nil
+}
+
+// doneAgain is the answer of "Done" again on the profile's attempt row, held
+// and closed "done": the task solved, of the package and the instance it went
+// on, and what came next, which the close gave and the engine is not asked
+// again (R14). A package the index no longer knows is errPackageUnknown, as for
+// a request on an open attempt.
+func (s *Service) doneAgain(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, ownKey string, now time.Time) (*v1.DoneResponse, error) {
+	digest := formatv0.Digest(row.PackageDigest)
+	if s.set.Status(digest) == packages.Unknown {
+		return nil, errPackageUnknown
+	}
+	pkg := s.set.Packages[digest]
+	task, err := instanceAgain(pkg, formatv0.TaskID(row.TaskID), row.Instance)
+	if err != nil {
+		return nil, err
+	}
+	out, err := solved(pkg, task)
+	if err != nil {
+		return nil, err
+	}
+	next, err := s.nextAfter(ctx, tx, profileID, row, category, ownKey, now, true)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.DoneResponse{Solved: out, Next: next}, nil
 }
 
 // maxCropSide is the longest side of a crop that tutor reads, in pixels: a crop
 // cut by the rule of the crop is far smaller.
 const maxCropSide = 4096
 
-// cropTaken says whether crop is a PNG that tutor would read: whole, and no
-// larger than maxCropSide a side. Its size is read before it is decoded, so
-// that a picture that would take much memory is not.
-func cropTaken(crop []byte) bool {
+// cropTaken says whether crop is a PNG that tutor would read as a sheet's:
+// whole, and no larger than maxCropSide a side.
+func cropTaken(crop []byte) bool { return pngTaken(crop, maxCropSide) }
+
+// pngTaken says whether crop is a PNG whole and no larger than side a side. Its
+// size is read before it is decoded, so that a picture that would take much
+// memory is not.
+func pngTaken(crop []byte, side int) bool {
 	cfg, err := png.DecodeConfig(bytes.NewReader(crop))
-	if err != nil || cfg.Width < 1 || cfg.Height < 1 || cfg.Width > maxCropSide || cfg.Height > maxCropSide {
+	if err != nil || cfg.Width < 1 || cfg.Height < 1 || cfg.Width > side || cfg.Height > side {
 		return false
 	}
 	_, err = png.Decode(bytes.NewReader(crop))
 	return err == nil
+}
+
+// The bounds of a workbook page that tutor reads (tutor's ReadWorkbook): the
+// most filled boxes a reading shows, and the longest side of a box's crop, in
+// pixels. A box holds a number or two, far smaller.
+const (
+	maxBoxes   = 20
+	maxBoxSide = 512
+)
+
+// boxesTaken is the crops of a workbook page's filled boxes as tutor reads them,
+// when they are such: each of an answer slot of the task bound box, by the
+// places of its item and of the slot among the item's, from 1, which are those
+// of the box among the item's boxes; no box twice; no more than maxBoxes; and
+// each crop a PNG that pngTaken takes at maxBoxSide. Their order is the
+// request's: tutor reads them in the task's. No box at all is a page left
+// blank, which is no error: its every box is read blank (R81).
+func boxesTaken(task formatv0.Task, boxes []*v1.BoxCrop) ([]tutor.BoxCrop, bool) {
+	if len(boxes) > maxBoxes {
+		return nil, false
+	}
+	out := make([]tutor.BoxCrop, 0, len(boxes))
+	seen := map[string]bool{}
+	for _, b := range boxes {
+		place := b.GetAnswerSlot()
+		i, j := int(place.GetItem())-1, int(place.GetSlot())-1
+		if i < 0 || i >= len(task.Items) {
+			return nil, false
+		}
+		slots := verdict.AnswerSlots(task.Items[i])
+		if j < 0 || j >= len(slots) || slots[j].Binding != string(formatv0.LinePartBindingBox) || seen[placeKey(place)] ||
+			!pngTaken(b.GetCrop(), maxBoxSide) {
+			return nil, false
+		}
+		seen[placeKey(place)] = true
+		out = append(out, tutor.BoxCrop{Item: i + 1, Slot: j + 1, Crop: b.GetCrop()})
+	}
+	return out, true
 }

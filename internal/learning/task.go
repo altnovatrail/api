@@ -15,6 +15,7 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
+	"github.com/altnovatrail/tutor"
 )
 
 // newSeed is the seed of an attempt, from a cryptographically strong source: it
@@ -122,10 +123,15 @@ func techniques(task formatv0.Task) []string {
 }
 
 // solved is what reaches the device once the task is solved (contract,
-// SolvedTask): the key of each answer slot that has one, by its place, and the
-// solution as JSON of the format, beside the format's version.
+// SolvedTask): the key of each answer slot that has one, by its place, the
+// solution as JSON of the format, beside the format's version, and on a task
+// with a rubric the texts of its criteria in order, without the marks of any
+// assessment (R14; R87 spec).
 func solved(pkg *modulepackage.Package, task formatv0.Task) (*v1.SolvedTask, error) {
 	out := &v1.SolvedTask{ModuleFormatVersion: string(pkg.View.Manifest.ModuleFormatVersion)}
+	if rubric(task) {
+		out.Criteria = criteriaOf(task)
+	}
 	for i, item := range task.Items {
 		for j, slot := range verdict.AnswerSlots(item) {
 			if slot.Check.Key != nil {
@@ -188,10 +194,45 @@ func placeKey(p *observationv1.AnswerSlotPlace) string {
 	return fmt.Sprintf("%d.%d", p.GetItem(), p.GetSlot())
 }
 
-// sheetRead says whether this release of tutor reads the task: a handwriting
-// sheet with one answer slot bound anywhere, which AI reads, and the others
-// bound choice (tutor's ReadSheet). A workbook, a zone or the whole sheet it
-// does not read yet (row 5.6 of spec's COORDINATION.md).
+// callOf is tutor's kind of call that reads the work of the task, by its canvas
+// (R81): the reading of a sheet, CallSheet, for a handwriting sheet tutor reads
+// (sheetRead), and of a workbook page, CallWorkbook, for a workbook (bookRead).
+// A task of neither has none: one a tap checks, and one with a zone or the whole
+// sheet, which this release of tutor does not read.
+func callOf(task formatv0.Task) (tutor.Call, bool) {
+	switch {
+	case sheetRead(task):
+		return tutor.CallSheet, true
+	case bookRead(task):
+		return tutor.CallWorkbook, true
+	}
+	return "", false
+}
+
+// bookRead says whether this release of tutor reads the task as a workbook
+// page: a workbook with a box at least, every answer slot of which is a box, as
+// the format has it (tutor's ReadWorkbook). The place of an answer slot is then
+// the place of its box among its item's.
+func bookRead(task formatv0.Task) bool {
+	if task.Canvas.Kind != formatv0.CanvasKindWorkbook {
+		return false
+	}
+	boxes := 0
+	for _, item := range task.Items {
+		for _, slot := range verdict.AnswerSlots(item) {
+			if slot.Binding != string(formatv0.LinePartBindingBox) {
+				return false
+			}
+			boxes++
+		}
+	}
+	return boxes > 0
+}
+
+// sheetRead says whether this release of tutor reads the task as a sheet: a
+// handwriting sheet with one answer slot bound anywhere, which AI reads, and the
+// others bound choice (tutor's ReadSheet). A zone or the whole sheet it does not
+// read.
 func sheetRead(task formatv0.Task) bool {
 	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
 		return false
@@ -209,4 +250,34 @@ func sheetRead(task formatv0.Task) bool {
 		}
 	}
 	return anywhere == 1
+}
+
+// essayRead says whether this release of tutor reads the task as an essay: a
+// handwriting sheet whose one answer slot is bound sheet and checked by a
+// rubric, as the format has a task with a rubric (tutor's ReadEssay; § 14 of its
+// text).
+func essayRead(task formatv0.Task) bool {
+	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
+		return false
+	}
+	var slots []verdict.AnswerSlot
+	for _, item := range task.Items {
+		slots = append(slots, verdict.AnswerSlots(item)...)
+	}
+	return len(slots) == 1 && slots[0].Binding == string(formatv0.AnswerSlotBindingSheet) &&
+		slots[0].Check.Kind == formatv0.CheckKindRubric
+}
+
+// criteriaOf is the texts of the criteria of the task's rubric, in their order:
+// the assessment numbers them from 1, and a mark is kept by that number (R15).
+func criteriaOf(task formatv0.Task) []string {
+	var out []string
+	for _, item := range task.Items {
+		for _, slot := range verdict.AnswerSlots(item) {
+			for _, c := range slot.Check.Criteria {
+				out = append(out, string(c.Text))
+			}
+		}
+	}
+	return out
 }

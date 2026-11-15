@@ -358,7 +358,7 @@ func TestTheWordsOfARungComeFromTheTutor(t *testing.T) {
 			trapText, v1.Cause_CAUSE_UNSPECIFIED, 0, "form"},
 		{"no words", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Answered}}, trapText, v1.Cause_CAUSE_UNSPECIFIED, 0, "empty"},
 		{"AI failed", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed}}, trapText, v1.Cause_CAUSE_AI_FAILURE, 0, ""},
-		{"a limit", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.LimitReached}}, trapText, v1.Cause_CAUSE_PLATFORM_LIMIT, 0, ""},
+		{"a limit", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.LimitReached, Limit: tutor.LimitTier}}, trapText, v1.Cause_CAUSE_PLATFORM_LIMIT, 0, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ts.give(tc.got)
@@ -369,7 +369,8 @@ func TestTheWordsOfARungComeFromTheTutor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if res.GetWords() != tc.words || res.GetOutcome().GetCause() != tc.cause || len(res.GetMarks()) != tc.marks {
+			if res.GetWords() != tc.words || res.GetOutcome().GetCause() != tc.cause || len(res.GetMarks()) != tc.marks ||
+				res.GetOutcome().GetOwnKeyLimit() != nil {
 				t.Errorf("the words = %v, want %q, %v, %d marks", res, tc.words, tc.cause, tc.marks)
 			}
 			if line := w.log.String()[before:]; tc.check != "" && !strings.Contains(line, `"words_check":"`+tc.check+`"`) ||

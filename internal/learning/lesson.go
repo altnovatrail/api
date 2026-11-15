@@ -185,10 +185,13 @@ func (s *Service) holdRun(ctx context.Context, tx pgx.Tx, profileID, runID strin
 // to the learner allow. A choice opens one run: once it has ended, the choice
 // gets "run ended". Two openings at once give the one run: the second reads the
 // first's again. It carries no key and repeats by the state of the run. A
-// segment that this code cannot begin — a task with a rubric, a workbook, or
-// handwriting AI may not read for the learner — is not checked here: its
-// attempt is "not admitted", and the run stays open (Д26 RUN.md). The choice an
-// end of its run gives goes by the route own_key_provider names (R65).
+// segment that this code cannot begin for the learner — a task whose kinds of
+// call the gate does not admit on the route, an essay's or a sheet's or a
+// workbook page's (R50), or one in a zone or on the whole sheet — is not
+// checked here: its attempt is "not admitted", and the run stays open (R48;
+// Д26). The segment of a task with a rubric ends once its attempt is
+// closed "done" (R13). The choice an end of its run gives goes by the route
+// own_key_provider names (R65).
 func (l *LearningService) OpenLesson(ctx context.Context, req *v1.OpenLessonRequest) (*v1.OpenLessonResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -442,9 +445,9 @@ func (s *Service) segmentBegun(ctx context.Context, tx pgx.Tx, profileID, runID 
 }
 
 // nextOf is what comes next in a lesson once the attempt row is closed by a
-// correct answer or by the solution shown: the place of the segment after its
-// own, of any kind, or that no segment is left after it; none outside a lesson,
-// where nextAfter gives the engine's choice.
+// correct answer, by the solution shown or by "Done": the place of the segment
+// after its own, of any kind, or that no segment is left after it; none outside
+// a lesson, where nextAfter gives the engine's choice.
 func (s *Service) nextOf(ctx context.Context, db store.Querier, profileID string, row store.Attempt) (*v1.Next, error) {
 	if row.LessonRunID == nil {
 		return nil, nil
@@ -470,10 +473,11 @@ func (s *Service) nextOf(ctx context.Context, db store.Querier, profileID string
 }
 
 // nextAfter is what comes next once the attempt row is closed by a correct
-// answer or by the solution shown, for a learner of category at now: in a lesson
-// as nextOf gives it; outside a lesson, the engine's choice, which the close gave
-// on the route of ownKey (R50, R65). A repeat gives the choice the close gave —
-// nothing to give, when it gave none — and asks the engine nothing.
+// answer, by the solution shown or by "Done", for a learner of category at now:
+// in a lesson as nextOf gives it; outside a lesson, the engine's choice, which
+// the close gave on the route of ownKey (R50, R65). A repeat gives the choice
+// the close gave — nothing to give, when it gave none — and asks the engine
+// nothing.
 func (s *Service) nextAfter(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, ownKey string, now time.Time, repeat bool) (*v1.Next, error) {
 	if row.LessonRunID != nil {
 		return s.nextOf(ctx, tx, profileID, row)
@@ -484,7 +488,10 @@ func (s *Service) nextAfter(ctx context.Context, tx pgx.Tx, profileID string, ro
 		if err != nil {
 			return nil, err
 		}
-		choice = madeChoice(made, found)
+		// A close that gave no choice gives none again, as its first answer did.
+		if choice = madeChoice(made, found); choice == nil {
+			return nil, nil
+		}
 	} else {
 		var err error
 		if choice, err = s.nextChoice(ctx, tx, profileID, category, ownKey, now, after{attemptID: &row.ID}); err != nil || choice == nil {

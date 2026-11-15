@@ -240,8 +240,9 @@ func anchorState(a learnermodel.AnchorReadout, offered []string) *v1.AnchorSkill
 // can_view, which the checks hold (R49): its attempts, newest first, a page at a
 // time, and, on the first page, the traps that repeat in its closed attempts.
 // Each attempt has when the engine chose its task, or its run's lesson, and why
-// — but one begun again (R50); an essay's submissions come with the path of a
-// task with a rubric (R14).
+// — but one begun again (R50) —, and an attempt with a rubric each of its
+// submissions, how it ended and, once the attempt is closed, the marks of its
+// feedback (R15, R82).
 func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRequest) (*v1.GetProgressResponse, error) {
 	s := p.s
 	profileID := req.GetProfileId()
@@ -263,8 +264,22 @@ func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRe
 			last := records[len(records)-1]
 			answer.NextPageToken = tokenOf(store.Cursor{StartedAt: last.StartedAt, ID: last.ID})
 		}
+		ids := make([]string, len(records))
+		for i, r := range records {
+			ids[i] = r.ID
+		}
+		essays, err := store.EssaySubmissions(ctx, tx, profileID, ids)
+		if err != nil {
+			return err
+		}
+		of := map[string][]store.EssaySubmission{}
+		for _, e := range essays {
+			of[e.AttemptID] = append(of[e.AttemptID], e)
+		}
 		for _, r := range records {
-			answer.Attempts = append(answer.Attempts, attemptRecord(r, s.set.Packages[formatv0.Digest(r.PackageDigest)]))
+			record := attemptRecord(r, s.set.Packages[formatv0.Digest(r.PackageDigest)])
+			record.EssaySubmissions = essayRecords(of[r.ID], r.CloseReason != nil)
+			answer.Attempts = append(answer.Attempts, record)
 		}
 		if after != nil {
 			return nil
@@ -385,4 +400,22 @@ func cursorOf(token string) (*store.Cursor, error) {
 		return nil, errToken
 	}
 	return &store.Cursor{StartedAt: time.UnixMicro(micros).UTC(), ID: id}, nil
+}
+
+// essayRecords is the submissions of an essay in the progress, in order: how
+// each ended, and beside feedback the mark of each criterion by its number,
+// once the attempt is closed — the essay finished, or its rewriting abandoned —,
+// since an adult reads the marks then (R15).
+func essayRecords(essays []store.EssaySubmission, closed bool) []*v1.EssayRecord {
+	var out []*v1.EssayRecord
+	for _, e := range essays {
+		r := &v1.EssayRecord{SubmittedAt: timestamppb.New(e.SubmittedAt), End: submissionEnds[e.End]}
+		if closed {
+			for _, m := range e.Marks {
+				r.CriterionMarks = append(r.CriterionMarks, criterionMarks[m])
+			}
+		}
+		out = append(out, r)
+	}
+	return out
 }

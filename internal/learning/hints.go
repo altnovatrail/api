@@ -93,18 +93,21 @@ func rungHint(ctx context.Context, tx pgx.Tx, profileID string, h held) (*v1.Run
 }
 
 // wordsTeller words the tutor's words, as the gate of admission does through
-// tutor: whether they are admitted for a learner, and the call.
+// tutor: whether they are admitted for a learner, and the call. own is the
+// value of the request's own key, which the dev mode's stub alone reads, as
+// sheetReader has it.
 type wordsTeller interface {
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
-	TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer
+	TellWords(ctx context.Context, w tutor.WordsRequest, own string) tutor.WordsAnswer
 }
 
 // correctTeller words the tutor's words after a correct answer, as the gate of
 // admission does through tutor: whether they are admitted for a learner, by
-// their kind of call, CallCorrect, and the call (R112 tutor; R76).
+// their kind of call, CallCorrect, and the call (R112 tutor; R76). own is as
+// wordsTeller has it.
 type correctTeller interface {
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
-	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer
+	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, own string) tutor.CorrectAnswer
 }
 
 // telling is a request for words between the parts of its request: the attempt
@@ -136,16 +139,17 @@ func wordsCall(t telling) tutor.Call {
 }
 
 // call calls the words of t, when it has no answer ready, until finishReserve
-// before the request's deadline, and notes the call in the request's log. The
-// crop goes no further than the call.
-func (s *Service) call(ctx context.Context, t telling) telling {
+// before the request's deadline, and notes the call in the request's log; own is
+// the value of the request's own key, for the stub. The crop goes no further
+// than the call.
+func (s *Service) call(ctx context.Context, t telling, own string) telling {
 	if t.ready != nil || t.reserve.refused != nil {
 		return t
 	}
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	start := time.Now()
-	t.answer, t.called = s.teller.TellWords(ctx, t.request), true
+	t.answer, t.called = s.teller.TellWords(ctx, t.request, own), true
 	t.request.Crop = nil
 	noteCall(ctx, t.answer.Outcome, time.Since(start))
 	s.afterCall(ctx, t.reserve, t.answer.Outcome)
@@ -193,7 +197,7 @@ func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
 	case t.answer.Outcome.Kind == tutor.Answered:
 		return words, nil
 	}
-	return words, &v1.Outcome{Cause: outcomeCause(t.answer.Outcome.Kind, t.request.Route.AI)}
+	return words, outcomeOf(t.answer.Outcome, t.request.Route.AI)
 }
 
 // routeOf is the route of a learner of category to AI: the own key, when the
@@ -320,7 +324,10 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		},
 	}
 	route := routeOf(category, req.GetOwnKey())
-	withWork := s.readsAI(ctx, profileID, attemptID)
+	// The words take the work of a sheet alone: a workbook page asks them as a
+	// task a tap checks, with no work (R81).
+	task, known := s.attemptTask(ctx, profileID, attemptID)
+	withWork := known && sheetRead(task)
 	admitted := s.teller.Words(withWork, category, req.GetOwnKey().GetProvider())
 	prepare := func(tx pgx.Tx) (telling, error) {
 		h, err := s.hold(ctx, tx, profileID, attemptID, s.clock())
@@ -332,7 +339,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted && t.ready == nil {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
 		}
 		return t, err
 	}
@@ -343,7 +350,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 				t, err := prepare(tx)
 				return t, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID}, err
 			},
-			Call: s.call,
+			Call: func(ctx context.Context, t telling) telling { return s.call(ctx, t, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, t telling) (*v1.GetRungWordsResponse, store.KeyTarget, error) {
 				return s.rungTold(ctx, tx, profileID, t)
 			},
@@ -372,9 +379,10 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 
 // rungAsked checks a request for the words of a rung on the attempt h, before
 // anything is called: the wrong answer it names, a rung that is new, and the
-// work, which goes when AI reads a slot of the task, and only then, as the crop
-// of a sheet. The rung whose words the attempt keeps already is answered with
-// them, with no call.
+// work, which goes when AI reads the task as a sheet, and only then, as its
+// crop: a workbook page asks as a task a tap checks, with no work (R81). The
+// rung whose words the attempt keeps already is answered with them, with no
+// call.
 func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetRungWordsRequest, route tutor.Route, admitted bool) (telling, error) {
 	if err := named(ctx, h, req.WrongAnswers, false); err != nil {
 		return telling{h: h}, err
@@ -383,7 +391,7 @@ func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetR
 		return telling{h: h}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	}
 	t := telling{h: h, rung: rungOf(h.row.WrongAnswers), wrong: h.row.WrongAnswers}
-	ai := !byTap(h.task)
+	ai := sheetRead(h.task)
 	if ai != (req.GetWork() != nil) {
 		return t, rpc.Malformed("work")
 	}
@@ -522,7 +530,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
 		}
 		if err == nil && t.reserve.refused != nil {
 			// "Explain differently" makes no call without the reserve, and the right stays.
@@ -538,7 +546,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 				t, err := prepare(tx)
 				return t, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID}, err
 			},
-			Call: s.call,
+			Call: func(ctx context.Context, t telling) telling { return s.call(ctx, t, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, t telling) (*v1.ExplainDifferentlyResponse, store.KeyTarget, error) {
 				return s.otherTold(ctx, tx, profileID, t)
 			},
@@ -718,7 +726,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 			p.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, p.day)
+			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, 1, p.day)
 		}
 		return p, err
 	}
@@ -729,7 +737,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 				p, err := prepare(tx)
 				return p, store.KeyTarget{ProfileID: profileID, AttemptID: p.row.ID}, err
 			},
-			Call: s.praise,
+			Call: func(ctx context.Context, p praising) praising { return s.praise(ctx, p, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, p praising) (*v1.GetCorrectAnswerWordsResponse, store.KeyTarget, error) {
 				return s.praised(ctx, tx, profileID, p)
 			},
@@ -758,8 +766,9 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 // praiseAsked checks a request for the words after a correct answer on the
 // attempt it names, held, before anything is called: an attempt the profile
 // has, whose words may still be given, on a package the index knows, and the
-// work, which goes when AI reads a slot of the task, and only then, as the crop
-// of a sheet. When the words are admitted, it gives their call.
+// work, which goes when AI reads the task as a sheet, and only then, as its
+// crop: a workbook page asks as a task a tap checks, with no work (R81). When
+// the words are admitted, it gives their call.
 func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrectAnswerWordsRequest, route tutor.Route, admitted bool) (praising, error) {
 	profileID := req.GetProfileId()
 	if !store.CanonicalID(req.GetAttemptId()) {
@@ -781,7 +790,7 @@ func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrect
 		return p, err
 	}
 	p.pkg = pkg
-	ai := !byTap(p.task)
+	ai := sheetRead(p.task)
 	var crop []byte
 	if ai {
 		crop = req.GetWork().GetSheet().GetCrop()
@@ -816,15 +825,16 @@ func praisable(ctx context.Context, tx pgx.Tx, profileID string, row store.Attem
 
 // praise calls the words after a correct answer of p, when the quota holds the
 // call, until finishReserve before the request's deadline, and notes the call
-// in the request's log. The crop goes no further than the call.
-func (s *Service) praise(ctx context.Context, p praising) praising {
+// in the request's log; own is the value of the request's own key, for the stub.
+// The crop goes no further than the call.
+func (s *Service) praise(ctx context.Context, p praising, own string) praising {
 	if p.reserve.refused != nil {
 		return p
 	}
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	start := time.Now()
-	p.answer, p.called = s.praiser.TellCorrectWords(ctx, p.request), true
+	p.answer, p.called = s.praiser.TellCorrectWords(ctx, p.request, own), true
 	p.request.Crop = nil
 	noteCall(ctx, p.answer.Outcome, time.Since(start))
 	s.afterCall(ctx, p.reserve, p.answer.Outcome)
@@ -852,7 +862,7 @@ func (s *Service) praised(ctx context.Context, tx pgx.Tx, profileID string, p pr
 	case p.reserve.refused != nil:
 		answer.Outcome = p.reserve.refused
 	case p.answer.Outcome.Kind != tutor.Answered:
-		answer.Outcome = &v1.Outcome{Cause: outcomeCause(p.answer.Outcome.Kind, p.request.Route.AI)}
+		answer.Outcome = outcomeOf(p.answer.Outcome, p.request.Route.AI)
 	default:
 		if check := turnedDown(p.pkg, p.task, p.answer.Words, words.Correct); check != "" {
 			rpc.NoteWordsCheck(ctx, check)

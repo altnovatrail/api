@@ -135,7 +135,7 @@ func GiveRequested(ctx context.Context, tx pgx.Tx, profileID, attemptID string, 
 // the ladder finds in them the wrong answer that gave a rung, and its answer
 // slot.
 func Answers(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([][]byte, error) {
-	rows, err := db.Query(ctx, `SELECT answer FROM submissions WHERE profile_id = $1 AND attempt_id = $2
+	rows, err := db.Query(ctx, `SELECT answer FROM submissions WHERE profile_id = $1 AND attempt_id = $2 AND essay_end IS NULL
 		ORDER BY number`, profileID, attemptID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the submissions: %w", err)

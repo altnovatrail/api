@@ -28,6 +28,7 @@ import (
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/quota"
+	"github.com/altnovatrail/api/internal/tutorstub"
 )
 
 // adultFacts open the reading of handwriting by Anthropic's models on platform
@@ -104,8 +105,16 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 		"an own key at the stage full":  {config.Admission{Rung: config.RungFull}, formatv0.AgeCategoryAdult, "anthropic", false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := load(t, tc.cfg).Handwriting(tc.category, tc.provider); got != tc.want {
-				t.Errorf("Handwriting(%s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
+			g := load(t, tc.cfg)
+			if got := g.Reads(tutor.CallSheet, tc.category, tc.provider); got != tc.want {
+				t.Errorf("Reads(sheet, %s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
+			}
+			// No entry of tutor v0.1.35 measured the prompts of the workbook and the
+			// essay (В72).
+			for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
+				if g.Reads(call, tc.category, tc.provider) {
+					t.Errorf("Reads(%s, %s, %q) = true, want no entry", call, tc.category, tc.provider)
+				}
 			}
 		})
 	}
@@ -201,7 +210,9 @@ func TestTheReportCountsThePlatformsKeys(t *testing.T) {
 	}
 }
 
-// The gate reads by tutor, which calls no model for a reading with no task.
+// The gate reads a sheet, a workbook page and an essay, and assesses an essay,
+// by tutor, which calls no model for a reading with no task or an assessment
+// with no text.
 func TestTheGateReadsByTutor(t *testing.T) {
 	t.Parallel()
 
@@ -210,6 +221,24 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	})
 	if read.Outcome.Kind != tutor.Failed || len(read.Observations) != 0 || len(read.Outcome.Usage) != 0 {
 		t.Errorf("ReadSheet with no task = %v, want a failure with no call", read.Outcome.Kind)
+	}
+	page := load(t, keyed(t, "", config.RungAuthor)).ReadWorkbook(t.Context(), tutor.WorkbookReading{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if page.Outcome.Kind != tutor.Failed || len(page.Observations) != 0 || len(page.Outcome.Usage) != 0 {
+		t.Errorf("ReadWorkbook with no task = %v, want a failure with no call", page.Outcome.Kind)
+	}
+	essay := load(t, keyed(t, "", config.RungAuthor)).ReadEssay(t.Context(), tutor.EssayReading{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if essay.Outcome.Kind != tutor.Failed || essay.Observation != nil || len(essay.Outcome.Usage) != 0 {
+		t.Errorf("ReadEssay with no task = %v, want a failure with no call", essay.Outcome.Kind)
+	}
+	assessed := load(t, keyed(t, "", config.RungAuthor)).AssessEssay(t.Context(), tutor.RubricAssessment{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if assessed.Outcome.Kind != tutor.Failed || assessed.Feedback != "" || len(assessed.Outcome.Usage) != 0 {
+		t.Errorf("AssessEssay with no text = %v, want a failure with no call", assessed.Outcome.Kind)
 	}
 }
 
@@ -390,7 +419,7 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	if !r.Stub || r.PlatformKeys != 0 {
 		t.Errorf("Report = %+v, want the stub and no key of the platform", r)
 	}
-	if !g.Handwriting(formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") ||
+	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || !g.Words(true, formatv0.AgeCategoryAdult, "") ||
 		!g.CorrectWords(formatv0.AgeCategoryAdult, "") {
 		t.Error("the stub's gate does not admit the reading, the words and the words after a correct answer for an adult")
 	}
@@ -419,11 +448,12 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 }
 
-// apiCalls are the kinds of call api makes (R72, R76), and before are those it
+// apiCalls are the kinds of call api makes (R72, R76, R81, R82), and before are those it
 // made before tutor v0.1.35 brought the words after a correct answer.
 var (
-	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect}
-	before   = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
+	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook,
+		tutor.CallEssay, tutor.CallRubric}
+	before = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
 )
 
 // chosen says whether tu chooses an entry for one of the kinds of call api
@@ -772,7 +802,8 @@ func TestTheCheckOfAKeyEndsBeforeTheDeadline(t *testing.T) {
 
 // The stub's check of a key answers by its ending (R66, R73), through tutor's
 // own check: each of the five ends with no call of a provider, OpenAI closed
-// as on the models.
+// as on the models. The endings by which the stub refuses a call of AI are
+// accepted, so that app connects such a key before it meets the refusal.
 func TestTheStubChecksAKeyByItsEnding(t *testing.T) {
 	t.Parallel()
 
@@ -783,10 +814,16 @@ func TestTheStubChecksAKeyByItsEnding(t *testing.T) {
 	g := load(t, cfg)
 	for key, want := range map[string]tutor.KeyCheck{
 		"sk-ant-synthetic": tutor.KeyAccepted,
-		"sk-ant-synthetic" + admission.StubKeyInvalid: tutor.KeyWrong,
-		"sk-ant-synthetic" + admission.StubKeyNoPerm:  tutor.KeyNoRights,
-		"sk-ant-synthetic" + admission.StubKeySilent:  tutor.KeyUnanswered,
-		"sk-ant-invalid-but-not-at-the-end":           tutor.KeyAccepted,
+		"sk-ant-synthetic" + admission.StubKeyInvalid:  tutor.KeyWrong,
+		"sk-ant-synthetic" + admission.StubKeyNoPerm:   tutor.KeyNoRights,
+		"sk-ant-synthetic" + admission.StubKeySilent:   tutor.KeyUnanswered,
+		"sk-ant-invalid-but-not-at-the-end":            tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyRefused:      tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimit:        tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitOwner:   tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitTier:    tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitBalance: tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitPayment: tutor.KeyAccepted,
 	} {
 		if got, err := g.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "anthropic", key); got != want {
 			t.Errorf("the stub's CheckKey(%q) = %v, %v, want %v", key, got, err, want)

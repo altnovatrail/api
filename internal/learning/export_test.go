@@ -7,6 +7,8 @@ import (
 	"github.com/altnovatrail/module-kit/modulepackage"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+
+	"github.com/altnovatrail/api/internal/admission"
 )
 
 // WithModuleKit is the version of module-kit a Service says it is built with,
@@ -22,7 +24,33 @@ func WithReader(read func(ctx context.Context, r tutor.SheetReading) tutor.Sheet
 // readerFunc is a function as a sheetReader.
 type readerFunc func(ctx context.Context, r tutor.SheetReading) tutor.SheetRead
 
-func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task) tutor.SheetRead {
+func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
+	return f(ctx, r)
+}
+
+// WithAdmits is whether a kind of call that reads the work is admitted, in place
+// of the gate, for every learner and route: a test's own, since no entry of
+// tutor v0.1.35 admits the reading of a workbook page (В72).
+func WithAdmits(admits func(call tutor.Call) bool) Option {
+	return func(s *Service) { s.admits = admitsFunc(admits) }
+}
+
+// admitsFunc is a function as an admitter.
+type admitsFunc func(call tutor.Call) bool
+
+func (f admitsFunc) Reads(call tutor.Call, _ formatv0.AgeCategory, _ string) bool { return f(call) }
+
+// WithWorkbookReader is what reads the work of a workbook page, in place of
+// tutor: a test's own readers, for want of a provider and of an entry that
+// admits the reading.
+func WithWorkbookReader(read func(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead) Option {
+	return func(s *Service) { s.workbook = workbookFunc(read) }
+}
+
+// workbookFunc is a function as a workbookReader.
+type workbookFunc func(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead
+
+func (f workbookFunc) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ formatv0.Task, _ string) tutor.WorkbookRead {
 	return f(ctx, r)
 }
 
@@ -39,7 +67,7 @@ type tellerFunc func(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswe
 
 func (f tellerFunc) Words(bool, formatv0.AgeCategory, string) bool { return true }
 
-func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
+func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest, _ string) tutor.WordsAnswer {
 	return f(ctx, w)
 }
 
@@ -73,6 +101,42 @@ type praiserFunc func(ctx context.Context, c tutor.CorrectRequest) tutor.Correct
 
 func (f praiserFunc) CorrectWords(formatv0.AgeCategory, string) bool { return true }
 
-func (f praiserFunc) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
+func (f praiserFunc) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, _ string) tutor.CorrectAnswer {
 	return f(ctx, c)
+}
+
+// GateTutor is the gate's adapter of the ports of tutor, which a Service runs
+// on with no stub: it drops the own key's value that the stub alone reads.
+func GateTutor(g *admission.Gate) interface {
+	sheetReader
+	wordsTeller
+	correctTeller
+	admitter
+	workbookReader
+	essayReader
+	rubricAssessor
+} {
+	return gateTutor{g}
+}
+
+// WithEssay is what reads the essay of a task with a rubric and assesses its
+// text, in place of tutor: a test's own, for want of a provider and of an entry
+// that admits either call (В72).
+func WithEssay(read func(ctx context.Context, r tutor.EssayReading) tutor.EssayRead,
+	assess func(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed) Option {
+	return func(s *Service) { s.essay, s.assessor = essayFunc(read), assessorFunc(assess) }
+}
+
+// essayFunc is a function as an essayReader.
+type essayFunc func(ctx context.Context, r tutor.EssayReading) tutor.EssayRead
+
+func (f essayFunc) ReadEssay(ctx context.Context, r tutor.EssayReading, _ formatv0.Task, _ string) tutor.EssayRead {
+	return f(ctx, r)
+}
+
+// assessorFunc is a function as a rubricAssessor.
+type assessorFunc func(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed
+
+func (f assessorFunc) AssessEssay(ctx context.Context, r tutor.RubricAssessment, _ string) tutor.RubricAssessed {
+	return f(ctx, r)
 }

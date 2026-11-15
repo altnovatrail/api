@@ -101,13 +101,15 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 	}
 	// The AI that checks the tasks is closed to a new task by the admission of the
 	// route, or on platform AI by its provider's limit or a family day with no room
-	// left for a typical task (R11, R59): the pool is then of the tasks a tap
-	// checks. Neither the quota nor the limit closes an own key, so on it nothing
-	// to give says "not admitted" alone (R65).
-	admitted := s.gate.Handwriting(category, ownKey)
+	// left for a typical task (R11, R59) — the larger of one with handwriting and
+	// one with a rubric, so that the engine gives no task its start refuses by the
+	// quota —: the pool is then of the tasks a tap checks. Neither the quota nor
+	// the limit closes an own key, so on it nothing to give says "not admitted"
+	// alone (R65).
+	admitted := s.readsAdmitted(category, ownKey)
 	var closed *v1.Outcome
 	if admitted && ownKey == "" {
-		if closed, err = closedTo(ctx, tx, profileID, quota.TypicalHandwriting, now); err != nil {
+		if closed, err = closedTo(ctx, tx, profileID, max(quota.TypicalHandwriting, quota.TypicalRubric), now); err != nil {
 			return nil, err
 		}
 	}
@@ -216,10 +218,14 @@ func (s *Service) begins(pkg *modulepackage.Package, task formatv0.Task, categor
 }
 
 // forAI says whether a task that does not begin is left out only for AI that is
-// not admitted or closed to read it: one that suits the learner, with no rubric,
-// on a sheet this release of tutor reads.
+// not admitted or closed to read it: one that suits the learner, on a sheet, a
+// workbook page or an essay this release of tutor reads (R81, R82).
 func forAI(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory) bool {
-	return suits(pkg, task, category) && !rubric(task) && sheetRead(task)
+	if rubric(task) {
+		return suits(pkg, task, category) && essayRead(task)
+	}
+	_, read := callOf(task)
+	return suits(pkg, task, category) && read
 }
 
 // nextTask is the task of the first task segment of the lesson that has not

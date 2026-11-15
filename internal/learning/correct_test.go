@@ -309,3 +309,94 @@ func TestTheStubWordsAfterACorrectAnswerWhateverTheDay(t *testing.T) {
 		t.Errorf("the stub's words %q break %v", res.GetWords(), breaches)
 	}
 }
+
+// twice is the answer of a request and of its repeat under the same key.
+func twice[R any](t *testing.T, ask func() (R, error)) [2]R {
+	t.Helper()
+	var answers [2]R
+	for i := range answers {
+		var err error
+		if answers[i], err = ask(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return answers
+}
+
+// A limit of the own key names which limit ran out, by the reason tutor gives,
+// beside CAUSE_LIMIT_REACHED in every answer whose call may meet it — the
+// reading of a submission, the words of a rung, "explain differently" and the
+// words after a correct answer —, and never when access returns; a repeat under
+// the key gets the same. A reason tutor does not name, or none, is unnamed.
+func TestAnOwnKeysLimitNamesWhichLimitRanOut(t *testing.T) {
+	t.Parallel()
+
+	ps, rs, ts := &praisers{}, &readers{}, &tellers{}
+	w := worldOf(t, gate(t, adultFacts, config.RungAuthor), []learning.Option{learning.WithCorrect(ps.tell),
+		learning.WithTexts(legal.Spec()), learning.WithReader(rs.read), learning.WithWords(ts.tell)})
+	w.clock.move(onPolicy3.Sub(time.Now()))
+	l := w.learner(t)
+	own := &v1.OwnKey{Provider: "anthropic", Key: "sk-own"}
+	wrong := int32(1)
+	for _, tc := range []struct {
+		reason tutor.LimitReason
+		want   v1.LimitCause
+	}{
+		{"", v1.LimitCause_LIMIT_CAUSE_UNSPECIFIED},
+		{tutor.LimitOwner, v1.LimitCause_LIMIT_CAUSE_LIMIT},
+		{tutor.LimitTier, v1.LimitCause_LIMIT_CAUSE_TIER},
+		{tutor.LimitBalance, v1.LimitCause_LIMIT_CAUSE_BALANCE},
+		{tutor.LimitBilling, v1.LimitCause_LIMIT_CAUSE_PAYMENT},
+		{"rate", v1.LimitCause_LIMIT_CAUSE_UNSPECIFIED},
+	} {
+		limited := tutor.Outcome{Kind: tutor.LimitReached, Limit: tc.reason}
+		t.Run(string(tc.reason), func(t *testing.T) {
+			// limitOf checks the outcome of an answer and of its repeat: the field is
+			// there with no reason too.
+			limitOf := func(name string, answers ...*v1.Outcome) {
+				t.Helper()
+				for _, o := range answers {
+					limit := o.GetOwnKeyLimit()
+					if limit == nil {
+						t.Errorf("%s = %v, want own_key_limit", name, o)
+						continue
+					}
+					if o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || limit.GetCause() != tc.want || limit.GetAccessReturns() != nil {
+						t.Errorf("%s = %v, want the limit reached, %v, and no time access returns", name, o, tc.want)
+					}
+				}
+			}
+
+			a := w.begin(t, l, l.adult, "apples").GetAttemptId()
+			rs.give(tutor.SheetRead{Outcome: limited})
+			submit := &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+				Work: sheet(crop(t)), OwnKey: own}
+			s := twice(t, func() (*v1.SubmitWorkResponse, error) { return w.attempts.SubmitWork(l.ctx, submit) })
+			limitOf("SubmitWork", s[0].GetOutcome(), s[1].GetOutcome())
+
+			b := w.begin(t, l, l.adult, "pick").GetAttemptId()
+			w.wrongs(t, l, l.adult, b, []*v1.TappedChoice{tap(1, 1, "five")})
+			ts.give(tutor.WordsAnswer{Outcome: limited})
+			rung := &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: b, IdempotencyKey: uuid.NewString(),
+				WrongAnswers: &wrong, OwnKey: own}
+			r := twice(t, func() (*v1.GetRungWordsResponse, error) { return w.attempts.GetRungWords(l.ctx, rung) })
+			limitOf("GetRungWords", r[0].GetOutcome(), r[1].GetOutcome())
+			explain := &v1.ExplainDifferentlyRequest{ProfileId: l.adult, AttemptId: b, IdempotencyKey: uuid.NewString(),
+				WrongAnswers: &wrong, OwnKey: own}
+			e := twice(t, func() (*v1.ExplainDifferentlyResponse, error) { return w.attempts.ExplainDifferently(l.ctx, explain) })
+			limitOf("ExplainDifferently", e[0].GetOutcome(), e[1].GetOutcome())
+
+			c := w.correctOn(t, l, rs)
+			ps.give(tutor.CorrectAnswer{Outcome: limited})
+			praise := &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: c, IdempotencyKey: uuid.NewString(),
+				Work: sheet(crop(t)), OwnKey: own}
+			p := twice(t, func() (*v1.GetCorrectAnswerWordsResponse, error) {
+				return w.attempts.GetCorrectAnswerWords(l.ctx, praise)
+			})
+			limitOf("GetCorrectAnswerWords", p[0].GetOutcome(), p[1].GetOutcome())
+			if given := w.wordsGiven(t, c); !p[1].GetRepeated() || given {
+				t.Errorf("the repeat of the words = %v, given %t; want a repeat and the right kept", p[1], given)
+			}
+		})
+	}
+}

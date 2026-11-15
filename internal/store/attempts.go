@@ -229,11 +229,92 @@ func Submit(ctx context.Context, tx pgx.Tx, profileID, attemptID string, answer,
 	return id, nil
 }
 
+// How a submission of an essay ends, and the source of its words, as the schema
+// writes them (R15).
+const (
+	EssayFeedback   = "feedback"
+	EssayUnreadable = "unreadable"
+	EssayUnchecked  = "unchecked"
+	// The marks of a criterion.
+	MarkMet         = "met"
+	MarkNotMet      = "not_met"
+	MarkNotAssessed = "not_assessed"
+	// SourceNoFeedback is the phrase "no feedback this time" in place of words
+	// that failed a check; the model's words are SourceModel.
+	SourceNoFeedback = "no_feedback"
+)
+
+// Essay is how a submission of an essay ended (R15): its end, and beside
+// feedback the mark of each criterion by its number in the rubric, from 1, and
+// the source of the words. Neither the text read nor the words are in it.
+type Essay struct {
+	End    string
+	Marks  []string
+	Source *string
+}
+
+// EssaySubmission is a submission of an essay as the server keeps it: when it
+// came, and how it ended.
+type EssaySubmission struct {
+	AttemptID   string
+	SubmittedAt time.Time
+	Essay
+}
+
+// SubmitEssay records a submission of an essay of the attempt, by its answer —
+// without the text read and the words of the feedback — and how it ended, as
+// the attempt's next, whose last action is at. It gives the submission's ID.
+func SubmitEssay(ctx context.Context, tx pgx.Tx, profileID, attemptID string, answer []byte, e Essay, at time.Time) (string, error) {
+	var id string
+	err := tx.QueryRow(ctx, `INSERT INTO submissions (profile_id, attempt_id, number, submitted_at, answer, essay_end, marks, words_source)
+		SELECT $1, $2, coalesce(max(number), 0) + 1, $3, $4, $5, $6, $7 FROM submissions WHERE profile_id = $1 AND attempt_id = $2
+		RETURNING id`, profileID, attemptID, at, answer, e.End, e.Marks, e.Source).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("store: record the essay: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE attempts SET last_action_at = $3 WHERE profile_id = $1 AND id = $2`,
+		profileID, attemptID, at); err != nil {
+		return "", fmt.Errorf("store: count the essay: %w", err)
+	}
+	return id, nil
+}
+
+// EssaySubmissions is the submissions of the profile's attempts of attemptIDs
+// that are essays, by attempt and in order.
+func EssaySubmissions(ctx context.Context, db Lister, profileID string, attemptIDs []string) ([]EssaySubmission, error) {
+	rows, err := db.Query(ctx, `SELECT attempt_id, submitted_at, essay_end, marks, words_source FROM submissions
+		WHERE profile_id = $1 AND attempt_id = ANY($2::uuid[]) AND essay_end IS NOT NULL ORDER BY attempt_id, number`,
+		profileID, attemptIDs)
+	if err != nil {
+		return nil, fmt.Errorf("store: read the essays: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (EssaySubmission, error) {
+		var e EssaySubmission
+		err := r.Scan(&e.AttemptID, &e.SubmittedAt, &e.End, &e.Marks, &e.Source)
+		return e, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: read the essays: %w", err)
+	}
+	return out, nil
+}
+
+// Submitted says whether the profile's attempt has a submission, however it
+// ended: what "Done" asks of an attempt with a rubric (R14).
+func Submitted(ctx context.Context, db Querier, profileID, attemptID string) (bool, error) {
+	var submitted bool
+	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM submissions WHERE profile_id = $1 AND attempt_id = $2)`,
+		profileID, attemptID).Scan(&submitted); err != nil {
+		return false, fmt.Errorf("store: read whether the attempt has a submission: %w", err)
+	}
+	return submitted, nil
+}
+
 // LastSubmission is the answer of the attempt's last submission with a
 // verdict, and whether it has one.
 func LastSubmission(ctx context.Context, db Querier, profileID, attemptID string) ([]byte, bool, error) {
 	var answer []byte
-	err := db.QueryRow(ctx, `SELECT answer FROM submissions WHERE profile_id = $1 AND attempt_id = $2
+	err := db.QueryRow(ctx, `SELECT answer FROM submissions WHERE profile_id = $1 AND attempt_id = $2 AND essay_end IS NULL
 		ORDER BY number DESC LIMIT 1`, profileID, attemptID).Scan(&answer)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):

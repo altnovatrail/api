@@ -722,7 +722,7 @@ func TestASubmissionThatTheTaskDoesNotTakeIsRefused(t *testing.T) {
 		"a crop that is no PNG":         {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples, Work: sheet([]byte{1})}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"a crop wider than tutor reads": {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples, Work: sheet(pngOf(t, 4097, 1))}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 		"a crop cut short":              {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples, Work: sheet(crop(t)[:60])}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
-		"a workbook": {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples,
+		"a workbook page on a sheet": {&v1.SubmitWorkRequest{ProfileId: second, AttemptId: secondApples,
 			Work: &v1.Work{Surface: &v1.Work_Workbook{Workbook: &v1.WorkbookWork{}}}}, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED},
 	} {
 		if name != "no key" {
@@ -915,16 +915,6 @@ func TestAProfileWithNoConsentIsRefused(t *testing.T) {
 		err := call()
 		t.Run(name, func(t *testing.T) { refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT) })
 	}
-}
-
-// The methods of the epic's later tasks answer unimplemented.
-func TestTheMethodsOfLaterTasksAreUnimplemented(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	l := w.learner(t)
-	_, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.child, AttemptId: uuid.NewString()})
-	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
 // failing is the pool, whose statements that hold failOn fail.
@@ -1144,7 +1134,8 @@ const adultFacts = `anthropic:
 // A task of handwriting begins only where the gate admits its reading: by the
 // facts of the deployment, its stage and the learner's age category, or by the
 // own key of a provider whose models are admitted, and only in a form tutor
-// reads: one answer slot bound anywhere on a handwriting sheet.
+// reads by a kind of call the gate admits: one answer slot bound anywhere on a
+// handwriting sheet, or a workbook page, whose reading no entry admits yet.
 func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 	t.Parallel()
 
@@ -1175,7 +1166,7 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 			"a child":    {true, "apples", "", refused},
 			"a rubric":   {false, "story", "", refused},
 			"a zone":     {false, "parity", "", refused},
-			"a workbook": {false, "table", "", refused},
+			"a workbook": {false, "table", "", refused}, // no entry of tutor v0.1.35 reads one (В72)
 		}},
 		"facts for an adult, the stage full": {adultFacts, config.RungFull, map[string]beginning{
 			"an adult": {false, "apples", "", refused},

@@ -40,9 +40,12 @@ const boardModule = "novatrail/check-board"
 // a wrong answer and its rung's words, then the key — gives evidence of kind 2
 // that holds the question. A task with a time
 // of day describes its slot as one. The module of the board begins too, on the
-// stub of tutor, as boardIsLearnedOn tells, and the catalog of novatrail is its
-// list, as novatrailCatalog tells. With no folder named, the test is
-// skipped: ci-test runs with no network, and its packages are the vectors.
+// stub of tutor, as boardIsLearnedOn tells, so does every task of the module of
+// workbook pages for a child, as workbookIsLearnedOn tells, so does every task with
+// a rubric of the module of essays for an adult, as essaysAreLearnedOn tells, and
+// the catalog of novatrail is its list, as novatrailCatalog tells. With no folder named, the
+// test is skipped: ci-test runs with no network, and its packages are the
+// vectors.
 func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	dir := os.Getenv("API_RELEASE_PACKAGES")
 	if dir == "" {
@@ -57,6 +60,8 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("the board module", func(t *testing.T) { boardIsLearnedOn(t, set) })
+	t.Run("the workbook module", func(t *testing.T) { workbookIsLearnedOn(t, set) })
+	t.Run("the essay module", func(t *testing.T) { essaysAreLearnedOn(t, set) })
 	t.Run("the catalog of novatrail", func(t *testing.T) { novatrailCatalog(t, dir, cfg) })
 	pkg, ok := set.Current(releaseModule)
 	if !ok {
@@ -317,4 +322,126 @@ func tappedWithQuestion(t *testing.T, pkg *modulepackage.Package, pool []string)
 	}
 	t.Fatalf("no task of the pool of %s is tapped whole with a leading question", pkg.View.Manifest.ID)
 	return formatv0.Task{}, nil, nil
+}
+
+// workbookModule is the module of the pinned release whose every task is on a
+// workbook page, for a child under 13 alone (R53).
+const workbookModule = "novatrail/grade-3-math"
+
+// workbookIsLearnedOn walks a child's path on the module of workbook pages in
+// the dev mode, on the stub of tutor, which admits a workbook page where the
+// gate admits a sheet (the 2026-11-15 amendment to R66), by the facts of a
+// child, as dev-check declares them to its server on the stub: every task and
+// lesson of it reaches the engine for a child, it connects, and every task of
+// it begins and is solved by a page of a wide crop in each of its boxes, which
+// the stub reads as the right value of each — a number, a fraction, a sign.
+func workbookIsLearnedOn(t *testing.T, set *packages.Set) {
+	pkg, ok := set.Current(workbookModule)
+	if !ok {
+		t.Fatalf("the pinned release gives %s no current version", workbookModule)
+	}
+	g := stubGateOf(t, childFacts)
+	w := worldOn(t, set, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryUnder13, "")
+	if err != nil || len(pool) != len(pkg.View.Tasks) || lessons != len(pkg.View.Lessons) {
+		t.Errorf("the engine gets %d tasks of %d and %d lessons of %d of %s, %v; want all", len(pool), len(pkg.View.Tasks),
+			lessons, len(pkg.View.Lessons), workbookModule, err)
+	}
+	l := w.learner(t)
+	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.child, ModuleId: workbookModule}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
+		// A page reserves 14,000 micro-dollars a box, up to 16 boxes here, and the
+		// closed slice holds a child's $0.50 a family day: each task begins on
+		// counters spent anew, as on a new family day.
+		w.exec(t, `UPDATE profile_quota SET spent_micro_usd = 0 WHERE profile_id = $1`, l.child)
+		w.exec(t, `UPDATE account_quota SET spent_micro_usd = 0 WHERE account_id = $1`, l.accountID)
+		task := pkg.View.Tasks[id]
+		begun, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
+			Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choiceOf(t, l.child, workbookModule, string(id))}})
+		if err != nil {
+			t.Errorf("BeginAttempt %s: %v", id, err)
+			continue
+		}
+		var boxes []*v1.BoxCrop
+		for i, item := range task.Items {
+			n := 0
+			for _, part := range item.Line {
+				if part.Binding != nil && *part.Binding == formatv0.LinePartBindingBox {
+					n++
+					boxes = append(boxes, boxCrop(int32(i+1), int32(n), pngOf(t, 40, 10)))
+				}
+			}
+		}
+		attempt := begun.GetAttempt().GetAttemptId()
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.child, AttemptId: attempt,
+			IdempotencyKey: uuid.NewString(), Work: page(boxes...)})
+		if err != nil || res.GetSolved() == nil || w.closeOf(t, attempt) != "correct" {
+			t.Errorf("a page of %d wide boxes of %s = %s, %v, %v; want it solved", len(boxes), id, verdicts(res), res.GetOutcome(), err)
+		}
+	}
+}
+
+// essayModule is the module of the pinned release whose tasks with a rubric
+// are essays on a handwriting sheet, beside tasks a tap checks (R53).
+const essayModule = "novatrail/english-essays"
+
+// essaysAreLearnedOn walks an adult's path on the module of essays in the dev
+// mode, on the stub of tutor, which admits an essay and its assessment where
+// the gate admits a sheet (the 2026-11-15 amendments to R66): every task and
+// lesson of it reaches the engine for an adult, it connects, and every task of
+// it with a rubric begins, a wide crop of its sheet ends in feedback — the
+// stub's text read, its marks, and its words, which pass the leak check and
+// the rule of feedback on each task —, and "Done" closes it with the criteria
+// of its rubric.
+func essaysAreLearnedOn(t *testing.T, set *packages.Set) {
+	pkg, ok := set.Current(essayModule)
+	if !ok {
+		t.Fatalf("the pinned release gives %s no current version", essayModule)
+	}
+	g := stubGate(t)
+	w := worldOn(t, set, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryAdult, "")
+	if err != nil || len(pool) != len(pkg.View.Tasks) || lessons != len(pkg.View.Lessons) {
+		t.Errorf("the engine gets %d tasks of %d and %d lessons of %d of %s, %v; want all", len(pool), len(pkg.View.Tasks),
+			lessons, len(pkg.View.Lessons), essayModule, err)
+	}
+	l := w.learner(t)
+	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: essayModule}); err != nil {
+		t.Fatal(err)
+	}
+	essays := 0
+	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
+		task := pkg.View.Tasks[id]
+		criteria := 0
+		for _, item := range task.Items {
+			for _, slot := range item.AnswerSlots {
+				criteria += len(slot.Check.Criteria)
+			}
+		}
+		if criteria == 0 {
+			continue
+		}
+		essays++
+		begun, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+			Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choiceOf(t, l.adult, essayModule, string(id))}})
+		if err != nil {
+			t.Errorf("BeginAttempt %s: %v", id, err)
+			continue
+		}
+		attempt := begun.GetAttempt().GetAttemptId()
+		res, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.adult, AttemptId: attempt,
+			IdempotencyKey: uuid.NewString(), Crop: pngOf(t, 40, 10)})
+		if err != nil || res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_FEEDBACK || res.GetText() == "" || res.GetFeedback() == "" {
+			t.Errorf("a wide essay of %s = %v, %v; want feedback with the text and the stub's words", id, res, err)
+		}
+		done, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: l.adult, AttemptId: attempt})
+		if err != nil || len(done.GetSolved().GetCriteria()) != criteria || w.closeOf(t, attempt) != "done" {
+			t.Errorf("Done of %s = %v, %v; want its %d criteria and the attempt closed done", id, done, err, criteria)
+		}
+	}
+	if essays == 0 {
+		t.Errorf("%s holds no task with a rubric", essayModule)
+	}
 }

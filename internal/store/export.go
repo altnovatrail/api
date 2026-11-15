@@ -481,7 +481,9 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 }
 
 // exportAttemptRows reads the rungs and the submissions of the profile's
-// attempts, in two queries, and gives each attempt of list its own.
+// attempts, in two queries, and gives each attempt of list its own: a
+// submission of an essay among its essay_submissions, with neither an answer
+// nor an observation to tell (R15).
 func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, list []ExportedAttempt, e *ExportedProfile) error {
 	at := map[exportv2.ID]*ExportedAttempt{}
 	for i := range list {
@@ -509,8 +511,8 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, list []
 			a.Rungs = append(a.Rungs, x.Rung)
 		}
 	}
-	rows, err = tx.Query(ctx, `SELECT attempt_id, number, submitted_at, answer, observation FROM submissions
-		WHERE profile_id = $1 ORDER BY attempt_id, number`, profileID)
+	rows, err = tx.Query(ctx, `SELECT attempt_id, number, submitted_at, answer, observation, essay_end, marks, words_source
+		FROM submissions WHERE profile_id = $1 ORDER BY attempt_id, number`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the submissions: %w", err)
 	}
@@ -520,10 +522,13 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, list []
 		at          time.Time
 		answer      []byte
 		observation []byte
+		essay       *string
+		marks       []string
+		source      *string
 	}
 	subs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (submission, error) {
 		var s submission
-		err := r.Scan(&s.attempt, &s.number, &s.at, &s.answer, &s.observation)
+		err := r.Scan(&s.attempt, &s.number, &s.at, &s.answer, &s.observation, &s.essay, &s.marks, &s.source)
 		return s, err
 	})
 	if err != nil {
@@ -532,6 +537,20 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, list []
 	for _, s := range subs {
 		a := at[s.attempt]
 		if a == nil {
+			continue
+		}
+		if s.essay != nil {
+			// A submission of an essay: how it ended, and beside feedback the marks
+			// by the numbers of the criteria and the source of the words (R15).
+			e := exportv2.RubricSubmission{SubmittedAt: timeOf(s.at), End: exportv2.RubricSubmissionEnd(*s.essay)}
+			for _, m := range s.marks {
+				e.CriterionMarks = append(e.CriterionMarks, exportv2.RubricSubmissionCriterionMarks(m))
+			}
+			if s.source != nil {
+				source := exportv2.RubricSubmissionFeedbackSource(*s.source)
+				e.FeedbackSource = &source
+			}
+			a.EssaySubmissions = append(a.EssaySubmissions, e)
 			continue
 		}
 		a.Submissions = append(a.Submissions, exportv2.Submission{Number: s.number, SubmittedAt: timeOf(s.at)})
