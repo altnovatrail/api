@@ -18,8 +18,24 @@ func TestAnOperatorsCommandReadsThePoolersString(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OperatorFrom error = %v, want nil", err)
 	}
-	if cfg.DatabaseURL.Reveal() != remote || cfg.LogLevel != slog.LevelWarn {
-		t.Errorf("OperatorFrom = %v %v, want the pooler's string and level warn", cfg.DatabaseURL, cfg.LogLevel)
+	if cfg.DatabaseURL.Reveal() != remote || cfg.LogLevel != slog.LevelWarn || cfg.DeployedBy != "" {
+		t.Errorf("OperatorFrom = %v %v %q, want the pooler's string, level warn and no deployment", cfg.DatabaseURL, cfg.LogLevel, cfg.DeployedBy)
+	}
+}
+
+// A command run as a service or as a job knows it is deployed, by the variable
+// Cloud Run sets, which it names.
+func TestAnOperatorsCommandKnowsItIsDeployed(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"K_SERVICE", "CLOUD_RUN_JOB"} {
+		cfg, err := config.OperatorFrom([]string{"API_DATABASE_URL=" + remote, name + "=api"})
+		if err != nil {
+			t.Fatalf("OperatorFrom with %s error = %v, want nil", name, err)
+		}
+		if cfg.DeployedBy != name {
+			t.Errorf("OperatorFrom with %s: DeployedBy = %q", name, cfg.DeployedBy)
+		}
 	}
 }
 

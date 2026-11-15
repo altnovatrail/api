@@ -65,6 +65,14 @@ func TestTariffGivesTheAccountOfACodeItsTariff(t *testing.T) {
 	if got := tariffOf(t, url, otherID); got == nil || *got != quota.ClosedSlice {
 		t.Errorf("another account's tariff = %v, want it as it was", got)
 	}
+	// Off a deployment the tariff of dev-check is given as any other (В80).
+	if exit, stdout, stderr := runCommand(t.Context(), []string{"API_DATABASE_URL=" + url}, "tariff", "-tariff", quota.DevCheck,
+		other); exit != exitOK || stdout != quota.DevCheck+"\n" || stderr != "" {
+		t.Fatalf("tariff dev_check = %d, %q, %q; want 0 and the tariff alone", exit, stdout, stderr)
+	}
+	if got := tariffOf(t, url, otherID); got == nil || *got != quota.DevCheck {
+		t.Errorf("the other account's tariff = %v, want %s", got, quota.DevCheck)
+	}
 	if strings.Contains(stdout+stderr, accountID) || strings.Contains(stdout+stderr, other) {
 		t.Errorf("the output %q %q names an account or a code", stdout, stderr)
 	}
@@ -77,7 +85,8 @@ func TestTariffGivesTheAccountOfACodeItsTariff(t *testing.T) {
 }
 
 // A code that no account redeemed, or whose account is being deleted, changes
-// no tariff; what is no code or no tariff is a usage the command refuses.
+// no tariff; what is no code or no tariff is a usage the command refuses, and so
+// is the tariff of dev-check, deployed (В80).
 func TestTariffRefusesWhatItCannotRun(t *testing.T) {
 	t.Parallel()
 
@@ -92,7 +101,7 @@ func TestTariffRefusesWhatItCannotRun(t *testing.T) {
 	if err := pgx.BeginFunc(t.Context(), pool, func(tx pgx.Tx) error { return store.MarkDeleting(t.Context(), tx, deletingID) }); err != nil {
 		t.Fatal(err)
 	}
-	code, _ := redeemed(t, url)
+	code, codeID := redeemed(t, url)
 	for _, tc := range []struct {
 		name    string
 		environ []string
@@ -109,6 +118,9 @@ func TestTariffRefusesWhatItCannotRun(t *testing.T) {
 		{"no code but words", env, []string{"-tariff", quota.Probe, "not-a-code"}, exitUsage, "no invite code"},
 		{"no database", nil, []string{"-tariff", quota.Probe, code}, exitFailure, "API_DATABASE_URL"},
 		{"an unknown flag", env, []string{"-count", "2"}, exitUsage, "-count"},
+		{"dev_check as a service", append(env, "K_SERVICE=api"), []string{"-tariff", quota.DevCheck, code}, exitUsage, "K_SERVICE is set"},
+		{"dev_check as a job", append(env, "CLOUD_RUN_JOB=api-tariff"), []string{"-tariff", quota.DevCheck, code}, exitUsage,
+			"the dev projects' alone"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -121,6 +133,9 @@ func TestTariffRefusesWhatItCannotRun(t *testing.T) {
 	}
 	if got := tariffOf(t, url, deletingID); got == nil || *got != quota.ClosedSlice {
 		t.Errorf("the tariff of the account being deleted = %v, want it as it was", got)
+	}
+	if got := tariffOf(t, url, codeID); got == nil || *got != quota.ClosedSlice {
+		t.Errorf("the tariff of the account the refusals named = %v, want it as it was", got)
 	}
 	if exit, stdout, stderr := runCommand(t.Context(), nil, "tariff", "-h"); exit != exitOK || stdout != "" || !strings.Contains(stderr, "-tariff") {
 		t.Errorf("tariff -h = %d, %q, %q; want 0 and the flags", exit, stdout, stderr)

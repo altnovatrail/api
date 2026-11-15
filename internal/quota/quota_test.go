@@ -39,23 +39,47 @@ func TestDollarsAreMicroDollarsRoundedUp(t *testing.T) {
 func TestATariffHasItsCapsAndNoneIsClosed(t *testing.T) {
 	t.Parallel()
 
-	if caps, ok := quota.CapsOf(quota.ClosedSlice); !ok || caps.Profile != 500_000 || caps.Account != 1_500_000 {
-		t.Errorf("the caps of the closed slice = %+v, %v", caps, ok)
-	}
-	probe, ok := quota.CapsOf(quota.Probe)
-	if !ok || probe.Profile < quota.TypicalHandwriting || probe.Account < probe.Profile || probe.Account > 150_000 {
-		t.Errorf("the caps of the probe = %+v, %v; want a few cents with room for a typical task", probe, ok)
-	}
-	for _, tariff := range []string{"", "plus", "Closed_Slice"} {
-		if caps, ok := quota.CapsOf(tariff); ok || caps != (quota.Caps{}) {
-			t.Errorf("CapsOf(%q) = %+v, %v; want none", tariff, caps, ok)
+	for _, off := range []bool{false, true} {
+		if caps, ok := quota.CapsOf(quota.ClosedSlice, off); !ok || caps.Profile != 500_000 || caps.Account != 1_500_000 {
+			t.Errorf("the caps of the closed slice, off a deployment %v = %+v, %v", off, caps, ok)
 		}
-		if quota.Known(tariff) {
-			t.Errorf("Known(%q) = true", tariff)
+		probe, ok := quota.CapsOf(quota.Probe, off)
+		if !ok || probe.Profile < quota.TypicalHandwriting || probe.Account < probe.Profile || probe.Account > 150_000 {
+			t.Errorf("the caps of the probe, off a deployment %v = %+v, %v; want a few cents with room for a typical task", off, probe, ok)
+		}
+		for _, tariff := range []string{"", "plus", "Closed_Slice"} {
+			if caps, ok := quota.CapsOf(tariff, off); ok || caps != (quota.Caps{}) {
+				t.Errorf("CapsOf(%q, %v) = %+v, %v; want none", tariff, off, caps, ok)
+			}
+			if quota.Known(tariff) || quota.DevOnly(tariff) {
+				t.Errorf("Known(%q) or DevOnly(%q) = true", tariff, tariff)
+			}
 		}
 	}
-	if names := quota.Tariffs(); len(names) != 2 || names[0] != quota.ClosedSlice || !quota.Known(quota.Probe) {
+	names := quota.Tariffs()
+	if len(names) != 3 || names[0] != quota.ClosedSlice || !quota.Known(quota.Probe) || !quota.Known(quota.DevCheck) {
 		t.Errorf("Tariffs = %v", names)
+	}
+	if quota.DevOnly(quota.ClosedSlice) || quota.DevOnly(quota.Probe) {
+		t.Error("DevOnly of the closed slice or the probe = true")
+	}
+}
+
+// The tariff of dev-check caps a profile at $5.00 and an account at $15.00,
+// tenfold the closed slice, off a deployment; deployed, or not told it is off
+// one, it has no caps, and platform AI is closed to an account that got it all
+// the same (В80).
+func TestTheTariffOfDevCheckIsTheDevProjectsAlone(t *testing.T) {
+	t.Parallel()
+
+	if !quota.DevOnly(quota.DevCheck) {
+		t.Error("DevOnly(dev_check) = false")
+	}
+	if caps, ok := quota.CapsOf(quota.DevCheck, true); !ok || caps.Profile != 5_000_000 || caps.Account != 15_000_000 {
+		t.Errorf("the caps of dev_check off a deployment = %+v, %v; want $5.00 and $15.00", caps, ok)
+	}
+	if caps, ok := quota.CapsOf(quota.DevCheck, false); ok || caps != (quota.Caps{}) {
+		t.Errorf("the caps of dev_check deployed, or not told = %+v, %v; want none", caps, ok)
 	}
 }
 

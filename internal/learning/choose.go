@@ -109,7 +109,7 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 	admitted := s.readsAdmitted(category, ownKey)
 	var closed *v1.Outcome
 	if admitted && ownKey == "" {
-		if closed, err = closedTo(ctx, tx, profileID, max(quota.TypicalHandwriting, quota.TypicalRubric), now); err != nil {
+		if closed, err = s.closedTo(ctx, tx, profileID, max(quota.TypicalHandwriting, quota.TypicalRubric), now); err != nil {
 			return nil, err
 		}
 	}

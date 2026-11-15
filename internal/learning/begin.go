@@ -172,7 +172,7 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		if rubric(task) {
 			typical = quota.TypicalRubric
 		}
-		closed, err := closedTo(ctx, tx, profileID, typical, now)
+		closed, err := s.closedTo(ctx, tx, profileID, typical, now)
 		if err != nil {
 			return nil, err
 		}

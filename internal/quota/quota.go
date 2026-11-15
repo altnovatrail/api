@@ -51,15 +51,36 @@ const (
 	// to see the quota run out on a run with app (T52): room for a typical task
 	// and a few checks after it, and no more.
 	Probe = "probe"
+	// DevCheck is the tariff of the account of dev-check on the dev projects,
+	// tenfold the closed slice's, so that the runs of a chain of tasks in one
+	// family day all find room (В80). It is off a deployment alone: there the
+	// commands refuse it, and api reads it as a tariff with no caps.
+	DevCheck = "dev_check"
 )
 
-// tariffs are the caps of each tariff, in the order a command lists them.
-var tariffs = []struct {
+// tariff is a row of the table of tariffs: its name, its caps, and whether it is
+// the dev projects' alone.
+type tariff struct {
 	name string
 	caps Caps
-}{
-	{ClosedSlice, Caps{Profile: 500_000, Account: 1_500_000}},
-	{Probe, Caps{Profile: 80_000, Account: 100_000}},
+	dev  bool
+}
+
+// tariffs are the tariffs, in the order a command lists them.
+var tariffs = []tariff{
+	{ClosedSlice, Caps{Profile: 500_000, Account: 1_500_000}, false},
+	{Probe, Caps{Profile: 80_000, Account: 100_000}, false},
+	{DevCheck, Caps{Profile: 5_000_000, Account: 15_000_000}, true},
+}
+
+// lookup is the tariff of the table by its name, and false for one it does not
+// hold.
+func lookup(name string) (tariff, bool) {
+	i := slices.IndexFunc(tariffs, func(t tariff) bool { return t.name == name })
+	if i < 0 {
+		return tariff{}, false
+	}
+	return tariffs[i], true
 }
 
 // Tariffs is every tariff, by its name, in the order of the table.
@@ -71,19 +92,31 @@ func Tariffs() []string {
 	return names
 }
 
-// Known says whether tariff is one of Tariffs.
-func Known(tariff string) bool { return slices.Contains(Tariffs(), tariff) }
+// Known says whether name is one of Tariffs.
+func Known(name string) bool {
+	_, known := lookup(name)
+	return known
+}
+
+// DevOnly says whether the tariff name is the dev projects' alone, which neither an
+// invite code nor an account of a deployment may have.
+func DevOnly(name string) bool {
+	t, _ := lookup(name)
+	return t.dev
+}
 
 // CapsOf is the caps of the tariff, and false for an account with no tariff or a
 // tariff with no caps: platform AI is closed to it, by default, as the function
-// of admission closes a route it does not know (R11).
-func CapsOf(tariff string) (Caps, bool) {
-	for _, t := range tariffs {
-		if t.name == tariff {
-			return t.caps, t.caps.Profile > 0 && t.caps.Account > 0
-		}
+// of admission closes a route it does not know (R11). A tariff of the dev
+// projects alone has its caps only offDeployment, so that, deployed or not told
+// otherwise, an account that got it all the same opens no spending of the
+// platform's.
+func CapsOf(name string, offDeployment bool) (Caps, bool) {
+	t, known := lookup(name)
+	if !known || t.dev && !offDeployment {
+		return Caps{}, false
 	}
-	return Caps{}, false
+	return t.caps, t.caps.Profile > 0 && t.caps.Account > 0
 }
 
 // The typical tasks (R11; the amendment of 2026-11-02 to it). A new task that

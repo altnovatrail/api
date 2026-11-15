@@ -1,7 +1,7 @@
 // The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, the
 // custom token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a
-// task AI reads, a workbook page and an essay, sends the boxes of the page and sums the counters of
-// the quota.
+// task AI reads, a workbook page and an essay, sends the boxes of the page, sums the counters of the
+// quota and gives the check's account its tariff.
 // They run the script's own functions in bash, with jq and openssl, as the devcontainer and its
 // toolchain stage, where CI runs the tests, have them.
 package scripts_test
@@ -359,5 +359,92 @@ func TestARunIsOnTheStubOrOnTheModels(t *testing.T) {
 	stdout, _, err := bash(t, nil, `stubbed && bash -c 'printf %s "$API_TUTOR_STUB"'`)
 	if err != nil || stdout != "1" {
 		t.Errorf("the binary sees API_TUTOR_STUB = %q, %v; want 1", stdout, err)
+	}
+}
+
+// The check's account gets the tariff dev_check (В80): an account whose code <UID>.code beside the
+// dev file keeps by `api tariff`, one with no code kept deleted and made anew, and a new account's
+// code kept in the file, readable by its owner alone. A tariff refused, or a deletion not finished,
+// stops the check, naming why.
+func TestTheChecksAccountIsOnTheTariffOfDevCheck(t *testing.T) {
+	t.Parallel()
+
+	const kept, made = "0123-4567-89AB-CDEF", "FEDC-BA98-7654-3210"
+	// The steps the server and the binary would take, as lines of the file calls: GetAccount answers
+	// $ACCOUNT, and $GONE once the account is deleted.
+	fakes := `work=$DIR; binary=$DIR/api
+call() {
+    echo "$1" >> "$DIR/calls"; status=200
+    case $1 in GetAccount) status=$ACCOUNT ;; DeleteAccount) ACCOUNT=$GONE ;; esac
+}
+id_token() { echo "id_token $1" >> "$DIR/calls"; printf new-token; }
+owner_account() { echo "owner_account $1" >> "$DIR/calls"; [[ -z $MADE ]] || keep_code "$MADE" "$2"; }
+check_account && printf '%s' "${token:-}"`
+	// world is a folder with the dev file's place, the fake binary and the code kept, if any.
+	world := func(t *testing.T, file, binary string) (dir, code string) {
+		t.Helper()
+		dir = t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "api"), []byte(binary), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		code = filepath.Join(dir, "dev-author.code")
+		if file != "" {
+			if err := os.WriteFile(code, []byte(file+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return dir, code
+	}
+	recording := "#!/bin/sh\necho \"$@\" >> \"$DIR/calls\"\n"
+	env := func(dir, account, gone, made string) []string {
+		return []string{"DIR=" + dir, "API_DEV_CONFIG=" + filepath.Join(dir, "dev.env"), "API_DEV_UID=",
+			"ACCOUNT=" + account, "GONE=" + gone, "MADE=" + made}
+	}
+	for _, tc := range []struct {
+		name, account, file, made string
+		calls                     []string
+		keeps, token              string
+	}{
+		{"a code kept", "200", kept, "", []string{"GetAccount", "tariff -tariff dev_check " + kept, "owner_account dev_check"}, kept, ""},
+		{"no code kept", "200", "", made,
+			[]string{"GetAccount", "DeleteAccount", "id_token dev-author", "GetAccount", "owner_account dev_check"}, made, "new-token"},
+		{"no account", "403", "", made, []string{"GetAccount", "owner_account dev_check"}, made, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, code := world(t, tc.file, recording)
+			stdout, stderr, err := bash(t, env(dir, tc.account, "403", tc.made), fakes)
+			if err != nil {
+				t.Fatalf("check_account: %v, %s", err, stderr)
+			}
+			if last := stdout[strings.LastIndex(stdout, "\n")+1:]; last != tc.token {
+				t.Errorf("the token after = %q, want %q", last, tc.token)
+			}
+			calls, err := os.ReadFile(filepath.Join(dir, "calls"))
+			if err != nil || strings.TrimSpace(string(calls)) != strings.Join(tc.calls, "\n") {
+				t.Errorf("the steps = %q (%v), want %q", calls, err, tc.calls)
+			}
+			got, err := os.ReadFile(code)
+			if err != nil || strings.TrimSpace(string(got)) != tc.keeps {
+				t.Errorf("the file keeps %q (%v), want %q", got, err, tc.keeps)
+			}
+			if info, err := os.Stat(code); err != nil {
+				t.Errorf("the file: %v", err)
+			} else if mode := info.Mode().Perm(); mode != 0o600 {
+				t.Errorf("the file's mode = %o, want 600", mode)
+			}
+		})
+	}
+
+	dir, code := world(t, kept, "#!/bin/sh\necho no account redeemed this code >&2\nexit 1\n")
+	_, stderr, err := bash(t, env(dir, "200", "403", ""), fakes)
+	if err == nil || !strings.Contains(stderr, "no account redeemed") || !strings.Contains(stderr, code) {
+		t.Errorf("check_account with the tariff refused = %q, %v; want a failure naming the refusal and the file", stderr, err)
+	}
+	dir, _ = world(t, "", recording)
+	_, stderr, err = bash(t, env(dir, "200", "401", made), fakes)
+	if err == nil || !strings.Contains(stderr, "not finished") || !strings.Contains(stderr, "just dev sweep") {
+		t.Errorf("check_account with the deletion not finished = %q, %v; want a failure naming the sweep", stderr, err)
 	}
 }

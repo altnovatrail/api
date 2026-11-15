@@ -47,7 +47,7 @@ func (s *Service) GetQuota(ctx context.Context, req *v1.GetQuotaRequest) (*v1.Ge
 	var settled store.Settled
 	err := pgx.BeginTxFunc(ctx, s.db, snapshot, func(tx pgx.Tx) error {
 		var err error
-		settled, err = store.QuotaSettled(ctx, tx, caller.AccountID, profileID, s.now())
+		settled, err = store.QuotaSettled(ctx, tx, caller.AccountID, profileID, s.now(), s.offDeployment)
 		return err
 	})
 	if err != nil {

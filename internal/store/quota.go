@@ -71,11 +71,15 @@ type Charge struct {
 	AccountID, ProfileID string
 	Day                  quota.Day
 	Amount               quota.Micro
+	// OffDeployment says api runs off a deployment, where alone a tariff of the
+	// dev projects has its caps (quota.CapsOf): unset, it has none.
+	OffDeployment bool
 }
 
 // capsOf is the caps of the account's tariff, read in q, and false when the
-// account has no tariff with caps: platform AI is closed to it (R11).
-func capsOf(ctx context.Context, q Querier, accountID string) (quota.Caps, bool, error) {
+// account has no tariff with caps: platform AI is closed to it (R11). A tariff
+// of the dev projects alone has caps only offDeployment.
+func capsOf(ctx context.Context, q Querier, accountID string, offDeployment bool) (quota.Caps, bool, error) {
 	var tariff *string
 	err := q.QueryRow(ctx, `SELECT tariff FROM accounts WHERE id = $1`, accountID).Scan(&tariff)
 	switch {
@@ -84,7 +88,7 @@ func capsOf(ctx context.Context, q Querier, accountID string) (quota.Caps, bool,
 	case err != nil:
 		return quota.Caps{}, false, fmt.Errorf("store: read the tariff: %w", err)
 	}
-	caps, ok := quota.CapsOf(deref(tariff))
+	caps, ok := quota.CapsOf(deref(tariff), offDeployment)
 	return caps, ok, nil
 }
 
@@ -118,7 +122,7 @@ func counters(ctx context.Context, q Querier, profileID, accountID string, start
 // room is whether the charge c fits under the caps of the account's tariff
 // beside the counters of its day, read in q, and FOR UPDATE when lock.
 func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, error) {
-	caps, ok, err := capsOf(ctx, q, c.AccountID)
+	caps, ok, err := capsOf(ctx, q, c.AccountID, c.OffDeployment)
 	switch {
 	case err != nil:
 		return "", err
@@ -149,8 +153,9 @@ type Settled struct {
 // quota on the family day the account keeps at now, read in q and writing
 // nothing, as Today: the request carries no offset (R97 spec). A profile the
 // account does not have is ErrNoProfile. q is best a snapshot, so that the day,
-// the tariff and the counters are of one moment.
-func QuotaSettled(ctx context.Context, q Querier, accountID, profileID string, now time.Time) (Settled, error) {
+// the tariff and the counters are of one moment. A tariff of the dev projects
+// alone has caps only offDeployment, as for a reserve.
+func QuotaSettled(ctx context.Context, q Querier, accountID, profileID string, now time.Time, offDeployment bool) (Settled, error) {
 	day, err := Today(ctx, q, accountID, now)
 	if err != nil {
 		return Settled{}, err
@@ -161,7 +166,7 @@ func QuotaSettled(ctx context.Context, q Querier, accountID, profileID string, n
 	case !there:
 		return Settled{}, ErrNoProfile
 	}
-	caps, capped, err := capsOf(ctx, q, accountID)
+	caps, capped, err := capsOf(ctx, q, accountID, offDeployment)
 	switch {
 	case err != nil:
 		return Settled{}, err

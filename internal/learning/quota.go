@@ -99,7 +99,7 @@ func (s *Service) reserveOf(ctx context.Context, tx pgx.Tx, profileID string, am
 		return reserve{refused: limit}, err
 	}
 	caller, _ := rpc.CallerFrom(ctx)
-	c := store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day, Amount: amount}
+	c := store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day, Amount: amount, OffDeployment: s.offDeployment}
 	spent, err := store.ReserveQuota(ctx, tx, c)
 	switch {
 	case err != nil:
@@ -181,7 +181,7 @@ func (s *Service) release(ctx context.Context, r reserve) {
 // or a tariff with no caps. The day is the one the account keeps at now,
 // written by the requests on platform AI: a beginning sends no offset (R97
 // spec). It asks what reserveFor asks, writing nothing.
-func closedTo(ctx context.Context, q store.Querier, profileID string, typical quota.Micro, now time.Time) (*v1.Outcome, error) {
+func (s *Service) closedTo(ctx context.Context, q store.Querier, profileID string, typical quota.Micro, now time.Time) (*v1.Outcome, error) {
 	if limit, err := platformLimit(ctx, q); err != nil || limit != nil {
 		return limit, err
 	}
@@ -190,7 +190,8 @@ func closedTo(ctx context.Context, q store.Querier, profileID string, typical qu
 	if err != nil {
 		return nil, err
 	}
-	spent, err := store.QuotaFits(ctx, q, store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day, Amount: typical})
+	spent, err := store.QuotaFits(ctx, q, store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day, Amount: typical,
+		OffDeployment: s.offDeployment})
 	if err != nil || spent == quota.Fits {
 		return nil, err
 	}

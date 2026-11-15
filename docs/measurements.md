@@ -176,3 +176,16 @@ For R77. `serve` on the models, as `just dev-ai serve` runs it — the dev file'
 - **The quota:** the export after the run — 33,303 micro-dollars spent of the profile and of the account, nothing in reserve, from 0 before; the sum of `cost_micro_usd` of the four lines `ai_usage`, to the micro-dollar. The prices are those of sources 7.1: Opus 5.5 $4 and $20 per MTok, Haiku 5.5 $0.10 and $0.50.
 - **The log of `serve`** — 52 lines of JSON; the check `clean` of `scripts/dev.sh` passed: no UID, email, connection string, key or token. Neither words, the tasks' statements nor the crop were in it.
 - **In all:** Anthropic, 4 calls — the reading by the pair and two words —, $0.0333.
+
+## 8. What a run of `dev-check` spends of the quota, T93, 2026-11-15
+
+For R55 and its 2026-11-15 amendment. `just dev-check` on the dev projects of Firebase and Neon (R39), twice one after the other in one family day, from the devcontainer, 2026-11-15 at about 17:00 UTC, on `modules` v0.2.7. The first run found the account `dev-author` with no code kept, deleted it and made it anew on the tariff `dev_check`; the second gave it the tariff by `api tariff` and the kept code. At its end each run prints what the account's counters of the export hold, over their family days.
+
+| Run | The account's counters: spent | In reserve |
+|---|---|---|
+| the first, on the account made anew | 174,210 | 0 |
+| the second | 348,420 | 0 |
+
+- **One run** spends 174,210 micro-dollars of the account's family day — the same in both runs, to the micro-dollar, and in two more after the review of T93, at 522,630 and 696,840. Of them, by the values of `internal/quota` and the stub's rule, the child's workbook page of 8 boxes is 112,000 (14,000 a box, R81) and the owner's essay 30,000 (R82); the remaining 32,210 are the readings of handwriting and the words after a correct answer, at the prices `tutor` expects. The owner's profile spends 62,210 of them, and the child's profile, deleted at the end of the run, the page.
+- **What it means for the tariffs:** on `closed_slice` the account's $1.50 holds 8 runs a day and the owner's $0.50 the same; on `dev_check` the account's $15.00 holds 86 and the owner's $5.00 80.
+- **Money:** none. The first server's key of platform AI is one Anthropic refuses, and the second server is on the stub of `tutor`: the micro-dollars are the reserves kept as spent and the stub's prices, not a provider's charges (R12, R66). No call of AI reached a model, $0.

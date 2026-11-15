@@ -207,6 +207,18 @@ func (e environment) or(name, fallback string) string {
 	return fallback
 }
 
+// deployedBy is the name of the variable that says the process is deployed —
+// K_SERVICE, as serve runs on Cloud Run, or CLOUD_RUN_JOB, as a job does —, or
+// empty off a deployment.
+func (e environment) deployedBy() string {
+	for _, name := range []string{VarService, VarJob} {
+		if _, set := e[name]; set {
+			return name
+		}
+	}
+	return ""
+}
+
 // level reads a level by its name in slog's words.
 func level(name string) (slog.Level, error) {
 	switch name {

@@ -38,7 +38,10 @@ type Service struct {
 	ownKeys OwnKeys
 	// unlimitedChecks lifts the limit of the checks of a key (R78).
 	unlimitedChecks bool
-	now             func() time.Time
+	// offDeployment says api runs off a deployment, where alone a tariff of the
+	// dev projects has its caps, and so its share (quota.CapsOf).
+	offDeployment bool
+	now           func() time.Time
 }
 
 // Rights is what writes the tuple of a profile it makes, and deletes the tuples
@@ -67,6 +70,11 @@ func WithForms(store forms.Store) Option { return func(s *Service) { s.forms = s
 // WithExport is the exporter of the profiles and the account; with none, the
 // export is refused unimplemented.
 func WithExport(x *export.Exporter) Option { return func(s *Service) { s.export = x } }
+
+// OffDeployment says api runs off a deployment, as serve does on the dev
+// projects: a tariff of the dev projects alone has its caps there alone
+// (quota.CapsOf).
+func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
 
 // New is the AccountService on db, with the tuples of the profiles in rights
 // and the users at signin.

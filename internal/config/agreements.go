@@ -53,9 +53,7 @@ type Agreements struct {
 // named.
 func AgreementsFrom(environ []string) (Agreements, error) {
 	env := read(environ)
-	_, service := env[VarService]
-	_, job := env[VarJob]
-	deployed := service || job
+	deployed := env.deployedBy() != ""
 	cfg := Agreements{LegalDir: env[VarLegalDir], FormsBucket: env[VarConsentFormsBucket],
 		FormsPrefix: env[VarConsentFormsPrefix], FormsDir: env[VarConsentFormsDir]}
 	var problems []error
