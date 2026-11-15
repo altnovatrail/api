@@ -7,8 +7,8 @@
 # server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
 # else", the own key's providers and its check, a reading of handwriting with its reserve and
 # settlement of the quota, a stored work by the storage switched on and off, a parent's consent by
-# its form, on the stub of tutor an own key refused by its ending, the words after a correct answer
-# and a child's workbook page, then the job after a rollout — and
+# its form, on the stub of tutor an own key refused by its ending, the words after a correct answer,
+# a child's workbook page and an essay with its feedback and "Done", then the job after a rollout — and
 # checks the answers and the logs. The server's key of
 # platform AI is one Anthropic refuses, so that no call of the check reaches a model. `just dev-app`
 # keeps the server up on the stub for the local build of app, which signs in by a custom token this
@@ -22,7 +22,7 @@
 # through the environment, files and pipes.
 #
 # scripts/dev_test.go tests the loader, the custom token and how it is laid for app, the task AI
-# reads, the workbook page and its boxes, and the counters in CI.
+# reads, the workbook page and its boxes, an essay, and the counters in CI.
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -67,6 +67,8 @@ child_facts='anthropic:
 '
 # The pseudonym of the synthetic child of the check, by which a profile an earlier run left is found.
 child_name="Dev child"
+# The module whose essay the check sends on the stub of tutor (R82): its essays are for every age.
+essays=novatrail/english-essays
 
 die() {
     echo "dev: $*" >&2
@@ -252,6 +254,12 @@ on_workbook() {
     jq -e '.task.json | @base64d | fromjson | .canvas.kind == "workbook"' "$1" > /dev/null
 }
 
+# on_essay says whether the attempt $1, an AttemptStart as JSON, is on an essay: a task with an
+# answer slot bound to the whole sheet (R82).
+on_essay() {
+    jq -e '.task.json | @base64d | fromjson | any(.. | objects; .binding? == "sheet")' "$1" > /dev/null
+}
+
 # page prints the boxes of the workbook page of the attempt $1, an AttemptStart as JSON, as
 # WorkbookWork's boxes, each with the crop $2: every box of each item's line, by the places of the
 # item and of the box among its boxes, from 1 (R81).
@@ -264,13 +272,13 @@ page() {
 # handwriting begins an attempt of the profile $1 on a task that AI reads and leaves its
 # AttemptStart in $work/attempt.json: the engine's task, or the next segment of the lesson it gives,
 # asking it again while what begins is checked by tap, is not admitted or is not what the test $2
-# takes — handwritten by default —, and passing a lesson an earlier run left open with its task
-# segments all ended.
+# takes — handwritten by default —, on the skill of the skill map $3 when one is named, and passing
+# a lesson an earlier run left open with its task segments all ended.
 handwriting() {
-    local profile=$1 takes=${2:-handwritten} try kind choice run segment
+    local profile=$1 takes=${2:-handwritten} skill=${3:-} try kind choice run segment
     for try in $(seq 8); do
-        call LearningService/ChooseNext < <(PROFILE=$profile KEY=$(cat /proc/sys/kernel/random/uuid) \
-            jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY}')
+        call LearningService/ChooseNext < <(PROFILE=$profile SKILL=$skill KEY=$(cat /proc/sys/kernel/random/uuid) \
+            jq -cn '{profile_id: env.PROFILE, idempotency_key: env.KEY, skill: env.SKILL}')
         expect ChooseNext
         kind=$(jq -r .choice.kind "$work/answer.json")
         choice=$(jq -r .choice.choice_id "$work/answer.json")
@@ -305,7 +313,7 @@ handwriting() {
         jq .attempt "$work/answer.json" > "$work/attempt.json"
         "$takes" "$work/attempt.json" && return 0
     done
-    die "the engine gave no task that AI reads and $takes takes in 8 choices; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
+    die "the engine gave no task that AI reads and $takes takes in 8 choices — a family day of the profile with no room for a typical task narrows the pool to the tasks a tap checks (R59), so run the check again on the next one if that is why; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
 }
 
 stop_serve() {
@@ -444,6 +452,12 @@ check() {
     call ProgressService/GetProgress < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
     expect GetProgress
     echo "$who: the progress of the owner's profile is there"
+
+    # The module of essays is connected only on the server on the stub, by its step below, and taken
+    # off after it: one an earlier run left connected, stopped before that, is taken off here, so
+    # that the engine gives the steps before it the tasks they look for.
+    call ModuleService/DisconnectModule < <(PROFILE=$owner MODULE=$essays jq -cn '{profile_id: env.PROFILE, module_id: env.MODULE}')
+    expect DisconnectModule
 
     # The module of the first app on the pinned release (R53): in the owner's catalog, connected —
     # a repeat answers by the profile's state —, a file of its package's part for the device, and
@@ -694,12 +708,47 @@ check() {
     CHILD=$child jq -e 'all(.account.profiles[]?; .profile_id != env.CHILD)' "$work/answer.json" > /dev/null ||
         die "GetAccount still holds the child's profile after DeleteProfile"
     echo "$who: a child's workbook page of $(jq length <<< "$boxes") boxes is read and solved on the stub, with its evidence, and the child is deleted"
+
+    # An essay on the stub (R66; R82, R83), which no entry of tutor admits on the models (В72): the
+    # owner connects novatrail/english-essays, whose essays are for every age, and the engine's choice
+    # on its skill of paragraphs, which only essays teach, gives one. A wide crop of the sheet reads
+    # the stub's text, assessed every criterion met but the last, with the stub's feedback, which
+    # passes the leak check and the rule of feedback; "Done" closes the attempt with the criteria of
+    # its rubric. The module is taken off after, so that the next run's steps get the tasks they look
+    # for. Neither the text nor the feedback reaches the log.
+    call ModuleService/ConnectModule < <(PROFILE=$owner MODULE=$essays jq -cn '{profile_id: env.PROFILE, module_id: env.MODULE}')
+    expect ConnectModule
+    handwriting "$owner" on_essay "$essays/skill/paragraphs"
+    attempt=$(jq -r .attempt_id "$work/attempt.json")
+    call AttemptService/SubmitEssay < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
+        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, crop: env.PIXEL, clock_offset_minutes: 0}')
+    expect SubmitEssay
+    # An essay keeps 30,000 micro-dollars of the account's family day as spent, the reading's and the
+    # assessment's (R82): the account's quota is named apart, as for the page above.
+    ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
+        die "the quota of platform AI of the account's family day has no room left for an essay: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
+    jq -e '.end == "SUBMISSION_END_FEEDBACK" and (.text // "") != "" and (.feedback // "") != ""' "$work/answer.json" > /dev/null ||
+        die "SubmitEssay of a wide crop on the stub gave $(jq -c '{end, reason, outcome}' "$work/answer.json"), want feedback with the text read and the words"
+    local essay_text essay_words
+    essay_text=$(jq -r .text "$work/answer.json")
+    essay_words=$(jq -r .feedback "$work/answer.json")
+    call AttemptService/Done < <(PROFILE=$owner ATTEMPT=$attempt jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT}')
+    expect Done
+    jq -e '(.solved.criteria // []) | length > 0' "$work/answer.json" > /dev/null ||
+        die "Done of the essay gave $(jq -c '{solved, next}' "$work/answer.json"), want the task solved with the criteria of its rubric"
+    local criteria
+    criteria=$(jq '.solved.criteria | length' "$work/answer.json")
+    call ModuleService/DisconnectModule < <(PROFILE=$owner MODULE=$essays jq -cn '{profile_id: env.PROFILE, module_id: env.MODULE}')
+    expect DisconnectModule
+    echo "$who: an essay is read, assessed with its feedback and done on the stub, with its $criteria criteria"
     stop_serve
     clean "$work/stub.log"
     ! grep -qF -- "$praise" "$work/stub.log" || die "stub.log holds the words after a correct answer"
+    ! grep -qF -- "$essay_text" "$work/stub.log" || die "stub.log holds the text of the essay"
+    ! grep -qF -- "$essay_words" "$work/stub.log" || die "stub.log holds the feedback on the essay"
     ! grep -qF -- "$request" "$work/stub.log" || die "stub.log holds the code of the consent's request"
     ! grep -qF -- "$signed" "$work/stub.log" || die "stub.log holds the token of the first sign-in"
-    echo "$who: the stub's log holds neither the praise nor the code of the request"
+    echo "$who: the stub's log holds neither the praise, the essay nor the code of the request"
 
     # The job after a rollout, on the database itself (R51): it asks what is open on the versions
     # the image no longer gives, of the pinned release, and closes it.

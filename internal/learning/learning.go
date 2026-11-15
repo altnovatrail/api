@@ -92,22 +92,23 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
-// WithTutor is what reads the sheets and the workbook pages and words the
-// tutor's words, those after a correct answer too, and says which kinds of
-// reading are admitted, in place of the gate's tutor: the dev mode's stub (R66),
-// which calls no provider and admits a workbook page itself (the 2026-11-15
-// amendment to R66). It reads and assesses no essay: an essay is "not
-// admitted" on it, with no call, until it reads essays of its own (R82).
+// WithTutor is what reads the sheets, the workbook pages and the essays,
+// assesses the essays by their rubrics and words the tutor's words, those after
+// a correct answer too, and says which kinds of reading are admitted, in place
+// of the gate's tutor: the dev mode's stub (R66), which calls no provider and
+// admits a workbook page, an essay and its assessment itself (the 2026-11-15
+// amendments to R66).
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
 	correctTeller
 	admitter
 	workbookReader
+	essayReader
+	rubricAssessor
 }) Option {
 	return func(s *Service) {
-		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.stubbed = t, t, t, t, t, true
-		s.essay, s.assessor = unadmitted{}, unadmitted{}
+		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.stubbed = t, t, t, t, t, t, t, true
 	}
 }
 

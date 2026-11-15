@@ -43,19 +43,6 @@ func (g gateTutor) AssessEssay(ctx context.Context, r tutor.RubricAssessment, _ 
 	return g.Gate.AssessEssay(ctx, r)
 }
 
-// unadmitted reads and assesses no essay: "not admitted", with no call, for the
-// dev mode's stub until it reads essays of its own, so that it sends nothing to
-// a provider (R66).
-type unadmitted struct{}
-
-func (unadmitted) ReadEssay(context.Context, tutor.EssayReading, formatv0.Task, string) tutor.EssayRead {
-	return tutor.EssayRead{Outcome: tutor.Outcome{Kind: tutor.NotAdmitted}}
-}
-
-func (unadmitted) AssessEssay(context.Context, tutor.RubricAssessment, string) tutor.RubricAssessed {
-	return tutor.RubricAssessed{Outcome: tutor.Outcome{Kind: tutor.NotAdmitted}}
-}
-
 // essaying is a submission of an essay between the parts of its request: the
 // attempt and the instance and package it goes on, the crop of the sheet, the
 // route and the family day, the reserves of the reading and the assessment, and

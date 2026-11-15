@@ -551,19 +551,3 @@ func TestTheProgressGivesTheMarksOfAClosedEssay(t *testing.T) {
 		t.Errorf("the closed essay's progress = %d submissions, marks %v; want one with %v", n, marks, want)
 	}
 }
-
-// On the dev mode's stub an essay is "not admitted" and read by nothing: the
-// stub reads no essay yet, and sends nothing to a provider (R66).
-func TestTheStubReadsNoEssay(t *testing.T) {
-	t.Parallel()
-
-	w := worldOf(t, gate(t, adultFacts, config.RungAuthor), []learning.Option{
-		learning.WithTutor(learning.GateTutor(gate(t, adultFacts, config.RungAuthor))),
-		learning.WithAdmits(func(tutor.Call) bool { return true })})
-	l := w.learner(t)
-	attempt := w.begin(t, l, l.adult, "story").GetAttemptId()
-	res, err := w.submitEssay(t, l, attempt, nil)
-	if err != nil || res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_UNCHECKED || res.GetOutcome().GetCause() != v1.Cause_CAUSE_NOT_ADMITTED {
-		t.Errorf("an essay on the stub = %v, %v; want unchecked, not admitted", res, err)
-	}
-}

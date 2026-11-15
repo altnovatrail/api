@@ -113,6 +113,8 @@ func GateTutor(g *admission.Gate) interface {
 	correctTeller
 	admitter
 	workbookReader
+	essayReader
+	rubricAssessor
 } {
 	return gateTutor{g}
 }

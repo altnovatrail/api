@@ -324,8 +324,8 @@ func TestTheStubFailsTheWordsTutorFails(t *testing.T) {
 }
 
 // On an own key whose value ends in an ending of the stub's, the reading of a
-// sheet and of a workbook page, the words of a rung and the words after a
-// correct answer are refused as a provider refuses them: the key refused, or a
+// sheet, of a workbook page and of an essay, the assessment of an essay, the
+// words of a rung and the words after a correct answer are refused as a provider refuses them: the key refused, or a
 // limit with tutor's reason of the
 // ending, or none, with no usage and an error that holds no key. A key of no
 // such ending, an ending of the stub's check of a key, and platform AI, with no
@@ -341,6 +341,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	page := tutor.WorkbookReading{Route: own, Boxes: []tutor.BoxCrop{boxOf(1, 1, crop(t, 40, 10))}}
 	rung := tutor.WordsRequest{Route: own, Language: "en"}
 	praised := tutor.CorrectRequest{Route: own, Task: &open.Task{}, Language: "en", Style: "an adult"}
+	sheetOfEssay := tutor.EssayReading{Route: own, Task: &open.Task{}, Crop: crop(t, 40, 10)}
+	assessed := assessment(own, "en", 2)
 	for ending, want := range map[string]struct {
 		kind  tutor.Kind
 		limit tutor.LimitReason
@@ -358,6 +360,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 			"ReadWorkbook":     s.ReadWorkbook(t.Context(), page, book(), key).Outcome,
 			"TellWords":        s.TellWords(t.Context(), rung, key).Outcome,
 			"TellCorrectWords": s.TellCorrectWords(t.Context(), praised, key).Outcome,
+			"ReadEssay":        s.ReadEssay(t.Context(), sheetOfEssay, essay(), key).Outcome,
+			"AssessEssay":      s.AssessEssay(t.Context(), assessed, key).Outcome,
 		} {
 			if o.Kind != want.kind || o.Limit != want.limit || len(o.Usage) != 0 || o.Err == nil || strings.Contains(o.Err.Error(), key) {
 				t.Errorf("%s on %q = %+v, want %v, limit %q, no usage, and an error with no key", call, ending, o, want.kind, want.limit)
@@ -382,6 +386,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		"ReadWorkbook":     s.ReadWorkbook(ctx, page, book(), "sk-ant-synthetic"+tutorstub.KeyLimitOwner).Outcome,
 		"TellWords":        s.TellWords(ctx, rung, "sk-ant-synthetic"+tutorstub.KeyRefused).Outcome,
 		"TellCorrectWords": s.TellCorrectWords(ctx, praised, "sk-ant-synthetic"+tutorstub.KeyLimit).Outcome,
+		"ReadEssay":        s.ReadEssay(ctx, sheetOfEssay, essay(), "sk-ant-synthetic"+tutorstub.KeyLimitBalance).Outcome,
+		"AssessEssay":      s.AssessEssay(ctx, assessed, "sk-ant-synthetic"+tutorstub.KeyLimitPayment).Outcome,
 	} {
 		if o.Kind != tutor.Failed || !errors.Is(o.Err, context.Canceled) {
 			t.Errorf("%s cut short on an ending of the stub's = %+v, want a failure, as a call cut short", call, o)
@@ -400,6 +406,12 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		if c := s.TellCorrectWords(t.Context(), praised, key); c.Outcome.Kind != tutor.Answered || c.Words == "" {
 			t.Errorf("TellCorrectWords on %q = %+v, want words", key, c)
 		}
+		if r := s.ReadEssay(t.Context(), sheetOfEssay, essay(), key); r.Outcome.Kind != tutor.Answered || r.Observation == nil {
+			t.Errorf("ReadEssay on %q = %v, want the text read", key, r.Outcome.Kind)
+		}
+		if a := s.AssessEssay(t.Context(), assessed, key); a.Outcome.Kind != tutor.Answered || a.Feedback == "" {
+			t.Errorf("AssessEssay on %q = %+v, want marks and feedback", key, a)
+		}
 	}
 }
 
@@ -415,11 +427,11 @@ func (g asking) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProv
 	return g.gate.Reads(call, category, ownKeyProvider)
 }
 
-// The stub admits the reading of a workbook page itself wherever the gate
-// admits a sheet's, for the same category and route, since no entry of tutor
-// v0.1.35 admits it (В72); an essay and its rubric nowhere, which it does not
-// read yet, whatever the gate admits; any other kind of call is the gate's.
-func TestTheStubAdmitsAWorkbookWhereTheGateAdmitsASheet(t *testing.T) {
+// The stub admits the reading of a workbook page, of an essay and the essay's
+// assessment itself wherever the gate admits a sheet's, for the same category
+// and route, since no entry of tutor v0.1.35 admits any of them (В72); any
+// other kind of call is the gate's.
+func TestTheStubAdmitsAWorkbookAndAnEssayWhereTheGateAdmitsASheet(t *testing.T) {
 	t.Parallel()
 
 	var asked []string
@@ -431,16 +443,18 @@ func TestTheStubAdmitsAWorkbookWhereTheGateAdmitsASheet(t *testing.T) {
 	if want := []string{"sheet under_13 anthropic", "sheet adult ", "words adult "}; !slices.Equal(asked, want) {
 		t.Errorf("the gate was asked %q, want %q: a sheet for a workbook page, on its category and route", asked, want)
 	}
-	essays := tutorstub.New(asking{gate{reads: map[tutor.Call]bool{tutor.CallEssay: true, tutor.CallRubric: true}}, &asked})
-	if essays.Reads(tutor.CallEssay, formatv0.AgeCategoryAdult, "") || essays.Reads(tutor.CallRubric, formatv0.AgeCategoryAdult, "") {
-		t.Error("the stub admits an essay or its rubric, which it does not read")
+	asked = nil
+	if !sheets.Reads(tutor.CallEssay, formatv0.AgeCategoryFrom13ToConsent, "") || !sheets.Reads(tutor.CallRubric, formatv0.AgeCategoryAdult, "anthropic") {
+		t.Error("the stub does not admit an essay and its assessment where the gate admits a sheet")
 	}
-	if len(asked) != 3 {
-		t.Errorf("the gate was asked %q of an essay", asked[3:])
+	if want := []string{"sheet from_13_to_consent ", "sheet adult anthropic"}; !slices.Equal(asked, want) {
+		t.Errorf("the gate was asked %q, want %q: a sheet for an essay and its assessment, on their category and route", asked, want)
 	}
-	books := tutorstub.New(gate{reads: map[tutor.Call]bool{tutor.CallWorkbook: true}})
-	if books.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {
-		t.Error("the stub admits a workbook page where the gate admits no sheet")
+	others := tutorstub.New(gate{reads: map[tutor.Call]bool{tutor.CallWorkbook: true, tutor.CallEssay: true, tutor.CallRubric: true}})
+	for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
+		if others.Reads(call, formatv0.AgeCategoryAdult, "") {
+			t.Errorf("the stub admits %s where the gate admits no sheet", call)
+		}
 	}
 }
 
@@ -590,5 +604,215 @@ func TestTheStubFailsAPageTutorFails(t *testing.T) {
 		if r.Outcome.Kind != tutor.Failed || !errors.Is(r.Outcome.Err, context.Canceled) || len(r.Observations) != 0 {
 			t.Errorf("ReadWorkbook cut short on %q = %+v, want a failure", own, r.Outcome)
 		}
+	}
+}
+
+// essay is a task with a rubric as tutor reads an essay: a handwriting sheet
+// whose second item holds the one answer slot, bound to the sheet, checked by
+// three criteria, after an item with no slot.
+func essay() formatv0.Task {
+	return formatv0.Task{Canvas: formatv0.Canvas{Kind: formatv0.CanvasKindHandwritingSheet},
+		Statement: []formatv0.StatementPart{{Text: ptr(formatv0.Text("Write about a walk by the sea."))}},
+		Items: []formatv0.Item{{}, {AnswerSlots: []formatv0.AnswerSlot{{Binding: formatv0.AnswerSlotBindingSheet,
+			Check: formatv0.Check{Kind: formatv0.CheckKindRubric}}}}}}
+}
+
+// assessment is an assessment of a text on route, in language, by n criteria.
+func assessment(route tutor.Route, language string, n int) tutor.RubricAssessment {
+	a := tutor.RubricAssessment{Route: route, Text: "We walked by the sea.", Topic: "Write about a walk by the sea.",
+		Style: "an adult", Language: language}
+	for i := range n {
+		a.Criteria = append(a.Criteria, fmt.Sprintf("Criterion %c of the rubric.", 'A'+i))
+	}
+	return a
+}
+
+// An essay is read by the shape of its sheet's crop (the author's decision of
+// 2026-11-15): wider than tall the stub's text, taller than wide a blank sheet,
+// square illegible, each an observation of the one slot bound to the sheet,
+// with no crop box, which module-kit takes as an essay read or unreadable. One
+// reader reads it, spending the expected price of the essay, and with no price,
+// which tutor v0.1.35 gives none of, nothing priced.
+func TestTheStubReadsAnEssayByTheShapeOfTheCrop(t *testing.T) {
+	t.Parallel()
+
+	tk := essay()
+	pricedEssay := gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallEssay: {ExpectedUSD: 0.012345, Expected: true}}}
+	for name, tc := range map[string]struct {
+		width, height int
+		ended         observation.Submission
+		unreadable    observationv1.Unreadable
+	}{
+		"wide":   {1200, 300, observation.SubmissionAssessment, 0},
+		"tall":   {300, 1200, observation.SubmissionUnreadable, observationv1.Unreadable_UNREADABLE_BLANK},
+		"square": {10, 10, observation.SubmissionUnreadable, observationv1.Unreadable_UNREADABLE_ILLEGIBLE},
+	} {
+		r := tutorstub.New(gate{}).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: crop(t, tc.width, tc.height)}, tk, "")
+		if r.Outcome.Kind != tutor.Answered {
+			t.Fatalf("%s: ReadEssay = %+v, want the essay read", name, r.Outcome)
+		}
+		ended, err := observation.Essay(tk.Items, r.Observation)
+		slots := r.Observation.GetAnswerSlots()
+		if err != nil || ended != tc.ended || len(slots) != 1 || slots[0].GetUnreadable() != tc.unreadable || slots[0].GetCropBox() != nil {
+			t.Fatalf("%s: the essay reads %v, %v as %v; want %v, unreadable %v, with no crop box", name, slots, err, ended, tc.ended, tc.unreadable)
+		}
+		if p := slots[0].GetAnswerSlot(); p.GetItem() != 2 || p.GetSlot() != 1 {
+			t.Errorf("%s: the slot read is %d.%d, want 2.1, the one bound to the sheet", name, p.GetItem(), p.GetSlot())
+		}
+		if u := r.Outcome.Usage; len(u) != 1 || u[0].Model != tutorstub.Model || u[0].Priced || u[0].USD != 0 {
+			t.Errorf("%s: the reading spent %+v, want one row of the model stub, unpriced", name, u)
+		}
+	}
+	wide := tutorstub.New(gate{}).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: crop(t, 40, 10)}, tk, "")
+	if len(wide.Observation.GetAnswerSlots()) != 1 {
+		t.Fatalf("a wide essay = %+v, want the one slot read", wide)
+	}
+	if text := wide.Observation.GetAnswerSlots()[0].GetValue(); strings.TrimSpace(text) == "" || strings.ContainsAny(text, "0123456789") {
+		t.Errorf("the stub's text is %q, want words with no number", text)
+	}
+	if u := tutorstub.New(pricedEssay).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: crop(t, 40, 10)}, tk, "").Outcome.Usage; len(u) != 1 || !u[0].Priced || u[0].USD != 0.012345 {
+		t.Errorf("a priced essay spent %+v, want its expected price", u)
+	}
+}
+
+// What tutor's reading of an essay fails before its call the stub fails too,
+// with no observation and no usage, on any key: a task that is no handwriting
+// sheet, has no slot bound to the sheet, two, or one bound otherwise, no open
+// view of the task, a crop
+// that is no PNG or is larger than 4096 px on a side; and so does a request cut
+// short.
+func TestTheStubFailsAnEssayTutorFails(t *testing.T) {
+	t.Parallel()
+
+	wide := crop(t, 40, 10)
+	page := essay()
+	page.Canvas.Kind = formatv0.CanvasKindWorkbook
+	twice := essay()
+	twice.Items[0] = twice.Items[1]
+	anywhere := essay()
+	anywhere.Items[0].AnswerSlots = []formatv0.AnswerSlot{{Binding: formatv0.AnswerSlotBindingAnywhere}}
+	for name, tc := range map[string]struct {
+		task formatv0.Task
+		crop []byte
+	}{
+		"a workbook page":        {page, wide},
+		"no slot":                {formatv0.Task{Canvas: formatv0.Canvas{Kind: formatv0.CanvasKindHandwritingSheet}, Items: []formatv0.Item{{}}}, wide},
+		"two slots of the sheet": {twice, wide},
+		"a slot bound anywhere":  {anywhere, wide},
+		"no PNG":                 {essay(), []byte("not a picture")},
+		"too large a sheet":      {essay(), crop(t, 4097, 10)},
+	} {
+		for _, own := range []string{"", "sk-ant-synthetic" + tutorstub.KeyRefused} {
+			r := tutorstub.New(priced).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: tc.crop}, tc.task, own)
+			if r.Outcome.Kind != tutor.Failed || r.Observation != nil || len(r.Outcome.Usage) != 0 {
+				t.Errorf("%s on %q: ReadEssay = %+v, want a failure", name, own, r)
+			}
+		}
+	}
+	if r := tutorstub.New(priced).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Crop: wide}, essay(), ""); r.Outcome.Kind != tutor.Failed {
+		t.Errorf("an essay with no open view = %v, want a failure", r.Outcome.Kind)
+	}
+	if r := tutorstub.New(priced).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: crop(t, 4096, 10)}, essay(), ""); r.Outcome.Kind != tutor.Answered {
+		t.Errorf("a sheet of 4096 px = %v, want read", r.Outcome.Kind)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if r := tutorstub.New(priced).ReadEssay(ctx, tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: wide}, essay(), ""); r.Outcome.Kind != tutor.Failed ||
+		!errors.Is(r.Outcome.Err, context.Canceled) || r.Observation != nil {
+		t.Errorf("ReadEssay cut short = %+v, want a failure", r)
+	}
+}
+
+// The stub assesses every criterion met but the last (the author's decision of
+// 2026-11-15), each with its synthetic evidence, and gives its feedback in
+// English and Russian, English in another language: each passes words.Feedback
+// against the text the stub reads and against any other, and the leak check of
+// the task, as api checks it (R82). The assessment spends the expected price of
+// the rubric, and with none nothing priced.
+func TestTheStubAssessesEveryCriterionButTheLast(t *testing.T) {
+	t.Parallel()
+
+	read := tutorstub.New(gate{}).ReadEssay(t.Context(), tutor.EssayReading{Route: adult, Task: &open.Task{}, Crop: crop(t, 40, 10)}, essay(), "")
+	if len(read.Observation.GetAnswerSlots()) != 1 {
+		t.Fatalf("ReadEssay = %+v, want the one slot read", read)
+	}
+	text := read.Observation.GetAnswerSlots()[0].GetValue()
+	search, err := leak.For(essay())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := tutorstub.New(gate{})
+	seen := map[string]string{}
+	for _, language := range []string{"en", "ru", "ru-RU", "en_US", "de"} {
+		a := assessment(adult, language, 3)
+		a.Text = text
+		got := s.AssessEssay(t.Context(), a, "")
+		if got.Outcome.Kind != tutor.Answered || len(got.Criteria) != 3 {
+			t.Fatalf("AssessEssay in %s = %+v, want three marks", language, got)
+		}
+		for i, m := range got.Criteria {
+			if m.Met == nil || *m.Met != (i < 2) || m.Evidence == "" {
+				t.Errorf("criterion %d in %s is marked %+v, want met but the last, with evidence", i+1, language, m)
+			}
+		}
+		for _, against := range []string{text, "Something else entirely."} {
+			if breaches := words.Feedback(got.Feedback, against, language); len(breaches) > 0 {
+				t.Errorf("the feedback %q in %s against %q breaks %v", got.Feedback, language, against, breaches)
+			}
+		}
+		if found := search.In(got.Feedback); len(found) > 0 {
+			t.Errorf("the feedback %q leaks %v", got.Feedback, found)
+		}
+		if u := got.Outcome.Usage; len(u) != 1 || u[0].Model != tutorstub.Model || u[0].Priced || u[0].USD != 0 {
+			t.Errorf("the assessment spent %+v, want one row of the model stub, unpriced", u)
+		}
+		seen[language] = got.Feedback
+	}
+	if seen["en"] == seen["ru"] || seen["ru"] != seen["ru-RU"] || seen["en"] != seen["en_US"] || seen["de"] != seen["en"] {
+		t.Errorf("the feedback by language is %q, want English and Russian apart, and English in German", seen)
+	}
+	one := s.AssessEssay(t.Context(), assessment(adult, "en", 1), "")
+	if len(one.Criteria) != 1 || one.Criteria[0].Met == nil || *one.Criteria[0].Met {
+		t.Errorf("a rubric of one criterion is marked %+v, want it not met, as the last", one.Criteria)
+	}
+	pricedRubric := gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallRubric: {ExpectedUSD: 0.011, Expected: true}}}
+	if u := tutorstub.New(pricedRubric).AssessEssay(t.Context(), assessment(adult, "en", 2), "").Outcome.Usage; len(u) != 1 || !u[0].Priced || u[0].USD != 0.011 {
+		t.Errorf("a priced assessment spent %+v, want its expected price", u)
+	}
+}
+
+// What tutor's assessment fails before its call the stub fails too, every
+// criterion without a mark, with no feedback and no usage, on any key: no
+// text, no criterion or a blank one, no topic, no style, a language the rule of
+// feedback cannot check; and so does a request cut short.
+func TestTheStubFailsAnAssessmentTutorFails(t *testing.T) {
+	t.Parallel()
+
+	for name, change := range map[string]func(*tutor.RubricAssessment){
+		"no text":            func(a *tutor.RubricAssessment) { a.Text = " " },
+		"no criterion":       func(a *tutor.RubricAssessment) { a.Criteria = nil },
+		"a blank criterion":  func(a *tutor.RubricAssessment) { a.Criteria[1] = " " },
+		"no topic":           func(a *tutor.RubricAssessment) { a.Topic = "" },
+		"no style":           func(a *tutor.RubricAssessment) { a.Style = " " },
+		"no language":        func(a *tutor.RubricAssessment) { a.Language = "" },
+		"no language's code": func(a *tutor.RubricAssessment) { a.Language = "e1" },
+		"the root":           func(a *tutor.RubricAssessment) { a.Language = "und" },
+		"a tag that fails":   func(a *tutor.RubricAssessment) { a.Language = "en-not-a-tag-at-all" },
+	} {
+		for _, own := range []string{"", "sk-ant-synthetic" + tutorstub.KeyLimit} {
+			a := assessment(adult, "en", 2)
+			change(&a)
+			got := tutorstub.New(priced).AssessEssay(t.Context(), a, own)
+			if got.Outcome.Kind != tutor.Failed || got.Feedback != "" || len(got.Outcome.Usage) != 0 || len(got.Criteria) != len(a.Criteria) ||
+				slices.ContainsFunc(got.Criteria, func(m tutor.CriterionMark) bool { return m.Met != nil }) {
+				t.Errorf("%s on %q: AssessEssay = %+v, want a failure with no mark", name, own, got)
+			}
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if got := tutorstub.New(priced).AssessEssay(ctx, assessment(adult, "en", 2), ""); got.Outcome.Kind != tutor.Failed ||
+		!errors.Is(got.Outcome.Err, context.Canceled) || got.Feedback != "" {
+		t.Errorf("AssessEssay cut short = %+v, want a failure", got)
 	}
 }

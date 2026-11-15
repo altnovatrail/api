@@ -1,6 +1,7 @@
 // The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, the
 // custom token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a
-// task AI reads and a workbook page, sends the boxes of the page and sums the counters of the quota.
+// task AI reads, a workbook page and an essay, sends the boxes of the page and sums the counters of
+// the quota.
 // They run the script's own functions in bash, with jq and openssl, as the devcontainer and its
 // toolchain stage, where CI runs the tests, have them.
 package scripts_test
@@ -281,6 +282,35 @@ func TestAWorkbookPageIsToldAndEachOfItsBoxesSent(t *testing.T) {
 		`{"answer_slot":{"item":3,"slot":1},"crop":"CROP"}]`
 	if err != nil || strings.TrimSpace(stdout) != want {
 		t.Errorf("page = %q, %q, %v; want %s", stdout, stderr, err, want)
+	}
+}
+
+// The check knows an essay by its answer slot bound to the sheet, and tells it from a task AI reads
+// anywhere on the sheet and from one checked by tap (R82).
+func TestAnEssayIsTold(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		name, task string
+		essay      bool
+	}{
+		{"an essay", `{"canvas":{"kind":"handwriting_sheet"},"items":[{"answer_slots":[{"id":"a","binding":"sheet"}]}]}`, true},
+		{"a sheet read anywhere", `{"canvas":{"kind":"handwriting_sheet"},"items":[{"answer_slots":[{"id":"a","binding":"anywhere"}]}]}`, false},
+		{"slots by tap", `{"items":[{"answer_slots":[{"id":"a","binding":"choice","options":["1","2"]}]}]}`, false},
+	} {
+		start, err := json.Marshal(map[string]any{"attempt_id": "x", "task": map[string]any{"json": []byte(tc.task)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, strings.ReplaceAll(tc.name, " ", "-")+".json")
+		if err := os.WriteFile(path, start, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, stderr, err := bash(t, nil, `on_essay "`+path+`"`)
+		if (err == nil) != tc.essay {
+			t.Errorf("%s: on_essay = %v, %s; want an essay %v", tc.name, err, stderr, tc.essay)
+		}
 	}
 }
 

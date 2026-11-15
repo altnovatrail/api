@@ -41,8 +41,9 @@ const boardModule = "novatrail/check-board"
 // that holds the question. A task with a time
 // of day describes its slot as one. The module of the board begins too, on the
 // stub of tutor, as boardIsLearnedOn tells, so does every task of the module of
-// workbook pages for a child, as workbookIsLearnedOn tells, and the catalog of
-// novatrail is its list, as novatrailCatalog tells. With no folder named, the
+// workbook pages for a child, as workbookIsLearnedOn tells, so does every task with
+// a rubric of the module of essays for an adult, as essaysAreLearnedOn tells, and
+// the catalog of novatrail is its list, as novatrailCatalog tells. With no folder named, the
 // test is skipped: ci-test runs with no network, and its packages are the
 // vectors.
 func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
@@ -60,6 +61,7 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	}
 	t.Run("the board module", func(t *testing.T) { boardIsLearnedOn(t, set) })
 	t.Run("the workbook module", func(t *testing.T) { workbookIsLearnedOn(t, set) })
+	t.Run("the essay module", func(t *testing.T) { essaysAreLearnedOn(t, set) })
 	t.Run("the catalog of novatrail", func(t *testing.T) { novatrailCatalog(t, dir, cfg) })
 	pkg, ok := set.Current(releaseModule)
 	if !ok {
@@ -378,5 +380,68 @@ func workbookIsLearnedOn(t *testing.T, set *packages.Set) {
 		if err != nil || res.GetSolved() == nil || w.closeOf(t, attempt) != "correct" {
 			t.Errorf("a page of %d wide boxes of %s = %s, %v, %v; want it solved", len(boxes), id, verdicts(res), res.GetOutcome(), err)
 		}
+	}
+}
+
+// essayModule is the module of the pinned release whose tasks with a rubric
+// are essays on a handwriting sheet, beside tasks a tap checks (R53).
+const essayModule = "novatrail/english-essays"
+
+// essaysAreLearnedOn walks an adult's path on the module of essays in the dev
+// mode, on the stub of tutor, which admits an essay and its assessment where
+// the gate admits a sheet (the 2026-11-15 amendments to R66): every task and
+// lesson of it reaches the engine for an adult, it connects, and every task of
+// it with a rubric begins, a wide crop of its sheet ends in feedback — the
+// stub's text read, its marks, and its words, which pass the leak check and
+// the rule of feedback on each task —, and "Done" closes it with the criteria
+// of its rubric.
+func essaysAreLearnedOn(t *testing.T, set *packages.Set) {
+	pkg, ok := set.Current(essayModule)
+	if !ok {
+		t.Fatalf("the pinned release gives %s no current version", essayModule)
+	}
+	g := stubGate(t)
+	w := worldOn(t, set, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryAdult, "")
+	if err != nil || len(pool) != len(pkg.View.Tasks) || lessons != len(pkg.View.Lessons) {
+		t.Errorf("the engine gets %d tasks of %d and %d lessons of %d of %s, %v; want all", len(pool), len(pkg.View.Tasks),
+			lessons, len(pkg.View.Lessons), essayModule, err)
+	}
+	l := w.learner(t)
+	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: essayModule}); err != nil {
+		t.Fatal(err)
+	}
+	essays := 0
+	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
+		task := pkg.View.Tasks[id]
+		criteria := 0
+		for _, item := range task.Items {
+			for _, slot := range item.AnswerSlots {
+				criteria += len(slot.Check.Criteria)
+			}
+		}
+		if criteria == 0 {
+			continue
+		}
+		essays++
+		begun, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+			Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choiceOf(t, l.adult, essayModule, string(id))}})
+		if err != nil {
+			t.Errorf("BeginAttempt %s: %v", id, err)
+			continue
+		}
+		attempt := begun.GetAttempt().GetAttemptId()
+		res, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.adult, AttemptId: attempt,
+			IdempotencyKey: uuid.NewString(), Crop: pngOf(t, 40, 10)})
+		if err != nil || res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_FEEDBACK || res.GetText() == "" || res.GetFeedback() == "" {
+			t.Errorf("a wide essay of %s = %v, %v; want feedback with the text and the stub's words", id, res, err)
+		}
+		done, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: l.adult, AttemptId: attempt})
+		if err != nil || len(done.GetSolved().GetCriteria()) != criteria || w.closeOf(t, attempt) != "done" {
+			t.Errorf("Done of %s = %v, %v; want its %d criteria and the attempt closed done", id, done, err, criteria)
+		}
+	}
+	if essays == 0 {
+		t.Errorf("%s holds no task with a rubric", essayModule)
 	}
 }

@@ -1,9 +1,10 @@
 // Package tutorstub is the stub of tutor in api's dev mode (R66; R146 spec): it
-// stands behind the ports through which api calls tutor — the reading of a
-// sheet and the tutor's words — so that a run of the path on the dev projects
-// calls no provider and costs nothing. Admission and the prices stay tutor's
-// own, on the real table, by the gate the dev mode builds with the stub's
-// adapter (admission.StubAdapters); only the calls are the stub's.
+// stands behind the ports through which api calls tutor — the readings of a
+// sheet, a workbook page and an essay, the assessment of an essay and the
+// tutor's words — so that a run of the path on the dev projects calls no
+// provider and costs nothing. Admission and the prices stay tutor's own, on the
+// real table, by the gate the dev mode builds with the stub's adapter
+// (admission.StubAdapters); only the calls are the stub's.
 //
 // The stub reads a sheet by the shape of its crop: wider than tall is the right
 // value, taller than wide a wrong one — the slot's first trap value, or the
@@ -12,11 +13,15 @@
 // crop, and admits that reading itself wherever the gate admits a sheet's, for
 // the same category and route: tutor v0.1.35 admits it nowhere (В72). It finds
 // the values by module-kit's verdict on the instance, the key with it, which
-// the stub alone is given: tutor sees the open view (R67 spec). Its words — a
-// rung's questions and the praise after a correct answer — are its own, which
-// pass the leak check and the form check. Each call spends what tutor expects a
-// call of its kind to cost on its route, so that the quota runs out as on the
-// models.
+// the stub alone is given: tutor sees the open view (R67 spec). It reads an
+// essay by the shape of the sheet's crop too — wider than tall a text of its
+// own, taller than wide a blank sheet, square illegible —, assesses the text
+// every criterion met but the last, and admits both calls itself where the gate
+// admits a sheet's reading, as it admits a workbook page. Its words — a rung's
+// questions, the praise after a correct answer and the feedback on an essay —
+// are its own, which pass the leak check and the form check. Each call spends
+// what tutor expects a call of its kind to cost on its route, so that the quota
+// runs out as on the models.
 //
 // On an own key a call ends by how the key ends, as a provider would refuse it
 // (KeyRefused and the endings beside it): api hands the stub the key's value
@@ -43,6 +48,9 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	tutorprovider "github.com/altnovatrail/tutor/provider"
+	"github.com/altnovatrail/tutor/words"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/admission"
@@ -132,7 +140,8 @@ type Gate interface {
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
 }
 
-// Stub reads sheets and words the tutor's words in place of tutor.
+// Stub reads sheets, workbook pages and essays, assesses essays and words the
+// tutor's words in place of tutor.
 type Stub struct {
 	gate Gate
 }
@@ -189,19 +198,178 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 
 // Reads says whether the reading by the call of the kind is admitted for a
 // learner of category, on the route of ownKeyProvider: the reading of a
-// workbook page wherever the gate admits a sheet's, CallSheet, for the same
-// category and route, since no entry of tutor v0.1.35 admits it (В72; the
-// 2026-11-15 amendment to R66); neither the reading of an essay nor its
-// assessment, which the stub does not make yet, whatever the gate says (the
-// second 2026-11-15 amendment to R66); and any other kind as the gate says.
+// workbook page, of an essay and the essay's assessment wherever the gate
+// admits a sheet's, CallSheet, for the same category and route, since no entry
+// of tutor v0.1.35 admits any of the three (В72; the 2026-11-15 amendments to
+// R66); and any other kind as the gate says.
 func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	switch call {
-	case tutor.CallWorkbook:
+	case tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric:
 		call = tutor.CallSheet
-	case tutor.CallEssay, tutor.CallRubric:
-		return false
 	}
 	return s.gate.Reads(call, category, ownKeyProvider)
+}
+
+// ReadEssay reads the essay of r, on task, by the shape of the crop of its
+// sheet, as ReadSheet reads a sheet: wider than tall the stub's text, essayText;
+// taller than wide a blank sheet, UNREADABLE_BLANK; square illegible,
+// UNREADABLE_ILLEGIBLE (the author's decision of 2026-11-15). One reader reads
+// it, as tutor's one model does, and the observation is of the one answer slot
+// bound to the sheet, a value with no crop box, as tutor's. Of tutor's checks
+// before its call the stub keeps those of the request's form: a task that is no
+// handwriting sheet, has no slot bound to the sheet, more than one, or a slot
+// bound otherwise, no open view of the task, a crop that is no PNG or is larger
+// than maxCropSide on a side, and a request whose context ended, fail. Past those checks an own key
+// of an ending of the stub's, own being its value, is refused by it. The call
+// spends the expected price of CallEssay on the route, which tutor v0.1.35 does
+// not give: none, so the quota keeps its reserve by the value of the kind as
+// spent (R12, R82).
+func (s *Stub) ReadEssay(ctx context.Context, r tutor.EssayReading, task formatv0.Task, own string) tutor.EssayRead {
+	fail := func(err error) tutor.EssayRead {
+		return tutor.EssayRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
+	}
+	if r.Task == nil {
+		return fail(errors.New("tutorstub: the essay has no open view of its task"))
+	}
+	place, err := essayPlace(task)
+	if err != nil {
+		return fail(err)
+	}
+	cfg, err := sized(r.Crop, maxCropSide)
+	if err != nil {
+		return fail(fmt.Errorf("tutorstub: the crop of the essay: %w", err))
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.EssayRead{Outcome: o}
+	}
+	if err := ctx.Err(); err != nil {
+		return fail(err)
+	}
+	slot := &observationv1.AnswerSlotObservation{AnswerSlot: place}
+	switch {
+	case cfg.Width > cfg.Height:
+		slot.Read = &observationv1.AnswerSlotObservation_Value{Value: essayText}
+	case cfg.Height > cfg.Width:
+		slot.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_BLANK}
+	default:
+		slot.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}
+	}
+	return tutor.EssayRead{Observation: &observationv1.Observation{AnswerSlots: []*observationv1.AnswerSlotObservation{slot}},
+		Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallEssay, r.Route, 1)}}
+}
+
+// maxCropSide is the longest side in pixels of the crop of a sheet that tutor
+// reads as an essay.
+const maxCropSide = 4096
+
+// sized is the size of crop, a PNG no larger than side pixels on a side.
+func sized(crop []byte, side int) (image.Config, error) {
+	cfg, err := png.DecodeConfig(bytes.NewReader(crop))
+	if err == nil && (cfg.Width > side || cfg.Height > side) {
+		err = fmt.Errorf("%d × %d pixels, more than %d on a side", cfg.Width, cfg.Height, side)
+	}
+	return cfg, err
+}
+
+// essayText is the text the stub reads on the sheet of an essay: synthetic, of
+// no learner, with no number, in English, since a reading of an essay names no
+// language.
+const essayText = "We walked to the old harbour on a grey morning. The boats were quiet, " +
+	"and the gulls kept watch over the water. When the sun came out, we sat on the wall and shared our bread."
+
+// essayPlace is the place of the one answer slot of task bound to the sheet,
+// from 1, as tutor reads an essay: a task that is no handwriting sheet, has no
+// such slot or more than one, or has a slot bound otherwise, is refused, as
+// tutor's reading refuses it.
+func essayPlace(task formatv0.Task) (*observationv1.AnswerSlotPlace, error) {
+	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
+		return nil, errors.New("tutorstub: the task of an essay is no handwriting sheet")
+	}
+	var place *observationv1.AnswerSlotPlace
+	for i, item := range task.Items {
+		for j, slot := range item.AnswerSlots {
+			if slot.Binding != formatv0.AnswerSlotBindingSheet || place != nil {
+				return nil, errors.New("tutorstub: the essay has a slot bound otherwise than to the sheet, or two slots")
+			}
+			place = &observationv1.AnswerSlotPlace{Item: int32(i + 1), Slot: int32(j + 1)}
+		}
+	}
+	if place == nil {
+		return nil, errors.New("tutorstub: the task has no answer slot bound to the sheet")
+	}
+	return place, nil
+}
+
+// AssessEssay assesses the text of r by the criteria of its rubric as the stub
+// does: every criterion met but the last, each with the stub's synthetic
+// evidence, and the stub's feedback in the language of r — English for a
+// language it has no words of —, which passes the leak check and
+// words.Feedback against any text, since it quotes none (the author's decision
+// of 2026-11-15). Of tutor's checks before its call the stub keeps those of the
+// request's form: no text, no criterion or a blank one, no topic, no style, or
+// a language words.Feedback cannot check, fails, as does a request whose
+// context ended, every criterion without a mark. Past those checks an own key of
+// an ending of the stub's, own being its value, is refused by it. The call
+// spends the expected price of CallRubric on the route, which tutor v0.1.35 does
+// not give: none, so the quota keeps its reserve by the value of the kind as
+// spent (R12, R82).
+func (s *Stub) AssessEssay(ctx context.Context, r tutor.RubricAssessment, own string) tutor.RubricAssessed {
+	none := func(o tutor.Outcome) tutor.RubricAssessed {
+		return tutor.RubricAssessed{Criteria: make([]tutor.CriterionMark, len(r.Criteria)), Outcome: o}
+	}
+	fail := func(err error) tutor.RubricAssessed { return none(tutor.Outcome{Kind: tutor.Failed, Err: err}) }
+	switch {
+	case strings.TrimSpace(r.Text) == "":
+		return fail(errors.New("tutorstub: the essay has no text to assess"))
+	case len(r.Criteria) == 0 || slices.ContainsFunc(r.Criteria, func(c string) bool { return strings.TrimSpace(c) == "" }):
+		return fail(errors.New("tutorstub: the rubric has no criterion, or a blank one"))
+	case strings.TrimSpace(r.Topic) == "":
+		return fail(errors.New("tutorstub: the essay has no topic"))
+	case strings.TrimSpace(r.Style) == "":
+		return fail(errors.New("tutorstub: the assessment names no style of presentation"))
+	case !feedbackLanguage(r.Language):
+		return fail(errors.New("tutorstub: the assessment names no language of the feedback"))
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return none(o)
+	}
+	if err := ctx.Err(); err != nil {
+		return fail(err)
+	}
+	got := tutor.RubricAssessed{Criteria: make([]tutor.CriterionMark, len(r.Criteria)),
+		Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallRubric, r.Route, 1)}}
+	for i := range got.Criteria {
+		met := i < len(r.Criteria)-1
+		got.Criteria[i] = tutor.CriterionMark{Evidence: evidence, Met: &met}
+	}
+	got.Feedback = feedback["en"]
+	if f, ok := feedback[base(r.Language)]; ok {
+		got.Feedback = f
+	}
+	return got
+}
+
+// feedbackLanguage says whether tag names a language of feedback, as tutor's
+// assessment takes one: a tag that parses, is not the root, has a name in
+// English, and has a first subtag words.Feedback can read.
+func feedbackLanguage(tag string) bool {
+	t, err := language.Parse(tag)
+	return err == nil && !t.IsRoot() && display.English.Tags().Name(t) != "" && words.Readable(tag)
+}
+
+// evidence is what the stub says it judged each criterion by: synthetic, and
+// never shown, kept or logged, as no evidence is (R15).
+const evidence = "The stub's synthetic evidence: no model read the text."
+
+// feedback is the stub's feedback on an essay, by language: two sentences with
+// no number and no quote, in the letters of the language's script, which pass
+// words.Feedback against any text read, and the leak check of a task none of
+// whose leak phrases they hold.
+var feedback = map[string]string{
+	"en": "The essay keeps to its topic, and its ideas follow one another in a clear order. " +
+		"Look again at the last point of the rubric and think how the text could meet it.",
+	"ru": "Сочинение держится темы, и мысли в нём идут ясно и по порядку. " +
+		"Перечитай последний пункт рубрики и подумай, как текст мог бы ему ответить.",
 }
 
 // ReadWorkbook reads the filled boxes of the workbook page of r, on task, the
@@ -238,10 +406,7 @@ func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task f
 		if _, twice := shapes[at]; !onPage || twice {
 			return fail(fmt.Errorf("tutorstub: no box %d of item %d on the page, or two crops of it", b.Slot, b.Item))
 		}
-		cfg, err := png.DecodeConfig(bytes.NewReader(b.Crop))
-		if err == nil && (cfg.Width > maxBoxSide || cfg.Height > maxBoxSide) {
-			err = fmt.Errorf("%d × %d pixels, more than %d on a side of a box", cfg.Width, cfg.Height, maxBoxSide)
-		}
+		cfg, err := sized(b.Crop, maxBoxSide)
 		if err != nil {
 			return fail(fmt.Errorf("tutorstub: the crop of item %d, box %d: %w", b.Item, b.Slot, err))
 		}

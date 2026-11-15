@@ -340,3 +340,78 @@ func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 		t.Errorf("the log = %s, want the stub's usage and no own key", log)
 	}
 }
+
+// An essay runs on the stub (the 2026-11-15 amendments to R66): the stub
+// admits its reading and its assessment where the gate admits a sheet's, so
+// story begins for an adult and enters the pool, but not for a child, whose
+// sheet the facts of an adult do not admit. On an own key the stub refuses the
+// reading by the key's ending; a square crop reads illegible and a tall one
+// blank, each giving the assessment's reserve back; a wide one reads the stub's
+// text, assessed every criterion met but the last, with the stub's feedback,
+// which passes the leak check and the rule of feedback. "Done" then closes the
+// attempt with story's criteria. tutor expects no price of either call, so each
+// reading keeps 15,000 micro-dollars as spent, and the assessment 15,000 more
+// (R12, R82). The log holds neither the text nor the feedback, nor the key.
+func TestAnEssayRunsOnTheStub(t *testing.T) {
+	t.Parallel()
+
+	w, g := newStubWorld(t)
+	l := w.learner(t)
+	pool, _, err := w.service.Candidates(w.current, formatv0.AgeCategoryAdult, "")
+	if err != nil || !slices.Contains(pool, module+"/task/story") {
+		t.Errorf("the pool = %v, %v; want story in it", pool, err)
+	}
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, l.child, "story")}})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+
+	a := w.begin(t, l, l.adult, "story").GetAttemptId()
+	submit := func(width, height int, own *v1.OwnKey) *v1.SubmitEssayResponse {
+		t.Helper()
+		res, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.adult, AttemptId: a,
+			IdempotencyKey: uuid.NewString(), Crop: pngOf(t, width, height), OwnKey: own})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	refusedKey := "sk-ant-synthetic" + tutorstub.KeyRefused
+	if res := submit(40, 10, &v1.OwnKey{Provider: "anthropic", Key: refusedKey}); res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_UNCHECKED ||
+		res.GetOutcome().GetCause() != v1.Cause_CAUSE_KEY_REFUSED || res.Text != nil {
+		t.Errorf("an essay on -refused = %v, want unchecked, the key refused", res)
+	}
+	for _, tc := range []struct {
+		width, height int
+		reason        string
+	}{{10, 10, "illegible"}, {10, 40, "blank"}} {
+		if res := submit(tc.width, tc.height, nil); res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_UNREADABLE || res.GetReason() != tc.reason {
+			t.Errorf("an essay of %d × %d = %v, want unreadable, %s", tc.width, tc.height, res, tc.reason)
+		}
+	}
+	res := submit(40, 10, nil)
+	text, feedback := res.GetText(), res.GetFeedback()
+	if res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_FEEDBACK || text == "" || feedback == "" {
+		t.Fatalf("a wide essay = %v, want feedback with the text read and the stub's words", res)
+	}
+	rows := w.essayRows(t, a)
+	if len(rows) != 4 || !slices.Equal(rows[3].marks, []string{"met", "not_met"}) || deref(rows[3].source) != "model" {
+		t.Errorf("the submissions kept are %+v, want four, the last met but its last criterion, by the model's words", rows)
+	}
+	done, err := w.done(l, l.adult, a)
+	if err != nil || !slices.Equal(done.GetSolved().GetCriteria(), storyCriteria) || w.closeOf(t, a) != "done" {
+		t.Errorf("Done = %v, %v; want story's criteria and the attempt closed done", done, err)
+	}
+
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
+	reading := quota.Reserve(tutor.CallEssay, g.Price(tutor.CallEssay, adult), 1)
+	assessing := quota.Reserve(tutor.CallRubric, g.Price(tutor.CallRubric, adult), 1)
+	want := quota.Counter{Spent: 3*reading + assessing}
+	if profile, account := w.counted(t, l.accountID, l.adult); reading != 15_000 || assessing != 15_000 || profile != want || account != want {
+		t.Errorf("the counters = %+v, %+v by %d and %d; want 15,000 each, three readings and an assessment on platform AI kept as spent, %+v",
+			profile, account, reading, assessing, want)
+	}
+	if log := w.log.String(); !strings.Contains(log, `"model":"stub"`) || strings.Contains(log, text) || strings.Contains(log, feedback) ||
+		strings.Contains(log, refusedKey) {
+		t.Errorf("the log = %s, want the stub's usage and neither the text, the feedback nor the own key", log)
+	}
+}
