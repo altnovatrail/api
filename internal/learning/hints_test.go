@@ -559,10 +559,10 @@ func TestExplainDifferentlyWordsTheRungAnewOnce(t *testing.T) {
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
 }
 
-// The words after a correct answer are asked once, on the attempt the answer
-// has just closed, while the profile has begun no other: tutor has no call for
-// them yet, so the answer holds none, with the outcome "not admitted".
-func TestTheWordsAfterACorrectAnswerAreNotAdmittedYet(t *testing.T) {
+// The words after a correct answer are asked on the attempt the answer has just
+// closed, while the profile has begun no other: at the stage full tutor admits
+// no model for them, so the answer holds none, with the outcome "not admitted".
+func TestTheWordsAfterACorrectAnswerAreNotAdmittedAtFull(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)

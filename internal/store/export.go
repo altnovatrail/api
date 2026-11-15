@@ -425,7 +425,7 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 	rows, err := tx.Query(ctx, `SELECT id, package_digest, module_id, module_version, module_format_version,
 			module_kit_version, task_id, instance, choice_id, lesson_run_id, segment, previous_attempt_id, started_at,
 			last_action_at, close_reason, closed_at, wrong_answers, step_techniques_at, requested_techniques_at,
-			leading_question_at
+			leading_question_at, correct_words_given
 		FROM attempts WHERE profile_id = $1 ORDER BY started_at, id`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the attempts: %w", err)
@@ -440,7 +440,7 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 		var task string
 		err := r.Scan(&a.AttemptID, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.ModuleFormatVersion,
 			&a.ModuleKitVersion, &task, &instance, &a.ChoiceID, &run, &segment, &a.PreviousAttemptID, &begun, &last,
-			&closeReason, &closed, &a.WrongAnswers, &stepAt, &requestedAt, &questionAt)
+			&closeReason, &closed, &a.WrongAnswers, &stepAt, &requestedAt, &questionAt, &a.CorrectAnswerWordsGiven)
 		a.Task = a.ModuleID + "/task/" + task
 		a.BegunAt, a.LastActionAt, a.ClosedAt = timeOf(begun), timeOf(last), timeOrNil(closed)
 		a.StepTechniquesAt = timeOrNil(stepAt)

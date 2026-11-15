@@ -113,7 +113,8 @@ func TestTheSchemaOfTheRungsHoldsItsRules(t *testing.T) {
 
 // A hint asked for records the techniques and the leading question the first
 // time each is given, and only when the task has it; the setting of the
-// showing and the profile's last attempt are read.
+// showing and the profile's last attempt are read; the words after a correct
+// answer are recorded given, on an attempt a correct answer closed alone.
 func TestWhatAHintGivesIsRecordedOnce(t *testing.T) {
 	t.Parallel()
 
@@ -158,8 +159,26 @@ func TestWhatAHintGivesIsRecordedOnce(t *testing.T) {
 	if _, err := e.pool.Exec(ctx, `UPDATE attempts SET close_reason = 'correct', closed_at = now() WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.attempt(t, ""); err != nil {
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		if err := store.GiveCorrectWords(ctx, tx, e.profileID, id); err != nil {
+			return err
+		}
+		a, err := store.HoldAttempt(ctx, tx, e.profileID, id)
+		if err != nil || !a.CorrectWordsGiven {
+			t.Errorf("after the words after a correct answer = %+v, %v; want them given", a, err)
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
+	}
+	next, err := e.attempt(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Only an attempt a correct answer closed has them.
+	if _, err := e.pool.Exec(ctx, `UPDATE attempts SET correct_words_given = true WHERE id = $1`, next); sqlstate(err) != "23514" {
+		t.Errorf("words given on an open attempt = %v, want a check violation", err)
 	}
 	if last, err := store.LastAttempt(ctx, e.pool, e.profileID, id); err != nil || last {
 		t.Errorf("LastAttempt after another = %v, %v; want not", last, err)
@@ -201,7 +220,8 @@ func TestTheLaddersStatementsFail(t *testing.T) {
 			_, err := store.AskedQuestions(ctx, tx, e.profileID, id)
 			return err
 		},
-		"requested_techniques_at =": func(tx pgx.Tx) error { return store.GiveRequested(ctx, tx, e.profileID, id, true, true, time.Now()) },
+		"requested_techniques_at =":  func(tx pgx.Tx) error { return store.GiveRequested(ctx, tx, e.profileID, id, true, true, time.Now()) },
+		"correct_words_given = true": func(tx pgx.Tx) error { return store.GiveCorrectWords(ctx, tx, e.profileID, id) },
 		"SELECT answer FROM submissions": func(tx pgx.Tx) error {
 			_, err := store.Answers(ctx, tx, e.profileID, id)
 			return err

@@ -59,3 +59,20 @@ func (s *Service) Candidates(pkg *modulepackage.Package, category formatv0.AgeCa
 func WithPrice(price func(call tutor.Call, route tutor.Route) tutor.CallPrice) Option {
 	return func(s *Service) { s.price = price }
 }
+
+// WithCorrect is what words the tutor's words after a correct answer, in place
+// of tutor: a test's own, admitted for every learner and route, so that no test
+// calls a provider. It is no stub: the day of the privacy policy holds for it,
+// as for a provider.
+func WithCorrect(tell func(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer) Option {
+	return func(s *Service) { s.praiser = praiserFunc(tell) }
+}
+
+// praiserFunc is a function as a correctTeller that admits every request.
+type praiserFunc func(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer
+
+func (f praiserFunc) CorrectWords(formatv0.AgeCategory, string) bool { return true }
+
+func (f praiserFunc) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
+	return f(ctx, c)
+}

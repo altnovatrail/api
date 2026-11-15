@@ -94,7 +94,9 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// Attempts keep the version of module-kit, which the build records (R44), and
 	// ask the gate before a task that AI checks (R45). In the dev mode the stub of
 	// tutor reads and words in place of tutor, which admits and prices still (R66).
-	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout)}
+	// The privacy policy of the texts served says from which day the words after a
+	// correct answer go to a provider (Д214 spec).
+	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithTexts(texts)}
 	if declared.Stub {
 		options = append(options, learning.WithTutor(tutorstub.New(gate)))
 	}
