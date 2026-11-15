@@ -123,10 +123,15 @@ func techniques(task formatv0.Task) []string {
 }
 
 // solved is what reaches the device once the task is solved (contract,
-// SolvedTask): the key of each answer slot that has one, by its place, and the
-// solution as JSON of the format, beside the format's version.
+// SolvedTask): the key of each answer slot that has one, by its place, the
+// solution as JSON of the format, beside the format's version, and on a task
+// with a rubric the texts of its criteria in order, without the marks of any
+// assessment (R14; R87 spec).
 func solved(pkg *modulepackage.Package, task formatv0.Task) (*v1.SolvedTask, error) {
 	out := &v1.SolvedTask{ModuleFormatVersion: string(pkg.View.Manifest.ModuleFormatVersion)}
+	if rubric(task) {
+		out.Criteria = criteriaOf(task)
+	}
 	for i, item := range task.Items {
 		for j, slot := range verdict.AnswerSlots(item) {
 			if slot.Check.Key != nil {

@@ -345,8 +345,11 @@ func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ow
 }
 
 // readsAdmitted says whether AI that reads the work is admitted for a learner of
-// category on the route of ownKey, by one kind of call at least: what closes the
-// pool to the tasks a tap checks when it is not (R50, R81).
+// category on the route of ownKey, for one kind of task at least — a sheet's
+// call, a workbook page's, or an essay's reading with its assessment, which a
+// task with a rubric needs both of (R82): what closes the pool to the tasks a
+// tap checks when it is not (R50, R81).
 func (s *Service) readsAdmitted(category formatv0.AgeCategory, ownKey string) bool {
-	return s.admits.Reads(tutor.CallSheet, category, ownKey) || s.admits.Reads(tutor.CallWorkbook, category, ownKey)
+	return s.admits.Reads(tutor.CallSheet, category, ownKey) || s.admits.Reads(tutor.CallWorkbook, category, ownKey) ||
+		s.admits.Reads(tutor.CallEssay, category, ownKey) && s.admits.Reads(tutor.CallRubric, category, ownKey)
 }

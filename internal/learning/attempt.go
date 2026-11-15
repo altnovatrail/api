@@ -3,6 +3,7 @@ package learning
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image/png"
 	"slices"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -471,11 +473,17 @@ func givesTechniques(steps *formatv0.SolvingSteps, place int32) bool {
 	return slices.Contains(steps.Steps[place-1].Gives, formatv0.StepGivesTechniques)
 }
 
-// Done ends an attempt of a task with a rubric (R14). A task with a verdict
-// takes no "Done", and an attempt of a task with a rubric has no submission
-// before the rubric's code sends one: it is "no submission". A provider named
-// for a learner who is not an adult is refused, as at every request whose
-// answer may give an engine's choice (R65).
+// Done ends an attempt of a task with a rubric by the learner's "Done" (R14):
+// once it has a submission, however that ended, the attempt is closed "done" in
+// one transaction, with no evidence, and the answer is the task solved — the
+// criteria of its rubric and its solution, if it has one (R87 spec) — and what
+// comes next: in a lesson the segment after its own, which "done" ends (R13),
+// and outside a lesson the engine's choice (R50). A task with a verdict takes no
+// "Done", and an attempt with no submission yet is "no submission". It carries
+// no key: a repeat on an attempt closed "done" gets the same answer, by the
+// state of the attempt, with the choice the close gave; one closed otherwise is
+// "closed". A provider named for a learner who is not an adult is refused, as
+// at every request whose answer may give an engine's choice (R65).
 func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.DoneResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -485,13 +493,70 @@ func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.Don
 	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
 		return nil, err
 	}
-	err = s.act(ctx, req.GetProfileId(), req.GetAttemptId(), func(_ pgx.Tx, h held, _ time.Time) error {
+	profileID, ownKey := req.GetProfileId(), req.GetOwnKeyProvider()
+	var answer *v1.DoneResponse
+	err = s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+		h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), now)
+		var closed *closedError
+		if errors.As(err, &closed) && closed.reason == closeDone {
+			answer, err = s.doneAgain(ctx, tx, profileID, closed.row, category, ownKey, now)
+			return err
+		}
+		if err != nil {
+			return err
+		}
 		if !rubric(h.task) {
 			return rpc.Malformed("attempt_id")
 		}
-		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SUBMISSION)
+		switch submitted, err := store.Submitted(ctx, tx, profileID, h.row.ID); {
+		case err != nil:
+			return err
+		case !submitted:
+			return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SUBMISSION)
+		}
+		out, err := solved(h.pkg, h.task)
+		if err != nil {
+			return err
+		}
+		// The model gives an attempt with a rubric no evidence (О-17): the close
+		// settles only what the profile's other closed attempts owe.
+		if err := s.close(ctx, tx, profileID, h.row.ID, closeDone, now); err != nil {
+			return err
+		}
+		next, err := s.nextAfter(ctx, tx, profileID, h.row, category, ownKey, now, false)
+		answer = &v1.DoneResponse{Solved: out, Next: next}
+		return err
 	})
-	return nil, err
+	if err != nil {
+		return nil, err
+	}
+	return answer, nil
+}
+
+// doneAgain is the answer of "Done" again on the profile's attempt row, held
+// and closed "done": the task solved, of the package and the instance it went
+// on, and what came next, which the close gave and the engine is not asked
+// again (R14). A package the index no longer knows is errPackageUnknown, as for
+// a request on an open attempt.
+func (s *Service) doneAgain(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, ownKey string, now time.Time) (*v1.DoneResponse, error) {
+	digest := formatv0.Digest(row.PackageDigest)
+	if s.set.Status(digest) == packages.Unknown {
+		return nil, errPackageUnknown
+	}
+	pkg := s.set.Packages[digest]
+	task, err := instanceAgain(pkg, formatv0.TaskID(row.TaskID), row.Instance)
+	if err != nil {
+		return nil, err
+	}
+	out, err := solved(pkg, task)
+	if err != nil {
+		return nil, err
+	}
+	next, err := s.nextAfter(ctx, tx, profileID, row, category, ownKey, now, true)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.DoneResponse{Solved: out, Next: next}, nil
 }
 
 // maxCropSide is the longest side of a crop that tutor reads, in pixels: a crop

@@ -590,6 +590,12 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	if _, found, err := store.LastSubmission(ctx, e.pool, e.profileID, none); err != nil || found {
 		t.Errorf("LastSubmission of none = %v, %v", found, err)
 	}
+	if submitted, err := store.Submitted(ctx, e.pool, e.profileID, id); err != nil || !submitted {
+		t.Errorf("Submitted = %v, %v; want the attempt's submissions", submitted, err)
+	}
+	if submitted, err := store.Submitted(ctx, e.pool, e.profileID, none); err != nil || submitted {
+		t.Errorf("Submitted of none = %v, %v", submitted, err)
+	}
 	run, err := e.run(t, "example/m/l1")
 	if err != nil {
 		t.Fatal(err)

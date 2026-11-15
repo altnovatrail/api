@@ -299,6 +299,17 @@ func EssaySubmissions(ctx context.Context, db Lister, profileID string, attemptI
 	return out, nil
 }
 
+// Submitted says whether the profile's attempt has a submission, however it
+// ended: what "Done" asks of an attempt with a rubric (R14).
+func Submitted(ctx context.Context, db Querier, profileID, attemptID string) (bool, error) {
+	var submitted bool
+	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM submissions WHERE profile_id = $1 AND attempt_id = $2)`,
+		profileID, attemptID).Scan(&submitted); err != nil {
+		return false, fmt.Errorf("store: read whether the attempt has a submission: %w", err)
+	}
+	return submitted, nil
+}
+
 // LastSubmission is the answer of the attempt's last submission with a
 // verdict, and whether it has one.
 func LastSubmission(ctx context.Context, db Querier, profileID, attemptID string) ([]byte, bool, error) {

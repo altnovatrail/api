@@ -244,8 +244,12 @@ type held struct {
 	task formatv0.Task
 }
 
-// closedError is an attempt closed, by its reason.
-type closedError struct{ reason string }
+// closedError is an attempt closed, by its reason, with its row as the check
+// of a request read it, when it was closed before.
+type closedError struct {
+	reason string
+	row    store.Attempt
+}
 
 func (e *closedError) Error() string { return "learning: the attempt is closed " + e.reason }
 
@@ -285,7 +289,7 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 		return held{}, err
 	}
 	if row.CloseReason != nil {
-		return held{}, &closedError{reason: *row.CloseReason}
+		return held{}, &closedError{reason: *row.CloseReason, row: row}
 	}
 	digest := formatv0.Digest(row.PackageDigest)
 	if s.set.Status(digest) == packages.Unknown {
