@@ -48,6 +48,9 @@ binary=bin/api
 refused_key=sk-ant-dev-check-refused
 # The work the check sends to be read: a synthetic PNG of one white pixel.
 pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQJnLD7dAAAAAElFTkSuQmCC
+# The work the check sends to the stub of tutor: a synthetic PNG of two white pixels, wider than
+# tall, which the stub reads as the right value (R66).
+wide=iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAAAAADRSSBWAAAAEElEQVR4nAADAPz/BP8AAwACDQEEd5QFkQAAAABJRU5ErkJggg==
 
 die() {
     echo "dev: $*" >&2
@@ -542,6 +545,38 @@ check() {
         die "serve.log has no line ai_usage of SubmitWork with the outcome key_refused"
     ! jq -se 'any(.[]; .message == "ai_usage" and .ai_outcome == "answered")' "$work/serve.log" > /dev/null ||
         die "a model answered a call of the check"
+
+    # The words after a correct answer on the stub of tutor (R66; R77), by a server of its own with
+    # no key of platform AI: the stub reads the wide crop as the right value, which solves the task,
+    # and words a praise with its question last on any day, since nothing goes to a provider. Its
+    # log holds no words.
+    echo "$who: serve, on the stub of tutor"
+    (
+        stubbed
+        API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=0 exec "$binary" serve
+    ) > "$work/stub.log" 2>&1 &
+    serve_pid=$!
+    port=$(started "$work/stub.log")
+    base="http://127.0.0.1:$port"
+    handwriting "$owner"
+    attempt=$(jq -r .attempt_id "$work/attempt.json")
+    call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
+        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, work: {sheet: {crop: env.PIXEL}},
+            clock_offset_minutes: 0}')
+    expect SubmitWork
+    jq -e '.solved != null' "$work/answer.json" > /dev/null ||
+        die "SubmitWork of the wide crop on the stub gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the task solved"
+    call AttemptService/GetCorrectAnswerWords < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
+        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, work: {sheet: {crop: env.PIXEL}},
+            clock_offset_minutes: 0}')
+    expect GetCorrectAnswerWords
+    local praise
+    praise=$(jq -r '.words // empty' "$work/answer.json")
+    [[ $praise == *"?" ]] || die "GetCorrectAnswerWords on the stub gave the outcome $(jq -c .outcome "$work/answer.json"), want words with the question last"
+    stop_serve
+    clean "$work/stub.log"
+    ! grep -qF -- "$praise" "$work/stub.log" || die "stub.log holds the words after a correct answer"
+    echo "$who: the stub words the praise after a correct answer, and its log holds none of it"
 
     # The job after a rollout, on the database itself (R51): it asks what is open on the versions
     # the image no longer gives, of the pinned release, and closes it.

@@ -5,16 +5,19 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
+	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+	"github.com/altnovatrail/tutor/words"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -139,17 +142,23 @@ func (s *Service) call(ctx context.Context, t telling) telling {
 	if t.ready != nil || t.reserve.refused != nil {
 		return t
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-finishReserve))
-		defer cancel()
-	}
+	ctx, cancel := finishing(ctx)
+	defer cancel()
 	start := time.Now()
 	t.answer, t.called = s.teller.TellWords(ctx, t.request), true
 	t.request.Crop = nil
 	noteCall(ctx, t.answer.Outcome, time.Since(start))
 	s.afterCall(ctx, t.reserve, t.answer.Outcome)
 	return t
+}
+
+// finishing is ctx ended finishReserve before the request's deadline, if it has
+// one: a call of AI on it leaves the time of the transaction after it.
+func finishing(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(ctx, deadline.Add(-finishReserve))
+	}
+	return ctx, func() {}
 }
 
 // noteCall notes a call of AI in the request's log: its outcome, how long it
@@ -171,7 +180,7 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 // check, which goes to the request's line of the log (contract, § 15; R47).
 func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
 	if t.answer.Outcome.Kind == tutor.Answered {
-		check := turnedDown(t.h.pkg, t.h.task, t.answer.Question)
+		check := turnedDown(t.h.pkg, t.h.task, t.answer.Question, words.Hint)
 		if check == "" {
 			return store.Words{Source: store.SourceModel, Text: t.answer.Question}, nil
 		}
@@ -631,14 +640,54 @@ func (s *Service) otherTold(ctx context.Context, tx pgx.Tx, profileID string, t 
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID, Response: noWords(answer)}, nil
 }
 
+// correctPolicy is the version of the privacy policy from which the words after
+// a correct answer go to a provider: the first that names what goes to AI for
+// them — the key, the solution and the techniques of the task (Д214 spec).
+const correctPolicy = 3
+
+// praising is a request for the words after a correct answer between the parts
+// of its request: the attempt a correct answer closed, held, its package and
+// its task, the call of the words and what came of it.
+type praising struct {
+	row     store.Attempt
+	pkg     *modulepackage.Package
+	task    formatv0.Task
+	request tutor.CorrectRequest
+	answer  tutor.CorrectAnswer
+	// called says whether the words were called, between two transactions.
+	called bool
+	// day is the family day of the account on platform AI (R11), and reserve
+	// what the call took of its quota (R58).
+	day     quota.Day
+	reserve reserve
+}
+
+// policyCovers says whether the words after a correct answer may go on the day
+// of at, in UTC: on the stub always, since nothing reaches a provider; to a
+// provider once the privacy policy in force on that day of the texts api serves
+// is of version 3 or later, which names what goes for them (Д214 spec).
+func (s *Service) policyCovers(at time.Time) bool {
+	if s.stubbed {
+		return true
+	}
+	version, ok := s.texts.On(at).Current(legal.PrivacyPolicy)
+	return ok && version >= correctPolicy
+}
+
 // GetCorrectAnswerWords gives the tutor's words after a correct answer, once,
 // on the attempt that the answer has just closed, while the profile has begun
-// no other (R09): an attempt closed otherwise, or open, and one the profile
-// left for another, get "no more words". tutor has no call for these words yet
-// (В47 RUN.md), so the answer holds none, with the outcome "not admitted": no
-// call went, and nothing is spent. The work is checked for its form and goes
-// nowhere. A repeat under the key gets the same, without words: the server
-// keeps none.
+// no other (R09): an attempt closed otherwise, or open, one the profile left
+// for another, and one whose words were given already get "no more words". The
+// words are the model's praise and its question on the technique that helped,
+// once they passed the leak check and the form check of tutor's words.Correct;
+// words that fail a check, or a call that gives none, leave the answer without
+// words, with the outcome of a call that gave none, and the right stays: a
+// later request may ask again. The work goes when AI read the task, as the
+// crop of a sheet, and only to the call. When the deployment admits the words
+// and the privacy policy in force on the day covers them, the call runs between
+// two transactions (rpc.Across); otherwise the answer holds no words, with the
+// outcome "not admitted", and nothing is spent. A repeat under the key gets the
+// answer without words: the server keeps none.
 func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetCorrectAnswerWordsRequest) (*v1.GetCorrectAnswerWordsResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -650,7 +699,8 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 	}
 	profileID := req.GetProfileId()
 	key := rpc.Key{
-		Method: apiv1connect.AttemptServiceGetCorrectAnswerWordsProcedure,
+		Method:   apiv1connect.AttemptServiceGetCorrectAnswerWordsProcedure,
+		GoingFor: s.goingFor,
 		Repeat: func(_ context.Context, _ pgx.Tx, record store.KeyRecord) (proto.Message, error) {
 			answer := &v1.GetCorrectAnswerWordsResponse{}
 			if err := proto.Unmarshal(record.Response, answer); err != nil {
@@ -660,44 +710,162 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 			return answer, nil
 		},
 	}
-	answer, err := rpc.Once(ctx, s.db, key, req, func(tx pgx.Tx, _ string) (*v1.GetCorrectAnswerWordsResponse, store.KeyTarget, error) {
-		if !store.CanonicalID(req.GetAttemptId()) {
-			return nil, store.KeyTarget{}, store.ErrNotFound
+	route := routeOf(category, req.GetOwnKey())
+	admitted := s.praiser.CorrectWords(category, req.GetOwnKey().GetProvider()) && s.policyCovers(s.clock())
+	prepare := func(tx pgx.Tx) (praising, error) {
+		p, err := s.praiseAsked(ctx, tx, req, route, admitted)
+		if err == nil {
+			p.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
-		row, err := store.HoldAttempt(ctx, tx, profileID, req.GetAttemptId())
-		if err != nil {
-			return nil, store.KeyTarget{}, err
+		if err == nil && admitted {
+			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, p.day)
 		}
-		last, err := store.LastAttempt(ctx, tx, profileID, row.ID)
-		switch {
-		case err != nil:
-			return nil, store.KeyTarget{}, err
-		case row.CloseReason == nil || *row.CloseReason != closeCorrect || !last:
-			return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
-		}
-		pkg, ok := s.set.Packages[formatv0.Digest(row.PackageDigest)]
-		if !ok {
-			return nil, store.KeyTarget{}, errPackageUnknown
-		}
-		task, err := instanceAgain(pkg, formatv0.TaskID(row.TaskID), row.Instance)
-		if err != nil {
-			return nil, store.KeyTarget{}, err
-		}
-		ai := !byTap(task)
-		if ai != (req.GetWork() != nil) || (ai && !cropTaken(req.GetWork().GetSheet().GetCrop())) {
-			return nil, store.KeyTarget{}, rpc.Malformed("work")
-		}
-		if _, err := s.familyDay(ctx, tx, routeOf(category, req.GetOwnKey()), req.ClockOffsetMinutes); err != nil {
-			return nil, store.KeyTarget{}, err
-		}
-		out := &v1.GetCorrectAnswerWordsResponse{Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}}
-		return out, store.KeyTarget{ProfileID: profileID, AttemptID: row.ID}, nil
-	})
+		return p, err
+	}
+	var answer *v1.GetCorrectAnswerWordsResponse
+	if admitted {
+		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[praising, *v1.GetCorrectAnswerWordsResponse]{
+			Prepare: func(tx pgx.Tx, _ string) (praising, store.KeyTarget, error) {
+				p, err := prepare(tx)
+				return p, store.KeyTarget{ProfileID: profileID, AttemptID: p.row.ID}, err
+			},
+			Call: s.praise,
+			Finish: func(tx pgx.Tx, p praising) (*v1.GetCorrectAnswerWordsResponse, store.KeyTarget, error) {
+				return s.praised(ctx, tx, profileID, p)
+			},
+		})
+	} else {
+		answer, err = rpc.Once(ctx, s.db, key, req, func(tx pgx.Tx, _ string) (*v1.GetCorrectAnswerWordsResponse, store.KeyTarget, error) {
+			p, err := prepare(tx)
+			if err != nil {
+				return nil, store.KeyTarget{}, err
+			}
+			// No model is admitted for the words, or the policy in force does not
+			// cover them yet: no call, and nothing is spent.
+			out := &v1.GetCorrectAnswerWordsResponse{Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}}
+			return out, store.KeyTarget{ProfileID: profileID, AttemptID: p.row.ID}, nil
+		})
+	}
 	if err != nil {
 		return nil, refused(ctx, err)
 	}
-	rpc.NoteOutcome(ctx, answer.GetOutcome().GetCause())
+	if c := answer.GetOutcome().GetCause(); c != v1.Cause_CAUSE_UNSPECIFIED {
+		rpc.NoteOutcome(ctx, c)
+	}
 	return answer, nil
+}
+
+// praiseAsked checks a request for the words after a correct answer on the
+// attempt it names, held, before anything is called: an attempt the profile
+// has, whose words may still be given, on a package the index knows, and the
+// work, which goes when AI reads a slot of the task, and only then, as the crop
+// of a sheet. When the words are admitted, it gives their call.
+func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrectAnswerWordsRequest, route tutor.Route, admitted bool) (praising, error) {
+	profileID := req.GetProfileId()
+	if !store.CanonicalID(req.GetAttemptId()) {
+		return praising{}, store.ErrNotFound
+	}
+	row, err := store.HoldAttempt(ctx, tx, profileID, req.GetAttemptId())
+	if err != nil {
+		return praising{}, err
+	}
+	p := praising{row: row}
+	if err := praisable(ctx, tx, profileID, row); err != nil {
+		return p, err
+	}
+	pkg, ok := s.set.Packages[formatv0.Digest(row.PackageDigest)]
+	if !ok {
+		return p, errPackageUnknown
+	}
+	if p.task, err = instanceAgain(pkg, formatv0.TaskID(row.TaskID), row.Instance); err != nil {
+		return p, err
+	}
+	p.pkg = pkg
+	ai := !byTap(p.task)
+	var crop []byte
+	if ai {
+		crop = req.GetWork().GetSheet().GetCrop()
+	}
+	if ai != (req.GetWork() != nil) || (ai && !cropTaken(crop)) {
+		return p, rpc.Malformed("work")
+	}
+	if !admitted {
+		return p, nil
+	}
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
+		return p, connect.NewError(connect.CodeDeadlineExceeded, "too little time to word the praise")
+	}
+	p.request, err = correctAsked(pkg, p.task, route, crop)
+	return p, err
+}
+
+// praisable refuses the words after a correct answer on the attempt row, held,
+// with "no more words": an attempt no correct answer closed, or open, one the
+// profile has begun another after, and one whose words were given already
+// (R09).
+func praisable(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt) error {
+	last, err := store.LastAttempt(ctx, tx, profileID, row.ID)
+	switch {
+	case err != nil:
+		return err
+	case row.CloseReason == nil || *row.CloseReason != closeCorrect || !last || row.CorrectWordsGiven:
+		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
+	}
+	return nil
+}
+
+// praise calls the words after a correct answer of p, when the quota holds the
+// call, until finishReserve before the request's deadline, and notes the call
+// in the request's log. The crop goes no further than the call.
+func (s *Service) praise(ctx context.Context, p praising) praising {
+	if p.reserve.refused != nil {
+		return p
+	}
+	ctx, cancel := finishing(ctx)
+	defer cancel()
+	start := time.Now()
+	p.answer, p.called = s.praiser.TellCorrectWords(ctx, p.request), true
+	p.request.Crop = nil
+	noteCall(ctx, p.answer.Outcome, time.Since(start))
+	s.afterCall(ctx, p.reserve, p.answer.Outcome)
+	return p
+}
+
+// praised answers what came of the words after a correct answer of p, on the
+// attempt held again after the call: a request beside it that had the words
+// given meanwhile, or a new attempt of the profile, leaves this one "no more
+// words". Words that passed the checks are given, and the attempt records so;
+// those that failed one go nowhere, and the request's line names the check. The
+// record of the key holds no words.
+func (s *Service) praised(ctx context.Context, tx pgx.Tx, profileID string, p praising) (*v1.GetCorrectAnswerWordsResponse, store.KeyTarget, error) {
+	if p.called {
+		row, err := store.HoldAttempt(ctx, tx, profileID, p.row.ID)
+		if err == nil {
+			err = praisable(ctx, tx, profileID, row)
+		}
+		if err != nil {
+			return nil, store.KeyTarget{}, err
+		}
+	}
+	answer := &v1.GetCorrectAnswerWordsResponse{}
+	switch {
+	case p.reserve.refused != nil:
+		answer.Outcome = p.reserve.refused
+	case p.answer.Outcome.Kind != tutor.Answered:
+		answer.Outcome = &v1.Outcome{Cause: outcomeCause(p.answer.Outcome.Kind, p.request.Route.AI)}
+	default:
+		if check := turnedDown(p.pkg, p.task, p.answer.Words, words.Correct); check != "" {
+			rpc.NoteWordsCheck(ctx, check)
+			break
+		}
+		if err := store.GiveCorrectWords(ctx, tx, profileID, p.row.ID); err != nil {
+			return nil, store.KeyTarget{}, err
+		}
+		answer.Words = &p.answer.Words
+	}
+	// An answer of the contract always marshals.
+	written, _ := proto.Marshal(&v1.GetCorrectAnswerWordsResponse{Outcome: answer.GetOutcome()})
+	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: p.row.ID, Response: written}, nil
 }
 
 // canner is what the showing of a solution asks of the rights: authz.Rights.

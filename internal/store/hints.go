@@ -161,6 +161,16 @@ func AsksBeforeShowing(ctx context.Context, db Querier, profileID string) (bool,
 	return asks, nil
 }
 
+// GiveCorrectWords records that the tutor's words after a correct answer were
+// given on the attempt, which a correct answer closed: once (R09).
+func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID string) error {
+	if _, err := tx.Exec(ctx, `UPDATE attempts SET correct_words_given = true WHERE profile_id = $1 AND id = $2`,
+		profileID, attemptID); err != nil {
+		return fmt.Errorf("store: record the words after a correct answer given: %w", err)
+	}
+	return nil
+}
+
 // LastAttempt says whether the attempt is the last the profile began: the
 // words after a correct answer are given while the profile has begun no other
 // (R09).

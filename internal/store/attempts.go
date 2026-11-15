@@ -77,20 +77,24 @@ type Attempt struct {
 	// the task's techniques, and its leading question (R47).
 	RequestedTechniques bool
 	LeadingQuestion     bool
+	// CorrectWordsGiven says whether the tutor's words after a correct answer
+	// were given on it (R09).
+	CorrectWordsGiven bool
 }
 
 // attemptColumns are the columns of an Attempt, in scanAttempt's order.
 const attemptColumns = `id, package_digest, module_id, module_version, module_format_version,
 	module_kit_version, task_id, seed, instance, choice_id, lesson_run_id, segment, previous_attempt_id,
 	last_action_at, close_reason, wrong_answers, step_techniques_at IS NOT NULL,
-	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL`
+	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given`
 
 func scanAttempt(row pgx.Row) (Attempt, error) {
 	var a Attempt
 	var seed int64
 	err := row.Scan(&a.ID, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.FormatVersion, &a.ModuleKit,
 		&a.TaskID, &seed, &a.Instance, &a.ChoiceID, &a.LessonRunID, &a.Segment, &a.PreviousID, &a.LastActionAt,
-		&a.CloseReason, &a.WrongAnswers, &a.StepTechniques, &a.RequestedTechniques, &a.LeadingQuestion)
+		&a.CloseReason, &a.WrongAnswers, &a.StepTechniques, &a.RequestedTechniques, &a.LeadingQuestion,
+		&a.CorrectWordsGiven)
 	// The seed is module-kit's uint64, kept as the bits of a bigint.
 	a.Seed = uint64(seed)
 	return a, err

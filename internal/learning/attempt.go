@@ -279,11 +279,8 @@ func (s *Service) read(ctx context.Context, out sending) sending {
 		out.crop = nil
 		return out
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-finishReserve))
-		defer cancel()
-	}
+	ctx, cancel := finishing(ctx)
+	defer cancel()
 	view, err := openview.Task(out.task)
 	start := time.Now()
 	if err != nil {

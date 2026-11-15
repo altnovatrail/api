@@ -29,6 +29,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -52,6 +53,13 @@ type Service struct {
 	reader  sheetReader
 	teller  wordsTeller
 	praiser correctTeller
+	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
+	// provider: its words after a correct answer go whatever the day (R66).
+	stubbed bool
+	// texts is the legal texts api serves, whose privacy policy in force on the
+	// day of a request says whether the words after a correct answer go to a
+	// provider (Д214 spec).
+	texts *legal.Texts
 	// price is what tutor expects a call to cost, which the quota reserves (R58):
 	// the gate's.
 	price func(call tutor.Call, route tutor.Route) tutor.CallPrice
@@ -86,8 +94,12 @@ func WithTutor(t interface {
 	wordsTeller
 	correctTeller
 }) Option {
-	return func(s *Service) { s.reader, s.teller, s.praiser = t, t, t }
+	return func(s *Service) { s.reader, s.teller, s.praiser, s.stubbed = t, t, t, true }
 }
+
+// WithTexts is the legal texts api serves, those of the tag by default
+// (legal.Spec): a self-hosted copy's folder.
+func WithTexts(texts *legal.Texts) Option { return func(s *Service) { s.texts = texts } }
 
 // sheetReader reads the work of a handwriting sheet, as tutor does. task is the
 // instance, its key with it, which the dev mode's stub alone reads, to read a
@@ -110,7 +122,7 @@ func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ forma
 // of learner-model, which the mark of the learner model's cache names, or of
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, praiser: gate, now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, praiser: gate, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)

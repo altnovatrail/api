@@ -120,21 +120,27 @@ func simplerCase(task formatv0.Task, at spot) *formatv0.Text {
 	return task.Items[at.item].SimplerCase
 }
 
-// turnedDown is the check that turns the tutor's question down, in a word of
-// logging.WordsChecks, or none when it may reach the learner (R70 spec): an
-// empty question; the leak check of module-kit, which finds a key or a leak
-// phrase of the task in it, on the instance the attempt got — or cannot be made
-// for the task, and then no words pass; or its form, which is not a hint's by
-// tutor's words. Words turned down give way to the fallback text.
-func turnedDown(pkg *modulepackage.Package, task formatv0.Task, question string) string {
-	if strings.TrimSpace(question) == "" {
+// form is what words break of the form tutor's words set for them, as
+// words.Hint does for a hint and words.Correct for the words after a correct
+// answer: nil when they keep it.
+type form func(text, language, statement string) []words.Breach
+
+// turnedDown is the check that turns the tutor's words down, in a word of
+// logging.WordsChecks, or none when they may reach the learner (R70 spec):
+// empty words; the leak check of module-kit, which finds a key or a leak phrase
+// of the task in them, on the instance the attempt got — or cannot be made for
+// the task, and then no words pass; or their form, by tutor's words. A hint
+// turned down gives way to the fallback text, and the words after a correct
+// answer to none.
+func turnedDown(pkg *modulepackage.Package, task formatv0.Task, text string, of form) string {
+	if strings.TrimSpace(text) == "" {
 		return logging.WordsCheckEmpty
 	}
 	search, err := leak.For(task)
-	if err != nil || len(search.In(question)) > 0 {
+	if err != nil || len(search.In(text)) > 0 {
 		return logging.WordsCheckLeak
 	}
-	if len(words.Hint(question, string(pkg.View.Manifest.Languages.Explanation), statementOf(task))) > 0 {
+	if len(of(text, string(pkg.View.Manifest.Languages.Explanation), statementOf(task))) > 0 {
 		return logging.WordsCheckForm
 	}
 	return ""
@@ -180,11 +186,7 @@ func wordsAsked(h held, route tutor.Route, rung int, at spot, crop []byte, asked
 	if at.slot.Check.Key != nil {
 		w.Key = *at.slot.Check.Key
 	}
-	for _, p := range h.task.Solution {
-		if p.Text != nil {
-			w.Solution = append(w.Solution, string(*p.Text))
-		}
-	}
+	w.Solution, w.Techniques = solutionOf(h.task), techniqueTitles(h.pkg, h.task)
 	ids := slices.Clone(h.task.Traps)
 	if at.trap != nil && !slices.Contains(ids, at.trap.Trap) {
 		ids = append(ids, at.trap.Trap)
@@ -200,12 +202,60 @@ func wordsAsked(h held, route tutor.Route, rung int, at spot, crop []byte, asked
 			}
 		}
 	}
-	for _, id := range h.task.Techniques {
-		if catalog := h.pkg.View.Techniques; catalog != nil {
+	return w, nil
+}
+
+// solutionOf is the paragraphs of the task's solution that have text.
+func solutionOf(task formatv0.Task) []string {
+	var out []string
+	for _, p := range task.Solution {
+		if p.Text != nil {
+			out = append(out, string(*p.Text))
+		}
+	}
+	return out
+}
+
+// techniqueTitles is the titles of the task's techniques, as the catalog of
+// its module names them.
+func techniqueTitles(pkg *modulepackage.Package, task formatv0.Task) []string {
+	var out []string
+	for _, id := range task.Techniques {
+		if catalog := pkg.View.Techniques; catalog != nil {
 			if t, ok := catalog.Techniques[id]; ok {
-				w.Techniques = append(w.Techniques, string(t.Title))
+				out = append(out, string(t.Title))
 			}
 		}
 	}
-	return w, nil
+	return out
+}
+
+// keysOf is the keys of the task's answer slots that have one, in their order,
+// as one text: a correct answer is right in all of them. Of a choice the key is
+// the option that is right; a predicate has none.
+func keysOf(task formatv0.Task) string {
+	var keys []string
+	for _, item := range task.Items {
+		for _, slot := range verdict.AnswerSlots(item) {
+			if slot.Check.Key != nil {
+				keys = append(keys, *slot.Check.Key)
+			}
+		}
+	}
+	return strings.Join(keys, "; ")
+}
+
+// correctAsked is the call of the words after a correct answer on the task of
+// pkg, by the route, with the crop when the work went (R112 tutor): the keys of
+// the task and its solution, which the model sees here alone, its techniques,
+// and the module's language of explanations, with the style of the learner's
+// category.
+func correctAsked(pkg *modulepackage.Package, task formatv0.Task, route tutor.Route, crop []byte) (tutor.CorrectRequest, error) {
+	view, err := openview.Task(task)
+	if err != nil {
+		return tutor.CorrectRequest{}, err
+	}
+	return tutor.CorrectRequest{Route: route, Task: &view, Crop: crop, Key: keysOf(task), Solution: solutionOf(task),
+		Techniques: techniqueTitles(pkg, task), Language: string(pkg.View.Manifest.Languages.Explanation),
+		Style: styles[formatv0.AgeCategory(route.Category)]}, nil
 }
