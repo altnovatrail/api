@@ -95,10 +95,14 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// ask the gate before a task that AI checks (R45). In the dev mode the stub of
 	// tutor reads and words in place of tutor, which admits and prices still (R66).
 	// The privacy policy of the texts served says from which day the words after a
-	// correct answer go to a provider (Д214 spec).
+	// correct answer go to a provider (Д214 spec). On the stub no key reaches a
+	// provider, and the checks of a key have no limit (R78).
 	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithTexts(texts)}
+	accounts := []account.Option{account.WithTexts(texts), account.WithForms(store), account.WithExport(exporter),
+		account.WithOwnKeys(gate)}
 	if declared.Stub {
 		options = append(options, learning.WithTutor(tutorstub.New(gate)))
+		accounts = append(accounts, account.WithoutKeyCheckLimit())
 	}
 	attempts, err := learning.New(set, gate, options...)
 	if err != nil {
@@ -107,8 +111,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 
 	// What the requests run on is opened first: a database that does not answer
 	// is a failed start, not a failed first request.
-	deps, handlers, closeDeps, err := open(ctx, opens, cat, attempts, account.WithTexts(texts), account.WithForms(store),
-		account.WithExport(exporter), account.WithOwnKeys(gate))
+	deps, handlers, closeDeps, err := open(ctx, opens, cat, attempts, accounts...)
 	if err != nil {
 		var fields []any
 		if failed := (*openFailed)(nil); errors.As(err, &failed) {
