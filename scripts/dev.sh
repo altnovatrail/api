@@ -46,6 +46,10 @@ binary=bin/api
 # so that a reading of handwriting goes to the provider and back, free, before any model reads it,
 # and no call of the check costs anything (R39).
 refused_key=sk-ant-dev-check-refused
+# The own key the check sends to the stub of tutor: a synthetic one, whose ending has the stub refuse
+# the reading for the limit of the provider's tier (R66). The platform's key above ends in -refused
+# too, but it is the first server's own and never reaches the stub.
+limit_key=sk-ant-dev-check-limit-tier
 # The work the check sends to be read: a synthetic PNG of one white pixel.
 pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQJnLD7dAAAAAElFTkSuQmCC
 # The work the check sends to the stub of tutor: a synthetic PNG of two white pixels, wider than
@@ -206,6 +210,7 @@ clean() {
         [[ -z $value ]] || ! grep -qF -- "$value" "$1" || die "$(basename "$1") holds $name"
     done
     ! grep -qF -- "$refused_key" "$1" || die "$(basename "$1") holds the key of platform AI"
+    ! grep -qF -- "$limit_key" "$1" || die "$(basename "$1") holds the own key"
     [[ -z ${token:-} ]] || ! grep -qF -- "$token" "$1" || die "$(basename "$1") holds the token"
 }
 
@@ -567,6 +572,16 @@ check() {
     base="http://127.0.0.1:$port"
     handwriting "$owner"
     attempt=$(jq -r .attempt_id "$work/attempt.json")
+    # The stub refuses a call on an own key by its ending (R66): on -limit-tier the reading is the
+    # limit of the provider's tier, which own_key_limit names, and nothing is checked.
+    call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
+        OWN=$limit_key jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY,
+            work: {sheet: {crop: env.PIXEL}}, own_key: {provider: "anthropic", key: env.OWN}, clock_offset_minutes: 0}')
+    expect SubmitWork
+    jq -e '.outcome.cause == "CAUSE_LIMIT_REACHED" and .outcome.own_key_limit.cause == "LIMIT_CAUSE_TIER" and .solved == null' \
+        "$work/answer.json" > /dev/null ||
+        die "SubmitWork on an own key ending in -limit-tier gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the limit of the tier"
+    echo "$who: the stub refuses a reading on an own key by its ending"
     call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, work: {sheet: {crop: env.PIXEL}},
             clock_offset_minutes: 0}')

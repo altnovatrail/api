@@ -15,6 +15,11 @@
 // call of its kind to cost on its route, so that the quota runs out as on the
 // models.
 //
+// On an own key a call ends by how the key ends, as a provider would refuse it
+// (KeyRefused and the endings beside it): api hands the stub the key's value
+// beside the call, which tutor takes from the route alone, and the stub reads
+// its ending and keeps nothing of it.
+//
 // api takes the stub off a deployment alone: the configuration refuses it
 // there, as R32 refuses the emulator of the sign-in service.
 package tutorstub
@@ -23,6 +28,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image/png"
 	"slices"
 	"strconv"
@@ -32,6 +38,7 @@ import (
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+	tutorprovider "github.com/altnovatrail/tutor/provider"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/quota"
@@ -56,6 +63,61 @@ const mostTried = 999
 // from 0 to it is the whole crop.
 const wholeCrop = 1000
 
+// The endings of a synthetic own key that a call of AI on the stub reads, past
+// the checks of the request's form, as a provider would answer it (the
+// 2026-11-15 amendment to R66): the key refused, or a limit — named by none of
+// tutor's reasons, or by one. A key that ends in none of them calls the stub as
+// platform AI does. README.md names them for app; CheckOwnKey takes them all.
+const (
+	KeyRefused      = "-refused"
+	KeyLimit        = "-limit"
+	KeyLimitOwner   = "-limit-owner"
+	KeyLimitTier    = "-limit-tier"
+	KeyLimitBalance = "-limit-balance"
+	KeyLimitPayment = "-limit-payment"
+)
+
+// limits is tutor's reason of each ending of a limit, the longest ending first,
+// so that an ending is never taken for a shorter one it ends in.
+var limits = []limitEnding{
+	{KeyLimitBalance, tutor.LimitBalance},
+	{KeyLimitPayment, tutor.LimitBilling},
+	{KeyLimitOwner, tutor.LimitOwner},
+	{KeyLimitTier, tutor.LimitTier},
+	{KeyLimit, ""},
+}
+
+// limitEnding is an ending of a limit and tutor's reason of it.
+type limitEnding struct {
+	ending string
+	limit  tutor.LimitReason
+}
+
+// errRefused is what the stub's provider says when it refuses a call.
+var errRefused = errors.New("tutorstub: the stub refused the call by the ending of the own key")
+
+// refusal is what a call on the own key own comes to by its ending, as tutor
+// gives a provider's refusal: KeyRefused, or LimitReached with tutor's reason of
+// the ending, with no usage, since a refused call has no tokens; ok is false
+// for a key of no such ending, and on platform AI, whose own is empty. A request
+// whose context ended fails instead, as a call cut short does. Neither the
+// outcome nor its error holds the key.
+func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
+	switch i := slices.IndexFunc(limits, func(l limitEnding) bool { return strings.HasSuffix(own, l.ending) }); {
+	case strings.HasSuffix(own, KeyRefused):
+		o = tutor.Outcome{Kind: tutor.KeyRefused, Err: fmt.Errorf("%w: %w", errRefused, tutorprovider.ErrKeyRefused)}
+	case i >= 0:
+		o = tutor.Outcome{Kind: tutor.LimitReached, Limit: limits[i].limit,
+			Err: &tutorprovider.LimitError{Limit: limits[i].limit, Err: errRefused}}
+	default:
+		return tutor.Outcome{}, false
+	}
+	if err := ctx.Err(); err != nil {
+		return tutor.Outcome{Kind: tutor.Failed, Err: err}, true
+	}
+	return o, true
+}
+
 // Gate is what the stub asks of the gate of admission: whether the tutor's
 // words are admitted, and what a call is expected to cost.
 type Gate interface {
@@ -77,8 +139,10 @@ func New(gate Gate) *Stub { return &Stub{gate: gate} }
 // are. A value stands with the crop box of the whole crop, in thousandths, and a
 // reason with none, as an observation has them (R53 spec). A task with no answer
 // slot bound anywhere, a crop that is no PNG, or a request whose context ended
-// while the stub looked for a value, fails, as tutor's reading does.
-func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task) tutor.SheetRead {
+// while the stub looked for a value, fails, as tutor's reading does. Past those
+// checks an own key of an ending of the stub's is refused by it, own being its
+// value.
+func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead {
 	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
 	if err != nil {
 		return failed(err)
@@ -86,6 +150,9 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 	item, slot, ok := anywhere(task)
 	if !ok {
 		return failed(errors.New("tutorstub: the task has no answer slot bound anywhere"))
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.SheetRead{Outcome: o}
 	}
 	value, found := "", false
 	switch checked := verdict.AnswerSlots(task.Items[item])[slot]; {
@@ -123,8 +190,12 @@ func (s *Stub) Words(withWork bool, category formatv0.AgeCategory, ownKeyProvide
 // one of its list that w has not asked yet, so "explain differently" gets other
 // words, and, once all were asked, the list again from its start. A language the
 // stub has no list of gets English, which the form check turns down into the
-// rung's fallback text.
-func (s *Stub) TellWords(_ context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
+// rung's fallback text. An own key of an ending of the stub's, own being its
+// value, is refused by it.
+func (s *Stub) TellWords(ctx context.Context, w tutor.WordsRequest, own string) tutor.WordsAnswer {
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.WordsAnswer{Outcome: o}
+	}
 	list := questions["en"]
 	if l, ok := questions[base(w.Language)]; ok {
 		list = l
@@ -170,8 +241,10 @@ func (s *Stub) CorrectWords(category formatv0.AgeCategory, ownKeyProvider string
 // checks before its call the stub keeps those of the request's form: no task,
 // no style, no language, or a crop that is no PNG fails with no usage; the
 // words of the task and the size of the crop it does not read. The call spends
-// the expected price of CallCorrect, with the work or without it.
-func (s *Stub) TellCorrectWords(_ context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
+// the expected price of CallCorrect, with the work or without it. Past those
+// checks an own key of an ending of the stub's, own being its value, is refused
+// by it.
+func (s *Stub) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, own string) tutor.CorrectAnswer {
 	fail := func(err error) tutor.CorrectAnswer {
 		return tutor.CorrectAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	}
@@ -187,6 +260,9 @@ func (s *Stub) TellCorrectWords(_ context.Context, c tutor.CorrectRequest) tutor
 		if _, err := png.DecodeConfig(bytes.NewReader(c.Crop)); err != nil {
 			return fail(err)
 		}
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.CorrectAnswer{Outcome: o}
 	}
 	words, ok := praise[base(c.Language)]
 	if !ok {

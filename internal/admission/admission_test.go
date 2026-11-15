@@ -28,6 +28,7 @@ import (
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/quota"
+	"github.com/altnovatrail/api/internal/tutorstub"
 )
 
 // adultFacts open the reading of handwriting by Anthropic's models on platform
@@ -772,7 +773,8 @@ func TestTheCheckOfAKeyEndsBeforeTheDeadline(t *testing.T) {
 
 // The stub's check of a key answers by its ending (R66, R73), through tutor's
 // own check: each of the five ends with no call of a provider, OpenAI closed
-// as on the models.
+// as on the models. The endings by which the stub refuses a call of AI are
+// accepted, so that app connects such a key before it meets the refusal.
 func TestTheStubChecksAKeyByItsEnding(t *testing.T) {
 	t.Parallel()
 
@@ -783,10 +785,16 @@ func TestTheStubChecksAKeyByItsEnding(t *testing.T) {
 	g := load(t, cfg)
 	for key, want := range map[string]tutor.KeyCheck{
 		"sk-ant-synthetic": tutor.KeyAccepted,
-		"sk-ant-synthetic" + admission.StubKeyInvalid: tutor.KeyWrong,
-		"sk-ant-synthetic" + admission.StubKeyNoPerm:  tutor.KeyNoRights,
-		"sk-ant-synthetic" + admission.StubKeySilent:  tutor.KeyUnanswered,
-		"sk-ant-invalid-but-not-at-the-end":           tutor.KeyAccepted,
+		"sk-ant-synthetic" + admission.StubKeyInvalid:  tutor.KeyWrong,
+		"sk-ant-synthetic" + admission.StubKeyNoPerm:   tutor.KeyNoRights,
+		"sk-ant-synthetic" + admission.StubKeySilent:   tutor.KeyUnanswered,
+		"sk-ant-invalid-but-not-at-the-end":            tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyRefused:      tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimit:        tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitOwner:   tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitTier:    tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitBalance: tutor.KeyAccepted,
+		"sk-ant-synthetic" + tutorstub.KeyLimitPayment: tutor.KeyAccepted,
 	} {
 		if got, err := g.CheckKey(t.Context(), formatv0.AgeCategoryAdult, "anthropic", key); got != want {
 			t.Errorf("the stub's CheckKey(%q) = %v, %v, want %v", key, got, err, want)

@@ -3,8 +3,10 @@ package tutorstub_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
+	"strings"
 	"testing"
 
 	"github.com/altnovatrail/module-kit/leak"
@@ -14,6 +16,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/spec/types/formatv0/open"
 	"github.com/altnovatrail/tutor"
+	"github.com/altnovatrail/tutor/provider"
 	"github.com/altnovatrail/tutor/words"
 	"google.golang.org/protobuf/proto"
 
@@ -73,7 +76,7 @@ func task(check formatv0.Check) formatv0.Task {
 // whole crop, in thousandths, and a reason none.
 func read(t *testing.T, tk formatv0.Task, width, height int) *observationv1.AnswerSlotObservation {
 	t.Helper()
-	r := tutorstub.New(priced).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, width, height)}, tk)
+	r := tutorstub.New(priced).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, width, height)}, tk, "")
 	if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 2 {
 		t.Fatalf("ReadSheet = %v with %d observations, want both readers' answers", r.Outcome.Kind, len(r.Observations))
 	}
@@ -145,7 +148,7 @@ func TestTheStubSpendsTheExpectedPrice(t *testing.T) {
 	t.Parallel()
 
 	tk := task(formatv0.Check{Kind: formatv0.CheckKindNumber, Key: ptr("12")})
-	r := tutorstub.New(priced).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk)
+	r := tutorstub.New(priced).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk, "")
 	var spent quota.Micro
 	for _, u := range r.Outcome.Usage {
 		if u.Model != tutorstub.Model || u.Provider != "anthropic" || !u.Billed || !u.Priced {
@@ -156,7 +159,7 @@ func TestTheStubSpendsTheExpectedPrice(t *testing.T) {
 	if want := quota.USD(0.020001); len(r.Outcome.Usage) != 2 || spent != want {
 		t.Errorf("the reading spent %d over %d rows, want the reserve, %d, over the two readers", spent, len(r.Outcome.Usage), want)
 	}
-	unpriced := tutorstub.New(gate{}).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk)
+	unpriced := tutorstub.New(gate{}).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk, "")
 	for _, u := range unpriced.Outcome.Usage {
 		if u.Priced || u.USD != 0 {
 			t.Errorf("usage %+v of a price tutor did not give, want unpriced", u)
@@ -177,7 +180,7 @@ func TestTheStubFailsWhatTutorFails(t *testing.T) {
 		"no PNG":           {[]byte("not a picture"), task(formatv0.Check{Kind: formatv0.CheckKindNumber, Key: ptr("1")})},
 		"no slot anywhere": {crop(t, 40, 10), tapped},
 	} {
-		r := tutorstub.New(priced).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: tc.crop}, tc.task)
+		r := tutorstub.New(priced).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: tc.crop}, tc.task, "")
 		if r.Outcome.Kind != tutor.Failed || len(r.Observations) != 0 || len(r.Outcome.Usage) != 0 {
 			t.Errorf("%s: ReadSheet = %v with %d observations, want a failure", name, r.Outcome.Kind, len(r.Observations))
 		}
@@ -193,20 +196,20 @@ func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 	t.Parallel()
 
 	s := tutorstub.New(priced)
-	first := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru-RU"})
+	first := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru-RU"}, "")
 	if first.Outcome.Kind != tutor.Answered || first.Question == "" {
 		t.Fatalf("TellWords = %+v, want a question", first)
 	}
 	if u := first.Outcome.Usage; len(u) != 1 || u[0].Model != tutorstub.Model || u[0].USD != 0.005 || !u[0].Priced {
 		t.Errorf("the hint without the work spent %+v, want the expected 0.005 by the model stub", u)
 	}
-	withWork := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Crop: crop(t, 40, 20)})
+	withWork := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Crop: crop(t, 40, 20)}, "")
 	if u := withWork.Outcome.Usage; withWork.Outcome.Kind != tutor.Answered || len(u) != 1 || u[0].USD != 0.01 {
 		t.Errorf("the words with the work spent %+v, want the expected 0.01", u)
 	}
 	asked := []string{first.Question}
 	for range 2 {
-		next := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Asked: asked})
+		next := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Asked: asked}, "")
 		for _, q := range asked {
 			if next.Question == q {
 				t.Errorf("TellWords after %q gave %q again", asked, q)
@@ -214,11 +217,11 @@ func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 		}
 		asked = append(asked, next.Question)
 	}
-	if again := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Asked: asked}); again.Question != first.Question {
+	if again := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "ru", Asked: asked}, ""); again.Question != first.Question {
 		t.Errorf("TellWords after all were asked = %q, want the first, %q", again.Question, first.Question)
 	}
-	en := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "en_US"})
-	other := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "de"})
+	en := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "en_US"}, "")
+	other := s.TellWords(t.Context(), tutor.WordsRequest{Route: adult, Language: "de"}, "")
 	if en.Question == first.Question || other.Question != en.Question {
 		t.Errorf("TellWords in English = %q and in German = %q, want English for both, not Russian", en.Question, other.Question)
 	}
@@ -235,7 +238,7 @@ func TestTheStubFailsAReadingCutShort(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	tk := task(formatv0.Check{Kind: formatv0.CheckKindPredicate, Predicate: ptr("value > 2")})
-	r := tutorstub.New(priced).ReadSheet(ctx, tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk)
+	r := tutorstub.New(priced).ReadSheet(ctx, tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk, "")
 	if r.Outcome.Kind != tutor.Failed || len(r.Observations) != 0 || len(r.Outcome.Usage) != 0 {
 		t.Errorf("ReadSheet cut short = %v with %d observations, want a failure", r.Outcome.Kind, len(r.Observations))
 	}
@@ -266,7 +269,7 @@ func TestTheStubPraisesACorrectAnswer(t *testing.T) {
 			for _, work := range [][]byte{nil, crop(t, 40, 20)} {
 				c := tutor.CorrectRequest{Route: adult, Task: view, Crop: work, Key: "12", Solution: []string{"7 + 5 = 12"},
 					Techniques: techniques, Language: language, Style: "an adult"}
-				got := s.TellCorrectWords(t.Context(), c)
+				got := s.TellCorrectWords(t.Context(), c, "")
 				if got.Outcome.Kind != tutor.Answered || got.Words == "" {
 					t.Fatalf("TellCorrectWords(%s, %v) = %+v, want words", language, techniques, got)
 				}
@@ -287,7 +290,7 @@ func TestTheStubPraisesACorrectAnswer(t *testing.T) {
 		t.Errorf("the stub gave %d different words, want 8: two languages, with a technique and without, with the work and without", len(seen))
 	}
 	if other := s.TellCorrectWords(t.Context(), tutor.CorrectRequest{Route: adult, Task: view, Language: "de",
-		Style: "an adult"}); !seen[other.Words] || words.Correct(other.Words, "de", "") != nil {
+		Style: "an adult"}, ""); !seen[other.Words] || words.Correct(other.Words, "de", "") != nil {
 		t.Errorf("the words in German = %q, want English", other.Words)
 	}
 	if !s.CorrectWords(formatv0.AgeCategoryAdult, "") || tutorstub.New(gate{}).CorrectWords(formatv0.AgeCategoryAdult, "") {
@@ -307,9 +310,82 @@ func TestTheStubFailsTheWordsTutorFails(t *testing.T) {
 		"no PNG":      {Route: adult, Task: &open.Task{}, Crop: []byte("not a picture"), Language: "en", Style: "an adult"},
 		"no language": {Route: adult, Task: &open.Task{}, Language: " ", Style: "an adult"},
 	} {
-		got := tutorstub.New(priced).TellCorrectWords(t.Context(), c)
+		got := tutorstub.New(priced).TellCorrectWords(t.Context(), c, "")
 		if got.Outcome.Kind != tutor.Failed || got.Words != "" || len(got.Outcome.Usage) != 0 {
 			t.Errorf("%s: TellCorrectWords = %+v, want a failure with no usage", name, got)
+		}
+	}
+}
+
+// On an own key whose value ends in an ending of the stub's, the reading, the
+// words of a rung and the words after a correct answer are refused as a
+// provider refuses them: the key refused, or a limit with tutor's reason of the
+// ending, or none, with no usage and an error that holds no key. A key of no
+// such ending, an ending of the stub's check of a key, and platform AI, with no
+// key, are answered; a request tutor fails before its call fails so on any key,
+// and so does one cut short.
+func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
+	t.Parallel()
+
+	own := tutor.Route{AI: admissionv0.AiRouteOwnKey, Category: admissionv0.AgeCategoryAdult}
+	tk := task(formatv0.Check{Kind: formatv0.CheckKindNumber, Key: ptr("12")})
+	s := tutorstub.New(priced)
+	sheet := tutor.SheetReading{Route: own, Crop: crop(t, 40, 10)}
+	rung := tutor.WordsRequest{Route: own, Language: "en"}
+	praised := tutor.CorrectRequest{Route: own, Task: &open.Task{}, Language: "en", Style: "an adult"}
+	for ending, want := range map[string]struct {
+		kind  tutor.Kind
+		limit tutor.LimitReason
+	}{
+		tutorstub.KeyRefused:      {kind: tutor.KeyRefused},
+		tutorstub.KeyLimit:        {kind: tutor.LimitReached},
+		tutorstub.KeyLimitOwner:   {kind: tutor.LimitReached, limit: tutor.LimitOwner},
+		tutorstub.KeyLimitTier:    {kind: tutor.LimitReached, limit: tutor.LimitTier},
+		tutorstub.KeyLimitBalance: {kind: tutor.LimitReached, limit: tutor.LimitBalance},
+		tutorstub.KeyLimitPayment: {kind: tutor.LimitReached, limit: tutor.LimitBilling},
+	} {
+		key := "sk-ant-synthetic" + ending
+		for call, o := range map[string]tutor.Outcome{
+			"ReadSheet":        s.ReadSheet(t.Context(), sheet, tk, key).Outcome,
+			"TellWords":        s.TellWords(t.Context(), rung, key).Outcome,
+			"TellCorrectWords": s.TellCorrectWords(t.Context(), praised, key).Outcome,
+		} {
+			if o.Kind != want.kind || o.Limit != want.limit || len(o.Usage) != 0 || o.Err == nil || strings.Contains(o.Err.Error(), key) {
+				t.Errorf("%s on %q = %+v, want %v, limit %q, no usage, and an error with no key", call, ending, o, want.kind, want.limit)
+			}
+			var limit *provider.LimitError
+			if refused, limited := errors.Is(o.Err, provider.ErrKeyRefused), errors.As(o.Err, &limit); refused != (want.kind == tutor.KeyRefused) ||
+				limited != (want.kind == tutor.LimitReached) || limited && limit.Limit != want.limit {
+				t.Errorf("%s on %q failed with %v, want the provider's error of the outcome", call, ending, o.Err)
+			}
+		}
+		if r := s.ReadSheet(t.Context(), tutor.SheetReading{Route: own, Crop: []byte("not a picture")}, tk, key); r.Outcome.Kind != tutor.Failed {
+			t.Errorf("ReadSheet of no PNG on %q = %v, want a failure before the call", ending, r.Outcome.Kind)
+		}
+		if w := s.TellCorrectWords(t.Context(), tutor.CorrectRequest{Route: own, Language: "en", Style: "an adult"}, key); w.Outcome.Kind != tutor.Failed {
+			t.Errorf("TellCorrectWords with no task on %q = %v, want a failure before the call", ending, w.Outcome.Kind)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for call, o := range map[string]tutor.Outcome{
+		"ReadSheet":        s.ReadSheet(ctx, sheet, tk, "sk-ant-synthetic"+tutorstub.KeyLimitTier).Outcome,
+		"TellWords":        s.TellWords(ctx, rung, "sk-ant-synthetic"+tutorstub.KeyRefused).Outcome,
+		"TellCorrectWords": s.TellCorrectWords(ctx, praised, "sk-ant-synthetic"+tutorstub.KeyLimit).Outcome,
+	} {
+		if o.Kind != tutor.Failed || !errors.Is(o.Err, context.Canceled) {
+			t.Errorf("%s cut short on an ending of the stub's = %+v, want a failure, as a call cut short", call, o)
+		}
+	}
+	for _, key := range []string{"sk-ant-synthetic", "sk-ant-synthetic-invalid", "sk-ant-refused-not-at-the-end", "sk-ant-synthetic-limited", ""} {
+		if r := s.ReadSheet(t.Context(), sheet, tk, key); r.Outcome.Kind != tutor.Answered || len(r.Observations) != 2 {
+			t.Errorf("ReadSheet on %q = %v, want both readers' answers", key, r.Outcome.Kind)
+		}
+		if w := s.TellWords(t.Context(), rung, key); w.Outcome.Kind != tutor.Answered || w.Question == "" {
+			t.Errorf("TellWords on %q = %+v, want a question", key, w)
+		}
+		if c := s.TellCorrectWords(t.Context(), praised, key); c.Outcome.Kind != tutor.Answered || c.Words == "" {
+			t.Errorf("TellCorrectWords on %q = %+v, want words", key, c)
 		}
 	}
 }

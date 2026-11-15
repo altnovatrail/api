@@ -93,18 +93,21 @@ func rungHint(ctx context.Context, tx pgx.Tx, profileID string, h held) (*v1.Run
 }
 
 // wordsTeller words the tutor's words, as the gate of admission does through
-// tutor: whether they are admitted for a learner, and the call.
+// tutor: whether they are admitted for a learner, and the call. own is the
+// value of the request's own key, which the dev mode's stub alone reads, as
+// sheetReader has it.
 type wordsTeller interface {
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
-	TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer
+	TellWords(ctx context.Context, w tutor.WordsRequest, own string) tutor.WordsAnswer
 }
 
 // correctTeller words the tutor's words after a correct answer, as the gate of
 // admission does through tutor: whether they are admitted for a learner, by
-// their kind of call, CallCorrect, and the call (R112 tutor; R76).
+// their kind of call, CallCorrect, and the call (R112 tutor; R76). own is as
+// wordsTeller has it.
 type correctTeller interface {
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
-	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer
+	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, own string) tutor.CorrectAnswer
 }
 
 // telling is a request for words between the parts of its request: the attempt
@@ -136,16 +139,17 @@ func wordsCall(t telling) tutor.Call {
 }
 
 // call calls the words of t, when it has no answer ready, until finishReserve
-// before the request's deadline, and notes the call in the request's log. The
-// crop goes no further than the call.
-func (s *Service) call(ctx context.Context, t telling) telling {
+// before the request's deadline, and notes the call in the request's log; own is
+// the value of the request's own key, for the stub. The crop goes no further
+// than the call.
+func (s *Service) call(ctx context.Context, t telling, own string) telling {
 	if t.ready != nil || t.reserve.refused != nil {
 		return t
 	}
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	start := time.Now()
-	t.answer, t.called = s.teller.TellWords(ctx, t.request), true
+	t.answer, t.called = s.teller.TellWords(ctx, t.request, own), true
 	t.request.Crop = nil
 	noteCall(ctx, t.answer.Outcome, time.Since(start))
 	s.afterCall(ctx, t.reserve, t.answer.Outcome)
@@ -343,7 +347,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 				t, err := prepare(tx)
 				return t, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID}, err
 			},
-			Call: s.call,
+			Call: func(ctx context.Context, t telling) telling { return s.call(ctx, t, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, t telling) (*v1.GetRungWordsResponse, store.KeyTarget, error) {
 				return s.rungTold(ctx, tx, profileID, t)
 			},
@@ -538,7 +542,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 				t, err := prepare(tx)
 				return t, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID}, err
 			},
-			Call: s.call,
+			Call: func(ctx context.Context, t telling) telling { return s.call(ctx, t, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, t telling) (*v1.ExplainDifferentlyResponse, store.KeyTarget, error) {
 				return s.otherTold(ctx, tx, profileID, t)
 			},
@@ -729,7 +733,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 				p, err := prepare(tx)
 				return p, store.KeyTarget{ProfileID: profileID, AttemptID: p.row.ID}, err
 			},
-			Call: s.praise,
+			Call: func(ctx context.Context, p praising) praising { return s.praise(ctx, p, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, p praising) (*v1.GetCorrectAnswerWordsResponse, store.KeyTarget, error) {
 				return s.praised(ctx, tx, profileID, p)
 			},
@@ -816,15 +820,16 @@ func praisable(ctx context.Context, tx pgx.Tx, profileID string, row store.Attem
 
 // praise calls the words after a correct answer of p, when the quota holds the
 // call, until finishReserve before the request's deadline, and notes the call
-// in the request's log. The crop goes no further than the call.
-func (s *Service) praise(ctx context.Context, p praising) praising {
+// in the request's log; own is the value of the request's own key, for the stub.
+// The crop goes no further than the call.
+func (s *Service) praise(ctx context.Context, p praising, own string) praising {
 	if p.reserve.refused != nil {
 		return p
 	}
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	start := time.Now()
-	p.answer, p.called = s.praiser.TellCorrectWords(ctx, p.request), true
+	p.answer, p.called = s.praiser.TellCorrectWords(ctx, p.request, own), true
 	p.request.Crop = nil
 	noteCall(ctx, p.answer.Outcome, time.Since(start))
 	s.afterCall(ctx, p.reserve, p.answer.Outcome)

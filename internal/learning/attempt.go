@@ -117,7 +117,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 				}
 				return out, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, err
 			},
-			Call: func(ctx context.Context, out sending) sending { return s.read(ctx, out) },
+			Call: func(ctx context.Context, out sending) sending { return s.read(ctx, out, req.GetOwnKey().GetKey()) },
 			Finish: func(tx pgx.Tx, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
 				// Held again: another device may have closed it while AI read.
 				h, err := s.hold(ctx, tx, profileID, out.attemptID, s.clock())
@@ -269,9 +269,10 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 
 // read reads the crop of out by tutor, when AI reads a slot of its task, until
 // finishReserve before the request's deadline, and notes the call in the
-// request's log. A reading the quota does not hold is not called, and one
-// called settles its reserve by what it cost.
-func (s *Service) read(ctx context.Context, out sending) sending {
+// request's log; own is the value of the request's own key, for the stub. A
+// reading the quota does not hold is not called, and one called settles its
+// reserve by what it cost.
+func (s *Service) read(ctx context.Context, out sending, own string) sending {
 	if !out.ai {
 		return out
 	}
@@ -286,7 +287,7 @@ func (s *Service) read(ctx context.Context, out sending) sending {
 	if err != nil {
 		out.read = tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	} else {
-		out.read = s.reader.ReadSheet(ctx, tutor.SheetReading{Route: out.route, Task: &view, Crop: out.crop}, out.task)
+		out.read = s.reader.ReadSheet(ctx, tutor.SheetReading{Route: out.route, Task: &view, Crop: out.crop}, out.task, own)
 	}
 	// The crop goes no further than the reading.
 	out.crop = nil

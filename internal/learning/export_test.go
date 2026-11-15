@@ -7,6 +7,8 @@ import (
 	"github.com/altnovatrail/module-kit/modulepackage"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+
+	"github.com/altnovatrail/api/internal/admission"
 )
 
 // WithModuleKit is the version of module-kit a Service says it is built with,
@@ -22,7 +24,7 @@ func WithReader(read func(ctx context.Context, r tutor.SheetReading) tutor.Sheet
 // readerFunc is a function as a sheetReader.
 type readerFunc func(ctx context.Context, r tutor.SheetReading) tutor.SheetRead
 
-func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task) tutor.SheetRead {
+func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
 	return f(ctx, r)
 }
 
@@ -39,7 +41,7 @@ type tellerFunc func(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswe
 
 func (f tellerFunc) Words(bool, formatv0.AgeCategory, string) bool { return true }
 
-func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
+func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest, _ string) tutor.WordsAnswer {
 	return f(ctx, w)
 }
 
@@ -73,6 +75,16 @@ type praiserFunc func(ctx context.Context, c tutor.CorrectRequest) tutor.Correct
 
 func (f praiserFunc) CorrectWords(formatv0.AgeCategory, string) bool { return true }
 
-func (f praiserFunc) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
+func (f praiserFunc) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, _ string) tutor.CorrectAnswer {
 	return f(ctx, c)
+}
+
+// GateTutor is the gate's adapter of the ports of tutor, which a Service runs
+// on with no stub: it drops the own key's value that the stub alone reads.
+func GateTutor(g *admission.Gate) interface {
+	sheetReader
+	wordsTeller
+	correctTeller
+} {
+	return gateTutor{g}
 }

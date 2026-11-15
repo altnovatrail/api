@@ -103,16 +103,28 @@ func WithTexts(texts *legal.Texts) Option { return func(s *Service) { s.texts = 
 
 // sheetReader reads the work of a handwriting sheet, as tutor does. task is the
 // instance, its key with it, which the dev mode's stub alone reads, to read a
-// right value (R66): tutor is given the open view of r alone (R67 spec).
+// right value (R66): tutor is given the open view of r alone (R67 spec). own is
+// the value of the request's own key, empty on platform AI, whose ending the
+// stub alone reads, to refuse as a provider would (the 2026-11-15 amendment to
+// R66): tutor takes the key from the route, which it alone opens.
 type sheetReader interface {
-	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task) tutor.SheetRead
+	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead
 }
 
-// gateReader reads by the gate's tutor, which never sees the instance.
-type gateReader struct{ gate *admission.Gate }
+// gateTutor reads and words by the gate's tutor, which never sees the instance
+// and takes the own key from the route alone: it drops both.
+type gateTutor struct{ *admission.Gate }
 
-func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task) tutor.SheetRead {
-	return g.gate.ReadSheet(ctx, r)
+func (g gateTutor) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
+	return g.Gate.ReadSheet(ctx, r)
+}
+
+func (g gateTutor) TellWords(ctx context.Context, w tutor.WordsRequest, _ string) tutor.WordsAnswer {
+	return g.Gate.TellWords(ctx, w)
+}
+
+func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, _ string) tutor.CorrectAnswer {
+	return g.Gate.TellCorrectWords(ctx, c)
 }
 
 // New is the Service of the packages of set, which asks gate before a task that
@@ -122,7 +134,7 @@ func (g gateReader) ReadSheet(ctx context.Context, r tutor.SheetReading, _ forma
 // of learner-model, which the mark of the learner model's cache names, or of
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
-	s := &Service{set: set, gate: gate, reader: gateReader{gate}, teller: gate, praiser: gate, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+	s := &Service{set: set, gate: gate, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
