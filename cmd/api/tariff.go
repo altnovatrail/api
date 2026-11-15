@@ -52,6 +52,9 @@ func setTariff(ctx context.Context, args, environ []string, stdout, stderr io.Wr
 	if err != nil {
 		return err
 	}
+	if err := devOnly("api tariff", *tariff, cfg, stderr); err != nil {
+		return err
+	}
 	log := logging.New(stderr, cfg.LogLevel)
 
 	pool, err := store.Open(ctx, cfg.DatabaseURL.Reveal())

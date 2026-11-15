@@ -22,7 +22,8 @@
 # through the environment, files and pipes.
 #
 # scripts/dev_test.go tests the loader, the custom token and how it is laid for app, the task AI
-# reads, the workbook page and its boxes, an essay, and the counters in CI.
+# reads, the workbook page and its boxes, an essay, the counters and the tariff of the check's
+# account in CI.
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -379,19 +380,21 @@ legal_texts() {
 }
 
 # owner_account makes sure the account of the token is there with an owner's profile of the category
-# adult: an invite code and CreateAccount when there is no account, CreateOwnerProfile when there is
-# no owner's profile, so that a repeat makes nothing. GetAccount's answer is left in
-# $work/answer.json.
+# adult: an invite code of the tariff $1 and CreateAccount when there is no account — the code then
+# kept in the file $2, when one is named, at once, so that a step that fails after does not lose it
+# —, CreateOwnerProfile when there is no owner's profile, so that a repeat makes nothing.
+# GetAccount's answer is left in $work/answer.json.
 owner_account() {
     call GetAccount <<< '{}'
     # A UID with no account is refused as permission_denied, CAUSE_NO_ACCESS (R04).
     if [[ $status == 403 ]] && [[ $(jq -r .code "$work/answer.json") == permission_denied ]]; then
-        echo "$who: no account yet: an invite code and CreateAccount"
+        echo "$who: no account yet: an invite code of the tariff $1 and CreateAccount"
         local code
-        code=$("$binary" invite 2> "$work/invite.log") || die "invite failed: $(cat "$work/invite.log")"
+        code=$("$binary" invite -tariff "$1" 2> "$work/invite.log") || die "invite failed: $(cat "$work/invite.log")"
         call CreateAccount < <(CODE=$code jq -c '{invite_code: env.CODE, adult_stated: true,
             accepted_texts: [.texts[] | select(.id == "privacy-policy" or .id == "terms-of-use") | {id, version}]}' "$work/texts.json")
         expect CreateAccount
+        [[ -z ${2:-} ]] || keep_code "$code" "$2"
         call GetAccount <<< '{}'
     fi
     expect GetAccount
@@ -408,6 +411,42 @@ owner_account() {
         ([.account.profiles[]? | select(.owner and .age_category == "adult")] | length) == 1' \
         "$work/answer.json" > /dev/null || die "GetAccount does not hold the account with the owner's profile, adult"
     echo "$who: the account and the owner's profile are there"
+}
+
+# keep_code keeps the invite code $1 in the file $2, readable by its owner alone.
+keep_code() {
+    (umask 077 && printf '%s\n' "$1" > "$2") || die "the code of the new account could not be kept in $2"
+    echo "$who: the code of the new account is kept in $2"
+}
+
+# check_account makes sure the account of the check is there on the tariff dev_check (В80), with
+# its owner's profile, as owner_account does. The invite code of the account of each UID is kept in
+# <UID>.code beside the dev file, where it really lies, outside any working tree. An account whose
+# code the file keeps gets the tariff by `api tariff`; one with no code kept, made before the tariff,
+# is deleted by the fresh sign-in of its custom token and made anew by a code of the tariff, which
+# the file keeps. The code is redeemed and opens no account again (R34), so it may go on the command
+# line of `api tariff`.
+check_account() {
+    local uid=${API_DEV_UID:-$uid_default} file
+    file=$(dirname "$(realpath "$config")")/$uid.code
+    call GetAccount <<< '{}'
+    if [[ $status == 200 ]]; then
+        if [[ -s $file ]]; then
+            "$binary" tariff -tariff dev_check "$(< "$file")" > "$work/tariff.out" 2> "$work/tariff.log" ||
+                die "tariff failed: $(cat "$work/tariff.log"); if the account is not the one whose code $file keeps, remove the file, and the next run makes the account anew"
+            echo "$who: the account is on the tariff dev_check"
+        else
+            echo "$who: no code of the account is kept: DeleteAccount, and the account anew on the tariff dev_check"
+            call DeleteAccount <<< '{}'
+            expect DeleteAccount
+            token=$(id_token "$uid")
+            # A deletion the sign-in service did not finish keeps the account marked, and its UID is
+            # refused "account gone", not "no access", until the daily job finishes it (R33).
+            call GetAccount <<< '{}'
+            [[ $status == 403 ]] || die "the deletion of the account is not finished, GetAccount answers $status: \`just dev sweep\` finishes it, then run the check again"
+        fi
+    fi
+    owner_account dev_check "$file"
 }
 
 check() {
@@ -443,7 +482,7 @@ check() {
     token=$(id_token "${API_DEV_UID:-$uid_default}")
 
     legal_texts
-    owner_account
+    check_account
 
     # The progress of the owner's profile settles its evidence first, under the lock of its row of
     # the cache, on the database itself (R49).
@@ -741,6 +780,11 @@ check() {
     call ModuleService/DisconnectModule < <(PROFILE=$owner MODULE=$essays jq -cn '{profile_id: env.PROFILE, module_id: env.MODULE}')
     expect DisconnectModule
     echo "$who: an essay is read, assessed with its feedback and done on the stub, with its $criteria criteria"
+    # What the account's counters hold, over their family days, by the export: of two runs one after
+    # the other, the difference is what the second spent (В80).
+    exported "$work/end"
+    read -r spent_after reserved_after <<< "$(counted "$work/end/account.json")"
+    echo "$who: the account's counters of the quota hold $spent_after micro-dollars spent and $reserved_after in reserve"
     stop_serve
     clean "$work/stub.log"
     ! grep -qF -- "$praise" "$work/stub.log" || die "stub.log holds the words after a correct answer"
@@ -811,7 +855,7 @@ app() {
     echo "dev-app: ID token"
     token=$(id_token "$app_uid")
     legal_texts
-    owner_account
+    owner_account closed_slice
 
     # From here the file is this run's: one that failed to start, beside a run that goes on, leaves
     # that run's token where it is.

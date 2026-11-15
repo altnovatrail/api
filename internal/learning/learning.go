@@ -62,6 +62,9 @@ type Service struct {
 	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
 	// provider: its words after a correct answer go whatever the day (R66).
 	stubbed bool
+	// offDeployment says api runs off a deployment, where alone a tariff of the
+	// dev projects has its caps: unset, platform AI is closed to it (quota.CapsOf).
+	offDeployment bool
 	// texts is the legal texts api serves, whose privacy policy in force on the
 	// day of a request says whether the words after a correct answer go to a
 	// provider (Д214 spec).
@@ -91,6 +94,11 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // WithRequestTimeout is the longest a request may run, as the server bounds it
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
+
+// OffDeployment says api runs off a deployment, as serve does on the dev
+// projects: a tariff of the dev projects alone has its caps there alone
+// (quota.CapsOf).
+func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
 
 // WithTutor is what reads the sheets, the workbook pages and the essays,
 // assesses the essays by their rubrics and words the tutor's words, those after

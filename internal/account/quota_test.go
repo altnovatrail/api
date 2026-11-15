@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/altnovatrail/api/internal/account"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 )
@@ -166,6 +167,32 @@ func TestATariffWithNoCapsHasNoShare(t *testing.T) {
 			if got := w.share(t, f, f.child, action); !proto.Equal(got, want) {
 				t.Errorf("the share of the tariff %v to %s = %v\nwant %v", tariff, action, got, want)
 			}
+		}
+	}
+}
+
+// The tariff of dev-check has its share off a deployment, of $5.00 a profile,
+// and none deployed, where it is a tariff with no caps (В80).
+func TestTheTariffOfDevCheckHasNoShareDeployed(t *testing.T) {
+	t.Parallel()
+
+	for _, deployed := range []bool{false, true} {
+		var options []account.Option
+		if !deployed {
+			options = append(options, account.OffDeployment())
+		}
+		w := newWorldWith(t, options)
+		f := w.family(t)
+		if _, err := w.pool.Exec(t.Context(), `UPDATE accounts SET tariff = $2 WHERE id = $1`, f.account, quota.DevCheck); err != nil {
+			t.Fatal(err)
+		}
+		w.spend(t, f, "profile_quota", "profile_id", f.child, 500_000, 0)
+		want := &v1.QuotaShare{ProfilePercent: proto.Int32(10), NextFamilyDay: timestamppb.New(f.day.end)}
+		if deployed {
+			want = &v1.QuotaShare{NextFamilyDay: timestamppb.New(f.day.end)}
+		}
+		if got := w.share(t, f, f.child, v1.Action_ACTION_LEARNING); !proto.Equal(got, want) {
+			t.Errorf("the share of dev_check, deployed %v = %v\nwant %v", deployed, got, want)
 		}
 	}
 }

@@ -238,6 +238,33 @@ func TestAnAccountWithNoTariffHasNoRoom(t *testing.T) {
 	}
 }
 
+// The tariff of dev-check has its caps off a deployment, $5.00 a profile, and
+// none deployed or not told it is off one: the reserve, the room and the share
+// there read it as no tariff (В80).
+func TestTheTariffOfDevCheckHasNoCapsDeployed(t *testing.T) {
+	t.Parallel()
+
+	w := newQuotaWorld(t, quota.DevCheck)
+	off := w.charge(w.child, 4_000_000)
+	off.OffDeployment = true
+	if spent := w.reserve(t, off); spent != quota.Fits {
+		t.Errorf("a reserve of $4.00 on dev_check off a deployment = %q", spent)
+	}
+	if spent := w.reserve(t, w.charge(w.child, 1)); spent != quota.NoTariff {
+		t.Errorf("a reserve on dev_check deployed = %q, want the tariff", spent)
+	}
+	if spent, err := store.QuotaFits(t.Context(), w.pool, w.charge(w.child, 1)); err != nil || spent != quota.NoTariff {
+		t.Errorf("the room on dev_check deployed = %q, %v", spent, err)
+	}
+	now := w.day.Start.Add(time.Hour)
+	if s, err := store.QuotaSettled(t.Context(), w.pool, w.account, w.child, now, true); err != nil || !s.Capped || s.Caps.Profile != 5_000_000 {
+		t.Errorf("the settled of dev_check off a deployment = %+v, %v", s, err)
+	}
+	if s, err := store.QuotaSettled(t.Context(), w.pool, w.account, w.child, now, false); err != nil || s.Capped {
+		t.Errorf("the settled of dev_check deployed = %+v, %v; want no caps", s, err)
+	}
+}
+
 // Two reserves of one account beside each other, from two devices, go one
 // after the other on the account's row: of two that each fit alone, and not
 // together, one fits.
@@ -318,13 +345,13 @@ func TestWhatWasSettledIsTheSpendingOfTheDayKept(t *testing.T) {
 	}
 	settled := func(profileID string) store.Settled {
 		t.Helper()
-		s, err := store.QuotaSettled(t.Context(), w.pool, w.account, profileID, now)
+		s, err := store.QuotaSettled(t.Context(), w.pool, w.account, profileID, now, false)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return s
 	}
-	caps, _ := quota.CapsOf(quota.Probe)
+	caps, _ := quota.CapsOf(quota.Probe, false)
 	if got := settled(w.child); got != (store.Settled{Day: w.day, Caps: caps, Capped: true}) {
 		t.Errorf("a day with no counter = %+v", got)
 	}
@@ -356,10 +383,10 @@ func TestWhatWasSettledIsTheSpendingOfTheDayKept(t *testing.T) {
 		VALUES ($1, $2, $3, 7000)`, other, w.day.Start, w.day.End); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.QuotaSettled(t.Context(), w.pool, w.account, other, now); !errors.Is(err, store.ErrNoProfile) {
+	if _, err := store.QuotaSettled(t.Context(), w.pool, w.account, other, now, false); !errors.Is(err, store.ErrNoProfile) {
 		t.Errorf("a profile of another account = %v, want ErrNoProfile", err)
 	}
-	if _, err := store.QuotaSettled(t.Context(), w.pool, "00000000-0000-0000-0000-000000000000", w.child, now); !errors.Is(err, store.ErrNoAccount) {
+	if _, err := store.QuotaSettled(t.Context(), w.pool, "00000000-0000-0000-0000-000000000000", w.child, now, false); !errors.Is(err, store.ErrNoAccount) {
 		t.Errorf("no account = %v, want ErrNoAccount", err)
 	}
 	for _, failOn := range []string{"SELECT utc_offset_minutes", "SELECT active_on", "SELECT tariff", "FROM profile_quota", "FROM account_quota"} {
@@ -367,7 +394,7 @@ func TestWhatWasSettledIsTheSpendingOfTheDayKept(t *testing.T) {
 			t.Fatal(err)
 		}
 		err := pgx.BeginFunc(t.Context(), &flaky{Pool: w.pool, failOn: failOn}, func(tx pgx.Tx) error {
-			_, err := store.QuotaSettled(t.Context(), tx, w.account, w.child, now)
+			_, err := store.QuotaSettled(t.Context(), tx, w.account, w.child, now, false)
 			return err
 		})
 		if !errors.Is(err, errDown) {

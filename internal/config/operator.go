@@ -14,6 +14,10 @@ type Operator struct {
 	LogLevel slog.Level
 	// DatabaseURL is the pooler's connection string of the database api.
 	DatabaseURL Secret
+	// DeployedBy is the variable that says the command runs deployed, K_SERVICE
+	// or CLOUD_RUN_JOB, or empty off a deployment: a tariff of the dev projects
+	// alone is refused there.
+	DeployedBy string
 }
 
 // OperatorFrom reads the configuration of a command of the operator from a set
@@ -22,7 +26,7 @@ func OperatorFrom(environ []string) (*Operator, error) {
 	env := read(environ)
 
 	var problems []error
-	cfg := &Operator{}
+	cfg := &Operator{DeployedBy: env.deployedBy()}
 	var err error
 	if cfg.LogLevel, err = level(env.or(VarLogLevel, DefaultLogLevel)); err != nil {
 		problems = append(problems, err)

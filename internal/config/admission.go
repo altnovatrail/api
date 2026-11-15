@@ -85,12 +85,7 @@ type Admission struct {
 // key of a provider is in the process (R66).
 func AdmissionFrom(environ []string) (Admission, error) {
 	env := read(environ)
-	deployedBy := ""
-	for _, name := range []string{VarService, VarJob} {
-		if _, set := env[name]; set && deployedBy == "" {
-			deployedBy = name
-		}
-	}
+	deployedBy := env.deployedBy()
 	rung, set := env[VarAdmissionRung]
 	cfg := Admission{FactsFile: env[VarAdmissionFactsFile], Rung: rung, RungSet: set}
 	if !set {

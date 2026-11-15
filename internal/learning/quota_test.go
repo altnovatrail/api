@@ -373,6 +373,52 @@ func TestAnOwnKeyARepeatAndNoTariff(t *testing.T) {
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 }
 
+// The tariff of dev-check opens platform AI off a deployment, and deployed it is
+// a tariff with no caps: the words are the fallback text "not admitted", and a
+// new task of handwriting is refused so (В80).
+func TestTheTariffOfDevCheckIsClosedDeployed(t *testing.T) {
+	t.Parallel()
+
+	trapped := []*v1.TappedChoice{tap(1, 1, "12"), tap(2, 1, "30")}
+	for _, deployed := range []bool{false, true} {
+		ts, rs := &tellers{}, &readers{}
+		opts := []learning.Option{learning.WithWords(ts.tell), learning.WithReader(rs.read),
+			learning.WithPrice(func(tutor.Call, tutor.Route) tutor.CallPrice {
+				return tutor.CallPrice{ExpectedUSD: expected.Dollars(), Expected: true}
+			})}
+		if !deployed {
+			opts = append(opts, learning.OffDeployment())
+		}
+		w := worldOf(t, gate(t, adultFacts, config.RungAuthor), opts)
+		l := w.learner(t)
+		w.exec(t, `UPDATE accounts SET tariff = $2 WHERE id = $1`, l.accountID, quota.DevCheck)
+		ts.give(tutor.WordsAnswer{Question: "Which of the two numbers has more tens?", Outcome: tutor.Outcome{Kind: tutor.Answered,
+			Usage: []tutor.Usage{{Provider: "anthropic", Model: "claude-opus-5-5", Billed: true, Priced: true, USD: 0.015}}}})
+
+		a := w.begin(t, l, l.adult, "pairs").GetAttemptId()
+		w.wrongs(t, l, l.adult, a, trapped)
+		words, err := w.rungWords(l, l.adult, a, 1)
+		_, began := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+			Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, l.adult, "apples")}})
+		if !deployed {
+			if err != nil || words.GetOutcome() != nil || ts.count() != 1 {
+				t.Errorf("the words on dev_check off a deployment = %v (%v), called %d times; want the model's", words, err, ts.count())
+			}
+			if profile, _ := w.counted(t, l.accountID, l.adult); profile != (quota.Counter{Spent: 15_000}) {
+				t.Errorf("the words on dev_check off a deployment spent %+v", profile)
+			}
+			if began != nil {
+				t.Errorf("a task of handwriting on dev_check off a deployment = %v", began)
+			}
+			continue
+		}
+		if err != nil || words.GetOutcome().GetCause() != v1.Cause_CAUSE_NOT_ADMITTED || ts.count() != 0 {
+			t.Errorf("the words on dev_check deployed = %v (%v), called %d times; want not admitted", words, err, ts.count())
+		}
+		refusedAs(t, began, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+	}
+}
+
 // A refusal of the provider by its limit on the platform's key closes platform
 // AI to all, and says so once in the log: then no call goes — the words are the
 // fallback text with the outcome "platform limit", "explain differently" and a

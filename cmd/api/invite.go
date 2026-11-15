@@ -43,6 +43,9 @@ func createInvite(ctx context.Context, args, environ []string, stdout, stderr io
 	if err != nil {
 		return err
 	}
+	if err := devOnly("api invite", *tariff, cfg, stderr); err != nil {
+		return err
+	}
 	log := logging.New(stderr, cfg.LogLevel)
 
 	pool, err := store.Open(ctx, cfg.DatabaseURL.Reveal())
@@ -56,4 +59,16 @@ func createInvite(ctx context.Context, args, environ []string, stdout, stderr io
 	}
 	fmt.Fprintln(stdout, code)
 	return nil
+}
+
+// devOnly refuses a tariff of the dev projects alone to the command named by
+// command when it runs deployed, by the variable Cloud Run sets (В80). From an
+// operator's own terminal no variable tells the database of a deployment, so
+// serve deployed reads such a tariff as one with no caps besides.
+func devOnly(command, tariff string, cfg *config.Operator, stderr io.Writer) error {
+	if !quota.DevOnly(tariff) || cfg.DeployedBy == "" {
+		return nil
+	}
+	fmt.Fprintf(stderr, "%s: -tariff %s is the dev projects' alone, and %s is set\n", command, tariff, cfg.DeployedBy)
+	return errUsage
 }

@@ -110,6 +110,12 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		options = append(options, learning.WithTutor(tutorstub.New(gate)))
 		accounts = append(accounts, account.WithoutKeyCheckLimit())
 	}
+	// The tariff of dev-check has its caps off a deployment alone: deployed, an
+	// account that got it all the same opens no spending of the platform's (В80).
+	if !cfg.Deployed() {
+		options = append(options, learning.OffDeployment())
+		accounts = append(accounts, account.OffDeployment())
+	}
 	attempts, err := learning.New(set, gate, options...)
 	if err != nil {
 		return startupFailed(ctx, log, err)

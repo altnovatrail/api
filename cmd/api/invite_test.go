@@ -52,18 +52,26 @@ func TestInvitePrintsACodeTheDatabaseKeepsOnlyTheHashOf(t *testing.T) {
 	}
 }
 
-// Each run is a code of its own, with the tariff it is given.
+// Each run is a code of its own, with the tariff it is given: off a deployment,
+// the tariff of dev-check too (В80).
 func TestEachInviteIsANewCodeWithItsTariff(t *testing.T) {
 	t.Parallel()
 
-	environ := []string{"API_DATABASE_URL=" + storetest.URL(t, true)}
+	url := storetest.URL(t, true)
+	environ := []string{"API_DATABASE_URL=" + url}
+	pool := poolOn(t, url)
 	codes := map[string]bool{}
-	for range 2 {
-		code, stdout, stderr := runCommand(t.Context(), environ, "invite", "-tariff", quota.ClosedSlice)
+	for _, tariff := range []string{quota.ClosedSlice, quota.ClosedSlice, quota.DevCheck} {
+		code, stdout, stderr := runCommand(t.Context(), environ, "invite", "-tariff", tariff)
 		if code != exitOK || codes[stdout] {
 			t.Fatalf("invite = %d, %q, %q; want a new code", code, stdout, stderr)
 		}
 		codes[stdout] = true
+		hash, _ := invite.Read(stdout)
+		var kept string
+		if err := pool.QueryRow(t.Context(), `SELECT tariff FROM invite_codes WHERE code_sha256 = $1`, hash[:]).Scan(&kept); err != nil || kept != tariff {
+			t.Errorf("the tariff of the code = %q (%v), want %s", kept, err, tariff)
+		}
 	}
 }
 
@@ -82,6 +90,9 @@ func TestInviteRefusesWhatItCannotRun(t *testing.T) {
 		{"an unknown flag", []string{url}, []string{"-count", "2"}, exitUsage, "-count"},
 		{"an argument", []string{url}, []string{"extra"}, exitUsage, "no arguments"},
 		{"no database", nil, nil, exitFailure, "API_DATABASE_URL"},
+		{"dev_check as a service", []string{url, "K_SERVICE=api"}, []string{"-tariff", quota.DevCheck}, exitUsage, "K_SERVICE is set"},
+		{"dev_check as a job", []string{url, "CLOUD_RUN_JOB=api-invite"}, []string{"-tariff", quota.DevCheck}, exitUsage,
+			"the dev projects' alone"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -91,6 +102,11 @@ func TestInviteRefusesWhatItCannotRun(t *testing.T) {
 				t.Errorf("invite = %d, %q, %q; want %d, nothing printed and a refusal saying %s", code, stdout, stderr, tc.exit, tc.says)
 			}
 		})
+	}
+	// Refused, no run left a code.
+	var codes int
+	if err := poolOn(t, strings.TrimPrefix(url, "API_DATABASE_URL=")).QueryRow(t.Context(), `SELECT count(*) FROM invite_codes`).Scan(&codes); err != nil || codes != 0 {
+		t.Errorf("the refusals left %d codes (%v)", codes, err)
 	}
 	if code, stdout, stderr := runCommand(t.Context(), nil, "invite", "-h"); code != exitOK || stdout != "" || !strings.Contains(stderr, "-tariff") {
 		t.Errorf("invite -h = %d, %q, %q; want 0 and the flags", code, stdout, stderr)
