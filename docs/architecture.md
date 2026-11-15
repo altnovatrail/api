@@ -752,7 +752,7 @@ In the code (R57): the migration `0015` — the tables `account_quota` and `prof
 | When | What |
 |---|---|
 | the first app — the author, locally (R76 spec) | no quota was required: neither an own key nor tariffs are part of the first app, and the author's calls go by the platform AI route, with a key from an environment variable on their machine (`COORDINATION.md` of `spec`; the 2026-11-02 amendment to R11). From E6 the quota is in the code and counts the author's calls too — by the tariff of their account (R55–R59) |
-| platform AI opens to anyone but the author — the first deployment with the DPA fact declared (architecture 3.9 tutor) | the quota in the code — it is there from E6 (R55–R59), and the run with `app` passed 2026-11-12 (T52; measurements 3), — and the spending limit of the workspace at the provider, which the author sets (Д11) |
+| platform AI opens to anyone but the author — the first deployment with the DPA fact declared (architecture 3.9 tutor) | the quota in the code — it is there from E6 (R55–R59), and the run with `app` passed 2026-11-12 (T52; measurements 3), — and the spending limit of the workspace at the provider, which the author has set: the author's word of 2026-11-15, the sum not named here (Д11 closed) |
 | stage 3 | tariffs beyond the "closed slice", payment and subscription, the cap with open sign-in (Д10) |
 
 **What is needed from the neighbours** `spec` recorded by the rows В12–В14, all by the recommendations of `api`, and the neighbours take it in their own move to a tag (Д76 in table 4 of RUN.md of `spec`; R16):
