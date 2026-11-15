@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"connectrpc.com/connect/v2"
 	learnermodel "github.com/altnovatrail/learner-model"
 	"github.com/altnovatrail/module-kit/modulepackage"
 	"github.com/altnovatrail/module-kit/verdict"
@@ -39,7 +40,8 @@ const boardModule = "novatrail/check-board"
 // a wrong answer and its rung's words, then the key — gives evidence of kind 2
 // that holds the question. A task with a time
 // of day describes its slot as one. The module of the board begins too, on the
-// stub of tutor, as boardIsLearnedOn tells. With no folder named, the test is
+// stub of tutor, as boardIsLearnedOn tells, and the catalog of novatrail is its
+// list, as novatrailCatalog tells. With no folder named, the test is
 // skipped: ci-test runs with no network, and its packages are the vectors.
 func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	dir := os.Getenv("API_RELEASE_PACKAGES")
@@ -55,6 +57,7 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("the board module", func(t *testing.T) { boardIsLearnedOn(t, set) })
+	t.Run("the catalog of novatrail", func(t *testing.T) { novatrailCatalog(t, dir, cfg) })
 	pkg, ok := set.Current(releaseModule)
 	if !ok {
 		t.Fatalf("the release %s gives %s no current version", cfg.Release, releaseModule)
@@ -207,6 +210,49 @@ func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	}
 	if n := w.evidenceOf(t, attempt); n != 1 {
 		t.Errorf("the journal holds %d pieces of evidence of the board's attempt, want 1", n)
+	}
+}
+
+// novatrailList is the list of modules of the deployment novatrail (R150 spec):
+// olympiad mathematics and the check board, and no essays.
+var novatrailList = []formatv0.ModuleID{releaseModule, boardModule}
+
+// novatrailCatalog reads the pinned release again, as serve reads it on
+// novatrail at the stage author with its list (R149, R150 spec): the pinned index
+// holds both modules of the list, the owner's catalog is the two on their
+// current versions, and a module the list leaves out is refused a connection as
+// one with no current version.
+func novatrailCatalog(t *testing.T, dir string, cfg packages.Config) {
+	set, err := packages.Read(dir, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := set.List(novatrailList); err != nil {
+		t.Fatalf("the list of novatrail: %v", err)
+	}
+	w := worldOn(t, set, gate(t, adultFacts, config.RungAuthor), nil)
+	l := w.learner(t)
+	catalog, err := w.modules.ListCatalog(l.ctx, &v1.ListCatalogRequest{ProfileId: l.adult})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []formatv0.ModuleID
+	for _, m := range catalog.GetModules() {
+		pkg, ok := set.CurrentFor(formatv0.ModuleID(m.GetModuleId()), formatv0.AgeCategoryAdult)
+		if !ok || m.GetPackageDigest() != string(pkg.Digest) {
+			t.Errorf("the catalog gives %s on %s, not on its current version", m.GetModuleId(), m.GetPackageDigest())
+		}
+		got = append(got, formatv0.ModuleID(m.GetModuleId()))
+	}
+	if !slices.Equal(got, slices.Sorted(slices.Values(novatrailList))) {
+		t.Errorf("the catalog of novatrail = %v, want %v", got, novatrailList)
+	}
+	for _, id := range set.Modules() {
+		if slices.Contains(novatrailList, id) {
+			continue
+		}
+		_, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: string(id)})
+		refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
 	}
 }
 

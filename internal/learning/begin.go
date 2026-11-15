@@ -205,7 +205,8 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 
 // packageOf is the package the attempt of b goes on: the run's, whose check
 // held the module and the lesson's tasks already, or the current version of its
-// connected module for the learner (R07).
+// connected module for the learner (R07), which the deployment's list names
+// (R150 spec).
 func (s *Service) packageOf(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, b begun) (*modulepackage.Package, error) {
 	if b.run != nil {
 		return b.run.pkg, nil
@@ -217,7 +218,7 @@ func (s *Service) packageOf(ctx context.Context, tx pgx.Tx, profileID string, ca
 	case !connected:
 		return nil, store.ErrNotFound
 	}
-	pkg, ok := s.set.CurrentFor(b.module, category)
+	pkg, ok := s.set.OfferedFor(b.module, category)
 	if !ok {
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
 	}

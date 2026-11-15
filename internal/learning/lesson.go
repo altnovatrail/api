@@ -128,6 +128,8 @@ func (s *Service) checkRunGiving(ctx context.Context, tx pgx.Tx, profileID strin
 		if err != nil {
 			return heldRun{}, err
 		}
+		// A module the deployment's list leaves out keeps its current version:
+		// its open run goes on to its end on its package (R150 spec).
 		_, current := s.set.CurrentFor(module, category)
 		ok = connected && current && lessonSuits(pkg, lesson, category)
 	}

@@ -33,6 +33,9 @@ type Set struct {
 	// files is each file of the device part of each package, by its path in
 	// device/.
 	files map[formatv0.Digest]map[string]formatv0.Descriptor
+	// listed is each module of the deployment's list, or nil for no list: the
+	// whole index (R150 spec).
+	listed map[formatv0.ModuleID]bool
 }
 
 // File is the path in the folder of the file of a device part of digest.
@@ -49,11 +52,7 @@ func (s *Set) File(digest formatv0.Digest) string {
 // module-kit had read it, and an image does not change; so serve holds no media
 // in memory and does not hash them at every start.
 func Read(dir string, cfg Config) (*Set, error) {
-	data, err := os.ReadFile(filepath.Join(dir, IndexFile))
-	if err != nil {
-		return nil, fmt.Errorf("packages: read the index: %w", err)
-	}
-	index, err := checkIndex(data, cfg.Index)
+	index, err := ReadIndex(dir, cfg)
 	if err != nil {
 		return nil, err
 	}

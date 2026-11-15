@@ -79,6 +79,9 @@ type Serve struct {
 	Agreements Agreements
 	// Admission is what the deployment declares for admission to AI (R25, R45).
 	Admission Admission
+	// Catalog is the deployment's list of modules, nil for the whole index
+	// (R150 spec).
+	Catalog []string
 }
 
 // ServeFrom reads what serve opens from a set of KEY=VALUE strings, as
@@ -113,6 +116,9 @@ func ServeFrom(environ []string, cfg *Config) (*Serve, error) {
 		problems = append(problems, err)
 	}
 	serve.Admission = admission
+	if serve.Catalog, err = catalogModules(env); err != nil {
+		problems = append(problems, err)
+	}
 	if serve.Agreements, err = AgreementsFrom(environ); err != nil {
 		problems = append(problems, err)
 	}

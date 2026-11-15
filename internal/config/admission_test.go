@@ -31,6 +31,8 @@ func TestAdmissionReadsWhatIsDeclared(t *testing.T) {
 		"API_ADMISSION_RUNG=author":                             {Rung: config.RungAuthor, RungSet: true},
 		"API_ADMISSION_RUNG=full K_SERVICE=api":                 {Rung: config.RungFull, RungSet: true},
 		"API_ADMISSION_RUNG=full CLOUD_RUN_JOB=check":           {Rung: config.RungFull, RungSet: true},
+		"API_ADMISSION_RUNG=author K_SERVICE=api":               {Rung: config.RungAuthor, RungSet: true},
+		"API_ADMISSION_RUNG=author CLOUD_RUN_JOB=check":         {Rung: config.RungAuthor, RungSet: true},
 		"API_ADMISSION_FACTS_FILE=" + path + " CLOUD_RUN_JOB=c": {FactsFile: path, Rung: config.RungFull},
 	} {
 		got, err := config.AdmissionFrom(strings.Fields(environ))
@@ -40,10 +42,9 @@ func TestAdmissionReadsWhatIsDeclared(t *testing.T) {
 	}
 }
 
-// The stage author is the first app's alone: deployed, as a service or as a
-// job, it is refused, by the variable the platform set. A stage tutor does not
-// code, a relative path and a file in a git working tree are refused too, each
-// by its variable.
+// The stage is the operator's, author on a deployment too (R149 spec): a stage
+// tutor does not code, a relative path and a file in a git working tree are
+// refused, each by its variable.
 func TestAdmissionRefusals(t *testing.T) {
 	t.Parallel()
 
@@ -55,11 +56,9 @@ func TestAdmissionRefusals(t *testing.T) {
 		environ []string
 		names   []string
 	}{
-		"author as a service": {[]string{"API_ADMISSION_RUNG=author", "K_SERVICE=api"}, []string{"API_ADMISSION_RUNG", "K_SERVICE"}},
-		"author as a job":     {[]string{"API_ADMISSION_RUNG=author", "CLOUD_RUN_JOB=check"}, []string{"API_ADMISSION_RUNG", "CLOUD_RUN_JOB"}},
-		"no stage of tutor":   {[]string{"API_ADMISSION_RUNG=Author"}, []string{"API_ADMISSION_RUNG"}},
-		"a relative path":     {[]string{"API_ADMISSION_FACTS_FILE=facts.yaml"}, []string{"API_ADMISSION_FACTS_FILE"}},
-		"a working tree":      {[]string{"API_ADMISSION_FACTS_FILE=" + filepath.Join(tree, "facts.yaml")}, []string{"API_ADMISSION_FACTS_FILE"}},
+		"no stage of tutor": {[]string{"API_ADMISSION_RUNG=Author"}, []string{"API_ADMISSION_RUNG"}},
+		"a relative path":   {[]string{"API_ADMISSION_FACTS_FILE=facts.yaml"}, []string{"API_ADMISSION_FACTS_FILE"}},
+		"a working tree":    {[]string{"API_ADMISSION_FACTS_FILE=" + filepath.Join(tree, "facts.yaml")}, []string{"API_ADMISSION_FACTS_FILE"}},
 		"both at once": {[]string{"API_ADMISSION_FACTS_FILE=facts.yaml", "API_ADMISSION_RUNG=none"},
 			[]string{"API_ADMISSION_FACTS_FILE", "API_ADMISSION_RUNG"}},
 	} {
@@ -87,9 +86,13 @@ func TestServeReadsWhatIsDeclaredForAdmission(t *testing.T) {
 		t.Errorf("ServeFrom = %+v, %v; want the stage author", serve, err)
 	}
 	deployed := append(without(serveEnviron, "API_FIREBASE_CREDENTIALS"), "K_SERVICE=api", "API_ADMISSION_RUNG=author")
-	if _, err := config.ServeFrom(deployed, loaded(t, deployed)); !errors.Is(err, config.ErrInvalid) ||
+	if serve, err := config.ServeFrom(deployed, loaded(t, deployed)); err != nil || serve.Admission.Rung != config.RungAuthor {
+		t.Errorf("ServeFrom deployed with the stage author = %+v, %v; want the stage author, as on novatrail", serve, err)
+	}
+	broken := append(serveEnviron, "API_ADMISSION_RUNG=none")
+	if _, err := config.ServeFrom(broken, loaded(t, nil)); !errors.Is(err, config.ErrInvalid) ||
 		!strings.Contains(err.Error(), "API_ADMISSION_RUNG") {
-		t.Errorf("ServeFrom deployed with the stage author: error = %v, want a refusal of API_ADMISSION_RUNG", err)
+		t.Errorf("ServeFrom with no stage of tutor: error = %v, want a refusal of API_ADMISSION_RUNG", err)
 	}
 }
 

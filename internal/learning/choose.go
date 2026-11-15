@@ -35,7 +35,7 @@ type after struct {
 
 // engineModules is the modules of the engine for a learner of category: those
 // connected to the profile that have a current version for the learner, with
-// that version (R07).
+// that version (R07), and which the deployment's list names (R150 spec).
 func (s *Service) engineModules(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory) ([]*modulepackage.Package, error) {
 	connected, err := store.ConnectedModules(ctx, tx, profileID)
 	if err != nil {
@@ -43,7 +43,7 @@ func (s *Service) engineModules(ctx context.Context, tx pgx.Tx, profileID string
 	}
 	var pkgs []*modulepackage.Package
 	for _, c := range connected {
-		if pkg, ok := s.set.CurrentFor(formatv0.ModuleID(c.ModuleID), category); ok {
+		if pkg, ok := s.set.OfferedFor(formatv0.ModuleID(c.ModuleID), category); ok {
 			pkgs = append(pkgs, pkg)
 		}
 	}

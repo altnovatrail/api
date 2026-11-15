@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -430,5 +431,44 @@ func TestALapseDoesNotStopALesson(t *testing.T) {
 	var after int
 	if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM engine_choices WHERE after_lesson_run_id = $1`, run).Scan(&after); err != nil || after != 0 {
 		t.Errorf("the end of another choice's run wrote %d choices (%v), want none", after, err)
+	}
+}
+
+// A module the deployment's list leaves out is offered no more (R150 spec): the
+// engine chooses none of it, a new attempt and a new run on it are refused as on
+// a module with no current version, and so is its skill map; the run open on it
+// goes on to its end on its package.
+func TestAModuleTheListLeavesOutIsOfferedNoMore(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	l := w.learner(t)
+	res, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.child, ChoiceId: w.lessonChoice(t, l.child, "basics")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := res.GetRun().GetLessonRunId()
+	choice := w.choice(t, l.child, "pick")
+	another := w.lessonChoice(t, l.adult, "basics")
+	if err := w.set.List([]formatv0.ModuleID{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if c, err := w.chooseNext(l, l.child); err != nil || c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING {
+		t.Errorf("ChooseNext = %v, %v; want nothing to choose", c, err)
+	}
+	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
+		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: choice}})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	_, err = w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult, ChoiceId: another})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	_, err = w.progress.GetSkillMap(l.ctx, &v1.GetSkillMapRequest{ProfileId: l.child, ModuleId: module, Action: v1.Action_ACTION_LEARNING})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+
+	if a, err := w.segment(l, l.child, run, 2); err != nil || a.GetAttemptId() == "" {
+		t.Errorf("the segment of the open run = %v, %v; want its attempt", a, err)
+	}
+	if got, err := w.run(l, l.child, run); err != nil || got.GetLessonRunId() != run {
+		t.Errorf("the open run = %v, %v; want it open", got, err)
 	}
 }

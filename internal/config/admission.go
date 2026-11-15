@@ -16,8 +16,9 @@ const (
 	// type and how it is read are tutor's.
 	VarAdmissionFactsFile = "API_ADMISSION_FACTS_FILE"
 	// VarAdmissionRung is the least stage of tutor's rule of admission of
-	// models, which api hands to Table.Select: "author" only in the first app,
-	// "full" anywhere else.
+	// models, which api hands to Table.Select: the operator names it, "author"
+	// on novatrail and in the first app, where the author alone learns (R149
+	// spec), and "full" unset.
 	VarAdmissionRung = "API_ADMISSION_RUNG"
 	// VarAnthropicKey is the platform's key of Anthropic, by which platform AI
 	// calls its models: a secret, read from the variable or from the file its
@@ -70,20 +71,18 @@ type Admission struct {
 }
 
 // AdmissionFrom reads what the deployment declares for admission from a set of
-// KEY=VALUE strings, and validates it. Deployed — K_SERVICE set, as serve runs
-// on Cloud Run, or CLOUD_RUN_JOB, as api check runs before the migrations — the
-// stage "author" is refused: it is the first app's alone, where the author alone
-// learns, and any deployment, even one where the author alone learns, passes
-// "full" (R25). Only Cloud Run's variables tell a deployment here: one of its own
-// elsewhere passes "full" by its own rule, as it keeps its own facts (R25).
+// KEY=VALUE strings, and validates it. The stage is the operator's, on a
+// deployment too: "author" on novatrail, where the author alone learns (R149
+// spec; the 2026-11-15 amendments to R25 and R45), and unset it is "full".
 // The file of facts holds no secret, but it lies outside any git working tree
 // as a secret's file does: the first app's is the author's own, outside the
 // repository.
 //
 // The stub of tutor is the dev mode's alone, as R32 refuses the emulator of the
-// sign-in service: deployed, it is refused, and so it is beside a platform key,
-// which nothing would call — with the stub no key of a provider is in the
-// process (R66).
+// sign-in service: deployed — K_SERVICE set, as serve runs on Cloud Run, or
+// CLOUD_RUN_JOB, as api check runs before the migrations — it is refused, and
+// so it is beside a platform key, which nothing would call — with the stub no
+// key of a provider is in the process (R66).
 func AdmissionFrom(environ []string) (Admission, error) {
 	env := read(environ)
 	deployedBy := ""
@@ -107,12 +106,8 @@ func AdmissionFrom(environ []string) (Admission, error) {
 		problems = append(problems, fmt.Errorf("%w: %s names a file in a git working tree, %q: keep it outside any repository",
 			ErrInvalid, VarAdmissionFactsFile, path))
 	}
-	switch {
-	case cfg.Rung != RungAuthor && cfg.Rung != RungFull:
+	if cfg.Rung != RungAuthor && cfg.Rung != RungFull {
 		problems = append(problems, fmt.Errorf("%w: %s must be %s or %s, got %q", ErrInvalid, VarAdmissionRung, RungAuthor, RungFull, cfg.Rung))
-	case cfg.Rung == RungAuthor && deployedBy != "":
-		problems = append(problems, fmt.Errorf("%w: %s must not be %s when %s is set: the stage %s is the first app's alone",
-			ErrInvalid, VarAdmissionRung, RungAuthor, deployedBy, RungAuthor))
 	}
 	_, inline := env[VarAnthropicKey]
 	_, fromFile := env[VarAnthropicKey+fileSuffix]

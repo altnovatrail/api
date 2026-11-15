@@ -26,6 +26,7 @@ func TestCheckSaysWhatIsDeclared(t *testing.T) {
 
 	known := facts(t, "anthropic:\n  data_processing_agreement: [adult]\n  minimal_retention: [adult]\n")
 	unknown := facts(t, "anthropic:\n  data_procesing_agreement: [adult]\n")
+	packagesDir := laidPackages(t)
 	for _, tc := range []struct {
 		name    string
 		environ []string
@@ -40,8 +41,17 @@ func TestCheckSaysWhatIsDeclared(t *testing.T) {
 			map[string]any{"message": "admission", "admission_table": "0.3", "facts_file": true, "rung": "author", "rung_set": true}, ""},
 		{"a fact the table does not know", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_FACTS_FILE=" + unknown}, nil, exitFailure, nil,
 			`api: config: invalid: API_ADMISSION_FACTS_FILE: admission: the file of facts names, for "anthropic", the fact "data_procesing_agreement"`},
-		{"the stage author as a job", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_RUNG=author"}, nil, exitFailure, nil,
-			"api: config: invalid: API_ADMISSION_RUNG must not be author when CLOUD_RUN_JOB is set"},
+		{"novatrail's", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_FACTS_FILE=" + known, "API_ADMISSION_RUNG=author",
+			"API_PACKAGES_DIR=" + packagesDir, "API_CATALOG_MODULES=example/older"}, nil, exitOK,
+			map[string]any{"message": "admission", "facts_file": true, "rung": "author", "rung_set": true}, ""},
+		{"a module the index does not hold", []string{"API_PACKAGES_DIR=" + packagesDir, "API_CATALOG_MODULES=example/older,example/missing"}, nil, exitFailure, nil,
+			"api: config: invalid: API_CATALOG_MODULES: packages: a module of the catalog's list is not in the pinned index: example/missing\n"},
+		{"a list with no index", []string{"API_PACKAGES_DIR=" + t.TempDir(), "API_CATALOG_MODULES=example/older"}, nil, exitFailure, nil,
+			"api: packages: read the index"},
+		{"a list with a typo", []string{"API_CATALOG_MODULES=example/older,"}, nil, exitFailure, nil,
+			"api: config: invalid: API_CATALOG_MODULES must list module IDs separated by commas"},
+		{"no list and no index", []string{"API_PACKAGES_DIR=" + t.TempDir()}, nil, exitOK,
+			map[string]any{"message": "admission"}, ""},
 		{"the dev mode's stub", []string{"API_TUTOR_STUB=1", "API_ADMISSION_FACTS_FILE=" + known, "API_ADMISSION_RUNG=author"}, nil, exitOK,
 			map[string]any{"message": "admission", "rung": "author", "platform_keys": float64(0), "tutor_stub": true}, ""},
 		{"the stub as a job", []string{"CLOUD_RUN_JOB=check", "API_TUTOR_STUB=1"}, nil, exitFailure, nil,
