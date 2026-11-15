@@ -78,11 +78,12 @@ func answer(wrong int32, verdict, value string) []byte {
 var choices *modulepackage.Package
 
 // The export of a profile with an attempt, its submissions, its evidence and its
-// state, a lesson run, a choice, the storage of works, two stored works and a
-// problem report, and of its account, is api.zip whose every file passes its
-// schema of spec's part export/, version 2, and keeps its rules of the layout and
-// the .proto files (R135 spec). A stored work is written newest first, its
-// history and contexts as the JSON they are and its picture in base64 (R70).
+// state, an essay with the marks of its feedback by number (R15), a lesson run,
+// a choice, the storage of works, two stored works and a problem report, and of
+// its account, is api.zip whose every file passes its schema of spec's part
+// export/, version 2, and keeps its rules of the layout and the .proto files
+// (R135 spec). A stored work is written newest first, its history and contexts
+// as the JSON they are and its picture in base64 (R70).
 func TestTheExportPassesItsSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -158,6 +159,20 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}})
 	exec(`INSERT INTO submissions (profile_id, attempt_id, number, answer, observation) VALUES ($1, $2, 1, $3, $4)`, profile, gone, unreadable, observation)
 	exec(`UPDATE attempts SET close_reason = 'correct', closed_at = now() WHERE id = $1`, attempt)
+	// An essay closed "done": feedback with the marks of its two criteria, and a
+	// sheet that could not be read, each with its answer of no text (R15).
+	var essay string
+	if err := pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
+			module_kit_version, task_id, seed, previous_attempt_id, close_reason, closed_at)
+		VALUES ($1, $2, $3, $4, '0.4', 'v0.3.0', 'story', 7, $5, 'done', now()) RETURNING id`,
+		profile, string(choices.Digest), string(choices.View.Manifest.ID), string(choices.Inventory.Version), attempt).Scan(&essay); err != nil {
+		t.Fatal(err)
+	}
+	fed, _ := proto.Marshal(&v1.SubmitEssayResponse{End: v1.SubmissionEnd_SUBMISSION_END_FEEDBACK})
+	blank, _ := proto.Marshal(&v1.SubmitEssayResponse{End: v1.SubmissionEnd_SUBMISSION_END_UNREADABLE, Reason: "blank"})
+	exec(`INSERT INTO submissions (profile_id, attempt_id, number, answer, essay_end, marks, words_source)
+		VALUES ($1, $2, 1, $3, 'feedback', ARRAY['met', 'not_met'], 'model'), ($1, $2, 2, $4, 'unreadable', NULL, NULL)`,
+		profile, essay, fed, blank)
 	exec(`INSERT INTO problem_reports (account_id, profile_id, attempt_id, reply, rung, words, kind, text, created_at)
 		VALUES ($1, $2, $3, 'rung', 1, 'The words of the rung.', 'unclear', '', now())`, account, profile, attempt)
 	exec(`INSERT INTO work_storage_consents (profile_id, giver, text_version, on_at, off_at) VALUES ($1, 'owner', 1, now(), now())`, profile)
@@ -215,7 +230,8 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
 		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
 		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting"`, `"history":[{"kind":"write","t":1}]`,
-		`"submissions":[{"context":{"answer_slot":1},"history_length":1}]`, `"picture":"iVBORw0KGgo="`} {
+		`"submissions":[{"context":{"answer_slot":1},"history_length":1}]`, `"picture":"iVBORw0KGgo="`,
+		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
 		}

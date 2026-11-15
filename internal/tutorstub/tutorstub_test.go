@@ -417,18 +417,26 @@ func (g asking) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProv
 
 // The stub admits the reading of a workbook page itself wherever the gate
 // admits a sheet's, for the same category and route, since no entry of tutor
-// v0.1.35 admits it (В72); any other kind of call is the gate's.
+// v0.1.35 admits it (В72); an essay and its rubric nowhere, which it does not
+// read yet, whatever the gate admits; any other kind of call is the gate's.
 func TestTheStubAdmitsAWorkbookWhereTheGateAdmitsASheet(t *testing.T) {
 	t.Parallel()
 
 	var asked []string
 	sheets := tutorstub.New(asking{gate{reads: map[tutor.Call]bool{tutor.CallSheet: true}}, &asked})
 	if !sheets.Reads(tutor.CallWorkbook, formatv0.AgeCategoryUnder13, "anthropic") || !sheets.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") ||
-		sheets.Reads(tutor.CallEssay, formatv0.AgeCategoryAdult, "") {
-		t.Error("the stub does not admit a workbook page and a sheet where the gate admits a sheet, and an essay as the gate does")
+		sheets.Reads(tutor.CallWords, formatv0.AgeCategoryAdult, "") {
+		t.Error("the stub does not admit a workbook page and a sheet where the gate admits a sheet, and the words as the gate does")
 	}
-	if want := []string{"sheet under_13 anthropic", "sheet adult ", "essay adult "}; !slices.Equal(asked, want) {
+	if want := []string{"sheet under_13 anthropic", "sheet adult ", "words adult "}; !slices.Equal(asked, want) {
 		t.Errorf("the gate was asked %q, want %q: a sheet for a workbook page, on its category and route", asked, want)
+	}
+	essays := tutorstub.New(asking{gate{reads: map[tutor.Call]bool{tutor.CallEssay: true, tutor.CallRubric: true}}, &asked})
+	if essays.Reads(tutor.CallEssay, formatv0.AgeCategoryAdult, "") || essays.Reads(tutor.CallRubric, formatv0.AgeCategoryAdult, "") {
+		t.Error("the stub admits an essay or its rubric, which it does not read")
+	}
+	if len(asked) != 3 {
+		t.Errorf("the gate was asked %q of an essay", asked[3:])
 	}
 	books := tutorstub.New(gate{reads: map[tutor.Call]bool{tutor.CallWorkbook: true}})
 	if books.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {

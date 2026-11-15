@@ -109,9 +109,12 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 			if got := g.Reads(tutor.CallSheet, tc.category, tc.provider); got != tc.want {
 				t.Errorf("Reads(sheet, %s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
 			}
-			// No entry of tutor v0.1.35 measured the prompt of the workbook (В72).
-			if g.Reads(tutor.CallWorkbook, tc.category, tc.provider) {
-				t.Errorf("Reads(workbook, %s, %q) = true, want no entry", tc.category, tc.provider)
+			// No entry of tutor v0.1.35 measured the prompts of the workbook and the
+			// essay (В72).
+			for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
+				if g.Reads(call, tc.category, tc.provider) {
+					t.Errorf("Reads(%s, %s, %q) = true, want no entry", call, tc.category, tc.provider)
+				}
 			}
 		})
 	}
@@ -207,8 +210,9 @@ func TestTheReportCountsThePlatformsKeys(t *testing.T) {
 	}
 }
 
-// The gate reads a sheet and a workbook page by tutor, which calls no model for
-// a reading with no task.
+// The gate reads a sheet, a workbook page and an essay, and assesses an essay,
+// by tutor, which calls no model for a reading with no task or an assessment
+// with no text.
 func TestTheGateReadsByTutor(t *testing.T) {
 	t.Parallel()
 
@@ -223,6 +227,18 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	})
 	if page.Outcome.Kind != tutor.Failed || len(page.Observations) != 0 || len(page.Outcome.Usage) != 0 {
 		t.Errorf("ReadWorkbook with no task = %v, want a failure with no call", page.Outcome.Kind)
+	}
+	essay := load(t, keyed(t, "", config.RungAuthor)).ReadEssay(t.Context(), tutor.EssayReading{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if essay.Outcome.Kind != tutor.Failed || essay.Observation != nil || len(essay.Outcome.Usage) != 0 {
+		t.Errorf("ReadEssay with no task = %v, want a failure with no call", essay.Outcome.Kind)
+	}
+	assessed := load(t, keyed(t, "", config.RungAuthor)).AssessEssay(t.Context(), tutor.RubricAssessment{
+		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
+	})
+	if assessed.Outcome.Kind != tutor.Failed || assessed.Feedback != "" || len(assessed.Outcome.Usage) != 0 {
+		t.Errorf("AssessEssay with no text = %v, want a failure with no call", assessed.Outcome.Kind)
 	}
 }
 
@@ -432,11 +448,12 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 }
 
-// apiCalls are the kinds of call api makes (R72, R76, R81), and before are those it
+// apiCalls are the kinds of call api makes (R72, R76, R81, R82), and before are those it
 // made before tutor v0.1.35 brought the words after a correct answer.
 var (
-	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook}
-	before   = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
+	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook,
+		tutor.CallEssay, tutor.CallRubric}
+	before = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
 )
 
 // chosen says whether tu chooses an entry for one of the kinds of call api

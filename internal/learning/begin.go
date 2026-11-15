@@ -12,6 +12,7 @@ import (
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -38,20 +39,21 @@ type begun struct {
 // transaction: "left", or as the check of a request would have closed it (R10).
 // The module must be connected and have a current version for the learner that
 // holds the task, and the task must suit the age category of the profile (R51
-// spec). A task with a rubric is not admitted: its path is not in this code
-// (R14). A task of handwriting begins when tutor reads its form — a
+// spec). A task of handwriting begins when tutor reads its form — a
 // handwriting sheet with one answer slot bound anywhere, or a workbook — and
 // the gate of admission chooses models for its kind of call, by platform AI or
-// the own key named (R45, R46, R81). A task segment of a lesson run begins on the run's package, once
+// the own key named (R45, R46, R81); a task with a rubric, when tutor reads it
+// as an essay and the gate chooses models for its reading and its assessment
+// both (R82). A task segment of a lesson run begins on the run's package, once
 // the run is checked whole and every task segment before it has ended, and it
 // has not; its open attempt is given as it is (R13, R48), and waits, if the
 // quota ran out on it. On platform AI a task that AI checks begins only with
-// room for a typical task left of the family day, and while the limit of its
-// provider leaves platform AI open: else "quota", with when the next day
-// begins, or "platform limit" (R11, R59). A refusal of the admission, the quota
-// or the limit leaves the run open. The answer, the attempt with the open view
-// of its task, is what the key's record holds: it names nothing the learner
-// sent.
+// room for a typical task left of the family day — of handwriting, or with a
+// rubric —, and while the limit of its provider leaves platform AI open: else
+// "quota", with when the next day begins, or "platform limit" (R11, R59). A
+// refusal of the admission, the quota or the limit leaves the run open. The
+// answer, the attempt with the open view of its task, is what the key's record
+// holds: it names nothing the learner sent.
 func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttemptRequest) (*v1.BeginAttemptResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -164,10 +166,13 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 	}
 	if !byTap(task) && ownKey == "" {
 		// A new task that platform AI checks begins only with room for a typical
-		// task today, and only while the provider's limit leaves it open (R11).
-		// A task with a rubric begins in no case here (R14): its typical task,
-		// quota.TypicalRubric, waits for its path.
-		closed, err := closedTo(ctx, tx, profileID, quota.TypicalHandwriting, now)
+		// task today, of handwriting or with a rubric, and only while the
+		// provider's limit leaves it open (R11, R82).
+		typical := quota.TypicalHandwriting
+		if rubric(task) {
+			typical = quota.TypicalRubric
+		}
+		closed, err := closedTo(ctx, tx, profileID, typical, now)
 		if err != nil {
 			return nil, err
 		}
@@ -263,6 +268,17 @@ func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAtt
 			return err
 		}
 		open = &v1.OpenAttempt{Start: start, WrongAnswers: int32(h.row.WrongAnswers)}
+		if rubric(h.task) {
+			// An essay has no verdict: its submissions, how each ended and when (R15).
+			essays, err := store.EssaySubmissions(ctx, tx, req.GetProfileId(), []string{h.row.ID})
+			if err != nil {
+				return err
+			}
+			for _, e := range essays {
+				open.EssaySubmissions = append(open.EssaySubmissions,
+					&v1.EssaySubmission{SubmittedAt: timestamppb.New(e.SubmittedAt), End: submissionEnds[e.End]})
+			}
+		}
 		answer, found, err := store.LastSubmission(ctx, tx, req.GetProfileId(), h.row.ID)
 		if err != nil {
 			return err
@@ -310,15 +326,17 @@ func startOf(h held) (*v1.AttemptStart, error) {
 // admitted says whether this code begins an attempt of the task for a learner
 // of category, by the own key of ownKey when it names a provider: the same rule
 // for a beginning and for the pool the engine chooses from (R50). A task with a
-// rubric is not, as its path is not in this code (R14), so AI may not assess
-// one; nor is one AI would read in a zone or on the whole sheet, which this
-// release of tutor does not read (R46); nor one of handwriting whose kind of
-// call, a sheet's or a workbook page's, the table, the facts, the stage and the
-// platform's keys of the deployment do not admit models for (R45, R81).
+// rubric is, when tutor reads it as an essay and both its calls — the reading of
+// the essay and its assessment by the rubric — are admitted (R82); one AI would
+// read in a zone or on the whole sheet is not, as this release of tutor does not
+// read it (R46); nor is one of handwriting whose kind of call, a sheet's or a
+// workbook page's, the table, the facts, the stage and the platform's keys of
+// the deployment do not admit models for (R45, R81).
 func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ownKey string) bool {
 	switch {
 	case rubric(task):
-		return false
+		return essayRead(task) && s.admits.Reads(tutor.CallEssay, category, ownKey) &&
+			s.admits.Reads(tutor.CallRubric, category, ownKey)
 	case byTap(task):
 		return true
 	}

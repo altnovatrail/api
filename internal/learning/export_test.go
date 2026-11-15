@@ -116,3 +116,25 @@ func GateTutor(g *admission.Gate) interface {
 } {
 	return gateTutor{g}
 }
+
+// WithEssay is what reads the essay of a task with a rubric and assesses its
+// text, in place of tutor: a test's own, for want of a provider and of an entry
+// that admits either call (В72).
+func WithEssay(read func(ctx context.Context, r tutor.EssayReading) tutor.EssayRead,
+	assess func(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed) Option {
+	return func(s *Service) { s.essay, s.assessor = essayFunc(read), assessorFunc(assess) }
+}
+
+// essayFunc is a function as an essayReader.
+type essayFunc func(ctx context.Context, r tutor.EssayReading) tutor.EssayRead
+
+func (f essayFunc) ReadEssay(ctx context.Context, r tutor.EssayReading, _ formatv0.Task, _ string) tutor.EssayRead {
+	return f(ctx, r)
+}
+
+// assessorFunc is a function as a rubricAssessor.
+type assessorFunc func(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed
+
+func (f assessorFunc) AssessEssay(ctx context.Context, r tutor.RubricAssessment, _ string) tutor.RubricAssessed {
+	return f(ctx, r)
+}

@@ -917,16 +917,6 @@ func TestAProfileWithNoConsentIsRefused(t *testing.T) {
 	}
 }
 
-// The methods of the epic's later tasks answer unimplemented.
-func TestTheMethodsOfLaterTasksAreUnimplemented(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	l := w.learner(t)
-	_, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.child, AttemptId: uuid.NewString()})
-	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
-}
-
 // failing is the pool, whose statements that hold failOn fail.
 type failing struct {
 	*pgxpool.Pool

@@ -191,10 +191,15 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 // learner of category, on the route of ownKeyProvider: the reading of a
 // workbook page wherever the gate admits a sheet's, CallSheet, for the same
 // category and route, since no entry of tutor v0.1.35 admits it (В72; the
-// 2026-11-15 amendment to R66), and any other kind as the gate says.
+// 2026-11-15 amendment to R66); neither the reading of an essay nor its
+// assessment, which the stub does not make yet, whatever the gate says (the
+// second 2026-11-15 amendment to R66); and any other kind as the gate says.
 func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	if call == tutor.CallWorkbook {
+	switch call {
+	case tutor.CallWorkbook:
 		call = tutor.CallSheet
+	case tutor.CallEssay, tutor.CallRubric:
+		return false
 	}
 	return s.gate.Reads(call, category, ownKeyProvider)
 }

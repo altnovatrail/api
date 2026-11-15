@@ -69,12 +69,37 @@ func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, r
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, nil
 	}
+	return s.reserveOf(ctx, tx, profileID, quota.Reserve(call, s.price(call, route), crops), day)
+}
+
+// reserveEssay reserves the reading of an essay together with its assessment
+// by the rubric on platform AI by route, as reserveFor reserves one call (R12,
+// R14): one charge of the two prices, which the quota holds whole or not at
+// all, given as the two parts each call settles by itself — the reading's, and
+// the assessment's, which an essay that cannot be read gives back whole (R82).
+// A refusal is the reading's.
+func (s *Service) reserveEssay(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, day quota.Day) (reading, assessing reserve, err error) {
+	if route.AI != admissionv0.AiRoutePlatformAi {
+		return reserve{}, reserve{}, nil
+	}
+	read := quota.Reserve(tutor.CallEssay, s.price(tutor.CallEssay, route), 1)
+	assess := quota.Reserve(tutor.CallRubric, s.price(tutor.CallRubric, route), 1)
+	both, err := s.reserveOf(ctx, tx, profileID, read+assess, day)
+	if err != nil || !both.taken {
+		return both, reserve{}, err
+	}
+	reading, assessing = both, both
+	reading.charge.Amount, assessing.charge.Amount = read, assess
+	return reading, assessing, nil
+}
+
+// reserveOf is reserveFor of the amount on platform AI.
+func (s *Service) reserveOf(ctx context.Context, tx pgx.Tx, profileID string, amount quota.Micro, day quota.Day) (reserve, error) {
 	if limit, err := platformLimit(ctx, tx); err != nil || limit != nil {
 		return reserve{refused: limit}, err
 	}
 	caller, _ := rpc.CallerFrom(ctx)
-	c := store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day,
-		Amount: quota.Reserve(call, s.price(call, route), crops)}
+	c := store.Charge{AccountID: caller.AccountID, ProfileID: profileID, Day: day, Amount: amount}
 	spent, err := store.ReserveQuota(ctx, tx, c)
 	switch {
 	case err != nil:
@@ -141,6 +166,12 @@ func (s *Service) afterCall(ctx context.Context, r reserve, o tutor.Outcome) {
 		// The line names both failures, when both failed.
 		rpc.NoteFailure(ctx, err)
 	}
+}
+
+// release gives the reserve r back whole, as afterCall settles a call that no
+// model got: the assessment of an essay that was not read (R12, R14).
+func (s *Service) release(ctx context.Context, r reserve) {
+	s.afterCall(ctx, r, tutor.Outcome{Kind: tutor.NotAdmitted})
 }
 
 // closedTo is why platform AI is closed to a new task of the profile that it

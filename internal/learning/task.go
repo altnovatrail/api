@@ -246,3 +246,33 @@ func sheetRead(task formatv0.Task) bool {
 	}
 	return anywhere == 1
 }
+
+// essayRead says whether this release of tutor reads the task as an essay: a
+// handwriting sheet whose one answer slot is bound sheet and checked by a
+// rubric, as the format has a task with a rubric (tutor's ReadEssay; § 14 of its
+// text).
+func essayRead(task formatv0.Task) bool {
+	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
+		return false
+	}
+	var slots []verdict.AnswerSlot
+	for _, item := range task.Items {
+		slots = append(slots, verdict.AnswerSlots(item)...)
+	}
+	return len(slots) == 1 && slots[0].Binding == string(formatv0.AnswerSlotBindingSheet) &&
+		slots[0].Check.Kind == formatv0.CheckKindRubric
+}
+
+// criteriaOf is the texts of the criteria of the task's rubric, in their order:
+// the assessment numbers them from 1, and a mark is kept by that number (R15).
+func criteriaOf(task formatv0.Task) []string {
+	var out []string
+	for _, item := range task.Items {
+		for _, slot := range verdict.AnswerSlots(item) {
+			for _, c := range slot.Check.Criteria {
+				out = append(out, string(c.Text))
+			}
+		}
+	}
+	return out
+}

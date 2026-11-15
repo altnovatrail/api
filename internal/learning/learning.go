@@ -1,12 +1,11 @@
 // Package learning runs attempts of tasks (R44, R46, R47): their beginning, the
 // open attempt, the submission of the work and its verdict by module-kit, on
-// the options tapped and on what tutor read, the techniques a solving step
-// gives, "Done", the hint ladder with the tutor's words and their fallback
-// texts, the showing of the solution, and lesson runs with their segments
-// (R48). It answers the methods of LearningService and AttemptService that it
-// has; the others answer unimplemented, until the tasks of epic E3 that build
-// them — the engine's choice. It keeps the stored works of WorkService too
-// (R70), whose kind is the attempt's task's.
+// the options tapped and on what tutor read, the submission of an essay and its
+// feedback by the rubric (R82), the techniques a solving step gives, "Done",
+// the hint ladder with the tutor's words and their fallback texts, the showing
+// of the solution, and lesson runs with their segments (R48). It answers the
+// methods of LearningService and AttemptService, and keeps the stored works of
+// WorkService too (R70), whose kind is the attempt's task's.
 //
 // Every request is a learning request on a profile, whose right the checks hold
 // before it (R33), and a profile whose consent is not confirmed is refused. An
@@ -56,6 +55,10 @@ type Service struct {
 	// workbook reads the work of a workbook page: the gate's tutor (R81).
 	admits   admitter
 	workbook workbookReader
+	// essay reads the essay of a task with a rubric, and assessor assesses its text
+	// by the criteria: the gate's tutor (R82).
+	essay    essayReader
+	assessor rubricAssessor
 	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
 	// provider: its words after a correct answer go whatever the day (R66).
 	stubbed bool
@@ -93,7 +96,8 @@ func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.go
 // tutor's words, those after a correct answer too, and says which kinds of
 // reading are admitted, in place of the gate's tutor: the dev mode's stub (R66),
 // which calls no provider and admits a workbook page itself (the 2026-11-15
-// amendment to R66).
+// amendment to R66). It reads and assesses no essay: an essay is "not
+// admitted" on it, with no call, until it reads essays of its own (R82).
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
@@ -103,6 +107,7 @@ func WithTutor(t interface {
 }) Option {
 	return func(s *Service) {
 		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.stubbed = t, t, t, t, t, true
+		s.essay, s.assessor = unadmitted{}, unadmitted{}
 	}
 }
 
@@ -162,7 +167,8 @@ func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest,
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
 	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
-		admits: gateTutor{gate}, workbook: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
+		texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)

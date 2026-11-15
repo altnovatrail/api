@@ -116,7 +116,7 @@ func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []st
 			EXISTS (SELECT 1 FROM attempts p WHERE p.profile_id = a.profile_id AND p.module_id = a.module_id
 				AND p.task_id = a.task_id AND p.close_reason IN ('correct', 'solution_shown')
 				AND p.closed_at <= a.started_at),
-			ARRAY(SELECT s.answer FROM submissions s WHERE s.profile_id = a.profile_id AND s.attempt_id = a.id
+			ARRAY(SELECT s.answer FROM submissions s WHERE s.profile_id = a.profile_id AND s.attempt_id = a.id AND s.essay_end IS NULL
 				ORDER BY s.number)
 		FROM attempts a WHERE a.profile_id = $1 AND `+owedWhere("$2")+` ORDER BY a.closed_at, a.id`, profileID, digests)
 	if err != nil {

@@ -68,9 +68,11 @@ type Provider struct {
 // ownKeyCalls are the kinds of call of tutor that api makes: the reading of a
 // sheet, the hint without the work and the words with it (R54, R68) — the
 // hint before the words, whose choice asks the hint's too —, and the words
-// after a correct answer (R76), and the reading of a workbook page (R81). An
-// own key is open when tutor admits it for one of them at least (R72).
-var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect, tutor.CallWorkbook}
+// after a correct answer (R76), the reading of a workbook page (R81), and the
+// reading of an essay and its assessment by the rubric (R82). An own key is
+// open when tutor admits it for one of them at least (R72).
+var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect, tutor.CallWorkbook,
+	tutor.CallEssay, tutor.CallRubric}
 
 // Report is what a start says of admission to the operator: the version of the
 // table, whether the deployment gave a file of facts, and the stage and whether
@@ -308,13 +310,14 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 }
 
 // Reads says whether the reading of handwriting by the call of the kind — of a
-// sheet, CallSheet, or of a workbook page, CallWorkbook — is admitted for a
+// sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
+// essay, CallEssay, or its assessment, CallRubric, is admitted for a
 // learner of category: by platform AI, or, when ownKeyProvider names one, by
 // the own key of that provider alone. It is admitted when tutor chooses, for
 // the call, an entry all of whose models the table admits at the deployment's
 // stage or above. On platform AI only the providers the platform holds a key
 // of serve, and on either route only those api gives an adapter of; the
-// reading asks again (R46, R81).
+// reading asks again (R46, R81, R82).
 func (g *Gate) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return g.chooses(call, g.route(category, ownKeyProvider))
 }
@@ -370,6 +373,20 @@ func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetR
 // of a call that gave none (R81).
 func (g *Gate) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead {
 	return g.tutor.ReadWorkbook(ctx, r)
+}
+
+// ReadEssay reads the essay of a task with a rubric by tutor's one reader: the
+// observation of its answer slot bound sheet — the text, or unreadable — or the
+// outcome of a call that gave none (R82).
+func (g *Gate) ReadEssay(ctx context.Context, r tutor.EssayReading) tutor.EssayRead {
+	return g.tutor.ReadEssay(ctx, r)
+}
+
+// AssessEssay assesses the text of an essay by the criteria of its rubric: a
+// mark of each criterion and one feedback, which api checks before it reaches
+// the learner, or the outcome of a call that gave none (R82).
+func (g *Gate) AssessEssay(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed {
+	return g.tutor.AssessEssay(ctx, r)
 }
 
 // TellWords asks tutor for the words of a rung: its question, with the box of
