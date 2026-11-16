@@ -233,6 +233,9 @@ func refusedAs(t *testing.T, err error, code connect.Code, cause v1.Cause) *v1.R
 			}
 		}
 	}
+	if refusal != nil && cause == v1.Cause_CAUSE_UNSPECIFIED {
+		t.Fatalf("refusal = %v %v, want %v with no Refusal", connectErr.Code(), refusal, code)
+	}
 	if got := refusal.GetCause(); connectErr.Code() != code || got != cause {
 		t.Fatalf("refusal = %v %v, want %v %v", connectErr.Code(), got, code, cause)
 	}

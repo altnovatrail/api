@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -10,6 +11,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/consentage"
@@ -65,14 +67,15 @@ func (s *Service) ListOwnKeyProviders(ctx context.Context, req *v1.ListOwnKeyPro
 
 // CheckOwnKey checks the owner's own key at its provider through tutor, by a
 // request with nothing of a learner's, when the key is connected (R73; R84
-// spec, R96 tutor). A key with no provider or no key is invalid_argument, as
-// on the requests of an attempt, and a profile not of the category adult is
-// CAUSE_KEY_NOT_FOR_PROFILE, both with no call; a provider closed to the key
-// at the profile is PROVIDER_CLOSED with no call, as ListOwnKeyProviders
-// leaves it out. A check beyond the account's limit is resource_exhausted with
-// no call (R78). A provider that gave no answer is no refusal: the check is
-// OWN_KEY_CHECK_UNSPECIFIED with the outcome CAUSE_AI_FAILURE. The key lives
-// in the request's memory alone: the log line names how the check ended.
+// spec, R96 tutor). A key with no provider or no key is invalid_argument with
+// no Refusal, as on the requests of an attempt, and a profile not of the
+// category adult is CAUSE_KEY_NOT_FOR_PROFILE, both with no call; a provider
+// closed to the key at the profile is PROVIDER_CLOSED with no call, as
+// ListOwnKeyProviders leaves it out. A check beyond the account's limit is
+// CAUSE_KEY_CHECKS_EXHAUSTED with no call (R78). A provider that gave no
+// answer is no refusal: the check is OWN_KEY_CHECK_UNSPECIFIED with the outcome
+// CAUSE_AI_FAILURE. The key lives in the request's memory alone: the log line
+// names how the check ended.
 func (s *Service) CheckOwnKey(ctx context.Context, req *v1.CheckOwnKeyRequest) (*v1.CheckOwnKeyResponse, error) {
 	if s.ownKeys == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "no gate is configured")
@@ -84,7 +87,7 @@ func (s *Service) CheckOwnKey(ctx context.Context, req *v1.CheckOwnKeyRequest) (
 	}
 	own := req.GetOwnKey()
 	if own.GetProvider() == "" || own.GetKey() == "" {
-		return nil, rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+		return nil, rpc.Malformed("own_key")
 	}
 	if l.AgeCategory != consentage.Adult {
 		return nil, rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
@@ -119,9 +122,11 @@ const (
 // countKeyCheck counts a check of a key on the account, in a transaction that
 // holds its row, and commits before the check, so that a check beside it waits
 // and counts it: a check that MaxKeyChecks of the last KeyCheckWindow leave no
-// room for is resource_exhausted with no cause, until spec gives one, and is
-// counted not. Every check that reaches the gate counts, a provider closed with
-// no call too, so that trying providers does not get round the limit.
+// room for is resource_exhausted with CAUSE_KEY_CHECKS_EXHAUSTED and when the
+// next check opens — when the oldest of the checks that leave no room leaves
+// the window —, and is counted not. Every check that reaches the gate counts,
+// a provider closed with no call too, so that trying providers does not get
+// round the limit.
 func (s *Service) countKeyCheck(ctx context.Context, accountID string) error {
 	if s.unlimitedChecks {
 		return nil
@@ -141,7 +146,13 @@ func (s *Service) countKeyCheck(ctx context.Context, accountID string) error {
 			}
 		}
 		if len(recent) >= MaxKeyChecks {
-			return rpc.Refuse(ctx, connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+			// The clocks of two instances may differ: the times are sorted
+			// before the oldest of those that leave no room is read.
+			slices.SortFunc(recent, time.Time.Compare)
+			next := recent[len(recent)-MaxKeyChecks].Add(KeyCheckWindow)
+			return rpc.Refuse(ctx, connect.CodeResourceExhausted, v1.Cause_CAUSE_KEY_CHECKS_EXHAUSTED, func(r *v1.Refusal) {
+				r.Data = &v1.Refusal_NextKeyCheck{NextKeyCheck: timestamppb.New(next)}
+			})
 		}
 		return store.WriteKeyChecks(ctx, tx, accountID, append(recent, now))
 	})

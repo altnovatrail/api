@@ -238,10 +238,10 @@ func refusedAs(t *testing.T, err error, code connect.Code, cause v1.Cause) *v1.R
 		t.Fatalf("error = nil, want %v %v", code, cause)
 	}
 	gotCode, r := refusal(t, err)
-	gotCause := v1.Cause_CAUSE_UNSPECIFIED
-	if r != nil {
-		gotCause = r.GetCause()
+	if r != nil && cause == v1.Cause_CAUSE_UNSPECIFIED {
+		t.Fatalf("refusal = %v %v, want %v with no Refusal", gotCode, r, code)
 	}
+	gotCause := r.GetCause()
 	if gotCode != code || gotCause != cause {
 		t.Fatalf("refusal = %v %v, want %v %v", gotCode, gotCause, code, cause)
 	}
@@ -698,7 +698,7 @@ func TestADanglingTupleIsNotDroppedWithoutAFreshSignIn(t *testing.T) {
 }
 
 // A message larger than MaxMessage is refused resource_exhausted before it is
-// decoded, whatever its method (R46).
+// decoded, whatever its method, with no Refusal (R46; contract, section 15).
 func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -710,9 +710,7 @@ func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
 	}
 	p := w.person(t, "uid-large")
 	_, err := w.packages.CheckPackages(as(t, p.token), &v1.CheckPackagesRequest{PackageDigests: digests})
-	if connect.CodeOf(err) != connect.CodeResourceExhausted {
-		t.Errorf("a message of %d digests = %v, want resource_exhausted", len(digests), err)
-	}
+	refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
 // A request that called AI names the cause of its outcome in its line, and

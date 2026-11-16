@@ -216,10 +216,10 @@ func TestAKeyThatDoesNotFitIsRefusedWithNoCheck(t *testing.T) {
 		"no provider": {Key: "sk-ant-synthetic"},
 		"neither":     {},
 	} {
-		_, err := w.client.CheckOwnKey(ctx, &v1.CheckOwnKeyRequest{ProfileId: owner, OwnKey: own})
-		if connect.CodeOf(err) != connect.CodeInvalidArgument {
-			t.Errorf("CheckOwnKey with %s = %v, want invalid_argument", name, err)
-		}
+		t.Run(name, func(t *testing.T) {
+			_, err := w.client.CheckOwnKey(ctx, &v1.CheckOwnKeyRequest{ProfileId: owner, OwnKey: own})
+			refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+		})
 	}
 	for name, age := range map[string]int32{"a child": 8, "a teen": 16} {
 		_, err := w.client.CheckOwnKey(ctx, &v1.CheckOwnKeyRequest{ProfileId: w.childOf(t, ctx, "key-"+name, age), OwnKey: whole})
@@ -285,9 +285,9 @@ func TestACheckWithTooLittleTimeIsTheClients(t *testing.T) {
 }
 
 // No more than ten checks of a key fit in any hour on the account (R78): the
-// eleventh is resource_exhausted with no cause and no check, a provider closed
-// with no call counts as a check, and the hour slides, so that a check opens as
-// the oldest leaves it.
+// eleventh is resource_exhausted with CAUSE_KEY_CHECKS_EXHAUSTED and when the
+// next check opens, with no check, a provider closed with no call counts as a
+// check, and the hour slides, so that a check opens as the oldest leaves it.
 func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 	t.Parallel()
 
@@ -301,6 +301,13 @@ func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 		return err
 	}
 	start := w.clock.Now()
+	exhausted := func(err error, opens time.Time) {
+		t.Helper()
+		r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_KEY_CHECKS_EXHAUSTED)
+		if got, want := r.GetNextKeyCheck().AsTime(), opens.UTC().Truncate(time.Microsecond); !got.Equal(want) {
+			t.Fatalf("next_key_check = %v, want %v", got, want)
+		}
+	}
 	if err := check("anthropic"); err != nil {
 		t.Fatalf("the first check = %v", err)
 	}
@@ -315,8 +322,9 @@ func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 			t.Fatalf("check %d = %v", i+2, err)
 		}
 	}
-	refusedAs(t, check("anthropic"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
-	refusedAs(t, check("openai"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	// The first check leaves the window first.
+	exhausted(check("anthropic"), start.Add(account.KeyCheckWindow))
+	exhausted(check("openai"), start.Add(account.KeyCheckWindow))
 	if n := keys.checks.Load(); n != account.MaxKeyChecks {
 		t.Fatalf("the gate checked %d keys, want %d: a check beyond the limit reached it", n, account.MaxKeyChecks)
 	}
@@ -325,7 +333,7 @@ func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 	if err := check("anthropic"); err != nil {
 		t.Fatalf("the check an hour after the first = %v", err)
 	}
-	refusedAs(t, check("anthropic"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	exhausted(check("anthropic"), start.Add(59*time.Minute+account.KeyCheckWindow))
 	// An hour from the nine, only the check of the last hour counts.
 	w.clock.set(start.Add(59*time.Minute + account.KeyCheckWindow))
 	for i := range account.MaxKeyChecks - 1 {
@@ -333,7 +341,7 @@ func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 			t.Fatalf("check %d of the next hour = %v", i+1, err)
 		}
 	}
-	refusedAs(t, check("anthropic"), connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
+	exhausted(check("anthropic"), start.Add(2*account.KeyCheckWindow))
 	if n, want := keys.checks.Load(), 2*account.MaxKeyChecks; n != int32(want) {
 		t.Errorf("the gate checked %d keys, want %d", n, want)
 	}
@@ -343,6 +351,34 @@ func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 		OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic"}})
 	if err != nil {
 		t.Errorf("another account's check = %v", err)
+	}
+}
+
+// The times of the checks need not be in order — two instances may differ in
+// their clocks —: the next check opens when the oldest leaves the hour.
+func TestTheNextCheckOfAKeyOpensByTheOldest(t *testing.T) {
+	t.Parallel()
+
+	w, keys := stubKeyWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	owner := w.ownerProfile(t, ctx).GetProfileId()
+	start := w.clock.Now().UTC().Truncate(time.Microsecond)
+	checked := []time.Time{start.Add(-10 * time.Minute), start.Add(-50 * time.Minute)}
+	for range account.MaxKeyChecks - len(checked) {
+		checked = append(checked, start.Add(-time.Minute))
+	}
+	if _, err := w.pool.Exec(t.Context(), `UPDATE accounts SET key_checked_at = $1`, checked); err != nil {
+		t.Fatal(err)
+	}
+	_, err := w.client.CheckOwnKey(ctx, &v1.CheckOwnKeyRequest{ProfileId: owner,
+		OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic"}})
+	r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_KEY_CHECKS_EXHAUSTED)
+	if got, want := r.GetNextKeyCheck().AsTime(), start.Add(10*time.Minute); !got.Equal(want) {
+		t.Errorf("next_key_check = %v, want %v, an hour after the oldest", got, want)
+	}
+	if n := keys.checks.Load(); n != 0 {
+		t.Errorf("the gate checked %d keys, want none", n)
 	}
 }
 

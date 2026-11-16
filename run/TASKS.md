@@ -2,24 +2,10 @@
 
 Open tasks outside the current epic, each as its body, in Russian (R154 spec, R155 spec; R85). Each is also a row of table 1 of [RUN.md](../RUN.md) (rule 9; R63).
 
-- Never read whole: a session reads only its own task — `grep -n '^#### T' run/TASKS.md` lists them, `awk '/^#### T97\./{p=1;print;next} /^#### /{p=0} p' run/TASKS.md` gives one body.
+- Never read whole: a session reads only its own task — `grep -n '^#### T' run/TASKS.md` lists them, `awk '/^#### T99\./{p=1;print;next} /^#### /{p=0} p' run/TASKS.md` gives one body.
 - A new task outside an epic goes here as a body, its number the one free when it is written down (RUN.md, Citations). When done, the body leaves for the archive (RUN.md rule 9).
 
 ## Tasks outside an epic
-
-#### T97. Ответы контракта T160 spec: причины отказов
-
-- **Цель:** `api` отвечает так, как называет контракт `spec` v0.18.3: причины отказов, которые дал T160 spec.
-- **Почему:** Д245, Д246 и Д247 spec — ответы `spec` на В68, В71 и В76; T94 перенёс модули Go на тег, а причины не шлёт (R84). Запросы работ ученика при ожидании согласия (поправка 2026-11-15 к R113 spec) сделала T94: без них выгрузка версии 3 называла бы работы, которых `app` не прочтёт.
-- **Сделать** (по [тексту контрактов](../spec/contracts/README.md), section 15):
-  - Д245 spec: `own_key` без поставщика или ключа — `invalid_argument` без `Refusal` в `CheckOwnKey` и в `ownKeySent` попытки;
-  - Д246 spec: `PutWork` — вид работы по задаче попытки или по прежней работе; дайджест пакета, которого индекс образа не знает, — `CAUSE_PACKAGE_UNKNOWN`; версия вне окна форматов без прежней работы — `failed_precondition` и `CAUSE_VERSION_NOT_GIVEN`; отозванная версия, которую образ держит, — вид по задаче;
-  - Д247 spec: `CheckOwnKey` сверх предела R78 — `resource_exhausted`, `CAUSE_KEY_CHECKS_EXHAUSTED` и `Refusal.next_key_check`;
-  - сверить с тем же разделом прочее, что изменилось с v0.17.12: сообщение больше 11 MiB — `resource_exhausted` без `Refusal`, `history_length` от 0, право на слова после верного ответа (R77);
-  - тесты; поправки к R70, R72, R73 и R78, к каким нужно; architecture 3.9.
-- **Решить при планировании:** что из списка `api` уже делает — сверить код с текстом контрактов, прежде чем менять.
-- **Как проверить:** `just ci-lint`, `ci-test`, `ci-vuln`, `ci-licenses`; `just fuzz 5m` тех тестов, чей читатель меняется; `/code-review high`. Вызовов ИИ нет, $0.
-- **Разделы:** Д245, Д246, Д247 spec; [текст контрактов](../spec/contracts/README.md), section 15; R70, R72, R73, R77, R78, R84.
 
 #### T99. Скорость CI: релиз `.github` строки 7.13
 
