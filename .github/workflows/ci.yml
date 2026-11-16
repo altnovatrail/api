@@ -54,7 +54,7 @@ jobs:
 
       # The image of the stage toolchain-core from the cache, by the key and the path "Go /
       # toolchain" and "Documents" save it under on main, so the entry is theirs; read only, as no
-      # job here saves it (R27). release-files needs Node, just and Go alone, so the job takes the
+      # job here saves it (R27). release-files needs Node, just and Go alone, so image.sh takes the
       # core, without the apt of nss_wrapper, as the release does (R28).
       - name: Toolchain image from the cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -64,7 +64,6 @@ jobs:
 
       - name: Build and check the images
         env:
-          TOOLCHAIN_STAGE: toolchain-core
           TOOLCHAIN_TAR: ${{ runner.temp }}/novatrail-toolchain-core.tar
         run: .github/image.sh
 

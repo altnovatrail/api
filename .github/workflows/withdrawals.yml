@@ -18,8 +18,9 @@ permissions:
   contents: read
 
 jobs:
-  # The check is the recipe ci-withdrawals in the toolchain stage, as the job Modules of ci.yml runs
-  # its own; spec/ is checked out for release-verify.
+  # The check is the recipe ci-withdrawals in the stage toolchain-core, which modules.sh names: it
+  # runs release-verify and cmd/modules-check, and no test (R30). spec/ is checked out for
+  # release-verify.
   withdrawals:
     name: Withdrawals
     runs-on: ubuntu-24.04
@@ -30,9 +31,16 @@ jobs:
           persist-credentials: false
           submodules: true
 
-      # The recipe runs release-verify and cmd/modules-check, and no test, so the job builds the
-      # stage toolchain-core, without the apt of nss_wrapper (R27, R30).
+      # The image of the stage toolchain-core from the cache, as in the job Image of ci.yml: a
+      # schedule runs on main, which reads the entry "Go / toolchain" and "Documents" save there;
+      # read only (R27).
+      - name: Toolchain image from the cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/novatrail-toolchain-core.tar
+          key: toolchain-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.devcontainer/Dockerfile') }}
+
       - name: Withdrawals of the versions api gives
         env:
-          TOOLCHAIN_STAGE: toolchain-core
+          TOOLCHAIN_TAR: ${{ runner.temp }}/novatrail-toolchain-core.tar
         run: .github/modules.sh ci-withdrawals

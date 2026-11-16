@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # What the job Image of ci.yml runs on the runner, which has Docker where the devcontainer has none
 # (R28 in docs/decisions.md). It builds the release's files as the shared release does, from an
-# archive of the commit in the stage toolchain-core that the job names, whose image toolchain.sh
+# archive of the commit in the stage toolchain-core, the release's, whose image toolchain.sh
 # gives. Then it builds the image a deployment builds, the release's Dockerfile by --target release
 # around the release's binary, and the image built from the source, holds the binary of the second
 # to the release's binary of the same platform, byte for byte, and checks each image: the version
@@ -28,7 +28,8 @@ fail() {
     exit 1
 }
 
-.github/toolchain.sh
+# The stage the release builds its files in (R28).
+TOOLCHAIN_STAGE=toolchain-core .github/toolchain.sh
 
 tree="${work}/tree"
 mkdir "$tree"
