@@ -154,9 +154,19 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		}
 		return res
 	}
+	before := time.Now().UTC()
 	limited := func(name string, o *v1.Outcome, want v1.LimitCause) {
 		t.Helper()
-		if o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || o.GetOwnKeyLimit() == nil || o.GetOwnKeyLimit().GetCause() != want {
+		// The ceiling of the tier alone says when access returns: 00:00 UTC on the
+		// first of the next month, or of the month after, should the month turn
+		// while the test runs (sources 2.8 spec).
+		returns := o.GetOwnKeyLimit().GetAccessReturns()
+		timed := want == v1.LimitCause_LIMIT_CAUSE_TIER
+		next := time.Date(before.Year(), before.Month()+1, 1, 0, 0, 0, 0, time.UTC)
+		if at := returns.AsTime(); timed && (returns == nil || !at.Equal(next) && !at.Equal(next.AddDate(0, 1, 0))) {
+			t.Errorf("%s: access returns %v, want 00:00 UTC on the first of the next month", name, returns)
+		}
+		if o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || o.GetOwnKeyLimit() == nil || o.GetOwnKeyLimit().GetCause() != want || !timed && returns != nil {
 			t.Errorf("%s = %v, want the limit reached with the cause %v", name, o, want)
 		}
 	}

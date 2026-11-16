@@ -323,11 +323,26 @@ func twice[R any](t *testing.T, ask func() (R, error)) [2]R {
 	return answers
 }
 
+// nextMonth is a time access returns at, as tutor gives it for the ceiling of
+// Anthropic's tier: 00:00 UTC on the first day of a month.
+var nextMonth = time.Date(2026, time.December, 1, 0, 0, 0, 0, time.UTC)
+
+// returnsAt tells whether limit says access returns at at, and says no time
+// when at is zero.
+func returnsAt(limit *v1.OwnKeyLimit, at time.Time) bool {
+	if at.IsZero() {
+		return limit.GetAccessReturns() == nil
+	}
+	return limit.GetAccessReturns() != nil && limit.GetAccessReturns().AsTime().Equal(at)
+}
+
 // A limit of the own key names which limit ran out, by the reason tutor gives,
 // beside CAUSE_LIMIT_REACHED in every answer whose call may meet it — the
 // reading of a submission, the words of a rung, "explain differently" and the
-// words after a correct answer —, and never when access returns; a repeat under
-// the key gets the same. A reason tutor does not name, or none, is unnamed.
+// words after a correct answer —, with when access returns where tutor gives the
+// time, as for the ceiling of the tier, and none where it gives zero, as for the
+// owner's own limit (R80); a repeat under the key gets the same. A reason tutor
+// does not name, or none, is unnamed.
 func TestAnOwnKeysLimitNamesWhichLimitRanOut(t *testing.T) {
 	t.Parallel()
 
@@ -339,18 +354,24 @@ func TestAnOwnKeysLimitNamesWhichLimitRanOut(t *testing.T) {
 	own := &v1.OwnKey{Provider: "anthropic", Key: "sk-own"}
 	wrong := int32(1)
 	for _, tc := range []struct {
-		reason tutor.LimitReason
-		want   v1.LimitCause
+		reason  tutor.LimitReason
+		returns time.Time
+		want    v1.LimitCause
 	}{
-		{"", v1.LimitCause_LIMIT_CAUSE_UNSPECIFIED},
-		{tutor.LimitOwner, v1.LimitCause_LIMIT_CAUSE_LIMIT},
-		{tutor.LimitTier, v1.LimitCause_LIMIT_CAUSE_TIER},
-		{tutor.LimitBalance, v1.LimitCause_LIMIT_CAUSE_BALANCE},
-		{tutor.LimitBilling, v1.LimitCause_LIMIT_CAUSE_PAYMENT},
-		{"rate", v1.LimitCause_LIMIT_CAUSE_UNSPECIFIED},
+		{"", time.Time{}, v1.LimitCause_LIMIT_CAUSE_UNSPECIFIED},
+		{tutor.LimitOwner, time.Time{}, v1.LimitCause_LIMIT_CAUSE_LIMIT},
+		{tutor.LimitTier, nextMonth, v1.LimitCause_LIMIT_CAUSE_TIER},
+		{tutor.LimitTier, time.Time{}, v1.LimitCause_LIMIT_CAUSE_TIER},
+		{tutor.LimitBalance, time.Time{}, v1.LimitCause_LIMIT_CAUSE_BALANCE},
+		{tutor.LimitBilling, time.Time{}, v1.LimitCause_LIMIT_CAUSE_PAYMENT},
+		{"rate", time.Time{}, v1.LimitCause_LIMIT_CAUSE_UNSPECIFIED},
 	} {
-		limited := tutor.Outcome{Kind: tutor.LimitReached, Limit: tc.reason}
-		t.Run(string(tc.reason), func(t *testing.T) {
+		limited := tutor.Outcome{Kind: tutor.LimitReached, Limit: tc.reason, AccessReturns: tc.returns}
+		name := string(tc.reason)
+		if !tc.returns.IsZero() {
+			name += " with a time"
+		}
+		t.Run(name, func(t *testing.T) {
 			// limitOf checks the outcome of an answer and of its repeat: the field is
 			// there with no reason too.
 			limitOf := func(name string, answers ...*v1.Outcome) {
@@ -361,8 +382,8 @@ func TestAnOwnKeysLimitNamesWhichLimitRanOut(t *testing.T) {
 						t.Errorf("%s = %v, want own_key_limit", name, o)
 						continue
 					}
-					if o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || limit.GetCause() != tc.want || limit.GetAccessReturns() != nil {
-						t.Errorf("%s = %v, want the limit reached, %v, and no time access returns", name, o, tc.want)
+					if o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || limit.GetCause() != tc.want || !returnsAt(limit, tc.returns) {
+						t.Errorf("%s = %v, want the limit reached, %v, access returning at %v", name, o, tc.want, tc.returns)
 					}
 				}
 			}

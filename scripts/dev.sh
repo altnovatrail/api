@@ -713,14 +713,16 @@ check() {
     handwriting "$owner"
     attempt=$(jq -r .attempt_id "$work/attempt.json")
     # The stub refuses a call on an own key by its ending (R66): on -limit-tier the reading is the
-    # limit of the provider's tier, which own_key_limit names, and nothing is checked.
+    # limit of the provider's tier, which own_key_limit names with when access returns, 00:00 UTC on
+    # the first of the next month, and nothing is checked.
     call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
         OWN=$limit_key jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY,
             work: {sheet: {crop: env.PIXEL}}, own_key: {provider: "anthropic", key: env.OWN}, clock_offset_minutes: 0}')
     expect SubmitWork
-    jq -e '.outcome.cause == "CAUSE_LIMIT_REACHED" and .outcome.own_key_limit.cause == "LIMIT_CAUSE_TIER" and .solved == null' \
+    jq -e '.outcome.cause == "CAUSE_LIMIT_REACHED" and .outcome.own_key_limit.cause == "LIMIT_CAUSE_TIER" and
+        (.outcome.own_key_limit.access_returns // "" | test("^[0-9]{4}-[0-9]{2}-01T00:00:00Z$")) and .solved == null' \
         "$work/answer.json" > /dev/null ||
-        die "SubmitWork on an own key ending in -limit-tier gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the limit of the tier"
+        die "SubmitWork on an own key ending in -limit-tier gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the limit of the tier with when access returns"
     echo "$who: the stub refuses a reading on an own key by its ending"
     call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, work: {sheet: {crop: env.PIXEL}},

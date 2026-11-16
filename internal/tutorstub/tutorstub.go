@@ -11,7 +11,7 @@
 // first value its check holds not right —, and square is illegible. It reads
 // each filled box of a workbook page the same way, by the shape of the box's
 // crop, and admits that reading itself wherever the gate admits a sheet's, for
-// the same category and route: tutor v0.1.35 admits it nowhere (В72). It finds
+// the same category and route: tutor v0.1.42 admits it nowhere (В72). It finds
 // the values by module-kit's verdict on the instance, the key with it, which
 // the stub alone is given: tutor sees the open view (R67 spec). It reads an
 // essay by the shape of the sheet's crop too — wider than tall a text of its
@@ -42,6 +42,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/altnovatrail/module-kit/verdict"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
@@ -79,8 +80,10 @@ const wholeCrop = 1000
 // The endings of a synthetic own key that a call of AI on the stub reads, past
 // the checks of the request's form, as a provider would answer it (the
 // 2026-11-15 amendment to R66): the key refused, or a limit — named by none of
-// tutor's reasons, or by one. A key that ends in none of them calls the stub as
-// platform AI does. README.md names them for app; CheckOwnKey takes them all.
+// tutor's reasons, or by one; the ceiling of the tier with when access returns,
+// as tutor's adapter of Claude gives it (the 2026-11-16 amendment to R66). A
+// key that ends in none of them calls the stub as platform AI does. README.md
+// names them for app; CheckOwnKey takes them all.
 const (
 	KeyRefused      = "-refused"
 	KeyLimit        = "-limit"
@@ -111,17 +114,23 @@ var errRefused = errors.New("tutorstub: the stub refused the call by the ending 
 
 // refusal is what a call on the own key own comes to by its ending, as tutor
 // gives a provider's refusal: KeyRefused, or LimitReached with tutor's reason of
-// the ending, with no usage, since a refused call has no tokens; ok is false
-// for a key of no such ending, and on platform AI, whose own is empty. A request
-// whose context ended fails instead, as a call cut short does. Neither the
-// outcome nor its error holds the key.
+// the ending and, for the tier, when access returns by the wall clock — no
+// other limit of Anthropic's says it but in its words (sources 2.8 spec) —, with
+// no usage, since a refused call has no tokens; ok is false for a key of no such
+// ending, and on platform AI, whose own is empty. A request whose context ended
+// fails instead, as a call cut short does. Neither the outcome nor its error
+// holds the key.
 func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 	switch i := slices.IndexFunc(limits, func(l limitEnding) bool { return strings.HasSuffix(own, l.ending) }); {
 	case strings.HasSuffix(own, KeyRefused):
 		o = tutor.Outcome{Kind: tutor.KeyRefused, Err: fmt.Errorf("%w: %w", errRefused, tutorprovider.ErrKeyRefused)}
 	case i >= 0:
-		o = tutor.Outcome{Kind: tutor.LimitReached, Limit: limits[i].limit,
-			Err: &tutorprovider.LimitError{Limit: limits[i].limit, Err: errRefused}}
+		var returns time.Time
+		if limits[i].limit == tutor.LimitTier {
+			returns = nextMonth(time.Now())
+		}
+		o = tutor.Outcome{Kind: tutor.LimitReached, Limit: limits[i].limit, AccessReturns: returns,
+			Err: &tutorprovider.LimitError{Limit: limits[i].limit, Returns: returns, Err: errRefused}}
 	default:
 		return tutor.Outcome{}, false
 	}
@@ -129,6 +138,14 @@ func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 		return tutor.Outcome{Kind: tutor.Failed, Err: err}, true
 	}
 	return o, true
+}
+
+// nextMonth is 00:00 UTC on the first day of the month after the one at falls
+// on, in UTC: when the ceiling of Anthropic's tier lets a key go (sources 2.8
+// spec), as tutor's adapter of Claude reckons it.
+func nextMonth(at time.Time) time.Time {
+	at = at.UTC()
+	return time.Date(at.Year(), at.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 }
 
 // Gate is what the stub asks of the gate of admission: whether a reading and
