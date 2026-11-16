@@ -110,7 +110,8 @@ ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}"
 #
 # api's tests need one thing the core lacks, nss_wrapper below, its own difference from the
 # template (R30 in docs/decisions.md); its kind, go, adds no lines here. What this stage installs,
-# a release never builds.
+# a release never builds, and neither do the checks that run no test: what the release and those
+# ci- recipes call belongs in toolchain-core.
 
 FROM toolchain-core AS toolchain
 
