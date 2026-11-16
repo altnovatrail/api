@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/altnovatrail/module-kit/leak"
 	"github.com/altnovatrail/module-kit/observation"
@@ -323,14 +324,22 @@ func TestTheStubFailsTheWordsTutorFails(t *testing.T) {
 	}
 }
 
+// firstOfAMonthAfter tells whether at is 00:00 UTC on the first day of the
+// month after the one of before, or of the one after it, should the month turn
+// while the test runs.
+func firstOfAMonthAfter(at, before time.Time) bool {
+	next := time.Date(before.Year(), before.Month()+1, 1, 0, 0, 0, 0, time.UTC)
+	return at.Equal(next) || at.Equal(next.AddDate(0, 1, 0))
+}
+
 // On an own key whose value ends in an ending of the stub's, the reading of a
 // sheet, of a workbook page and of an essay, the assessment of an essay, the
-// words of a rung and the words after a correct answer are refused as a provider refuses them: the key refused, or a
-// limit with tutor's reason of the
-// ending, or none, with no usage and an error that holds no key. A key of no
-// such ending, an ending of the stub's check of a key, and platform AI, with no
-// key, are answered; a request tutor fails before its call fails so on any key,
-// and so does one cut short.
+// words of a rung and the words after a correct answer are refused as a provider
+// refuses them: the key refused, or a limit with tutor's reason of the ending,
+// or none, and when access returns for the ceiling of the tier alone, with no
+// usage and an error that holds no key. A key of no such ending, an ending of the
+// stub's check of a key, and platform AI, with no key, are answered; a request
+// tutor fails before its call fails so on any key, and so does one cut short.
 func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	t.Parallel()
 
@@ -343,14 +352,16 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	praised := tutor.CorrectRequest{Route: own, Task: &open.Task{}, Language: "en", Style: "an adult"}
 	sheetOfEssay := tutor.EssayReading{Route: own, Task: &open.Task{}, Crop: crop(t, 40, 10)}
 	assessed := assessment(own, "en", 2)
+	before := time.Now().UTC()
 	for ending, want := range map[string]struct {
-		kind  tutor.Kind
-		limit tutor.LimitReason
+		kind    tutor.Kind
+		limit   tutor.LimitReason
+		returns bool
 	}{
 		tutorstub.KeyRefused:      {kind: tutor.KeyRefused},
 		tutorstub.KeyLimit:        {kind: tutor.LimitReached},
 		tutorstub.KeyLimitOwner:   {kind: tutor.LimitReached, limit: tutor.LimitOwner},
-		tutorstub.KeyLimitTier:    {kind: tutor.LimitReached, limit: tutor.LimitTier},
+		tutorstub.KeyLimitTier:    {kind: tutor.LimitReached, limit: tutor.LimitTier, returns: true},
 		tutorstub.KeyLimitBalance: {kind: tutor.LimitReached, limit: tutor.LimitBalance},
 		tutorstub.KeyLimitPayment: {kind: tutor.LimitReached, limit: tutor.LimitBilling},
 	} {
@@ -368,8 +379,11 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 			}
 			var limit *provider.LimitError
 			if refused, limited := errors.Is(o.Err, provider.ErrKeyRefused), errors.As(o.Err, &limit); refused != (want.kind == tutor.KeyRefused) ||
-				limited != (want.kind == tutor.LimitReached) || limited && limit.Limit != want.limit {
+				limited != (want.kind == tutor.LimitReached) || limited && (limit.Limit != want.limit || !limit.Returns.Equal(o.AccessReturns)) {
 				t.Errorf("%s on %q failed with %v, want the provider's error of the outcome", call, ending, o.Err)
+			}
+			if returns := !o.AccessReturns.IsZero(); returns != want.returns || returns && !firstOfAMonthAfter(o.AccessReturns, before) {
+				t.Errorf("%s on %q: access returns %v, want %t: 00:00 UTC on the first of the month after %v", call, ending, o.AccessReturns, want.returns, before)
 			}
 		}
 		if r := s.ReadSheet(t.Context(), tutor.SheetReading{Route: own, Crop: []byte("not a picture")}, tk, key); r.Outcome.Kind != tutor.Failed {

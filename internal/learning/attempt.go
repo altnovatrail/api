@@ -20,6 +20,7 @@ import (
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/quota"
@@ -413,15 +414,19 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 
 // outcomeOf is the outcome of a call of tutor that gave no reading or no words,
 // on the route: a limit is the platform's on platform AI and the key's own on an
-// own key, which names which limit by the reason tutor gives, and not when
-// access returns: tutor gives no such time (R80).
+// own key, which names which limit by the reason tutor gives, and when access
+// returns where tutor gives the time, none where it gives zero (R80).
 func outcomeOf(o tutor.Outcome, route admissionv0.AiRoute) *v1.Outcome {
 	switch o.Kind {
 	case tutor.NotAdmitted:
 		return &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}
 	case tutor.LimitReached:
 		if route == admissionv0.AiRouteOwnKey {
-			return &v1.Outcome{Cause: v1.Cause_CAUSE_LIMIT_REACHED, OwnKeyLimit: &v1.OwnKeyLimit{Cause: limitCauses[o.Limit]}}
+			limit := &v1.OwnKeyLimit{Cause: limitCauses[o.Limit]}
+			if !o.AccessReturns.IsZero() {
+				limit.AccessReturns = timestamppb.New(o.AccessReturns)
+			}
+			return &v1.Outcome{Cause: v1.Cause_CAUSE_LIMIT_REACHED, OwnKeyLimit: limit}
 		}
 		return &v1.Outcome{Cause: v1.Cause_CAUSE_PLATFORM_LIMIT}
 	case tutor.KeyRefused:

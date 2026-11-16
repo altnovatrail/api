@@ -214,6 +214,8 @@ func TestAnEssayEndsInFeedbackUnreadableOrUnchecked(t *testing.T) {
 			v1.SubmissionEnd_SUBMISSION_END_UNCHECKED, true, false, "", v1.Cause_CAUSE_AI_FAILURE, "unchecked [] -", ""},
 		{"the own key's limit", essayText(essay), tutor.RubricAssessed{Outcome: tutor.Outcome{Kind: tutor.LimitReached, Limit: tutor.LimitBalance}},
 			own, v1.SubmissionEnd_SUBMISSION_END_UNCHECKED, true, false, "", v1.Cause_CAUSE_LIMIT_REACHED, "unchecked [] -", ""},
+		{"the own key's tier", tutor.EssayRead{Outcome: tutor.Outcome{Kind: tutor.LimitReached, Limit: tutor.LimitTier, AccessReturns: nextMonth}},
+			assessment(kindWords, yes, yes), own, v1.SubmissionEnd_SUBMISSION_END_UNCHECKED, false, false, "", v1.Cause_CAUSE_LIMIT_REACHED, "unchecked [] -", ""},
 		{"a blank sheet", essayUnread(observationv1.Unreadable_UNREADABLE_BLANK), assessment(kindWords, yes, yes), nil,
 			v1.SubmissionEnd_SUBMISSION_END_UNREADABLE, false, false, "blank", v1.Cause_CAUSE_UNSPECIFIED, "unreadable [] -", ""},
 		{"an illegible sheet", essayUnread(observationv1.Unreadable_UNREADABLE_ILLEGIBLE), assessment(kindWords, yes, yes), nil,
@@ -248,8 +250,12 @@ func TestAnEssayEndsInFeedbackUnreadableOrUnchecked(t *testing.T) {
 			if tc.text && res.GetText() != essay || tc.feedback && res.GetFeedback() != kindWords {
 				t.Errorf("SubmitEssay gave %q and %q, want the text read and the model's words", res.GetText(), res.GetFeedback())
 			}
-			if tc.cause == v1.Cause_CAUSE_LIMIT_REACHED && res.GetOutcome().GetOwnKeyLimit().GetCause() != v1.LimitCause_LIMIT_CAUSE_BALANCE {
-				t.Errorf("the own key's limit = %v, want the balance", res.GetOutcome())
+			// The balance is the assessment's limit, with no time, and the tier the
+			// reading's, with when access returns (R80).
+			if limit := res.GetOutcome().GetOwnKeyLimit(); tc.cause == v1.Cause_CAUSE_LIMIT_REACHED &&
+				!(limit.GetCause() == v1.LimitCause_LIMIT_CAUSE_BALANCE && returnsAt(limit, time.Time{}) ||
+					limit.GetCause() == v1.LimitCause_LIMIT_CAUSE_TIER && returnsAt(limit, nextMonth)) {
+				t.Errorf("the own key's limit = %v, want the balance with no time or the tier with %v", res.GetOutcome(), nextMonth)
 			}
 			nowReads, nowAssessments := es.calls()
 			if want := assessments + btoi(tc.text); nowReads != reads+1 || nowAssessments != want {
