@@ -55,5 +55,5 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T93 | Тариф `dev_check` для `dev-author` на dev-проектах (В80) | Claude | да | — |
 | [x] | T94 | Переход на тег `spec` v0.18.3 | Claude | — | — |
 | [x] | T95 | CI на `.github` v0.1.24 | Claude | — | T94 |
-| [ ] | T96 | Раскладка плана по R153–R155 spec | Claude | — | T95 |
+| [x] | T96 | Раскладка плана по R153–R155 spec | Claude | — | T95 |
 | [ ] | T97 | Ответы контракта T160 spec: причины отказов | Claude | да | T96 |
