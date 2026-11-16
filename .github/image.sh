@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # What the job Image of ci.yml runs on the runner, which has Docker where the devcontainer has none
 # (R28 in docs/decisions.md). It builds the release's files as the shared release does, from an
-# archive of the commit in the toolchain stage, twice, and holds the two builds to the same bytes.
-# Then it builds the image a deployment builds, the release's Dockerfile by --target release around
-# the release's binary, and the image built from the source, and checks each: the version and
+# archive of the commit in the toolchain stage, whose image toolchain.sh gives. Then it builds the
+# image a deployment builds, the release's Dockerfile by --target release around the release's
+# binary, and the image built from the source, holds the binary of the second to the release's
+# binary of the same platform, byte for byte, and checks each image: the version and
 # commit it says, the user it runs as, its migrations, its health check, its answer to a file of a
 # package it does not know, the release of modules whose packages it read, its size, and a stop on
 # SIGTERM that it ends well. serve opens its databases and the sign-in service before it starts
@@ -27,20 +28,13 @@ fail() {
     exit 1
 }
 
-docker build --target toolchain --tag toolchain - < .devcontainer/Dockerfile
+.github/toolchain.sh
 
 tree="${work}/tree"
 mkdir "$tree"
 git archive HEAD | tar -x -C "$tree"
-release_files() {
-    docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp --volume "${tree}:/work" --workdir /work \
-        toolchain just release-files "$version"
-}
-release_files
-cp "${tree}/dist/SHA256SUMS" "${work}/first"
-release_files
-cmp "${work}/first" "${tree}/dist/SHA256SUMS" \
-    || fail "two builds of the release's files from one commit differ: $(diff "${work}/first" "${tree}/dist/SHA256SUMS" | tr '\n' ' ')"
+docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp --volume "${tree}:/work" --workdir /work \
+    toolchain just release-files "$version"
 (cd "${tree}/dist" && sha256sum --check --strict SHA256SUMS)
 
 read -r commit time < "${tree}/internal/version/archive.txt"
@@ -55,6 +49,17 @@ docker build --target release --build-context "binary=${work}/binary" --tag api:
 # The image built from the source, as CI builds it.
 docker build --build-arg "VERSION=${version}" --build-arg "COMMIT=${commit}" --build-arg "DATE=${date}" \
     --tag api:source "$tree"
+
+# The build is reproducible: the binary of the image from the source, built in golang's image by
+# the Dockerfile's stage build, is the release's binary for linux/amd64, built in the toolchain
+# stage by release-files, byte for byte. A second run of release-files, as cold as the first, held
+# two builds in one stage to the same bytes; this holds two builds in two stages to them, with no
+# build of its own.
+source_binary="$(docker create api:source)"
+containers+=("$source_binary")
+docker cp --quiet "${source_binary}:/api" "${work}/source-api"
+cmp "${work}/source-api" "${tree}/dist/api_${version}_linux_amd64" \
+    || fail "the binary of the image from the source is not the release's api_${version}_linux_amd64, byte for byte: the build is not reproducible, or the Go of the Dockerfile's golang is not GO_VERSION of .devcontainer/Dockerfile"
 
 # PostgreSQL on the runner's network, on a port of its own, with the databases api and openfga.
 # A string to the loopback needs no TLS (R29).

@@ -48,7 +48,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 
 ## Table 1. Current epic — none
 
-The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author picks the next one at planning. Until then — tasks between epics (rule 9), their bodies in [run/TASKS.md](run/TASKS.md) and, done, in the archive of the next epic, [docs/plan/E14.md](docs/plan/E14.md). T96 and T97 are the further parts of the move T94 (rule 11; R84).
+The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author picks the next one at planning. Until then — tasks between epics (rule 9), their bodies in [run/TASKS.md](run/TASKS.md) and, done, in the archive of the next epic, [docs/plan/E14.md](docs/plan/E14.md). T96 and T97 are the further parts of the move T94 (rule 11; R84); T98–T100 — row 7.15 of COORDINATION.md spec, T99 and T100 waiting on the release of `.github` of its row 7.13 and the tag of `spec` of its row 7.14.
 
 | Статус | ID | Задача | Кто | План | Зависит от |
 |---|---|---|---|---|---|
@@ -57,3 +57,6 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T95 | CI на `.github` v0.1.24 | Claude | — | T94 |
 | [x] | T96 | Раскладка плана по R153–R155 spec | Claude | — | T95 |
 | [ ] | T97 | Ответы контракта T160 spec: причины отказов | Claude | да | T96 |
+| [x] | T98 | Скорость CI: строка 7.15 | Claude | — | — |
+| [ ] | T99 | Скорость CI: релиз `.github` строки 7.13 | Claude | — | T98; релиз `.github` строки 7.13 |
+| [ ] | T100 | Скорость CI: тег `spec` строки 7.14 | Claude | — | T99; тег `spec` строки 7.14 |
