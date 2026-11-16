@@ -110,7 +110,8 @@ ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}"
 #
 # api's tests need one thing the core lacks, nss_wrapper below, its own difference from the
 # template (R30 in docs/decisions.md); its kind, go, adds no lines here. What this stage installs,
-# a release never builds.
+# a release never builds, and neither do the checks that run no test: what the release and those
+# ci- recipes call belongs in toolchain-core.
 
 FROM toolchain-core AS toolchain
 
@@ -195,7 +196,7 @@ RUN arch="$(dpkg --print-architecture)"; \
     rm -rf "$workdir"
 
 # gopls is the language server that the Go extension in devcontainer.json starts. It is built
-# with the Go of the toolchain stage, and only here: the checks do not need it. This step and
+# with the Go that toolchain-core installs, and only here: the checks do not need it. This step and
 # gopls/ beside this file are the go kind's of spec's repo-template, and a move to a tag of spec
 # brings them with the rest of the devcontainer (R102 spec).
 ARG GOPLS_VERSION=0.24.0
