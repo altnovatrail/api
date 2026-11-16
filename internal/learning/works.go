@@ -190,13 +190,19 @@ func (w *WorkService) DeleteWork(ctx context.Context, req *v1.DeleteWorkRequest)
 }
 
 // reader checks the action of a request on the profile's works: a learning
-// request as every one is, an adult's by can_manage, which the checks before it
-// do not hold.
+// request as every one is, but for the consent and the age — ListWorks,
+// GetWork and DeleteWork go while the profile waits for its consent or its
+// age, as the learner's ExportProfile goes, since app builds the export by them
+// (the 2026-11-15 amendment to R113 spec; R84) —, and an adult's by
+// can_manage, which the checks before it do not hold.
 func (w *WorkService) reader(ctx context.Context, profileID string, action v1.Action) error {
 	switch action {
 	case v1.Action_ACTION_LEARNING:
-		_, err := w.s.learner(ctx, profileID)
-		return err
+		caller, _ := rpc.CallerFrom(ctx)
+		if _, err := store.LearnerOf(ctx, w.s.db, caller.AccountID, profileID); err != nil {
+			return refused(ctx, err)
+		}
+		return nil
 	case v1.Action_ACTION_ADULT:
 		caller, _ := rpc.CallerFrom(ctx)
 		can, err := w.rights.Can(ctx, caller.AccountID, authz.CanManage, profileID)

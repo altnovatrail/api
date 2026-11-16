@@ -161,25 +161,29 @@ func TestTheTextsOfTheTag(t *testing.T) {
 	}
 }
 
-// Version 3 of the privacy policy of the tag applies from 2026-11-27: the day
-// before, GetLegalTexts gives it as the next version, kept no longer than until
-// midnight UTC, and a request that names it is refused, the current one being
-// version 2; from that day on it is the current version (R130 spec).
+// Version 3 of the privacy policy of the tag applies from 2026-11-27 and version
+// 4 from 2026-11-28: the day before each, GetLegalTexts gives it as the next
+// version, kept no longer than until midnight UTC, and a request that names it
+// is refused, the one before it being current; from its day on it is the
+// current version (R130 spec).
 func TestThePolicyOfTheTagByTheDay(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		moment          string
 		current, next   int32
+		nextSince       string
 		keptFor         time.Duration
 		header          string
 		namesTwo, three bool
 	}{
-		{"2026-11-26T12:00:00Z", 2, 3, time.Hour, "public, max-age=3600", true, false},
-		{"2026-11-26T23:30:00Z", 2, 3, 30 * time.Minute, "public, max-age=1800", true, false},
-		{"2026-11-26T23:59:59.5Z", 2, 3, 500 * time.Millisecond, "public, max-age=0", true, false},
-		{"2026-11-27T00:00:00Z", 3, 0, time.Hour, "public, max-age=3600", false, true},
-		{"2026-11-27T01:00:00+02:00", 2, 3, time.Hour, "public, max-age=3600", true, false},
+		{"2026-11-26T12:00:00Z", 2, 3, "2026-11-27", time.Hour, "public, max-age=3600", true, false},
+		{"2026-11-26T23:30:00Z", 2, 3, "2026-11-27", 30 * time.Minute, "public, max-age=1800", true, false},
+		{"2026-11-26T23:59:59.5Z", 2, 3, "2026-11-27", 500 * time.Millisecond, "public, max-age=0", true, false},
+		{"2026-11-27T00:00:00Z", 3, 4, "2026-11-28", time.Hour, "public, max-age=3600", false, true},
+		{"2026-11-27T23:30:00Z", 3, 4, "2026-11-28", 30 * time.Minute, "public, max-age=1800", false, true},
+		{"2026-11-28T00:00:00Z", 4, 0, "", time.Hour, "public, max-age=3600", false, false},
+		{"2026-11-27T01:00:00+02:00", 2, 3, "2026-11-27", time.Hour, "public, max-age=3600", true, false},
 	} {
 		now := at(t, tc.moment)
 		day := legal.Spec().On(now)
@@ -192,7 +196,7 @@ func TestThePolicyOfTheTagByTheDay(t *testing.T) {
 		}
 		want := []string{}
 		if tc.next != 0 {
-			want = []string{fmt.Sprintf("%s %d 2026-11-27", legal.PrivacyPolicy, tc.next)}
+			want = []string{fmt.Sprintf("%s %d %s", legal.PrivacyPolicy, tc.next, tc.nextSince)}
 		}
 		if !slices.Equal(next, want) {
 			t.Errorf("%s: the next texts = %v, want %v", tc.moment, next, want)
@@ -373,7 +377,7 @@ func TestATextThatAppliesLater(t *testing.T) {
 	dir := copyOf(t)
 	edit(t, dir, "legal.yaml", "  terms-of-use:\n    place: app\n    versions:\n      - version: 1\n        status: in_force\n        in_force_since: \"2026-11-10\"",
 		"  terms-of-use:\n    place: app\n    versions:\n      - version: 1\n        status: in_force\n        in_force_since: \"2026-12-01\"")
-	now := at(t, "2026-11-27T23:30:00Z")
+	now := at(t, "2026-11-28T23:30:00Z")
 	texts, err := legal.LoadDir(dir, now)
 	if err != nil {
 		t.Fatal(err)

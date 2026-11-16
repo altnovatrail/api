@@ -254,8 +254,9 @@ func TestAWorkIsRefusedBySizeFormAndState(t *testing.T) {
 	waiting := w.child(t, l, "under_13", false)
 	_, err = w.put(l, waiting, storedWork(a, `[]`))
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
-	_, err = w.works.ListWorks(l.ctx, &v1.ListWorksRequest{ProfileId: waiting, Action: v1.Action_ACTION_LEARNING})
-	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
+	if got := w.list(t, l, waiting); len(got) != 0 {
+		t.Errorf("ListWorks of the profile that waits = %v, want none", got)
+	}
 }
 
 // Switching the storage off erases the profile's works at once, and the
@@ -441,4 +442,38 @@ func TestTheWorksOnADatabaseThatFailsAreUnavailable(t *testing.T) {
 		VALUES ($1, $2, 'handwriting', 1, '\xff'::bytea, now())`, l.adult, a)
 	_, err := w.works.GetWork(l.ctx, &v1.GetWorkRequest{ProfileId: l.adult, AttemptId: a, Action: v1.Action_ACTION_LEARNING})
 	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
+}
+
+// The learner's ListWorks and GetWork, and DeleteWork, go while the profile
+// waits for a consent, as the learner's ExportProfile goes: app builds the
+// export by them (the 2026-11-15 amendment to R113 spec; R84). PutWork is still
+// "no consent", and a profile not the account's is still "no profile".
+func TestTheWorksAreReadWhileTheConsentWaits(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	l := w.learner(t)
+	child := w.child(t, l, "under_13", true)
+	w.storage(t, l, child, true)
+	a := w.attempt(t, child, string(w.current.Digest), "apples")
+	if _, err := w.put(l, child, storedWork(a, `[]`)); err != nil {
+		t.Fatal(err)
+	}
+	w.exec(t, `UPDATE consents SET state = 'waiting', confirmed_at = NULL WHERE profile_id = $1`, child)
+	if got := w.list(t, l, child); len(got) != 1 || got[0] != a {
+		t.Errorf("ListWorks while the consent waits = %v, want the work kept", got)
+	}
+	got, err := w.works.GetWork(l.ctx, &v1.GetWorkRequest{ProfileId: child, AttemptId: a, Action: v1.Action_ACTION_LEARNING})
+	if err != nil || got.GetWork().GetAttemptId() != a {
+		t.Errorf("GetWork while the consent waits = %v, %v; want the work", got, err)
+	}
+	_, err = w.put(l, child, storedWork(a, `[]`))
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CONSENT)
+	refusedAs(t, w.erase(l, child, a, v1.Action_ACTION_LEARNING), connect.CodePermissionDenied, v1.Cause_CAUSE_ADULT_NEEDED)
+	if err := w.erase(l, child, a, v1.Action_ACTION_ADULT); err != nil || w.kept(t, child) != 0 {
+		t.Errorf("DeleteWork of the adult while the consent waits = %v, %d kept; want it erased", err, w.kept(t, child))
+	}
+	_, err = w.works.ListWorks(l.ctx, &v1.ListWorksRequest{ProfileId: "00000000-0000-0000-0000-000000000000",
+		Action: v1.Action_ACTION_LEARNING})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
 }

@@ -569,9 +569,9 @@ check() {
     echo "$who: a reading of handwriting takes its reserve and settles it, on both counters"
 
     # The stored works on the database itself (R70): the storage switched on to the current
-    # storage-consent, a synthetic work of the attempt put, listed, read back and in the export,
-    # erased, put again, and gone with the storage switched off, so that nothing of it is left
-    # (R113 spec).
+    # storage-consent, a synthetic work of the attempt put, listed, read back and named in the
+    # export without its bytes (R84), erased, put again, and gone with the storage switched off,
+    # so that nothing of it is left (R113 spec).
     call SetWorkStorage < <(PROFILE=$owner jq -c '{profile_id: env.PROFILE, action: "ACTION_ADULT", enabled: true,
         text: (.texts[] | select(.id == "storage-consent") | {id, version})}' "$work/texts.json")
     expect SetWorkStorage
@@ -592,8 +592,9 @@ check() {
     expect GetWork
     PIXEL=$pixel jq -e '.work.picture == env.PIXEL' "$work/answer.json" > /dev/null || die "GetWork gave another picture than the one put"
     exported "$work/works"
-    ATTEMPT=$attempt PIXEL=$pixel jq -e 'any(.works[]?; .attempt_id == env.ATTEMPT and .history == [] and .picture == env.PIXEL)' \
-        "$work/works/profiles/$owner.json" > /dev/null || die "the export does not hold the work put"
+    ATTEMPT=$attempt jq -e 'any(.works[]?; .attempt_id == env.ATTEMPT and .kind == "handwriting" and .size_bytes > 0 and
+        (has("history") or has("picture") | not))' "$work/works/profiles/$owner.json" > /dev/null ||
+        die "the export does not name the work put, without its bytes"
     call WorkService/DeleteWork < <(PROFILE=$owner ATTEMPT=$attempt jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT,
         action: "ACTION_ADULT"}')
     expect DeleteWork
@@ -607,7 +608,7 @@ check() {
     call WorkService/ListWorks <<< "$listed"
     expect ListWorks
     jq -e '(.works // []) == []' "$work/answer.json" > /dev/null || die "ListWorks with the storage off gave $(jq -c .works "$work/answer.json"), want none"
-    echo "$who: a work is kept, listed, read back, exported and erased, and goes with the storage"
+    echo "$who: a work is kept, listed, read back, named in the export and erased, and goes with the storage"
 
     # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
     # the folder of the forms, the form among those the operator checks, then the consent taken back,

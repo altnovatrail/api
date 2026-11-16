@@ -54,7 +54,12 @@
         // it may work.
         "NOVATRAIL_DEVCONTAINER": "1",
         "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
-        "DISABLE_AUTOUPDATER": "1"
+        "DISABLE_AUTOUPDATER": "1",
+        // Claude Code loads the plugins of spec's claude-plugins/ that this repository's kind names in
+        // every session here, from this container's own path: a marketplace would be recorded in the
+        // ~/.claude that the containers share, by the path of one of them, and the sessions of the
+        // others would lose it (R143 spec).
+        "CLAUDE_CODE_PLUGIN_DIRS": "${containerWorkspaceFolder}/spec/claude-plugins/gopls-lsp"
     },
     // spec is a submodule: a clone made without --recurse-submodules gets it here.
     "postStartCommand": "test -e spec/RULES.md || git submodule update --init spec",
