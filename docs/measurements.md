@@ -75,7 +75,7 @@ For R55–R59 and architecture 3.6. A run on the dev project: the author's accou
 
 ## 4. Keeping the savings
 
-For R145 spec and R63: the budgets of size that `docs-check-repo` measures by [docs-budgets.json](../docs-budgets.json), and the tokens of the sessions, a row at each epic's archive (RUN.md, «Как устроен план: эпики»). The first row, T65, measures the sessions T61–T65, which moved `api` to the line 0.16 of `spec`, rebuilt its documents and translated them (R62).
+For R145 spec and R63: the budgets of size that `docs-check-repo` measures by [docs-budgets.json](../docs-budgets.json), and the tokens of the sessions, a row at each epic's archive (RUN.md, Epics). The first row, T65, measures the sessions T61–T65, which moved `api` to the line 0.16 of `spec`, rebuilt its documents and translated them (R62).
 
 ### 4.1. Budgets, T65, 2026-11-13
 
