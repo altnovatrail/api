@@ -9,9 +9,9 @@
 set -euo pipefail
 
 tar="${TOOLCHAIN_TAR:-}"
-if [ -z "$tar" ]; then
+if [[ -z "$tar" ]]; then
     :
-elif [ ! -f "$tar" ]; then
+elif [[ ! -f "$tar" ]]; then
     # A miss is said, so that a key or a path that no longer matches the entry of "Go" shows in
     # the log.
     echo "toolchain.sh: the cache gave no image toolchain for this Dockerfile: it is built from it"
