@@ -228,14 +228,17 @@ For the 2026-11-16 amendments of T99 to R27 and R28. The time of each job, from 
 
 For R86 and its 2026-11-16 amendments to R27, R28 and R30. The time of each job and of its long steps, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the run of CI on `main` after the merge of T99, 43861555933, on `.github` v0.1.30, whose Go caches missed, as it was the first push that saved them (measurements 10); the release of that commit, Release 43862499430; and Withdrawals 43878837719 of the same day.
 
-| Job | Before | Its long steps, before |
-|---|---|---|
-| Image | 326 s | the image from the cache 4 s; "Build and check the images" 318 s |
-| Modules | 137 s | the image from the cache 7 s; `ci-modules` 118 s |
-| Documents | 52 s | the image from the cache 4 s and loaded 31 s; the check 12 s |
-| Go / lint | 152 s | the image 6 s and 32 s; `ci-lint` 98 s |
-| Go / vuln | 70 s | the image 9 s and 12 s; `ci-vuln` 28 s |
-| Go / licenses | 84 s | the image 5 s and 34 s; `ci-licenses` 34 s |
-| Go / test | 319 s | the image 5 s and 29 s; `ci-test` 270 s |
-| Release / release | 552 s | "Work out the version" 270 s; "Build the files" 138 s; the signatures 83 s |
-| Withdrawals | 241 s | the stage `toolchain` built from the Dockerfile and `ci-withdrawals`, one step, 233 s |
+| Job | Before | Its long steps, before | After | Its long steps, after |
+|---|---|---|---|---|
+| Image | 326 s | the image from the cache 4 s; "Build and check the images" 318 s | 299 s | "Build and check the images" 294 s |
+| Modules | 137 s | the image from the cache 7 s; `ci-modules` 118 s | 152 s | "Check modules.json" 136 s |
+| Documents | 52 s | the image from the cache 4 s and loaded 31 s; the check 12 s | 64 s | the image 31 s; the check 13 s |
+| Go / toolchain | — | — | 111 s | the image 61 s; the files of `toolchain` and the core 17 s each |
+| Go / lint | 152 s | the image 6 s and 32 s; `ci-lint` 98 s | 172 s | the image 7 s and 21 s; `ci-lint` 129 s |
+| Go / vuln | 70 s | the image 9 s and 12 s; `ci-vuln` 28 s | 74 s | the image 9 s and 14 s; `ci-vuln` 29 s |
+| Go / licenses | 84 s | the image 5 s and 34 s; `ci-licenses` 34 s | 79 s | the image 6 s and 32 s; `ci-licenses` 28 s |
+| Go / test | 319 s | the image 5 s and 29 s; `ci-test` 270 s | 410 s | the image 15 s and 21 s; `ci-test` 356 s |
+| Release / release | 552 s | "Work out the version" 270 s; "Build the files" 138 s; the signatures 83 s | 351 s | "Work out the version" 22 s; "Build the files" 206 s; the signatures 55 s |
+| Withdrawals | 241 s | the stage `toolchain` built from the Dockerfile and `ci-withdrawals`, one step, 233 s | — | not run on `main` since the merge |
+
+After — read 2026-11-16, when T100 was closed: the run of CI on `main` after the merge of T100, 43909131792, the first on the new Dockerfile, and the release of that commit, Release 43912635423. The run is cold: the keys hold the hash of the Dockerfile, so "Image" and "Modules" found no image in the cache and built their stage inside their long step, and every job of "Go" missed its Go caches and saved them (its log: "Cache not found", "Cache saved with key"). The before run missed its Go caches too and found its images, so "Go / test" — 319 s against 410 s, `ci-test` 270 s against 356 s — compares two cold Go caches, one run a side, and "Image" and "Modules" compare a warm image with a cold one. The release, with no cache either way, gained 201 s: "Work out the version" 248 s less and the signatures 28 s less, while "Build the files" took 68 s more. The run of the pull request, 43907246572, gave "Image" 392 s and "Go / test" 408 s, `ci-test` 358 s. The warm numbers and the first "Withdrawals" on the core are Д45.
