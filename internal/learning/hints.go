@@ -280,12 +280,13 @@ func ownKeyFits(ctx context.Context, category formatv0.AgeCategory, sent bool) e
 }
 
 // ownKeySent is ownKeyFits of a request that sends an own key whole, and
-// refuses one with no provider or no key: the gate asks the route of the key's
-// provider, and the call takes the key too, so a key short of either would pass
-// the one and fail the other (R54).
+// refuses one with no provider or no key, a form the contract refuses with no
+// Refusal: the gate asks the route of the key's provider, and the call takes
+// the key too, so a key short of either would pass the one and fail the other
+// (R54).
 func ownKeySent(ctx context.Context, category formatv0.AgeCategory, own *v1.OwnKey) error {
 	if own != nil && (own.GetProvider() == "" || own.GetKey() == "") {
-		return rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+		return rpc.Malformed("own_key")
 	}
 	return ownKeyFits(ctx, category, own != nil)
 }

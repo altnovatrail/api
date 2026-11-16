@@ -316,13 +316,14 @@ func workInfo(work store.Work) *v1.StoredWorkInfo {
 }
 
 // refusedWork answers what a request on the works met: the storage off, a work
-// whose kind cannot be told, or what every request on an attempt meets.
+// whose kind cannot be told — its version out of the window, with no work kept
+// of it before —, or what every request on an attempt meets.
 func refusedWork(ctx context.Context, err error) error {
 	switch {
 	case errors.Is(err, store.ErrStorageOff):
 		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_STORAGE_OFF)
 	case errors.Is(err, errNoKind):
-		return connect.NewError(connect.CodeFailedPrecondition, "")
+		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_VERSION_NOT_GIVEN)
 	}
 	return refused(ctx, err)
 }

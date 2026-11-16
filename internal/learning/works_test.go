@@ -367,7 +367,7 @@ func TestALearnerWhoConsentsThemselvesErasesTheirWork(t *testing.T) {
 
 // A work of an attempt whose package the image holds no longer — out of the
 // window of format versions — keeps the kind of the work kept of it before, and
-// with none is refused.
+// with none is refused CAUSE_VERSION_NOT_GIVEN.
 func TestAWorkOfAPackageOutOfTheWindowKeepsItsKind(t *testing.T) {
 	t.Parallel()
 
@@ -390,7 +390,7 @@ func TestAWorkOfAPackageOutOfTheWindowKeepsItsKind(t *testing.T) {
 			refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
 			continue
 		}
-		refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_UNSPECIFIED)
+		refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_VERSION_NOT_GIVEN)
 		w.exec(t, `INSERT INTO works (profile_id, attempt_id, kind, size_bytes, work, stored_at)
 			VALUES ($1, $2, 'essay', 0, '', now())`, l.adult, a)
 		if info, err := w.put(l, l.adult, storedWork(a, `[]`)); err != nil || info.GetKind() != v1.WorkKind_WORK_KIND_ESSAY {
