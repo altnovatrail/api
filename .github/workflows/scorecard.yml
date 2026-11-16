@@ -19,4 +19,4 @@ jobs:
       contents: read
       security-events: write
       id-token: write
-    uses: altnovatrail/.github/.github/workflows/scorecard.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+    uses: altnovatrail/.github/.github/workflows/scorecard.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24

@@ -8,6 +8,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
+    groups:
+      # Every reference to a shared workflow of .github in one pull request, to one release:
+      # Dependabot names each altnovatrail/.github/.github/workflows/<file>.yml.
+      shared-workflows:
+        patterns: ["altnovatrail/.github/*"]
 
   - package-ecosystem: docker
     directory: /.devcontainer
