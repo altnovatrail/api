@@ -34,7 +34,7 @@ tree="${work}/tree"
 mkdir "$tree"
 git archive HEAD | tar -x -C "$tree"
 docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp --volume "${tree}:/work" --workdir /work \
-    toolchain just release-files "$version"
+    novatrail-toolchain just release-files "$version"
 (cd "${tree}/dist" && sha256sum --check --strict SHA256SUMS)
 
 read -r commit time < "${tree}/internal/version/archive.txt"
