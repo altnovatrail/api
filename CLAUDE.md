@@ -14,14 +14,14 @@ Its card in spec is architecture 3.5 spec. The card is the summary and this repo
 
 ## Documents
 
-The documents under `docs/` are in English, but for the epic archives `docs/plan/`, which stay in Russian with RUN.md and DEBT.md (R143 spec). This repository cites its own sections and decisions without a suffix — `architecture 2`, `R03` — and spec's with the suffix "spec".
+The documents under `docs/` are in English, but for the epic archives `docs/plan/`, which stay in Russian; RUN.md and `run/` are in English, but for the bodies of tasks (R143 spec, R153 spec, R154 spec). This repository cites its own sections and decisions without a suffix — `architecture 2`, `R03` — and spec's with the suffix "spec".
 
 - [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links (section 1), what is still to decide (section 2), and how it is built once that is decided (section 3). Its section 4 is a pointer: it names the record of `docs/sources.md` or `docs/measurements.md` where each reading it held went, for the decision log and the archives, which cite it.
 - [docs/sources.md](docs/sources.md) — the records of external facts, by the sections of architecture 3, each with its source, its date and its quote; a claim cites a record by its number, as a section: `sources 7.1` (R143 spec).
 - [docs/measurements.md](docs/measurements.md) — the results of measurements: what was measured, how, on what, and the numbers, cited as `measurements 2.1`; architecture keeps only what follows from them.
 - [docs/decisions.md](docs/decisions.md) — this repository's decision log, `R01`…: read it before proposing a change. Other repositories cite its entries as `R03 api`.
-- [RUN.md](RUN.md) — the work plan, in epics. Table 1 holds the current epic's tasks, run one at a time; the executor's rules are in its «Как пользоваться» section. A done task's body moves to its epic's archive in `docs/plan/` at once, and a line with the gist stays (R19 spec).
-- [DEBT.md](DEBT.md) — table 4 of the work plan, the technical debt, in Russian. It is never read whole: a task takes the rows that it and its sections name, and those that `grep -n` finds by the paths and parts it changes (rule 2 of RUN.md).
+- [RUN.md](RUN.md) — the work plan, in epics: its rules, in its section Rules, and table 1 with the current epic's tasks, run one at a time, or between epics the tasks outside an epic (R63). A done task's body and its gist sentence move to its epic's archive in `docs/plan/` at once (R19 spec, R153 spec).
+- `run/` — the plan's other tables, each a file opening with its rules (R153 spec): the epics for later, [run/EPICS.md](run/EPICS.md); the questions to the author, [run/QUESTIONS.md](run/QUESTIONS.md); the technical debt, [run/DEBT.md](run/DEBT.md); the open tasks outside an epic, [run/TASKS.md](run/TASKS.md), of which a task reads only its own body (R155 spec). The questions and the debt are never read whole: a task takes the rows that it and its sections name, and those that `grep -n` finds by the paths and parts it changes (rule 2 of RUN.md).
 - `spec/` — spec at `v0.18.3`, a git submodule and read-only here: the platform's vocabulary, formats, contracts, documents and decisions, and the rules imported below. Its documents are under `spec/docs/`, cited with the suffix "spec". spec's own CLAUDE.md and AGENTS.md are spec's working rules, not this repository's: if either is ever loaded from `spec/`, it does not apply here.
 
 ## Shared rules

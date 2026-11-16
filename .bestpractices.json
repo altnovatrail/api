@@ -22,7 +22,7 @@
   "discussion_status": "Met",
   "discussion_justification": "GitHub issues and pull requests: searchable, addressable by URL, open to anyone with a GitHub account, and nothing to install. https://github.com/altnovatrail/api/issues",
   "english_status": "Met",
-  "english_justification": "The README, CLAUDE.md, the code, its comments and the events of its log are in English, and issues and pull requests are accepted in English or Russian. The descriptive documents under docs/ and the work plan are in Russian, the author's working language.",
+  "english_justification": "The README, CLAUDE.md, the code, its comments and the events of its log are in English, and issues and pull requests are accepted in English or Russian. The documents under docs/ and the work plan are in English; the bodies of the plan's tasks and the archives of its epics are in Russian, the author's working language.",
   "maintained_status": "Met",
   "maintained_justification": "Under active development: see the commits and the releases. https://github.com/altnovatrail/api/releases",
   "repo_public_status": "Met",
