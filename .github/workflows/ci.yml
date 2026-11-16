@@ -52,7 +52,17 @@ jobs:
         with:
           persist-credentials: false
 
+      # The image of the toolchain stage from the cache, by the key and the path the jobs of "Go"
+      # save it under, so the entry is theirs; read only, as no job here saves it (R27).
+      - name: Toolchain image from the cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/toolchain.tar
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.devcontainer/Dockerfile') }}
+
       - name: Build and check the images
+        env:
+          TOOLCHAIN_TAR: ${{ runner.temp }}/toolchain.tar
         run: .github/image.sh
 
   # The check of modules.json (R07, R41): the signature of the pinned release's index by
@@ -72,5 +82,14 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      # As in the job Image.
+      - name: Toolchain image from the cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/toolchain.tar
+          key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.devcontainer/Dockerfile') }}
+
       - name: Check modules.json
+        env:
+          TOOLCHAIN_TAR: ${{ runner.temp }}/toolchain.tar
         run: .github/modules.sh ci-modules

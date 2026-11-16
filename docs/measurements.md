@@ -189,3 +189,14 @@ For R55 and its 2026-11-15 amendment. `just dev-check` on the dev projects of Fi
 - **One run** spends 174,210 micro-dollars of the account's family day — the same in both runs, to the micro-dollar, and in two more after the review of T93, at 522,630 and 696,840. Of them, by the values of `internal/quota` and the stub's rule, the child's workbook page of 8 boxes is 112,000 (14,000 a box, R81) and the owner's essay 30,000 (R82); the remaining 32,210 are the readings of handwriting and the words after a correct answer, at the prices `tutor` expects. The owner's profile spends 62,210 of them, and the child's profile, deleted at the end of the run, the page.
 - **What it means for the tariffs:** on `closed_slice` the account's $1.50 holds 8 runs a day and the owner's $0.50 the same; on `dev_check` the account's $15.00 holds 86 and the owner's $5.00 80.
 - **Money:** none. The first server's key of platform AI is one Anthropic refuses, and the second server is on the stub of `tutor`: the micro-dollars are the reserves kept as spent and the stub's prices, not a provider's charges (R12, R66). No call of AI reached a model, $0.
+
+## 9. The jobs "Image" and "Modules", T98, 2026-11-16
+
+For the 2026-11-16 amendments to R27 and R28. The time of each job, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the last five successful runs of CI on `main` (43736033707, 43742167838, 43807183856, 43809505651, 43814975191); after — the runs of the pull request of T98.
+
+| Job | Before, the five runs | Before, median | After |
+|---|---|---|---|
+| Image | 768, 502, 418, 415, 421 s | 418 s | AFTER_IMAGE |
+| Modules | 150, 200, 148, 178, 154 s | 154 s | AFTER_MODULES |
+
+AFTER_NOTE
