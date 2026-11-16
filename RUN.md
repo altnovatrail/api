@@ -57,6 +57,6 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T95 | CI на `.github` v0.1.24 | Claude | — | T94 |
 | [x] | T96 | Раскладка плана по R153–R155 spec | Claude | — | T95 |
 | [ ] | T97 | Ответы контракта T160 spec: причины отказов | Claude | да | T96 |
-| [ ] | T98 | Скорость CI: строка 7.15 | Claude | — | — |
+| [x] | T98 | Скорость CI: строка 7.15 | Claude | — | — |
 | [ ] | T99 | Скорость CI: релиз `.github` строки 7.13 | Claude | — | T98; релиз `.github` строки 7.13 |
 | [ ] | T100 | Скорость CI: тег `spec` строки 7.14 | Claude | — | T99; тег `spec` строки 7.14 |

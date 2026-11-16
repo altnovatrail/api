@@ -192,11 +192,13 @@ For R55 and its 2026-11-15 amendment. `just dev-check` on the dev projects of Fi
 
 ## 9. The jobs "Image" and "Modules", T98, 2026-11-16
 
-For the 2026-11-16 amendments to R27 and R28. The time of each job, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the last five successful runs of CI on `main` (43736033707, 43742167838, 43807183856, 43809505651, 43814975191); after — the runs of the pull request of T98.
+For the 2026-11-16 amendments to R27 and R28. The time of each job, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the last five successful runs of CI on `main` (43736033707, 43742167838, 43807183856, 43809505651, 43814975191); after — the runs of pull request 107 of T98: Image in run 43817811699 and its second attempt, Modules in that run and in 43817420516, of the commit before the review's fixes, which do not touch it.
 
 | Job | Before, the five runs | Before, median | After |
 |---|---|---|---|
-| Image | 768, 502, 418, 415, 421 s | 418 s | AFTER_IMAGE |
-| Modules | 150, 200, 148, 178, 154 s | 154 s | AFTER_MODULES |
+| Image | 768, 502, 418, 415, 421 s | 418 s | 271, 388 s |
+| Modules | 150, 200, 148, 178, 154 s | 154 s | 136, 172 s |
 
-AFTER_NOTE
+- **The cache** gave its entry in each of the four, `toolchain-Linux-X64-f8ac05ef…`, 390 MB, saved by "Go" on `main`: the restore 4–8 s, and `toolchain.sh` had the image loaded 12–36 s after it, as measurements 3.1 spec found the load.
+- **`release-files`, once now,** took 156 s and 236 s of the two runs of "Image", and the stage `build` of the image from the source 72 s and 107 s; its binary was the release's, byte for byte, in both. The second run, 169 s on `main` (measurements 3.1 spec), is gone.
+- **What it means:** two runs are no median, and the runners' spread — `release-files` 156 against 236 s on one commit — is as wide as what was saved; "Image" was below `main`'s median in both, by 147 and 30 s. "Modules" saves what the build of the stage cost it, its spread aside.
