@@ -11,8 +11,9 @@
 # a child's workbook page and an essay with its feedback and "Done", then the job after a rollout — and
 # checks the answers and the logs. The server's key of
 # platform AI is one Anthropic refuses, so that no call of the check reaches a model. `just dev-app`
-# keeps the server up on the stub for the local build of app, which signs in by a custom token this
-# script lays in a volume the two devcontainers share (R67).
+# keeps the server up on the stub for the local build of app, with a synthetic child of 9 whose
+# workbook pages it admits, and app signs in by a custom token this script lays in a volume the two
+# devcontainers share (R67).
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
@@ -22,8 +23,8 @@
 # through the environment, files and pipes.
 #
 # scripts/dev_test.go tests the loader, the custom token and how it is laid for app, the task AI
-# reads, the workbook page and its boxes, an essay, the counters and the tariff of the check's
-# account in CI.
+# reads, the workbook page and its boxes, an essay, the counters, the tariff of the check's account
+# and the synthetic child of `just dev-app` in CI.
 set -euo pipefail
 shopt -s inherit_errexit
 
@@ -57,10 +58,11 @@ pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQ
 # The work the check sends to the stub of tutor: a synthetic PNG of two white pixels, wider than
 # tall, which the stub reads as the right value (R66).
 wide=iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAAAAADRSSBWAAAAEElEQVR4nAADAPz/BP8AAwACDQEEd5QFkQAAAABJRU5ErkJggg==
-# The facts the check's server on the stub of tutor declares instead of the dev file's: Anthropic's
-# for an adult and for a child under 13 too, so that the stub admits a child's workbook page (R66).
-# On the stub nothing reaches a provider, and these facts govern its admission alone; the dev file,
-# `api check` and the first server keep the facts the author declared.
+# The facts the check's server on the stub of tutor and the server of `just dev-app` declare instead
+# of the dev file's: Anthropic's for an adult and for a child under 13 too, so that the stub admits a
+# child's workbook page (R66, R67). On the stub nothing reaches a provider, and these facts govern
+# its admission alone; the dev file, `api check` and the check's first server keep the facts the
+# author declared.
 child_facts='anthropic:
   data_processing_agreement: [adult, under_13]
   minimal_retention: [adult, under_13]
@@ -449,6 +451,68 @@ check_account() {
     owner_account dev_check "$file"
 }
 
+# consented asks a parent's consent for a synthetic child of 9 and sends the scan of its form, a
+# synthetic one, to the folder of the forms (R52; R116 spec), leaving the consent's ID in $consent
+# and the code of its request in $request; with "confirm" the operator's command confirms the form
+# too, as the operator who matched the scan to its code would.
+consented() {
+    call RequestChildConsent < <(KEY=$(cat /proc/sys/kernel/random/uuid) COUNTRY=$country jq -c '{idempotency_key: env.KEY, age_years: 9,
+        country: env.COUNTRY, parent_consent_text: (.texts[] | select(.id == "parent-consent") | {id, version})}' "$work/texts.json")
+    expect RequestChildConsent
+    consent=$(jq -r .consent.consent_id "$work/answer.json")
+    request=$(jq -r .consent.request_code "$work/answer.json")
+    call SendConsentForm < <(CONSENT=$consent KEY=$(cat /proc/sys/kernel/random/uuid) jq -cn '{consent_id: env.CONSENT,
+        idempotency_key: env.KEY, form: ("synthetic scan" | @base64), media_type: "image/png"}')
+    expect SendConsentForm
+    [[ ${1:-} == confirm ]] || return 0
+    "$binary" consents confirm "$request" > "$work/confirm.out" 2> "$work/confirm.log" ||
+        die "consents confirm failed: $(cat "$work/confirm.out" "$work/confirm.log")"
+    grep -qF -- "$request confirmed" "$work/confirm.out" || die "consents confirm did not confirm the form: $(cat "$work/confirm.out")"
+    # The operator's command logs only what failed: a log it leaves is checked as the others are.
+    [[ ! -s $work/confirm.log ]] || clean "$work/confirm.log"
+}
+
+# child_profile makes the profile of a synthetic child of 9, of the pseudonym child_name, by a
+# parent's consent the operator's command confirms, and leaves its ID in $child.
+child_profile() {
+    consented confirm
+    call CreateChildProfile < <(CONSENT=$consent NAME=$child_name jq -cn '{consent_id: env.CONSENT, settings: {pseudonym: env.NAME}}')
+    expect CreateChildProfile
+    child=$(jq -r .profile.profile_id "$work/answer.json")
+}
+
+# taken_back takes back every consent with no profile that the account of GetAccount's answer in the
+# file $1 holds, waiting or confirmed: one an earlier run left between its request and its profile,
+# so that such consents do not pile up to the most an account may have waiting (R52).
+taken_back() {
+    local left
+    for left in $(jq -r '.account.child_consents[]?.consent_id' "$1"); do
+        call CancelChildConsent < <(CONSENT=$left jq -cn '{consent_id: env.CONSENT}')
+        expect CancelChildConsent
+        echo "$who: a consent an earlier run left is taken back"
+    done
+}
+
+# app_child makes sure the account of the token has a synthetic child under 13 of the pseudonym
+# child_name who learns, with no consent waiting, whom the workbook pages of the pinned release are
+# for (R67): the first one GetAccount gives, or, when there is none, one child_profile makes, after
+# the consents with no profile are taken back, so that a repeat makes none. A child of the pseudonym
+# who has since turned 13, or waits for a consent again, is not taken. It prints the child's profile
+# ID either way and leaves it in $child.
+app_child() {
+    call GetAccount <<< '{}'
+    expect GetAccount
+    child=$(NAME=$child_name jq -r '[.account.profiles[]? | select((.owner | not) and .pseudonym == env.NAME and
+        .age_category == "under_13" and .consent.need == "CONSENT_NEED_NONE")][0].profile_id // empty' "$work/answer.json")
+    if [[ -z $child ]]; then
+        echo "$who: no synthetic child yet: a parent's consent by its form, confirmed by consents confirm, and CreateChildProfile"
+        cp "$work/answer.json" "$work/account.json"
+        taken_back "$work/account.json"
+        child_profile
+    fi
+    echo "$who: the synthetic child of 9 with a parent's consent confirmed is the profile $child"
+}
+
 check() {
     # The check calls the provider with the key it refuses, not the stub (R39).
     who=dev-check
@@ -613,15 +677,8 @@ check() {
     # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
     # the folder of the forms, the form among those the operator checks, then the consent taken back,
     # so that nothing of it is left (R52; R116 spec).
-    call RequestChildConsent < <(KEY=$(cat /proc/sys/kernel/random/uuid) jq -c '{idempotency_key: env.KEY, age_years: 9,
-        country: "US", parent_consent_text: (.texts[] | select(.id == "parent-consent") | {id, version})}' "$work/texts.json")
-    expect RequestChildConsent
     local consent request
-    consent=$(jq -r .consent.consent_id "$work/answer.json")
-    request=$(jq -r .consent.request_code "$work/answer.json")
-    call SendConsentForm < <(CONSENT=$consent KEY=$(cat /proc/sys/kernel/random/uuid) jq -cn '{consent_id: env.CONSENT,
-        idempotency_key: env.KEY, form: ("synthetic scan" | @base64), media_type: "image/png"}')
-    expect SendConsentForm
+    consented
     local scans=("$work/forms/$consent"-*)
     [[ -f ${scans[0]} ]] || die "SendConsentForm laid no scan in the folder of the forms"
     "$binary" consents list > "$work/consents.out" 2> "$work/consents.log" || die "consents list failed: $(cat "$work/consents.log")"
@@ -701,27 +758,8 @@ check() {
         expect DeleteProfile
         echo "$who: a child's profile an earlier run left is deleted"
     done
-    for left in $(jq -r '.account.child_consents[]?.consent_id' "$work/account.json"); do
-        call CancelChildConsent < <(CONSENT=$left jq -cn '{consent_id: env.CONSENT}')
-        expect CancelChildConsent
-        echo "$who: a consent an earlier run left is taken back"
-    done
-    call RequestChildConsent < <(KEY=$(cat /proc/sys/kernel/random/uuid) jq -c '{idempotency_key: env.KEY, age_years: 9,
-        country: "US", parent_consent_text: (.texts[] | select(.id == "parent-consent") | {id, version})}' "$work/texts.json")
-    expect RequestChildConsent
-    consent=$(jq -r .consent.consent_id "$work/answer.json")
-    request=$(jq -r .consent.request_code "$work/answer.json")
-    call SendConsentForm < <(CONSENT=$consent KEY=$(cat /proc/sys/kernel/random/uuid) jq -cn '{consent_id: env.CONSENT,
-        idempotency_key: env.KEY, form: ("synthetic scan" | @base64), media_type: "image/png"}')
-    expect SendConsentForm
-    "$binary" consents confirm "$request" > "$work/confirm.out" 2> "$work/confirm.log" ||
-        die "consents confirm failed: $(cat "$work/confirm.out" "$work/confirm.log")"
-    grep -qF -- "$request confirmed" "$work/confirm.out" || die "consents confirm did not confirm the form: $(cat "$work/confirm.out")"
-    # The operator's command logs only what failed: a log it leaves is checked as the others are.
-    [[ ! -s $work/confirm.log ]] || clean "$work/confirm.log"
-    call CreateChildProfile < <(CONSENT=$consent NAME=$child_name jq -cn '{consent_id: env.CONSENT, settings: {pseudonym: env.NAME}}')
-    expect CreateChildProfile
-    child=$(jq -r .profile.profile_id "$work/answer.json")
+    taken_back "$work/account.json"
+    child_profile
     call ModuleService/ConnectModule < <(PROFILE=$child jq -cn '{profile_id: env.PROFILE, module_id: "novatrail/grade-3-math"}')
     expect ConnectModule
     handwriting "$child" on_workbook
@@ -819,16 +857,21 @@ app_done() {
     fi
     if [[ -f $work/serve.log ]]; then
         if (clean "$work/serve.log" "$app_uid"); then echo "dev-app: the log is clean"; else failed=1; fi
+        if [[ -n ${request:-} ]] && grep -qF -- "$request" "$work/serve.log"; then
+            echo "dev: serve.log holds the code of the consent's request" >&2
+            failed=1
+        fi
     fi
     rm -rf "$work"
     ((failed == 0)) || exit 1
 }
 
 # app keeps api up for the local build of app, whose container cannot run this script (R67; R146
-# spec): the server on the stub of tutor on port 8080, on the packages of the pinned release, the
-# account dev-app with its owner's profile, and a custom token of that account laid anew every half
-# hour in the folder of the volume both devcontainers mount, until the server stops. The token is
-# never printed.
+# spec): the server on the stub of tutor on port 8080, on the packages of the pinned release and
+# the facts of a child, the account dev-app with its owner's profile and a synthetic child of 9 by a
+# parent's consent confirmed, whose profile ID it prints, and a custom token of that account laid
+# anew every half hour in the folder of the volume both devcontainers mount, until the server stops.
+# The token is never printed.
 app() {
     local port
     # Not local: app_done reads them when the script exits.
@@ -845,9 +888,14 @@ app() {
     packaged
     reopened
 
-    # The server's log goes to the terminal as well, as `just dev serve` shows it.
+    # The server's log goes to the terminal as well, as `just dev serve` shows it. Its facts are the
+    # check's own for its server on the stub, which admit a child's reading too, so that app walks a
+    # workbook page of the synthetic child (R67): nothing reaches a provider on the stub. The scans of
+    # parents' forms go to a folder of this run, as the check's do, and none stays behind it.
     echo "dev-app: serve, on the stub of tutor"
-    API_PACKAGES_DIR="$work/packages" PORT=8080 "$binary" serve > "$work/serve.log" 2>&1 &
+    printf '%s' "$child_facts" > "$work/facts.yaml"
+    API_ADMISSION_FACTS_FILE="$work/facts.yaml" API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=8080 \
+        "$binary" serve > "$work/serve.log" 2>&1 &
     serve_pid=$!
     tail -f --pid="$serve_pid" "$work/serve.log" &
     port=$(started "$work/serve.log")
@@ -857,6 +905,7 @@ app() {
     token=$(id_token "$app_uid")
     legal_texts
     owner_account closed_slice
+    app_child
 
     # From here the file is this run's: one that failed to start, beside a run that goes on, leaves
     # that run's token where it is.

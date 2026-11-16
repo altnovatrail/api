@@ -1,7 +1,7 @@
 // The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, the
 // custom token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a
 // task AI reads, a workbook page and an essay, sends the boxes of the page, sums the counters of the
-// quota and gives the check's account its tariff.
+// quota, gives the check's account its tariff and makes the synthetic child of `just dev-app` once.
 // They run the script's own functions in bash, with jq and openssl, as the devcontainer and its
 // toolchain stage, where CI runs the tests, have them.
 package scripts_test
@@ -446,5 +446,112 @@ check_account && printf '%s' "${token:-}"`
 	_, stderr, err = bash(t, env(dir, "200", "401", made), fakes)
 	if err == nil || !strings.Contains(stderr, "not finished") || !strings.Contains(stderr, "just dev sweep") {
 		t.Errorf("check_account with the deletion not finished = %q, %v; want a failure naming the sweep", stderr, err)
+	}
+}
+
+// The run for app has one synthetic child under 13 (R67): a child of the pseudonym the account holds
+// who learns is taken as it is, and with none — or only one who has turned 13 or waits for a
+// consent — the consents with no profile are taken back and a child of 9 is made by a
+// parent's consent sent with its form and confirmed by the operator's command, then a profile. Its
+// ID is printed either way. A consent the command does not confirm stops the run.
+func TestTheSyntheticChildOfDevAppIsMadeOnce(t *testing.T) {
+	t.Parallel()
+
+	// The steps the server and the binary would take, as lines of the file calls: GetAccount answers
+	// $ACCOUNT, and each body sent is kept in a file of its method.
+	fakes := `work=$DIR; binary=$DIR/api; who=dev-app
+call() {
+    echo "$1" >> "$DIR/calls"; status=200
+    cat > "$DIR/$1.json"
+    case $1 in
+    GetAccount) printf '%s' "$ACCOUNT" ;;
+    RequestChildConsent) printf '{"consent":{"consent_id":"consent-new","request_code":"ABCDE-FGHJK"}}' ;;
+    CreateChildProfile) printf '{"profile":{"profile_id":"child-new"}}' ;;
+    *) printf '{}' ;;
+    esac > "$work/answer.json"
+}
+app_child && printf '|%s' "$child"`
+	texts := `{"texts":[{"id":"privacy-policy","version":"3"},{"id":"parent-consent","version":"2"}]}`
+	// account is GetAccount's answer: the owner, the profiles given and the consents with no profile.
+	account := func(consents string, profiles ...string) string {
+		return `{"account":{"account_id":"a","child_consents":[` + consents + `],"profiles":[` +
+			`{"profile_id":"owner","owner":true,"pseudonym":"Dev","age_category":"adult","consent":{"need":"CONSENT_NEED_NONE"}}` +
+			strings.Join(append([]string{""}, profiles...), ",") + `]}}`
+	}
+	child := func(id, name, category, need string) string {
+		return `{"profile_id":"` + id + `","pseudonym":"` + name + `","age_category":"` + category + `","consent":{"need":"` + need + `"}}`
+	}
+	const learns, waits = "CONSENT_NEED_NONE", "CONSENT_NEED_PARENT"
+	world := func(t *testing.T, binary string) string {
+		t.Helper()
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "api"), []byte(binary), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "texts.json"), []byte(texts), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	confirming := "#!/bin/sh\necho \"$@\" >> \"$DIR/calls\"\necho \"$3 confirmed\"\n"
+	made := []string{"GetAccount", "RequestChildConsent", "SendConsentForm", "consents confirm ABCDE-FGHJK", "CreateChildProfile"}
+	for _, tc := range []struct {
+		name, account, child string
+		calls                []string
+	}{
+		{"a child there", account(`{"consent_id":"consent-app"}`, child("child-there", "Dev child", "under_13", learns)), "child-there",
+			[]string{"GetAccount"}},
+		{"no child", account(""), "child-new", made},
+		{"another child alone", account("", child("child-other", "Another", "under_13", learns)), "child-new", made},
+		{"the child turned 13", account("", child("child-grown", "Dev child", "from_13_to_consent", learns)), "child-new", made},
+		{"the child waits for a consent", account("", child("child-waits", "Dev child", "under_13", waits)), "child-new", made},
+		{"consents left", account(`{"consent_id":"consent-old"},{"consent_id":"consent-older"}`), "child-new",
+			append([]string{"GetAccount", "CancelChildConsent", "CancelChildConsent"}, made[1:]...)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := world(t, confirming)
+			stdout, stderr, err := bash(t, []string{"DIR=" + dir, "ACCOUNT=" + tc.account}, fakes)
+			if err != nil {
+				t.Fatalf("app_child: %v, %s", err, stderr)
+			}
+			if !strings.HasSuffix(stdout, "|"+tc.child) || !strings.Contains(stdout, "is the profile "+tc.child+"\n") {
+				t.Errorf("app_child printed %q, want the profile %s named and left", stdout, tc.child)
+			}
+			calls, err := os.ReadFile(filepath.Join(dir, "calls"))
+			if err != nil || strings.TrimSpace(string(calls)) != strings.Join(tc.calls, "\n") {
+				t.Errorf("the steps = %q (%v), want %q", calls, err, tc.calls)
+			}
+			if len(tc.calls) == 1 {
+				return
+			}
+			var request struct {
+				Age     int               `json:"age_years"`
+				Country string            `json:"country"`
+				Text    map[string]string `json:"parent_consent_text"`
+			}
+			if body, err := os.ReadFile(filepath.Join(dir, "RequestChildConsent.json")); err != nil || json.Unmarshal(body, &request) != nil ||
+				request.Age != 9 || request.Country != "US" || request.Text["id"] != "parent-consent" || request.Text["version"] != "2" {
+				t.Errorf("RequestChildConsent got %+v (%v), want a child of 9 in US and the parent's consent text", request, err)
+			}
+			var profile struct {
+				Consent  string            `json:"consent_id"`
+				Settings map[string]string `json:"settings"`
+			}
+			if body, err := os.ReadFile(filepath.Join(dir, "CreateChildProfile.json")); err != nil || json.Unmarshal(body, &profile) != nil ||
+				profile.Consent != "consent-new" || profile.Settings["pseudonym"] != "Dev child" {
+				t.Errorf("CreateChildProfile got %+v (%v), want the consent confirmed and the pseudonym Dev child", profile, err)
+			}
+		})
+	}
+
+	dir := world(t, "#!/bin/sh\necho \"no consent of $3 waits with its form sent\"\nexit 1\n")
+	_, stderr, err := bash(t, []string{"DIR=" + dir, "ACCOUNT=" + account("")}, fakes)
+	if err == nil || !strings.Contains(stderr, "consents confirm failed") || !strings.Contains(stderr, "no consent of ABCDE-FGHJK") {
+		t.Errorf("app_child with the consent not confirmed = %q, %v; want a failure naming why", stderr, err)
+	}
+	if calls, _ := os.ReadFile(filepath.Join(dir, "calls")); strings.Contains(string(calls), "CreateChildProfile") {
+		t.Errorf("app_child made a profile with the consent not confirmed: %q", calls)
 	}
 }
