@@ -606,7 +606,7 @@ func TestTheExportIsGiven(t *testing.T) {
 		return got
 	}
 	profile, err := w.client.ExportProfile(ctx, &v1.ExportProfileRequest{ProfileId: owner.GetProfileId()})
-	if err != nil || profile.GetExportFormatVersion() != "2" {
+	if err != nil || profile.GetExportFormatVersion() != "3" {
 		t.Fatalf("ExportProfile = %v, %v", profile, err)
 	}
 	if got := names(profile.GetPart()); !got["profiles/"+owner.GetProfileId()+".json"] || got["account.json"] ||

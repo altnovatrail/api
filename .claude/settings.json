@@ -18,16 +18,5 @@
         ]
       }
     ]
-  },
-  "extraKnownMarketplaces": {
-    "novatrail": {
-      "source": {
-        "source": "directory",
-        "path": "./spec/claude-plugins"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "gopls-lsp@novatrail": true
   }
 }

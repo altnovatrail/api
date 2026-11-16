@@ -176,12 +176,17 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	exec(`INSERT INTO problem_reports (account_id, profile_id, attempt_id, reply, rung, words, kind, text, created_at)
 		VALUES ($1, $2, $3, 'rung', 1, 'The words of the rung.', 'unclear', '', now())`, account, profile, attempt)
 	exec(`INSERT INTO work_storage_consents (profile_id, giver, text_version, on_at, off_at) VALUES ($1, 'owner', 1, now(), now())`, profile)
-	// Two stored works, the one of the attempt that left the image the newer.
+	// Two stored works, the one of the attempt that left the image the newer. The
+	// newer one's bytes are no message at all: the export names a work by its
+	// columns and never reads them (R84).
 	for i, a := range []string{attempt, gone} {
 		work, err := proto.Marshal(&v1.StoredWork{AttemptId: a, History: []byte(`[{"kind":"write","t":1}]`),
 			Submissions: []*v1.WorkSubmission{{Context: []byte(`{"answer_slot":1}`), HistoryLength: 1}}, Picture: []byte("\x89PNG\r\n\x1a\n")})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if a == gone {
+			work = []byte("\xff")
 		}
 		exec(`INSERT INTO works (profile_id, attempt_id, kind, size_bytes, work, stored_at)
 			VALUES ($1, $2, 'handwriting', 50, $3, now() - make_interval(mins => $4))`, profile, a, work, 1-i)
@@ -229,8 +234,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	text := string(files["profiles/"+profile+".json"])
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
 		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
-		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting"`, `"history":[{"kind":"write","t":1}]`,
-		`"submissions":[{"context":{"answer_slot":1},"history_length":1}]`, `"picture":"iVBORw0KGgo="`,
+		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting","stored_at":"`, `"size_bytes":50},{"attempt_id":"` + attempt + `"`,
 		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
@@ -238,6 +242,10 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	}
 	if strings.Contains(text, `"seed"`) {
 		t.Error("the profile's file holds the seed of an attempt")
+	}
+	// The works are named without their bytes: app reads each by GetWork (R151 spec).
+	if strings.Contains(text, `"history"`) || strings.Contains(text, `"picture"`) {
+		t.Error("the profile's file holds the bytes of a stored work")
 	}
 	accountFiles := unzip(t, accountPart)
 	var a map[string]any
@@ -335,7 +343,6 @@ func TestARecordThatIsNoMessageFailsTheExport(t *testing.T) {
 		"state":       `UPDATE skill_states SET state = '\xff' WHERE profile_id = $1 AND $2 <> ''`,
 		"answer":      `INSERT INTO submissions (profile_id, attempt_id, number, answer) SELECT $1, id, 1, '\xff' FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
 		"observation": `INSERT INTO submissions (profile_id, attempt_id, number, answer, observation) SELECT $1, id, 1, '', '\xff' FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
-		"work":        `INSERT INTO works (profile_id, attempt_id, kind, size_bytes, work, stored_at) SELECT $1, id, 'drawing', 1, '\xff', now() FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
 	} {
 		var account, profile string
 		if err := pool.QueryRow(ctx, `INSERT INTO accounts (auth_uid, last_request_on, adult_stated_at, tariff)
