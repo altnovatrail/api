@@ -44,11 +44,11 @@ run:
 migrate:
     go run ./cmd/api migrate
 
-# What .github's shared release.yml runs to build a release, in the toolchain stage of the commit
-# it releases, from that commit's tree with no git in it, and then signs every file (R28; R18
-# .github). dist/ is made afresh and holds plain files alone: the binary for each platform below,
-# static and named api_<version>_<os>_<arch>; the Dockerfile a deployment builds the image by
-# (R105, R106 spec); the licenses a binary has to come with; and SHA256SUMS over the rest. The
+# What .github's shared release.yml runs to build a release, in the stage toolchain-core of the
+# commit it releases, from that commit's tree with no git in it, and then signs every file (R28;
+# R18, R47 .github). dist/ is made afresh and holds plain files alone: the binary for each
+# platform below, static and named api_<version>_<os>_<arch>; the Dockerfile a deployment builds
+# the image by (R105, R106 spec); the licenses a binary has to come with; and SHA256SUMS over the rest. The
 # commit and its time come from internal/version/archive.txt, which git archive writes, so a build
 # of the same commit gives the same bytes wherever it runs.
 # Build a release's files into dist/, for a version such as v0.1.0.
@@ -284,9 +284,9 @@ release-licenses folder:
         done
     done
 
-# The ci- recipes are what .github's shared go.yml runs, one job each, in the
-# toolchain stage of .devcontainer/Dockerfile: "Go / lint", "Go / test",
-# "Go / vuln" and "Go / licenses" (R30 spec). The job checks out no submodule,
+# The ci- recipes are what .github's shared go.yml runs, one job each, in a
+# stage of .devcontainer/Dockerfile: "Go / test" in toolchain, "Go / lint",
+# "Go / vuln" and "Go / licenses" in toolchain-core (R30 spec; R47 .github). The job checks out no submodule,
 # so none of them reads spec/.
 
 # The code takes spec's files from its Go modules, and the documents from the submodule spec/,
@@ -429,9 +429,9 @@ ci-modules:
     # which release-verify accepts (R52; export/README.md of spec, section 9).
     {{ quote(just_executable()) }} learner-model-proto check
 
-# The check of the scheduled job Withdrawals of withdrawals.yml (R61), in the toolchain stage, with
-# the network: the newest release of modules is the one the public address releases/latest leads
-# to, with no token; its index and its signature, which release-verify checks on every run, even
+# The check of the scheduled job Withdrawals of withdrawals.yml (R61), in the stage
+# toolchain-core, with the network: the newest release of modules is the one the public address
+# releases/latest leads to, with no token; its index and its signature, which release-verify checks on every run, even
 # when it is the pinned release; the pinned release's index, which its digest holds (R77 spec); then
 # cmd/modules-check with -latest, which fails while the newest index withdraws a version that the
 # pinned one gives, until modules.json pins a release that marks it (R07).

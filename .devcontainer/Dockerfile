@@ -4,18 +4,21 @@
 # detected at RUN time via dpkg instead. A host that has Docker can build this, and that is the
 # whole requirement.
 #
-# Two stages. `toolchain` holds what it takes to check the repository — its documents, and its
-# code where it has any — and is the stage the automated checks run inside. `devcontainer` adds
-# what a person needs on top of that, and devcontainer.json names it as its target. spec's own
-# file ends with a third, `orchestrator`, the devcontainer with the Docker CLI (R156 spec), which
-# `just new-repo` leaves out of a copy: in a copy `devcontainer` is the last stage, the one a
-# build with no target gives, and in spec every build names its stage. A builder that builds every
-# stage before its target builds `orchestrator` for the ordinary configuration too, and the stage
-# builds there as well, without the file only its own configuration writes.
+# Three stages. `toolchain-core` holds Node, just, Go and buf: what a release needs — its version
+# and its files — and every check that runs no browser, and a release builds it alone (R31 spec).
+# `toolchain` is the core with what the repository's tests need on top — in a copy, what its kind
+# adds at the end of the stage, such as the browsers of the kind typescript —, and is the stage
+# the automated checks run inside. `devcontainer` adds what a person needs on top of that, and
+# devcontainer.json names it as its target. spec's own file ends with a fourth, `orchestrator`,
+# the devcontainer with the Docker CLI (R156 spec), which `just new-repo` leaves out of a copy: in a
+# copy `devcontainer` is the last stage, the one a build with no target gives, and in spec every
+# build names its stage. A builder that builds every stage before its target builds `orchestrator`
+# for the ordinary configuration too, and the stage builds there as well, without the file only
+# its own configuration writes.
 
-# -- toolchain: checks the repository ----------------------------------------
+# -- toolchain-core: releases the repository, checks it without a browser -----
 
-FROM mcr.microsoft.com/devcontainers/base:3.0.13-noble@sha256:48be4adec1c1ecbe030064700aef85382f5205786a8f82937fc44a7473717eae AS toolchain
+FROM mcr.microsoft.com/devcontainers/base:3.0.13-noble@sha256:48be4adec1c1ecbe030064700aef85382f5205786a8f82937fc44a7473717eae AS toolchain-core
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
@@ -98,23 +101,46 @@ RUN arch="$(dpkg --print-architecture)"; \
     \
     rm -rf "$workdir"
 
-# nss_wrapper, for the tests of the database (R30 in docs/decisions.md): the Go checks of .github's
-# go.yml run this stage as the runner's uid, which /etc/passwd here does not know, and initdb
-# stops on a uid it cannot look up. The tests' helper then preloads the library with a passwd
-# file of its own; nothing else uses it. apt pins no versions by itself, so it comes from the
-# Ubuntu archive as it was at one moment: a snapshot, whose ID is raised by hand like a version
-# (R40 spec). apt checks the archive's signatures as it does on any update.
-ARG UBUNTU_SNAPSHOT=20261101T000000Z
-RUN apt-get update --snapshot "$UBUNTU_SNAPSHOT"; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        --snapshot "$UBUNTU_SNAPSHOT" \
-        libnss-wrapper; \
-    rm -rf /var/lib/apt/lists/*
-
 # GOTOOLCHAIN=local: the Go above runs every go command, and none downloads another Go because a
 # go.mod asks for a newer one: a go.mod that does fails, which is the signal to raise GO_VERSION.
 ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}" \
     GOTOOLCHAIN=local
+
+# -- toolchain: the core, plus what the repository's tests need ---------------
+#
+# api's tests need one thing the core lacks, nss_wrapper below, its own difference from the
+# template (R30 in docs/decisions.md); its kind, go, adds no lines here. What this stage installs,
+# a release never builds.
+
+FROM toolchain-core AS toolchain
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+# nss_wrapper, for the tests of the database (R30 in docs/decisions.md): the Go checks of .github's
+# go.yml run this stage as the runner's uid, which /etc/passwd here does not know, and initdb
+# stops on a uid it cannot look up. The tests' helper then preloads the library with a passwd
+# file of its own; nothing else uses it, so it is here and not in toolchain-core, which a release
+# and the checks that run no test build (R31 spec). apt pins no versions by itself, so it comes
+# from the Ubuntu archive as it was at one moment: a snapshot, whose ID is raised by hand like a
+# version (R40 spec). apt checks the archive's signatures as it does on any update.
+#
+# apt reads the snapshot alone, from a source of its own that names the snapshot in its URI, with
+# the suites and components of the base image's ubuntu.sources, as the template's kind typescript
+# does (the 2026-11-16 amendment to R40 spec): apt-get update --snapshot reads the live archive's
+# indexes as well as the snapshot's. The base image's own sources stay as they are, for whoever
+# runs apt in the devcontainer, and this RUN reads none of them. The suites are those of noble,
+# the base image's Ubuntu: a base image of a newer one changes them with the ID.
+ARG UBUNTU_SNAPSHOT=20261101T000000Z
+RUN sources="$(mktemp -d)"; \
+    printf '%s\n' 'Types: deb' "URIs: https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}/" \
+        'Suites: noble noble-updates noble-backports noble-security' \
+        'Components: main universe restricted multiverse' \
+        'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' > "$sources/snapshot.sources"; \
+    apt_sources=(-o "Dir::Etc::SourceList=/dev/null" -o "Dir::Etc::SourceParts=$sources"); \
+    apt-get "${apt_sources[@]}" update; \
+    DEBIAN_FRONTEND=noninteractive apt-get "${apt_sources[@]}" install -y --no-install-recommends \
+        libnss-wrapper; \
+    rm -rf "$sources" /var/lib/apt/lists/*
 
 # -- devcontainer: the toolchain, plus what a person works with --------------
 
@@ -131,8 +157,8 @@ ARG JUST_LSP_VERSION=0.10.0
 # Claude Code CLI. The VS Code extension in devcontainer.json must have the same version.
 ARG CLAUDE_CODE_VERSION=2.1.280
 # The sums, as above: gh_<version>_checksums.txt of the gh release, SHA256SUMS of just-lsp's.
-# The helper below is the toolchain stage's, written again rather than left in that image as a
-# script: the toolchain image is the one the checks run in, and nothing there needs it.
+# The helper below is the toolchain-core stage's, written again rather than left in that image as
+# a script: the toolchain images are the ones the checks run in, and nothing there needs it.
 ARG GH_SHA256_AMD64=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
 ARG GH_SHA256_ARM64=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f
 ARG JUST_LSP_SHA256_AMD64=3c35e10e76db6cc1931495bb3abdaef02576eaeb406c217420f4fd37e1ebe22c
