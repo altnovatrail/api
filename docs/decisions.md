@@ -1148,6 +1148,15 @@ Opus thought 408–802 tokens, and the estimate by T76 of `tutor` is p50 5.1 s. 
 
 — *Amendment 2026-11-16* (T94; R84): `internal/export` has no fuzz test of its own now: the export no longer unpacks a stored work, and the fuzz test of the form `PutWork` checks is `FuzzWorkExported` of `internal/learning`, on the file of a work that `app` writes (R151 spec).
 
+— *Amendment 2026-11-16* (T95; R84): **every call of `.github` — secrets, DCO, documents, "Go", CodeQL, Scorecard and the release — is at v0.1.24, commit `fab102d8bbb4659575e107ee488e072aaaa71821`, out 2026-11-13, which `gh release verify v0.1.24 -R altnovatrail/.github` accepted on 2026-11-16; Dependabot `github-actions` raises them as one group, `shared-workflows`, `patterns: ["altnovatrail/.github/*"]`, the text of the template of architecture 3.3 .github (the 2026-11-08 amendment to R04 .github; Д88 spec).** What changed in the shared workflows from v0.1.21, by `git diff v0.1.21 v0.1.24 -- .github/workflows` of `.github`:
+- every job of `go.yml` that builds the `toolchain` stage, and `documents.yml`, takes its image from the cache of GitHub Actions, by the key of the runner's OS and architecture and `hashFiles('.devcontainer/Dockerfile')`, and builds it only on a miss (R36 .github; Д146 spec). The steps ask for no permission and no input, so the jobs of `ci.yml` keep theirs: "Go" `contents: read` and `id-token: write`, the rest `contents: read`. The entry of `main` is saved by CI's run on a push to `main`, and a pull request reads it; `api` keeps two entries, `toolchain.tar` of "Go" and `novatrail-toolchain.tar` of "Documents", against the limit of 10 GB of a repository. The script of the documents check that writes the file is the one of `spec` from v0.13.0, and `api` has v0.18.3;
+- with `same-bits`, "Go / targets" and "Go / arm64" run the tests on wasip1 (R39 .github): `api` sets no `same-bits` and runs neither;
+- `release.yml`, `scorecard.yml` and `codeql.yml` changed in comments at most: the release is built as before, with no cache (R36 .github), and the names of the checks, the inputs and the ruleset of `main` stay.
+
+`.github/dependabot.yml` gets the group now, by T95, not by a session of `spec`, as the "Consequence" above said: the template asks every caller to have it, and nothing of `spec` writes the files of `api`.
+
+*Rejected:* the cache in the own jobs "Image" and "Modules" and in "Withdrawals", which build the stage by `docker build` in `image.sh` and `modules.sh`. Each goes to the network beyond the Dockerfile — "Image" to the base images of the `Dockerfile` and to Postgres, "Modules" and "Withdrawals" to the release of `modules` on GitHub —, so a cache would not keep them green through an outage, the aim of R36 .github; and "Image" builds the release's files in the stage as the release does, which takes no cache. Come back to it if their build of the stage fails a run on the network.
+
 ## Release
 
 **R28. A release of `api` comes out by itself, by the shared `release.yml` of `.github` v0.1.21, after green CI on `main`: the static binaries `api_<version>_linux_amd64` and `api_<version>_linux_arm64`, the `Dockerfile` by which the deployment builds the image, the licenses the binaries come with, and `SHA256SUMS`, each file with its signature. The binary takes its commit and that commit's time from a file that `git archive` writes, so the build is reproducible. CI's job "Image" checks the `Dockerfile`: it builds the image the same way as the deployment does, and from the source code. The first release is v0.1.0, with the merge of T19.** The author's decisions of 2026-11-08 in the planning of T19: the first release now, the commit and the time through `export-subst`, a CI job of its own checks the image, and the executor sets GitHub's settings once the author confirms. Task T19 of epic E2.
@@ -1190,6 +1199,8 @@ Opus thought 408–802 tokens, and the estimate by T76 of `tutor` is p50 5.1 s. 
 — *Amendment 2026-11-10* (T41; R51): the release's README names the commands that the deployment of `infra` runs as jobs of the same image, by the roles of its record `api_jobs`: `api check`, `api migrate` and `api after`, and `api sweep` on a schedule. What each reads is the table of R51.
 
 — *Amendment 2026-11-11* (T43; R52): the stage `build` is `golang:1.27.4-trixie`, digest `sha256:b54b2639de8c1bfe538ec5ffc45f29b1932235ac5f6d63c059853646677112d9` read from Docker Hub 2026-11-11 (the 2026-11-11 amendment to R30).
+
+— *Amendment 2026-11-16* (T95): the release is called at the shared `release.yml` of `.github` v0.1.24, by the 2026-11-16 amendment to R27. From v0.1.21 the workflow changed only in two comments, so the inputs, the permissions, the `paths` and the files of a release stay.
 
 ## Database and migrations
 

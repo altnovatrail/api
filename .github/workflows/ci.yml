@@ -18,17 +18,17 @@ concurrency:
 jobs:
   secrets:
     name: Secrets
-    uses: altnovatrail/.github/.github/workflows/secrets.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+    uses: altnovatrail/.github/.github/workflows/secrets.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
 
   # A pull request's commits are what it checks; a push to main has been checked as one.
   dco:
     name: DCO
     if: github.event_name == 'pull_request'
-    uses: altnovatrail/.github/.github/workflows/dco.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+    uses: altnovatrail/.github/.github/workflows/dco.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
 
   documents:
     name: Documents
-    uses: altnovatrail/.github/.github/workflows/documents.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+    uses: altnovatrail/.github/.github/workflows/documents.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
 
   # The repository's Go code, by its own ci- recipes in its toolchain stage, and the coverage of
   # its tests, which the shared workflow sends to Codecov (R16 .github; R27). id-token: write is
@@ -39,7 +39,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: altnovatrail/.github/.github/workflows/go.yml@706f4067a66c91b0442033f82a7924eeb8b60497 # v0.1.21
+    uses: altnovatrail/.github/.github/workflows/go.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
 
   # api's image, as a deployment builds it from a release and as it builds from the source, on the
   # runner, which has Docker where the devcontainer has none (R28). The script is the whole check.
