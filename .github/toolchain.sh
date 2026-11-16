@@ -22,7 +22,7 @@ elif docker load --quiet --input "$tar" && docker image inspect novatrail-toolch
     echo "toolchain.sh: the image novatrail-toolchain is loaded from the cache"
     exit 0
 else
-    echo "::warning::The cache's file of the toolchain stage does not load as the image novatrail-toolchain: it is built from the Dockerfile."
+    echo "::warning::The cache's file of the toolchain stage does not load as the image novatrail-toolchain: it is built from the Dockerfile, on every run until the entry is deleted (gh cache delete) or the Dockerfile changes."
     rm -f -- "$tar"
 fi
 docker build --target toolchain --tag novatrail-toolchain - < .devcontainer/Dockerfile

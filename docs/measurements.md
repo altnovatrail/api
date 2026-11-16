@@ -205,7 +205,7 @@ For the 2026-11-16 amendments to R27 and R28. The time of each job, from `comple
 
 ## 10. CI on `.github` v0.1.30, T99, 2026-11-16
 
-For the 2026-11-16 amendments of T99 to R27 and R28. The time of each job, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the last five successful runs of CI and of CodeQL on `main` on `.github` v0.1.24 (CI 43807183856, 43809505651, 43814975191, 43822628657, 43827520586); after — the first run of pull request 109 of T99, 43856145389, its first attempt.
+For the 2026-11-16 amendments of T99 to R27 and R28. The time of each job, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the last five successful runs of CI and of CodeQL on `main` on `.github` v0.1.24 (CI 43807183856, 43809505651, 43814975191, 43822628657, 43827520586; CodeQL 43807183852, 43809505652, 43814975151, 43822628609, 43827520417); after — the first run of pull request 109 of T99, CI 43856145389 — its first attempt, and its second for "Go / test" — and CodeQL 43856145378 of the same commit.
 
 | Job | Before, the five runs | Before, median | After |
 |---|---|---|---|
