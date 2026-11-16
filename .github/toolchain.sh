@@ -9,12 +9,17 @@
 set -euo pipefail
 
 tar="${TOOLCHAIN_TAR:-}"
-if [ -n "$tar" ] && [ -f "$tar" ]; then
-    if docker load --quiet --input "$tar" && docker image inspect toolchain > /dev/null; then
-        rm -f -- "$tar"
-        echo "toolchain.sh: the image toolchain is loaded from the cache"
-        exit 0
-    fi
+if [ -z "$tar" ]; then
+    :
+elif [ ! -f "$tar" ]; then
+    # A miss is said, so that a key or a path that no longer matches the entry of "Go" shows in
+    # the log.
+    echo "toolchain.sh: the cache gave no image toolchain for this Dockerfile: it is built from it"
+elif docker load --quiet --input "$tar" && docker image inspect toolchain > /dev/null; then
+    rm -f -- "$tar"
+    echo "toolchain.sh: the image toolchain is loaded from the cache"
+    exit 0
+else
     echo "::warning::The cache's file of the toolchain stage does not load as the image toolchain: it is built from the Dockerfile."
     rm -f -- "$tar"
 fi

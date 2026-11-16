@@ -59,7 +59,7 @@ source_binary="$(docker create api:source)"
 containers+=("$source_binary")
 docker cp --quiet "${source_binary}:/api" "${work}/source-api"
 cmp "${work}/source-api" "${tree}/dist/api_${version}_linux_amd64" \
-    || fail "the binary of the image from the source is not the release's api_${version}_linux_amd64, byte for byte: the build is not reproducible"
+    || fail "the binary of the image from the source is not the release's api_${version}_linux_amd64, byte for byte: the build is not reproducible, or the Go of the Dockerfile's golang is not GO_VERSION of .devcontainer/Dockerfile"
 
 # PostgreSQL on the runner's network, on a port of its own, with the databases api and openfga.
 # A string to the loopback needs no TLS (R29).
