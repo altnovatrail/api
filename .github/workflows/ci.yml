@@ -18,17 +18,17 @@ concurrency:
 jobs:
   secrets:
     name: Secrets
-    uses: altnovatrail/.github/.github/workflows/secrets.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
+    uses: altnovatrail/.github/.github/workflows/secrets.yml@8311cbfc01082e9b196c0af8d7b49192115cc84c # v0.1.30
 
   # A pull request's commits are what it checks; a push to main has been checked as one.
   dco:
     name: DCO
     if: github.event_name == 'pull_request'
-    uses: altnovatrail/.github/.github/workflows/dco.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
+    uses: altnovatrail/.github/.github/workflows/dco.yml@8311cbfc01082e9b196c0af8d7b49192115cc84c # v0.1.30
 
   documents:
     name: Documents
-    uses: altnovatrail/.github/.github/workflows/documents.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
+    uses: altnovatrail/.github/.github/workflows/documents.yml@8311cbfc01082e9b196c0af8d7b49192115cc84c # v0.1.30
 
   # The repository's Go code, by its own ci- recipes in its toolchain stage, and the coverage of
   # its tests, which the shared workflow sends to Codecov (R16 .github; R27). id-token: write is
@@ -39,7 +39,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: altnovatrail/.github/.github/workflows/go.yml@fab102d8bbb4659575e107ee488e072aaaa71821 # v0.1.24
+    uses: altnovatrail/.github/.github/workflows/go.yml@8311cbfc01082e9b196c0af8d7b49192115cc84c # v0.1.30
 
   # api's image, as a deployment builds it from a release and as it builds from the source, on the
   # runner, which has Docker where the devcontainer has none (R28). The script is the whole check.
@@ -52,17 +52,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # The image of the toolchain stage from the cache, by the key and the path the jobs of "Go"
-      # save it under, so the entry is theirs; read only, as no job here saves it (R27).
+      # The image of the toolchain stage from the cache, by the key and the path "Go / toolchain"
+      # and "Documents" save it under on main, so the entry is theirs; read only, as no job here
+      # saves it (R27).
       - name: Toolchain image from the cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/toolchain.tar
+          path: ${{ runner.temp }}/novatrail-toolchain.tar
           key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.devcontainer/Dockerfile') }}
 
       - name: Build and check the images
         env:
-          TOOLCHAIN_TAR: ${{ runner.temp }}/toolchain.tar
+          TOOLCHAIN_TAR: ${{ runner.temp }}/novatrail-toolchain.tar
         run: .github/image.sh
 
   # The check of modules.json (R07, R41): the signature of the pinned release's index by
@@ -86,10 +87,10 @@ jobs:
       - name: Toolchain image from the cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/toolchain.tar
+          path: ${{ runner.temp }}/novatrail-toolchain.tar
           key: toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.devcontainer/Dockerfile') }}
 
       - name: Check modules.json
         env:
-          TOOLCHAIN_TAR: ${{ runner.temp }}/toolchain.tar
+          TOOLCHAIN_TAR: ${{ runner.temp }}/novatrail-toolchain.tar
         run: .github/modules.sh ci-modules

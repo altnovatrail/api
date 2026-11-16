@@ -202,3 +202,24 @@ For the 2026-11-16 amendments to R27 and R28. The time of each job, from `comple
 - **The cache** gave its entry in each of the four, `toolchain-Linux-X64-f8ac05ef…`, 390 MB, saved by "Go" on `main`: the restore 4–8 s, and `toolchain.sh` had the image loaded 12–36 s after it, as measurements 3.1 spec found the load.
 - **`release-files`, once now,** took 156 s and 236 s of the two runs of "Image", and the stage `build` of the image from the source 72 s and 107 s; its binary was the release's, byte for byte, in both. The second run, 169 s on `main` (measurements 3.1 spec), is gone.
 - **What it means:** two runs are no median, and the runners' spread — `release-files` 156 against 236 s on one commit — is as wide as what was saved; "Image" was below `main`'s median in both, by 147 and 30 s. "Modules" saves what the build of the stage cost it, its spread aside.
+
+## 10. CI on `.github` v0.1.30, T99, 2026-11-16
+
+For the 2026-11-16 amendments of T99 to R27 and R28. The time of each job, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the last five successful runs of CI and of CodeQL on `main` on `.github` v0.1.24 (CI 43807183856, 43809505651, 43814975191, 43822628657, 43827520586; CodeQL 43807183852, 43809505652, 43814975151, 43822628609, 43827520417); after — the first run of pull request 109 of T99, CI 43856145389 — its first attempt, and its second for "Go / test" — and CodeQL 43856145378 of the same commit.
+
+| Job | Before, the five runs | Before, median | After |
+|---|---|---|---|
+| Image | 418, 415, 421, 355, 276 s | 415 s | 383 s |
+| Modules | 148, 178, 154, 132, 185 s | 154 s | 132 s |
+| Go / lint | 125, 151, 146, 128, 120 s | 128 s | 113 s |
+| Go / test | 397, 383, 392, 274, 400 s | 392 s | 419 s, red: `TestARequestEndsAtItsTimeLimit`; 278 s, green, the second attempt |
+| Go / vuln | 65, 85, 77, 50, 60 s | 65 s | 49 s |
+| Go / licenses | 63, 87, 51, 63, 56 s | 63 s | 51 s |
+| Go / toolchain | — | — | 7 s |
+| CodeQL / analyze (go) | 126, 132, 138, 198, 144 s | 138 s | 112 s |
+
+- **The image** came from the cache in every job of the pull request: the entry `toolchain-Linux-X64-f8ac05ef…` of the path `novatrail-toolchain.tar`, 390 MB, which "Documents" had saved on `main`, the file of the image `novatrail-toolchain`; `toolchain.sh` had it loaded in "Image" and "Modules" 13–21 s after the restore, and "Go / toolchain" found it and built nothing.
+- **The Go caches** missed in every job — `go-Linux-X64-<check>-…`: `main` has none until its first push on v0.1.30 —, so the jobs of "Go" ran as cold as before, and what they differ by is the runners' spread. The gain of R41 .github is for the runs after that push; this section has none.
+- **`TestARequestEndsAtItsTimeLimit`** of `internal/rpc` got `unavailable` where it wants `deadline_exceeded`: its time limit is 50 ms, and on that runner it ran out in the checks before the handler, whose failure `rpc.Failed` answers `unavailable`. It is the first failure of the test in the last 15 failed runs of CI, and the job's second attempt passed. A flake of the time limit, not of the move: the code under test and its Go are those of `main`.
+- **CodeQL's `go`** took Go from the archive the Dockerfile pins, with no build of the stage (R45 .github): 112 s against the median 138 s.
+- **The release** of v0.1.30 (R44 .github) runs only on `main`; before, its three runs that put out a release took 1308, 1193 and 1171 s (Release 43807893468, 43810453379, 43828414762). The first one after the merge is the measurement of the release, as the Go caches are of "Go".

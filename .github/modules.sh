@@ -14,4 +14,4 @@ esac
 
 .github/toolchain.sh
 docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp --volume "${PWD}:/work" --workdir /work \
-    toolchain just "$recipe"
+    novatrail-toolchain just "$recipe"
