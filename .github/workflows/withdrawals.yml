@@ -30,5 +30,9 @@ jobs:
           persist-credentials: false
           submodules: true
 
+      # The recipe runs release-verify and cmd/modules-check, and no test, so the job builds the
+      # stage toolchain-core, without the apt of nss_wrapper (R27, R30).
       - name: Withdrawals of the versions api gives
+        env:
+          TOOLCHAIN_STAGE: toolchain-core
         run: .github/modules.sh ci-withdrawals

@@ -223,3 +223,19 @@ For the 2026-11-16 amendments of T99 to R27 and R28. The time of each job, from 
 - **`TestARequestEndsAtItsTimeLimit`** of `internal/rpc` got `unavailable` where it wants `deadline_exceeded`: its time limit is 50 ms, and on that runner it ran out in the checks before the handler, whose failure `rpc.Failed` answers `unavailable`. It is the first failure of the test in the last 15 failed runs of CI, and the job's second attempt passed. A flake of the time limit, not of the move: the code under test and its Go are those of `main`.
 - **CodeQL's `go`** took Go from the archive the Dockerfile pins, with no build of the stage (R45 .github): 112 s against the median 138 s.
 - **The release** of v0.1.30 (R44 .github) runs only on `main`; before, its three runs that put out a release took 1308, 1193 and 1171 s (Release 43807893468, 43810453379, 43828414762). The first one after the merge is the measurement of the release, as the Go caches are of "Go".
+
+## 11. CI on `spec` v0.18.4 and `.github` v0.1.31, T100, 2026-11-16
+
+For R86 and its 2026-11-16 amendments to R27, R28 and R30. The time of each job and of its long steps, from `completed_at` less `started_at` of `actions/runs/<id>/jobs` of the GitHub API, read 2026-11-16: before — the run of CI on `main` after the merge of T99, 43861555933, on `.github` v0.1.30, whose Go caches missed, as it was the first push that saved them (measurements 10); the release of that commit, Release 43862499430; and Withdrawals 43878837719 of the same day.
+
+| Job | Before | Its long steps, before |
+|---|---|---|
+| Image | 326 s | the image from the cache 4 s; "Build and check the images" 318 s |
+| Modules | 137 s | the image from the cache 7 s; `ci-modules` 118 s |
+| Documents | 52 s | the image from the cache 4 s and loaded 31 s; the check 12 s |
+| Go / lint | 152 s | the image 6 s and 32 s; `ci-lint` 98 s |
+| Go / vuln | 70 s | the image 9 s and 12 s; `ci-vuln` 28 s |
+| Go / licenses | 84 s | the image 5 s and 34 s; `ci-licenses` 34 s |
+| Go / test | 319 s | the image 5 s and 29 s; `ci-test` 270 s |
+| Release / release | 552 s | "Work out the version" 270 s; "Build the files" 138 s; the signatures 83 s |
+| Withdrawals | 241 s | the stage `toolchain` built from the Dockerfile and `ci-withdrawals`, one step, 233 s |
