@@ -406,7 +406,7 @@ func TestTheWorksOnADatabaseThatFailsAreUnavailable(t *testing.T) {
 
 	for _, tc := range []struct{ failOn, request string }{
 		{"SELECT package_digest", "PutWork"}, {"SELECT work_storage", "PutWork"}, {"INSERT INTO works", "PutWork"},
-		{"SELECT attempt_id, kind", "ListWorks"}, {"SELECT kind, size_bytes", "GetWork"},
+		{"SELECT attempt_id, kind", "ListWorks"}, {"coalesce(c.applied, 0)", "ListWorks"}, {"SELECT kind, size_bytes", "GetWork"},
 		{"SELECT giver", "DeleteWork"}, {"SELECT EXISTS", "DeleteWork"}, {"DELETE FROM works", "DeleteWork"},
 	} {
 		t.Run(tc.failOn, func(t *testing.T) {

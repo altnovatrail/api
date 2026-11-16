@@ -459,3 +459,73 @@ func TestAFailedStatementOfTheAgreementsIsAFailure(t *testing.T) {
 		}
 	}
 }
+
+// An attempt of a task segment of a lesson run names its run and its segment,
+// and a submission of an essay is exported by how it ended, the marks of its
+// criteria and the source of its words, never as a submission with a verdict
+// (R15; R135 spec).
+func TestTheExportReadsASegmentAndAnEssay(t *testing.T) {
+	t.Parallel()
+
+	r := newRich(t)
+	ctx := t.Context()
+	digest := "sha256:" + strings.Repeat("a", 64)
+	var run, attempt string
+	if err := r.pool.QueryRow(ctx, `SELECT id FROM lesson_runs WHERE profile_id = $1`, r.profile).Scan(&run); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
+			module_kit_version, task_id, seed, lesson_run_id, segment)
+		VALUES ($1, $2, 'example/m', '0.1.0', '0.4', 'v0.3.0', 'essay', 7, $3, 2) RETURNING id`,
+		r.profile, digest, run).Scan(&attempt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, `INSERT INTO submissions (profile_id, attempt_id, number, answer, essay_end, marks, words_source)
+		VALUES ($1, $2, 1, '\x07', 'feedback', ARRAY['met', 'not_assessed'], 'model'), ($1, $2, 2, '\x08', 'unreadable', NULL, NULL)`,
+		r.profile, attempt); err != nil {
+		t.Fatal(err)
+	}
+	var e store.ExportedProfile
+	if err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) (err error) {
+		e, err = store.ExportProfile(ctx, tx, r.account, r.profile)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var got *store.ExportedAttempt
+	for i := range e.Attempts {
+		if string(e.Attempts[i].AttemptID) == attempt {
+			got = &e.Attempts[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("the export has no attempt %s: %+v", attempt, e.Attempts)
+	}
+	if got.Segment == nil || string(got.Segment.LessonRunID) != run || got.Segment.Segment != 2 {
+		t.Errorf("the segment = %+v, want segment 2 of the run %s", got.Segment, run)
+	}
+	essays := got.EssaySubmissions
+	if len(essays) != 2 || len(got.Submissions) != 0 || essays[0].End != exportv3.RubricSubmissionEndFeedback ||
+		len(essays[0].CriterionMarks) != 2 || essays[0].CriterionMarks[1] != exportv3.RubricSubmissionCriterionMarksNotAssessed ||
+		essays[0].FeedbackSource == nil || *essays[0].FeedbackSource != exportv3.RubricSubmissionFeedbackSourceModel ||
+		essays[1].End != exportv3.RubricSubmissionEndUnreadable || essays[1].FeedbackSource != nil {
+		t.Errorf("the essay's submissions = %+v, its submissions with a verdict %+v", essays, got.Submissions)
+	}
+}
+
+// A statement of the account's part of the export that fails is the store's
+// failure: its consents and its counters of the quota alike.
+func TestTheExportOfAnAccountFailsWithItsStatement(t *testing.T) {
+	t.Parallel()
+
+	r := newRich(t)
+	for _, failOn := range []string{"FROM consents c WHERE", "FROM account_quota"} {
+		err := pgx.BeginFunc(t.Context(), &flaky{Pool: r.pool, failOn: failOn}, func(tx pgx.Tx) error {
+			_, err := store.ExportAccount(t.Context(), tx, r.account)
+			return err
+		})
+		if !errors.Is(err, errDown) {
+			t.Errorf("ExportAccount failing on %q = %v, want the failure", failOn, err)
+		}
+	}
+}
