@@ -139,8 +139,8 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, err := learnermodel.DecodeEvidence(written)
-	if err != nil || e.Kind != 2 || !e.LeadingQuestionOnRequest || e.Outcome.Kind != learnermodel.OutcomeAfterHint {
-		t.Errorf("the evidence of %s = %+v, %v; want kind 2, the question on request, correct after a hint", task.ID, e, err)
+	if err != nil || e.Kind != learnermodel.EvidenceKind || !e.LeadingQuestionOnRequest || e.Outcome.Kind != learnermodel.OutcomeAfterHint {
+		t.Errorf("the evidence of %s = %+v, %v; want the kind of this version, the question on request, correct after a hint", task.ID, e, err)
 	}
 }
 

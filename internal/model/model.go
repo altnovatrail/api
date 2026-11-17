@@ -84,12 +84,15 @@ func New(set *packages.Set, learnerModel string) (*Model, error) {
 // state, the graphs it was computed on, the learner's grade, which reading it
 // needs, the number of the last evidence of the journal, which an engine's
 // choice keeps (R06), and how many pieces of evidence the settling wrote.
+// newerCache tells that the cache is of the image after this one, which this
+// one does not write.
 type Settled struct {
-	State   learnermodel.State
-	Graphs  learnermodel.Graphs
-	Grade   learnermodel.Grade
-	LastSeq int64
-	Written int
+	State      learnermodel.State
+	Graphs     learnermodel.Graphs
+	Grade      learnermodel.Grade
+	LastSeq    int64
+	Written    int
+	newerCache bool
 }
 
 // Settle writes, in tx, the evidence the profile's closed attempts owe, and
@@ -106,7 +109,9 @@ type Settled struct {
 // Then each owed attempt's evidence is appended to the state and to the journal,
 // with the start band the fold took. The evidence of a package withdrawn for a
 // wrong key goes to the journal and not to the state, as the recomputing leaves
-// it out, so that appending gives what recomputing does (R63 spec).
+// it out, so that appending gives what recomputing does (R63 spec). An adult's
+// correction of a module's level is folded whatever its package: a wrong key
+// makes no level the adult set wrong (R89).
 //
 // What cannot be read or built stops nothing: a piece of the journal that does
 // not decode, or that the fold refuses, is left out of the state, as both ways
@@ -149,7 +154,7 @@ func (m *Model) Settle(ctx context.Context, tx pgx.Tx, profileID string, at time
 	lastSeq := after
 	for _, entry := range journal {
 		lastSeq = entry.Seq
-		if m.wrongKey[entry.PackageDigest] {
+		if entry.AttemptID != "" && m.wrongKey[entry.PackageDigest] {
 			continue
 		}
 		if e, err := learnermodel.DecodeEvidence(entry.Evidence); err == nil {
@@ -179,12 +184,19 @@ func (m *Model) Settle(ctx context.Context, tx pgx.Tx, profileID string, at time
 		out.Written++
 	}
 	out.LastSeq = lastSeq
-	if newer(held.Mark, m.mark) {
-		return out, nil
+	out.newerCache = newer(held.Mark, m.mark)
+	return out, m.writeCache(ctx, tx, profileID, out)
+}
+
+// writeCache writes the cache of the profile of s, but for a cache of the image
+// after this one.
+func (m *Model) writeCache(ctx context.Context, tx pgx.Tx, profileID string, s Settled) error {
+	if s.newerCache {
+		return nil
 	}
 	// A state the fold gave always encodes.
-	state, _ := learnermodel.EncodeState(out.State)
-	return out, store.WriteSkillState(ctx, tx, profileID, store.SkillState{State: state, Mark: m.mark, LastSeq: lastSeq})
+	state, _ := learnermodel.EncodeState(s.State)
+	return store.WriteSkillState(ctx, tx, profileID, store.SkillState{State: state, Mark: m.mark, LastSeq: s.LastSeq})
 }
 
 // fold is the step of the fold of a piece of the journal on s, or s as it is

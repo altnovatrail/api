@@ -104,8 +104,9 @@ var methods = map[string]rule{
 	apiv1connect.PackageServiceGetSolvingStepsProcedure: openView,
 	apiv1connect.PackageServiceCheckPackagesProcedure:   ofAccount,
 
-	apiv1connect.ProgressServiceGetSkillMapProcedure: toLearn,
-	apiv1connect.ProgressServiceGetProgressProcedure: toView,
+	apiv1connect.ProgressServiceGetSkillMapProcedure:    toLearn,
+	apiv1connect.ProgressServiceGetProgressProcedure:    toView,
+	apiv1connect.ProgressServiceSetModuleLevelProcedure: toManage,
 
 	apiv1connect.LegalServiceGetLegalTextsProcedure: openView,
 

@@ -9,7 +9,8 @@ import "novatrail/learnermodel/v1/common.proto";
 
 // The state of one learner.
 message State {
-  // The kind of the state, from 1: what fields it carries.
+  // The kind of the state, from 1: what fields it carries. Kind 2 adds `failures_in_a_row` and
+  // `trial_ended_by_adult` of a module.
   optional int32 kind = 1;
   // The modules the learner has evidence in, ordered by module ID byte by byte.
   repeated ModuleState modules = 2;
@@ -24,7 +25,8 @@ message ModuleState {
   optional double level = 2;
   // n, the sum of the weights of the module's answers.
   optional double answer_weight = 3;
-  // The band the level started from, which the module's first evidence fixed.
+  // The band of the learner's grade, which the module's first evidence fixed: the level started a
+  // band's width below it.
   BandRef start_band = 4;
   // The answers of the trial series, in the order of the log, while it lasts: empty after it.
   repeated TrialAnswer trial_answers = 5;
@@ -35,6 +37,15 @@ message ModuleState {
   // Whether the last evidence that moved the module was still in the trial series, the evidence
   // that ended it too: in the series the engine works through no mistake.
   optional bool last_evidence_in_trial = 8;
+  // The count of the guard: the pieces of evidence in a row, past the trial series, on which the
+  // model expected the learner to know at least half of the items with an answer, above the
+  // guessing floor, and fewer than half were solved at the end of the attempt. The third lowers the
+  // level by a band, and the count goes on until a piece of evidence that is no such failure. Not
+  // recorded in kind 1, where it is absent.
+  optional int32 failures_in_a_row = 9;
+  // Whether an adult's correction of the level ended the trial series before its five answers. Not
+  // recorded in kind 1, where it is absent.
+  optional bool trial_ended_by_adult = 10;
 }
 
 // One answer of the trial series, as its likelihood needs it.

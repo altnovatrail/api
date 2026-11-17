@@ -155,7 +155,7 @@ func TestTheStatementsOfTheModelFail(t *testing.T) {
 			_, err := store.OwedAttempts(ctx, tx, e.profileID, nil)
 			return err
 		},
-		"FROM evidence e JOIN": func(tx pgx.Tx) error {
+		"FROM evidence e LEFT JOIN": func(tx pgx.Tx) error {
 			_, err := store.Journal(ctx, tx, e.profileID, 0)
 			return err
 		},
@@ -165,6 +165,14 @@ func TestTheStatementsOfTheModelFail(t *testing.T) {
 		},
 		"INSERT INTO evidence": func(tx pgx.Tx) error {
 			_, err := store.AppendEvidence(ctx, tx, e.profileID, store.Owed{}, nil, time.Now())
+			return err
+		},
+		"INSERT INTO evidence (profile_id, seq, correction_id": func(tx pgx.Tx) error {
+			_, err := store.AppendCorrection(ctx, tx, e.profileID, digest, "example/m", nil, time.Now())
+			return err
+		},
+		"correction_id IS NOT NULL AND": func(tx pgx.Tx) error {
+			_, err := store.Corrections(ctx, tx, e.profileID, "")
 			return err
 		},
 		"SELECT grade": func(tx pgx.Tx) error {
@@ -188,5 +196,58 @@ func TestTheStatementsOfTheModelFail(t *testing.T) {
 			t.Errorf("on %q: %v, want the failure", failOn, err)
 		}
 		_ = tx.Rollback(ctx)
+	}
+}
+
+// An adult's correction of a level is a row of the journal of no attempt, under
+// an ID of its own and the next number, read by module, in the order of the
+// modules' IDs byte by byte and of the journal; it goes with its profile, and
+// a row of both an attempt and a correction, or of neither, is refused (R89).
+func TestACorrectionIsARowOfTheJournal(t *testing.T) {
+	t.Parallel()
+
+	e := newE3(t)
+	ctx := t.Context()
+	at := time.Now().UTC().Truncate(time.Second)
+	err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		for i, c := range []store.Correction{{"example/m", []byte{1}}, {"Example/b", []byte{2}}, {"example/m", []byte{3}}} {
+			if seq, err := store.AppendCorrection(ctx, tx, e.profileID, digest, c.ModuleID, c.Evidence, at); err != nil || seq != int64(i+1) {
+				t.Errorf("AppendCorrection %d = %d, %v", i, seq, err)
+			}
+		}
+		journal, err := store.Journal(ctx, tx, e.profileID, 1)
+		if err != nil || len(journal) != 2 || journal[0].AttemptID != "" || !journal[0].ClosedAt.IsZero() ||
+			journal[0].ModuleID != "Example/b" || journal[0].PackageDigest != digest {
+			t.Errorf("Journal of corrections = %+v, %v", journal, err)
+		}
+		all, err := store.Corrections(ctx, tx, e.profileID, "")
+		if err != nil || len(all) != 3 || all[0].ModuleID != "Example/b" || all[1].Evidence[0] != 1 || all[2].Evidence[0] != 3 {
+			t.Errorf("Corrections = %+v, %v; want Example/b, then example/m in the order of the journal", all, err)
+		}
+		if one, err := store.Corrections(ctx, tx, e.profileID, "Example/b"); err != nil || len(one) != 1 || one[0].Evidence[0] != 2 {
+			t.Errorf("Corrections of Example/b = %+v, %v", one, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owes, err := e.attempt(t, "choice_id, close_reason, closed_at, wrong_answers", e.choice(t, "task"), "left", at, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, values := range []string{"$2::uuid, gen_random_uuid()", "nullif($2::uuid, $2::uuid), NULL"} {
+		_, err := e.pool.Exec(ctx, `INSERT INTO evidence (profile_id, seq, attempt_id, correction_id, package_digest, module_id, evidence)
+			VALUES ($1, 9, `+values+`, $3, 'example/m', '\x01')`, e.profileID, owes, digest)
+		if sqlstate(err) != "23514" {
+			t.Errorf("a row of %s = %v, want a check violation", values, err)
+		}
+	}
+	if _, err := e.pool.Exec(ctx, `DELETE FROM profiles WHERE id = $1`, e.profileID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM evidence WHERE profile_id = $1`, e.profileID).Scan(&n); err != nil || n != 0 {
+		t.Errorf("the journal of a profile deleted holds %d rows, %v", n, err)
 	}
 }

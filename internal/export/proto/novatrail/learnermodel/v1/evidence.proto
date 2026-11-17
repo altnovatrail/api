@@ -8,11 +8,12 @@ package novatrail.learnermodel.v1;
 
 import "novatrail/learnermodel/v1/common.proto";
 
-// One piece of evidence: one finished attempt of one task.
+// One piece of evidence: one finished attempt of one task, or, from kind 3, an adult's correction of
+// the level of a module.
 message Evidence {
   // The kind of the evidence, from 1: what fields it carries. Every version of the model reads
   // every kind; a field a later kind adds is "not recorded" in an earlier one, and absent there.
-  // Kind 2, from format 0.4, adds `leading_question_on_request`.
+  // Kind 2, from format 0.4, adds `leading_question_on_request`, and kind 3 `level_set_by_adult`.
   optional int32 kind = 1;
   // The full ID of the task; of a template, the ID of the template. The module is read from it.
   optional string task_id = 2;
@@ -22,8 +23,8 @@ message Evidence {
   BandRef task_band = 4;
   // How hard the task is within its band, from 1 to 5.
   optional int32 difficulty = 5;
-  // The band the module's level starts from, as the rule of the band by grade gave it, or as
-  // appending took it from the state.
+  // The band of the learner's grade, as the rule of the band by grade gave it, or as appending took
+  // it from the state: the module's level starts a band's width below it on the scale.
   BandRef start_band = 6;
   // The primary skills of the task, by full ID, ordered byte by byte.
   repeated string primary_skills = 7;
@@ -59,6 +60,13 @@ message Evidence {
   repeated ItemEvidence items = 18;
   // The traps the program found in the attempt, once each, ordered by ID byte by byte.
   repeated FoundTrap traps = 19;
+  // Whether the record is no attempt but an adult's correction of the module's level: the adult set
+  // the level in the band `task_band`, at `practice_time`, and the model puts it at the middle of
+  // that band, unless it stands in that band already. Such a record names no task: its `task_id` is
+  // `<module>/level/<band ID>`, its `difficulty` 3, its provenances the adult, and it holds no skills,
+  // no items and no traps, so that a version before kind 3 reads it as an attempt with no answer.
+  // Not recorded in kinds 1 and 2, where it is absent.
+  optional bool level_set_by_adult = 21;
 }
 
 // How an attempt ended (concepts 11 of spec).
