@@ -200,7 +200,7 @@ func TestACorrectionIsRefusedAsTheSkillMapIs(t *testing.T) {
 func TestACorrectionOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 	t.Parallel()
 
-	for _, failOn := range []string{"FROM connected_modules", "UPDATE skill_states", "correction_id IS NOT NULL ORDER BY",
+	for _, failOn := range []string{"FROM connected_modules", "UPDATE skill_states", "correction_id IS NOT NULL AND",
 		"INSERT INTO evidence (profile_id, seq, correction_id"} {
 		t.Run(failOn, func(t *testing.T) {
 			t.Parallel()

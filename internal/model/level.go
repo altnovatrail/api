@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	learnermodel "github.com/altnovatrail/learner-model"
@@ -56,15 +58,34 @@ func (m *Model) Correct(ctx context.Context, tx pgx.Tx, profileID string, s Sett
 	return s, m.writeCache(ctx, tx, profileID, s)
 }
 
-// Levels is the adult's last correction of the level of each module of the
-// profile's journal that has one, connected or not since, in the order of the
-// modules' IDs byte by byte (R89). A correction that does not decode is left
-// out, as the fold leaves it out, and the one before it is the last.
-func Levels(ctx context.Context, db store.Lister, profileID string) ([]Level, error) {
-	corrections, err := store.Corrections(ctx, db, profileID)
+// Levels is the adult's last correction of the level of the module of the
+// profile's journal, or with module empty of each module that has one,
+// connected or not since, in the order of the modules' IDs byte by byte (R89).
+func Levels(ctx context.Context, db store.Lister, profileID, module string) ([]Level, error) {
+	corrections, err := store.Corrections(ctx, db, profileID, module)
 	if err != nil {
 		return nil, err
 	}
+	return lastLevels(corrections), nil
+}
+
+// LevelsOf is Levels of a journal already read, whole, in its order (R89).
+func LevelsOf(journal []store.Entry) []Level {
+	var corrections []store.Correction
+	for _, e := range journal {
+		if e.AttemptID == "" {
+			corrections = append(corrections, store.Correction{ModuleID: e.ModuleID, Evidence: e.Evidence})
+		}
+	}
+	slices.SortStableFunc(corrections, func(a, b store.Correction) int { return strings.Compare(a.ModuleID, b.ModuleID) })
+	return lastLevels(corrections)
+}
+
+// lastLevels is the last correction of each module of corrections, which come
+// by module and, within one, in the order of the journal. A correction that
+// does not decode is left out, as the fold leaves it out, and the one before it
+// is the last.
+func lastLevels(corrections []store.Correction) []Level {
 	var out []Level
 	for _, c := range corrections {
 		e, err := learnermodel.DecodeEvidence(c.Evidence)
@@ -72,12 +93,11 @@ func Levels(ctx context.Context, db store.Lister, profileID string) ([]Level, er
 			continue
 		}
 		l := Level{Module: c.ModuleID, Band: e.Task.Band.ID, SetAt: time.Unix(e.PracticeTime, 0).UTC()}
-		// A module's corrections come in the order of the journal: the last wins.
 		if n := len(out); n > 0 && out[n-1].Module == l.Module {
 			out[n-1] = l
 		} else {
 			out = append(out, l)
 		}
 	}
-	return out, nil
+	return out
 }

@@ -299,11 +299,7 @@ func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRe
 				AttemptCount: int32(t.Attempts), LastClosedAt: timestamppb.New(t.LastClosedAt),
 			})
 		}
-		levels, err := model.Levels(ctx, tx, profileID)
-		if err != nil {
-			return err
-		}
-		for _, l := range levels {
+		for _, l := range model.LevelsOf(journal) {
 			answer.LevelSettings = append(answer.LevelSettings,
 				&v1.LevelSetting{ModuleId: l.Module, Band: l.Band, SetAt: timestamppb.New(l.SetAt)})
 		}

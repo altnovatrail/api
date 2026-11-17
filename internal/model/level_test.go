@@ -2,6 +2,7 @@ package model_test
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/altnovatrail/api/internal/model"
+	"github.com/altnovatrail/api/internal/store"
 	"github.com/altnovatrail/api/internal/store/storetest"
 )
 
@@ -84,9 +86,12 @@ func TestACorrectionIsFoldedAndCached(t *testing.T) {
 		VALUES ($1, 3, gen_random_uuid(), $2, 'example/choices', '\xff')`, l.profile, string(current.Digest)); err != nil {
 		t.Fatal(err)
 	}
-	levels, err := model.Levels(t.Context(), pool, l.profile)
+	levels, err := model.Levels(t.Context(), pool, l.profile, "")
 	if err != nil || len(levels) != 1 || levels[0].Module != "example/choices" || levels[0].Band != "grades-1-2" ||
 		!levels[0].SetAt.Equal(at.Add(time.Minute)) {
 		t.Errorf("the levels = %+v, %v; want the last that decodes, at %v", levels, err, at.Add(time.Minute))
+	}
+	if journal, err := store.Journal(t.Context(), pool, l.profile, 0); err != nil || !slices.Equal(model.LevelsOf(journal), levels) {
+		t.Errorf("the levels of the journal read = %+v, want %+v", model.LevelsOf(journal), levels)
 	}
 }

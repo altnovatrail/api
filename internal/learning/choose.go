@@ -41,13 +41,19 @@ func (s *Service) engineModules(ctx context.Context, tx pgx.Tx, profileID string
 	if err != nil {
 		return nil, err
 	}
+	return s.engineOf(connected, category), nil
+}
+
+// engineOf is the modules of the engine of those connected, for a learner of
+// category, with their current versions, as engineModules gives them.
+func (s *Service) engineOf(connected []store.ConnectedModule, category formatv0.AgeCategory) []*modulepackage.Package {
 	var pkgs []*modulepackage.Package
 	for _, c := range connected {
 		if pkg, ok := s.set.OfferedFor(formatv0.ModuleID(c.ModuleID), category); ok {
 			pkgs = append(pkgs, pkg)
 		}
 	}
-	return pkgs, nil
+	return pkgs
 }
 
 // knows says whether a module of the engine has the skill, by its full ID: a

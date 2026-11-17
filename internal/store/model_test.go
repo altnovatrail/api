@@ -171,8 +171,8 @@ func TestTheStatementsOfTheModelFail(t *testing.T) {
 			_, err := store.AppendCorrection(ctx, tx, e.profileID, digest, "example/m", nil, time.Now())
 			return err
 		},
-		"correction_id IS NOT NULL ORDER BY": func(tx pgx.Tx) error {
-			_, err := store.Corrections(ctx, tx, e.profileID)
+		"correction_id IS NOT NULL AND": func(tx pgx.Tx) error {
+			_, err := store.Corrections(ctx, tx, e.profileID, "")
 			return err
 		},
 		"SELECT grade": func(tx pgx.Tx) error {
@@ -220,9 +220,12 @@ func TestACorrectionIsARowOfTheJournal(t *testing.T) {
 			journal[0].ModuleID != "Example/b" || journal[0].PackageDigest != digest {
 			t.Errorf("Journal of corrections = %+v, %v", journal, err)
 		}
-		all, err := store.Corrections(ctx, tx, e.profileID)
+		all, err := store.Corrections(ctx, tx, e.profileID, "")
 		if err != nil || len(all) != 3 || all[0].ModuleID != "Example/b" || all[1].Evidence[0] != 1 || all[2].Evidence[0] != 3 {
 			t.Errorf("Corrections = %+v, %v; want Example/b, then example/m in the order of the journal", all, err)
+		}
+		if one, err := store.Corrections(ctx, tx, e.profileID, "Example/b"); err != nil || len(one) != 1 || one[0].Evidence[0] != 2 {
+			t.Errorf("Corrections of Example/b = %+v, %v", one, err)
 		}
 		return nil
 	})

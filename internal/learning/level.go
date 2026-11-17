@@ -108,32 +108,22 @@ func nextBand(bands []formatv0.Band, level learnermodel.BandRef, id string) (lea
 // set it, nil when no adult has (R89).
 func (s *Service) levelOf(ctx context.Context, tx pgx.Tx, profileID string, read learnermodel.Readout, module string) (learnermodel.BandRef, *timestamppb.Timestamp, error) {
 	var band learnermodel.BandRef
-	for _, m := range read.Modules {
-		if m.Module == module && m.HasLevelBand {
-			band = m.LevelBand
-		}
+	if i := slices.IndexFunc(read.Modules, func(m learnermodel.ModuleReadout) bool { return m.Module == module }); i >= 0 && read.Modules[i].HasLevelBand {
+		band = read.Modules[i].LevelBand
 	}
-	levels, err := model.Levels(ctx, tx, profileID)
-	if err != nil {
-		return learnermodel.BandRef{}, nil, err
+	levels, err := model.Levels(ctx, tx, profileID, module)
+	if err != nil || len(levels) == 0 {
+		return band, nil, err
 	}
-	for _, l := range levels {
-		if l.Module == module {
-			return band, timestamppb.New(l.SetAt), nil
-		}
-	}
-	return band, nil, nil
+	return band, timestamppb.New(levels[0].SetAt), nil
 }
 
 // engineIDs is the IDs of the modules of the engine for a learner of category,
-// of those connected: the modules that have a current version for the learner
-// and which the deployment's list names, as engineModules gives them.
+// of those connected, as engineOf gives them.
 func (s *Service) engineIDs(connected []store.ConnectedModule, category formatv0.AgeCategory) []string {
 	var ids []string
-	for _, c := range connected {
-		if _, ok := s.set.OfferedFor(formatv0.ModuleID(c.ModuleID), category); ok {
-			ids = append(ids, c.ModuleID)
-		}
+	for _, pkg := range s.engineOf(connected, category) {
+		ids = append(ids, string(pkg.View.Manifest.ID))
 	}
 	return ids
 }

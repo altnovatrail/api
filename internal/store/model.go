@@ -240,12 +240,13 @@ type Correction struct {
 	Evidence []byte
 }
 
-// Corrections is the corrections of the level of the modules of the profile's
-// journal, connected or not since, in the order of the modules' IDs byte by
-// byte and of the journal (R89).
-func Corrections(ctx context.Context, db Lister, profileID string) ([]Correction, error) {
+// Corrections is the corrections of the level of the module of the profile's
+// journal, or with module empty of every module, connected or not since, in the
+// order of the modules' IDs byte by byte and of the journal (R89).
+func Corrections(ctx context.Context, db Lister, profileID, module string) ([]Correction, error) {
 	rows, err := db.Query(ctx, `SELECT module_id, evidence FROM evidence
-		WHERE profile_id = $1 AND correction_id IS NOT NULL ORDER BY module_id COLLATE "C", seq`, profileID)
+		WHERE profile_id = $1 AND correction_id IS NOT NULL AND ($2 = '' OR module_id = $2)
+		ORDER BY module_id COLLATE "C", seq`, profileID, module)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the corrections: %w", err)
 	}

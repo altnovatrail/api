@@ -399,7 +399,7 @@ func TestTheProgressOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 	for _, failOn := range []string{
 		"INSERT INTO skill_states", "FROM skill_states", "UPDATE skill_states", "FROM attempts a WHERE a.profile_id",
 		"DISTINCT module_id", "FROM evidence e LEFT JOIN", "SELECT grade", "INSERT INTO evidence", "ORDER BY a.started_at DESC",
-		"FROM connected_modules", "FROM profiles p", "correction_id IS NOT NULL ORDER BY",
+		"FROM connected_modules", "FROM profiles p", "correction_id IS NOT NULL AND",
 	} {
 		t.Run(failOn, func(t *testing.T) {
 			t.Parallel()
