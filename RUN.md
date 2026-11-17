@@ -66,3 +66,4 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T104 | Режим чтения почерка: `API_READING_MODE` | Claude | — | `tutor` v0.1.45 |
 | [x] | T105 | Поправка уровня взрослым | Claude | да | тег `spec` с T178; `learner-model` строки 4.20 |
 | [x] | T106 | Переход на релиз `tutor` с записями допуска словом автора | Claude | — | `tutor` v0.1.46 |
+| [x] | T107 | README без «Status», «License», фразы о языках и версии spec | Claude | — | — |
