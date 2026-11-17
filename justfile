@@ -529,7 +529,7 @@ packages dir="/home/vscode/.novatrail-dev/packages":
     go run ./cmd/api packages "$dir"
 
 # The configuration is a file outside any git working tree, API_DEV_CONFIG, by default
-# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39); README.md shows
+# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39); docs/build.md shows
 # its lines. Nothing of it is printed.
 # Run a command of api on the dev projects, as `just dev migrate` or `just dev serve`: on the stub
 # of tutor, which calls no provider and costs nothing; the dev file's key of platform AI is not

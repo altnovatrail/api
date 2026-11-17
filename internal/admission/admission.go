@@ -121,7 +121,7 @@ func StubAdapters() map[admissionv0.Provider]provider.Dial {
 
 // The endings of a synthetic key that the stub's check of a key reads (R66);
 // a key that ends in none of them is accepted, those by which the stub refuses
-// a call of AI too (tutorstub.KeyRefused and the endings beside it). README.md
+// a call of AI too (tutorstub.KeyRefused and the endings beside it). docs/build.md
 // names them for app.
 const (
 	StubKeyInvalid = "-invalid"

@@ -76,7 +76,7 @@ const wholeCrop = 1000
 // 2026-11-15 amendment to R66): the key refused, or a limit — named by none of
 // tutor's reasons, or by one; the ceiling of the tier with when access returns,
 // as tutor's adapter of Claude gives it (the 2026-11-16 amendment to R66). A
-// key that ends in none of them calls the stub as platform AI does. README.md
+// key that ends in none of them calls the stub as platform AI does. docs/build.md
 // names them for app; CheckOwnKey takes them all.
 const (
 	KeyRefused      = "-refused"

@@ -16,7 +16,9 @@ Its card in spec is architecture 3.5 spec. The card is the summary and this repo
 
 The documents under `docs/` are in English, but for the epic archives `docs/plan/`, which stay in Russian; RUN.md and `run/` are in English, but for the bodies of tasks (R143 spec, R153 spec, R154 spec). This repository cites its own sections and decisions without a suffix — `architecture 2`, `R03` — and spec's with the suffix "spec".
 
+- [docs/README.md](docs/README.md) — the list of the documents, the releases and how a change comes in, Contributing; README.md says only what `api` is and where it stands in the platform, with no command (R93).
 - [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links (section 1), what is still to decide (section 2), and how it is built once that is decided (section 3). Its section 4 is a pointer: it names the record of `docs/sources.md` or `docs/measurements.md` where each reading it held went, for the decision log and the archives, which cite it.
+- [docs/build.md](docs/build.md) — how `api` is built, checked, released, configured and run: the recipes, the variables, the commands and the jobs of a rollout, the sign-in in production, the run on the dev projects and with app.
 - [docs/sources.md](docs/sources.md) — the records of external facts, by the sections of architecture 3, each with its source, its date and its quote; a claim cites a record by its number, as a section: `sources 7.1` (R143 spec).
 - [docs/measurements.md](docs/measurements.md) — the results of measurements: what was measured, how, on what, and the numbers, cited as `measurements 2.1`; architecture keeps only what follows from them.
 - [docs/decisions.md](docs/decisions.md) — this repository's decision log, `R01`…: read it before proposing a change. Other repositories cite its entries as `R03 api`.
