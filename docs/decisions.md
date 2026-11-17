@@ -1816,7 +1816,7 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-14* (T76; R71): `modules` v0.2.7 is pinned, `sha256:6c46a1a9…2083a`; the test of the pinned release runs its subtest "the board module" in the dev mode, and `ci-modules` still looks for the line of the test's pass.
 
-— *Amendment 2026-11-17* (T110; R92): `modules` v0.2.12 is pinned, `sha256:cb16bb45…1d71a`; `api packages` lays seven packages and 1179 files.
+— *Amendment 2026-11-17* (T110; R92): `modules` v0.2.12 is pinned, `sha256:cb16bb45…1d71a`; `api packages` lays seven packages and 1179 files, as many as for six: the new package changes no file of the device part.
 
 ## Catalog and package in code
 
@@ -3572,10 +3572,10 @@ This is how the author walked the path of the first app on 2026-11-12.
 **R92. `modules.json` pins `modules` v0.2.12 — the latest release as of 2026-11-17 — with the index `sha256:cb16bb45…1d71a`: in window 0.4 it has seven packages, and the current versions are those of R71 but `novatrail/english-essays` 0.2.1, the essays without the paragraph on names in five task statements. `api`'s code does not change, and the merge makes a release of `api` by `release.yml`, since `modules.json` is among its paths (R41).** Task T110 between epics, 2026-11-17, row 6.38 of `COORDINATION.md` spec in the orchestrator's run of «Порядок», by the text of the task that the orchestrator gave.
 - **What the release carries** (the indexes of v0.2.7 and v0.2.12 and the notes of v0.2.12, read 2026-11-17): the index of v0.2.12 is that of v0.2.7 with one more entry, `novatrail/english-essays` 0.2.1, format 0.4, package `sha256:5975e7c5…de9fb5`, in v0.2.12; the releases v0.2.8–v0.2.11 add no package. T81 `modules`: the paragraph "Do not write your name or the real name of anyone you know." left five statements, since `app` shows that reminder above Check (Д152 spec; the 2026-11-17 amendment to R127 spec); `module-kit diff` names it a patch.
 - **What was decided:** the pinning by the rules of R07 and R41; the tests take each module's current version from the index, so none names 0.2.0 and none changes; essays come back to the catalog of `novatrail` by `infra`'s list, row 6.39 of `COORDINATION.md` spec, after this release; row 3.12 (`canvas.digit_height`) waits on Д18 `tutor` and is not in it.
-- **Checked on 2026-11-17:** `release-verify modules v0.2.12` — "signed by the shared release.yml of .github v0.1.31"; `just ci-modules` — four current versions, `english-essays` 0.2.1 among them, seven packages and 1179 files laid, `TestThePinnedReleaseIsLearnedOn` and its four subtests pass; `go test` of the root, `internal/packages` and `cmd/...`. No call of AI, $0.
+- **Checked on 2026-11-17:** `release-verify modules v0.2.12` — "signed by the shared release.yml of .github v0.1.31"; `just ci-modules` — four current versions, `english-essays` 0.2.1 among them, seven packages and 1179 files laid — each file of the device part of 0.2.1 is already there under its digest —, `TestThePinnedReleaseIsLearnedOn` and its four subtests pass; `just ci-test` and `ci-lint`. No call of AI, $0.
 
 — *Why:* the author's answers to В51 and В54 `infra`, by the review «в реестр spec» of 2026-11-17: the essays return to `novatrail` only as version 0.2.1, with no reminder that `app` already shows.
 
 — *Rejected:* waiting for row 3.12 to pin one release with both — it waits on Д18 `tutor`, and the essays would wait with it; an intermediate release, v0.2.8–v0.2.11 — no package of their own.
 
-— *Consequence:* the 2026-11-17 amendments to R07, R41, R53 and R71. — `modules.json`; CLAUDE.md; RUN.md, T110; [plan/E14.md](plan/E14.md), T110; [architecture.md](architecture.md), section 3.3.
+— *Consequence:* the 2026-11-17 amendments to R07, R41, R53 and R71; Д47. — `modules.json`; `run/DEBT.md`; CLAUDE.md; RUN.md, T110; [plan/E14.md](plan/E14.md), T110; [architecture.md](architecture.md), section 3.3.
