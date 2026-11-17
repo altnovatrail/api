@@ -11,6 +11,7 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/tutor"
+	"github.com/altnovatrail/tutor/provider"
 	"github.com/altnovatrail/tutor/words"
 	"github.com/google/uuid"
 
@@ -43,7 +44,12 @@ func (ps *praisers) tell(ctx context.Context, c tutor.CorrectRequest) tutor.Corr
 // say makes the words text, from a model whose usage is recorded.
 func (ps *praisers) say(text string) {
 	ps.give(tutor.CorrectAnswer{Words: text, Outcome: tutor.Outcome{Kind: tutor.Answered,
-		Usage: []tutor.Usage{{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 1300, OutputTokens: 40}}}})
+		// Two writes to the cache, each kept for its own time — Claude's 5
+		// minutes, a provider's longer one —, beside a read: the log sums the
+		// writes (R94).
+		Usage: []tutor.Usage{{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 300, OutputTokens: 40,
+			CacheWrites:     []provider.CacheWrite{{TTL: 5 * time.Minute, Tokens: 800}, {TTL: time.Hour, Tokens: 150}},
+			CacheReadTokens: 50}}}})
 }
 
 func (ps *praisers) give(got tutor.CorrectAnswer) {
@@ -166,8 +172,9 @@ func TestTheWordsAfterACorrectAnswerGoFromTheDayOfThePolicy(t *testing.T) {
 	}
 	_, err = w.praised(l, l.adult, a, nil)
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
-	if log := w.log.String(); strings.Contains(log, "put the two numbers") || !strings.Contains(log, `"message":"ai_usage"`) {
-		t.Errorf("the log = %s, want a line of the call and no words", log)
+	if log := w.log.String(); strings.Contains(log, "put the two numbers") || !strings.Contains(log, `"message":"ai_usage"`) ||
+		!strings.Contains(log, `"input_tokens":300,"cache_write_tokens":950,"cache_read_tokens":50,"output_tokens":40`) {
+		t.Errorf("the log = %s, want a line of the call with its tokens of the cache, and no words", log)
 	}
 }
 

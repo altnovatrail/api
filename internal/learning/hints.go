@@ -170,8 +170,13 @@ func finishing(ctx context.Context) (context.Context, context.CancelFunc) {
 func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 	call := rpc.AICall{Outcome: aiOutcomes[o.Kind], Duration: took}
 	for _, u := range o.Usage {
+		var written int64
+		for _, w := range u.CacheWrites {
+			written += w.Tokens
+		}
 		call.Usage = append(call.Usage, rpc.AIUsage{Provider: string(u.Provider), Model: u.Model,
-			InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, ThinkingTokens: u.ThinkingTokens,
+			InputTokens: u.InputTokens, CacheWriteTokens: written, CacheReadTokens: u.CacheReadTokens,
+			OutputTokens: u.OutputTokens, ThinkingTokens: u.ThinkingTokens,
 			CostMicroUSD: int64(quota.USD(u.USD)), Billed: u.Billed, Took: u.Latency, Retries: u.Retries, FirstToken: u.FirstToken})
 	}
 	rpc.NoteAICall(ctx, call)

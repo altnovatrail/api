@@ -58,8 +58,8 @@ github.com/altnovatrail/spec v0.18.14 h1:G8x9e3O9rHJampid2w5A77bJlIVI+C5nYSNFI59
 github.com/altnovatrail/spec v0.18.14/go.mod h1:/JG4n8d9/3wY4DZg8V7PLoB1Y48uPjAyIBqoH/rwxXE=
 github.com/altnovatrail/spec/contracts v0.18.14 h1:1J1pfO0PjRIk9XsbYHeNqOGszT/gLc+lAgKUzTeedhk=
 github.com/altnovatrail/spec/contracts v0.18.14/go.mod h1:omw6CYiQyGSNSQq+AlnKB6M18GNeWda+OPU1f2RyI8s=
-github.com/altnovatrail/tutor v0.1.46 h1:r0oWiyMqSR9244Ug+/pfeS5sFA5YhyPwthE78WsfZcc=
-github.com/altnovatrail/tutor v0.1.46/go.mod h1:RTEFIinvkvGxtH+zRjlg1oB5Cpz8WDXthzPAgF/prPE=
+github.com/altnovatrail/tutor v0.1.49 h1:Zw77x884O8FBnEhgfnfag7V2p6Er/r9ZBGdg1IGAQnw=
+github.com/altnovatrail/tutor v0.1.49/go.mod h1:6FNC9XEzKad7YQgPdDXvze0oGwlzZj93EnfvVTV/gQM=
 github.com/anthropics/anthropic-sdk-go v1.84.0 h1:mnAhggc5H5A98JYmhQELT+j4J89PYBFKnnSvUTNwNd8=
 github.com/anthropics/anthropic-sdk-go v1.84.0/go.mod h1:GThfYqPJoaQ/6pmibCI98Cr4y5su2FXMUHn3NrSSnIc=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=

@@ -203,7 +203,8 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 				for _, u := range c.Usage {
 					log.InfoContext(ctx, logging.EventAIUsage, logging.FieldMethod, spec.Procedure,
 						logging.FieldProvider, u.Provider, logging.FieldModel, u.Model,
-						logging.FieldInputTokens, u.InputTokens, logging.FieldOutputTokens, u.OutputTokens,
+						logging.FieldInputTokens, u.InputTokens, logging.FieldCacheWriteTokens, u.CacheWriteTokens,
+						logging.FieldCacheReadTokens, u.CacheReadTokens, logging.FieldOutputTokens, u.OutputTokens,
 						logging.FieldThinkingTokens, u.ThinkingTokens, logging.FieldAIOutcome, c.Outcome,
 						logging.FieldDurationMS, c.Duration.Milliseconds(), logging.FieldCostMicroUSD, u.CostMicroUSD, logging.FieldBilled, u.Billed,
 						logging.FieldModelMS, u.Took.Milliseconds(), logging.FieldRetries, u.Retries, logging.FieldFirstTokenMS, u.FirstToken.Milliseconds())
