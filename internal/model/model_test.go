@@ -342,7 +342,7 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 		t.Errorf("the items of the task = %+v", e.Task.Items)
 	}
 	if e.StartBand != (learnermodel.BandRef{Place: 1, ID: "grades-1-2"}) || e.PracticeTime != at.Unix() ||
-		e.Kind != 2 || !e.LeadingQuestionOnRequest ||
+		e.Kind != learnermodel.EvidenceKind || !e.LeadingQuestionOnRequest || e.LevelSetByAdult ||
 		!e.TechniqueOnStep || !e.TechniqueOnRequest || e.ExplainAgainCount != 2 || !e.HasSolutionSeenFact || e.SolutionSeenBefore {
 		t.Errorf("the evidence = %+v", e)
 	}
@@ -599,7 +599,7 @@ func TestASettlingFailsWithItsStatements(t *testing.T) {
 	l := newLearner(t, pool, nil)
 	l.attempt(t, closed{pkg: current, task: "pick", reason: "correct", at: time.Now().Add(-time.Hour), answers: right("pick")})
 	for _, failOn := range []string{"FROM profiles WHERE id = $1 FOR KEY SHARE", "INSERT INTO skill_states", "SELECT grade", "FROM attempts a WHERE", "DISTINCT module_id",
-		"FROM evidence e JOIN", "INSERT INTO evidence", "UPDATE skill_states"} {
+		"FROM evidence e LEFT JOIN", "INSERT INTO evidence", "UPDATE skill_states"} {
 		tx, err := pool.Begin(t.Context())
 		if err != nil {
 			t.Fatal(err)

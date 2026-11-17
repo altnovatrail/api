@@ -6,10 +6,10 @@ require (
 	connectrpc.com/connect/v2 v2.0.2
 	firebase.google.com/go/v4 v4.22.0
 	github.com/altnovatrail/engine v0.1.8
-	github.com/altnovatrail/learner-model v0.1.9
+	github.com/altnovatrail/learner-model v0.1.13
 	github.com/altnovatrail/module-kit v0.3.3
-	github.com/altnovatrail/spec v0.18.6
-	github.com/altnovatrail/spec/contracts v0.18.6
+	github.com/altnovatrail/spec v0.18.9
+	github.com/altnovatrail/spec/contracts v0.18.9
 	github.com/altnovatrail/tutor v0.1.45
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0

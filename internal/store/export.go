@@ -552,9 +552,12 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, list []
 }
 
 // exportJournal is the profile's log of evidence, in its order, and its state
-// with the mark it was computed on.
+// with the mark it was computed on. An adult's correction of a module's level
+// is named by its own ID where an entry of an attempt names the attempt: the
+// export's entry has no other place for it, and its evidence tells it apart,
+// level_set_by_adult (R89).
 func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *exportv3.Profile, e *ExportedProfile) error {
-	rows, err := tx.Query(ctx, `SELECT seq, attempt_id, package_digest, module_id, recorded_at, evidence FROM evidence
+	rows, err := tx.Query(ctx, `SELECT seq, coalesce(attempt_id, correction_id), package_digest, module_id, recorded_at, evidence FROM evidence
 		WHERE profile_id = $1 ORDER BY seq`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the evidence: %w", err)

@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	learnermodel "github.com/altnovatrail/learner-model"
 	"github.com/altnovatrail/module-kit/modulepackage"
 	"github.com/altnovatrail/spec"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
@@ -79,8 +80,9 @@ var choices *modulepackage.Package
 
 // The export of a profile with an attempt, its submissions, its evidence and its
 // state, an essay with the marks of its feedback by number (R15), a lesson run,
-// a choice, the storage of works, two stored works and a problem report, and of
-// its account, is api.zip whose every file passes its schema of spec's part
+// a choice, the storage of works, two stored works, a problem report and an
+// adult's correction of a level — named by its own ID where an attempt is —,
+// and of its account, is api.zip whose every file passes its schema of spec's part
 // export/, version 2, and keeps its rules of the layout and the .proto files
 // (R135 spec). A stored work is written newest first, its history and contexts
 // as the JSON they are and its picture in base64 (R70).
@@ -198,10 +200,19 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		profile, string(choices.View.Manifest.ID), string(choices.Inventory.Version), string(choices.Digest)).Scan(&run); err != nil {
 		t.Fatal(err)
 	}
+	// An adult's correction of the level, a fact of the journal of no attempt (R89).
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-		_, err := m.Settle(ctx, tx, profile, time.Now())
+		s, err := m.Settle(ctx, tx, profile, time.Now())
+		if err != nil {
+			return err
+		}
+		_, err = m.Correct(ctx, tx, profile, s, choices, learnermodel.BandRef{Place: 1, ID: "grades-1-2"}, time.Now())
 		return err
 	}); err != nil {
+		t.Fatal(err)
+	}
+	var correction string
+	if err := pool.QueryRow(ctx, `SELECT correction_id FROM evidence WHERE profile_id = $1 AND attempt_id IS NULL`, profile).Scan(&correction); err != nil {
 		t.Fatal(err)
 	}
 
@@ -235,7 +246,8 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
 		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
 		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting","stored_at":"`, `"size_bytes":50},{"attempt_id":"` + attempt + `"`,
-		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`} {
+		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`,
+		`"attempt_id":"` + correction + `","package_digest":"` + string(choices.Digest) + `"`, `"level_set_by_adult":true`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
 		}

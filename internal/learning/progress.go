@@ -30,8 +30,9 @@ var _ apiv1connect.ProgressServiceHandler = (*ProgressService)(nil)
 const progressPage = 50
 
 // ProgressService is what the learner model and the history of a profile show
-// (R49): the skill map and the adult's progress. Both write first the evidence
-// the profile's closed attempts owe, so that they read the journal whole.
+// (R49): the skill map and the adult's progress, and the adult's correction of
+// a module's level (R89). Each writes first the evidence the profile's closed
+// attempts owe, so that it reads the journal whole.
 type ProgressService struct {
 	apiv1connect.UnimplementedProgressServiceHandler
 	s      *Service
@@ -96,22 +97,20 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 		if !ok {
 			return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
 		}
-		// The modules of the engine: those connected and fit for the learner.
-		var engine []string
-		for _, c := range connected {
-			if _, ok := s.set.OfferedFor(formatv0.ModuleID(c.ModuleID), category); ok {
-				engine = append(engine, c.ModuleID)
-			}
-		}
 		settled, err := s.model.Settle(ctx, tx, profileID, now)
 		if err != nil {
 			return err
 		}
-		read, err := s.model.Read(settled, now, engine)
+		read, err := s.model.Read(settled, now, s.engineIDs(connected, category))
 		if err != nil {
 			return err
 		}
 		answer = skillMap(pkg.View, string(pkg.Digest), read, offered(teachers, connected))
+		band, set, err := s.levelOf(ctx, tx, profileID, read, string(module))
+		if err != nil {
+			return err
+		}
+		answer.LevelBand, answer.LevelSetAt = band.ID, set
 		return nil
 	})
 	if err != nil {
@@ -238,7 +237,9 @@ func anchorState(a learnermodel.AnchorReadout, offered []string) *v1.AnchorSkill
 
 // GetProgress is the progress of a profile, which an adult views with the right
 // can_view, which the checks hold (R49): its attempts, newest first, a page at a
-// time, and, on the first page, the traps that repeat in its closed attempts.
+// time, and, on the first page, the traps that repeat in its closed attempts
+// and the adult's last correction of the level of each module that has one
+// (R89).
 // Each attempt has when the engine chose its task, or its run's lesson, and why
 // — but one begun again (R50) —, and an attempt with a rubric each of its
 // submissions, how it ended and, once the attempt is closed, the marks of its
@@ -297,6 +298,14 @@ func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRe
 				Trap: t.ID, Description: t.Description, TrapAdvice: t.Advice,
 				AttemptCount: int32(t.Attempts), LastClosedAt: timestamppb.New(t.LastClosedAt),
 			})
+		}
+		levels, err := model.Levels(ctx, tx, profileID)
+		if err != nil {
+			return err
+		}
+		for _, l := range levels {
+			answer.LevelSettings = append(answer.LevelSettings,
+				&v1.LevelSetting{ModuleId: l.Module, Band: l.Band, SetAt: timestamppb.New(l.SetAt)})
 		}
 		return nil
 	})

@@ -155,7 +155,10 @@ func ProfilesOwingEvidence(ctx context.Context, db Lister, digests []string, aft
 
 // Entry is a row of a profile's journal of evidence: its number, its attempt,
 // the package and the module of the attempt, when the attempt closed, and the
-// evidence as learner-model's codec gives it.
+// evidence as learner-model's codec gives it. A row of an adult's correction of
+// a module's level has no attempt, AttemptID empty and ClosedAt zero, and its
+// package is that of the module's current version when the level was set
+// (R89).
 type Entry struct {
 	Seq           int64
 	AttemptID     string
@@ -167,15 +170,19 @@ type Entry struct {
 
 // Journal is the profile's journal of evidence after the number after, in order.
 func Journal(ctx context.Context, db Lister, profileID string, after int64) ([]Entry, error) {
-	rows, err := db.Query(ctx, `SELECT e.seq, e.attempt_id, e.package_digest, e.module_id, a.closed_at, e.evidence
-		FROM evidence e JOIN attempts a ON a.profile_id = e.profile_id AND a.id = e.attempt_id
+	rows, err := db.Query(ctx, `SELECT e.seq, coalesce(e.attempt_id::text, ''), e.package_digest, e.module_id, a.closed_at, e.evidence
+		FROM evidence e LEFT JOIN attempts a ON a.profile_id = e.profile_id AND a.id = e.attempt_id
 		WHERE e.profile_id = $1 AND e.seq > $2 ORDER BY e.seq`, profileID, after)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the journal: %w", err)
 	}
 	entries, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Entry, error) {
 		var e Entry
-		err := row.Scan(&e.Seq, &e.AttemptID, &e.PackageDigest, &e.ModuleID, &e.ClosedAt, &e.Evidence)
+		var closed *time.Time
+		err := row.Scan(&e.Seq, &e.AttemptID, &e.PackageDigest, &e.ModuleID, &closed, &e.Evidence)
+		if closed != nil {
+			e.ClosedAt = *closed
+		}
 		return e, err
 	})
 	if err != nil {
@@ -208,6 +215,49 @@ func AppendEvidence(ctx context.Context, tx pgx.Tx, profileID string, o Owed, ev
 		return 0, fmt.Errorf("store: append the evidence: %w", err)
 	}
 	return seq, nil
+}
+
+// AppendCorrection adds an adult's correction of the level of the profile's
+// module to its journal at at, under an ID of its own and the number after the
+// journal's last, and gives the number (R89): evidence, as learner-model's
+// codec gives it, of no attempt, on the package of the module's current
+// version. The caller holds the profile's row of the cache, as for
+// AppendEvidence.
+func AppendCorrection(ctx context.Context, tx pgx.Tx, profileID, packageDigest, moduleID string, evidence []byte, at time.Time) (int64, error) {
+	var seq int64
+	if err := tx.QueryRow(ctx, `INSERT INTO evidence (profile_id, seq, correction_id, package_digest, module_id, recorded_at, evidence)
+		SELECT $1, coalesce(max(seq), 0) + 1, gen_random_uuid(), $2, $3, $4, $5 FROM evidence WHERE profile_id = $1
+		RETURNING seq`, profileID, packageDigest, moduleID, at, evidence).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("store: append the correction: %w", err)
+	}
+	return seq, nil
+}
+
+// Correction is a correction of a module's level in a profile's journal: the
+// module and the evidence, as learner-model's codec gives it.
+type Correction struct {
+	ModuleID string
+	Evidence []byte
+}
+
+// Corrections is the corrections of the level of the modules of the profile's
+// journal, connected or not since, in the order of the modules' IDs byte by
+// byte and of the journal (R89).
+func Corrections(ctx context.Context, db Lister, profileID string) ([]Correction, error) {
+	rows, err := db.Query(ctx, `SELECT module_id, evidence FROM evidence
+		WHERE profile_id = $1 AND correction_id IS NOT NULL ORDER BY module_id COLLATE "C", seq`, profileID)
+	if err != nil {
+		return nil, fmt.Errorf("store: read the corrections: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Correction, error) {
+		var c Correction
+		err := row.Scan(&c.ModuleID, &c.Evidence)
+		return c, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: read the corrections: %w", err)
+	}
+	return out, nil
 }
 
 // ProfileGrade is the profile's school grade, nil when it names none.
