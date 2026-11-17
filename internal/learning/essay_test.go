@@ -115,8 +115,7 @@ func init() { *yes = true }
 
 // newEssayWorld is the world of a deployment that admits the reading of an
 // adult's handwriting on a sheet, and, by the test's own admission, the reading
-// of an essay and its assessment too, by es: no entry of tutor v0.1.35 admits
-// either (В72). opts are more of the world's options.
+// of an essay and its assessment too, by es, for want of a provider. opts are more of the world's options.
 func newEssayWorld(t *testing.T, es *essays, opts ...learning.Option) *world {
 	t.Helper()
 	return worldOf(t, gate(t, adultFacts, config.RungAuthor), append([]learning.Option{
@@ -432,7 +431,7 @@ func TestAnEssayReservesItsReadingWithItsAssessment(t *testing.T) {
 	t.Parallel()
 
 	es := &essays{}
-	w := newEssayWorld(t, es)
+	w := newEssayWorld(t, es, learning.WithPrice(func(tutor.Call, tutor.Route) tutor.CallPrice { return tutor.CallPrice{} }))
 	l := w.learner(t)
 	attempt := w.begin(t, l, l.adult, "story").GetAttemptId()
 	es.give(essayText(essay), assessment(kindWords, yes, yes))
@@ -503,7 +502,7 @@ func TestAnEssayReadTooLateIsNotAssessed(t *testing.T) {
 }
 
 // A task with a rubric begins where both its calls are admitted, and not where
-// only one is or on the real gate, which admits neither (В72).
+// only one is.
 func TestATaskWithARubricBeginsWhereBothItsCallsAreAdmitted(t *testing.T) {
 	t.Parallel()
 

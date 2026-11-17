@@ -739,7 +739,7 @@ check() {
     [[ $praise == *"?" ]] || die "GetCorrectAnswerWords on the stub gave the outcome $(jq -c .outcome "$work/answer.json"), want words with the question last"
     echo "$who: the stub words the praise after a correct answer"
 
-    # A workbook page on the stub (R66; R81), which no entry of tutor admits on the models (В72). The
+    # A workbook page on the stub (R66; R81), which tutor admits as it admits a sheet (R90). The
     # workbook pages of the pinned release, novatrail/grade-3-math, are for a child under 13 alone,
     # so a synthetic child of 9 gets a parent's consent by its form, which the operator's command
     # confirms (R52; R116 spec), and a profile, by a fresh sign-in; a profile of its pseudonym an
@@ -771,8 +771,8 @@ check() {
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY,
             work: {workbook: {boxes: (env.BOXES | fromjson)}}, clock_offset_minutes: 0}')
     expect SubmitWork
-    # A page keeps 14,000 micro-dollars a box of the account's family day as spent (R81), up to
-    # 224,000 of its 1,500,000 on the closed slice, and the child's deletion gives none of it back:
+    # A page keeps tutor's expected price of a page of the account's family day as spent (R81, R90),
+    # about 30,000 micro-dollars by the pair, and the child's deletion gives none of it back:
     # the account's quota is named apart, not taken for a fault of the stub.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
         die "the quota of platform AI of the account's family day has no room left for a page of $(jq length <<< "$boxes") boxes: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
@@ -789,7 +789,7 @@ check() {
         die "GetAccount still holds the child's profile after DeleteProfile"
     echo "$who: a child's workbook page of $(jq length <<< "$boxes") boxes is read and solved on the stub, with its evidence, and the child is deleted"
 
-    # An essay on the stub (R66; R82, R83), which no entry of tutor admits on the models (В72): the
+    # An essay on the stub (R66; R82, R83), which tutor admits as it admits a sheet (R90): the
     # owner connects novatrail/english-essays, whose essays are for every age, and the engine's choice
     # on its skill of paragraphs, which only essays teach, gives one. A wide crop of the sheet reads
     # the stub's text, assessed every criterion met but the last, with the stub's feedback, which
@@ -803,8 +803,8 @@ check() {
     call AttemptService/SubmitEssay < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, crop: env.PIXEL, clock_offset_minutes: 0}')
     expect SubmitEssay
-    # An essay keeps 30,000 micro-dollars of the account's family day as spent, the reading's and the
-    # assessment's (R82): the account's quota is named apart, as for the page above.
+    # An essay keeps tutor's expected prices of the account's family day as spent, the reading's and
+    # the assessment's, under 1,000 micro-dollars (R82, R90): the account's quota is named apart, as for the page above.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
         die "the quota of platform AI of the account's family day has no room left for an essay: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
     jq -e '.end == "SUBMISSION_END_FEEDBACK" and (.text // "") != "" and (.feedback // "") != ""' "$work/answer.json" > /dev/null ||

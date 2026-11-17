@@ -1139,7 +1139,8 @@ const adultFacts = `anthropic:
 // facts of the deployment, its stage and the learner's age category, or by the
 // own key of a provider whose models are admitted, and only in a form tutor
 // reads by a kind of call the gate admits: one answer slot bound anywhere on a
-// handwriting sheet, or a workbook page, whose reading no entry admits yet.
+// handwriting sheet, a workbook page, or a sheet with a rubric, whose reading
+// and assessment the author's word admits at the stage author alone (R90).
 func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 	t.Parallel()
 
@@ -1168,12 +1169,14 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 		"facts for an adult, the stage author": {adultFacts, config.RungAuthor, map[string]beginning{
 			"an adult":   {false, "apples", "", admitted},
 			"a child":    {true, "apples", "", refused},
-			"a rubric":   {false, "story", "", refused},
+			"a rubric":   {false, "story", "", admitted}, // by the author's word (R90)
 			"a zone":     {false, "parity", "", refused},
-			"a workbook": {false, "table", "", refused}, // no entry of tutor v0.1.35 reads one (В72)
+			"a workbook": {false, "table", "", admitted}, // by the author's word (R90)
 		}},
 		"facts for an adult, the stage full": {adultFacts, config.RungFull, map[string]beginning{
-			"an adult": {false, "apples", "", refused},
+			"an adult":   {false, "apples", "", refused},
+			"a rubric":   {false, "story", "", refused},
+			"a workbook": {false, "table", "", refused},
 		}},
 	} {
 		t.Run(name, func(t *testing.T) {

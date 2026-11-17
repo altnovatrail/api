@@ -74,8 +74,7 @@ func readPage(first, second *observationv1.Observation) tutor.WorkbookRead {
 
 // newBookWorld is the world of a deployment that admits the reading of an
 // adult's handwriting on a sheet, and, by the test's own admission, on a
-// workbook page too, read by ps: no entry of tutor v0.1.35 admits the reading of
-// a workbook page (В72). opts are more of the world's options.
+// workbook page too, read by ps, for want of a provider. opts are more of the world's options.
 func newBookWorld(t *testing.T, ps *pageReaders, opts ...learning.Option) *world {
 	t.Helper()
 	return worldOf(t, gate(t, adultFacts, config.RungAuthor), append([]learning.Option{
@@ -256,8 +255,7 @@ func TestAWorkbookPageReservesByItsBoxes(t *testing.T) {
 }
 
 // A workbook page begins, and enters the engine's pool, by the admission of the
-// reading of a workbook page, CallWorkbook, and that of a sheet admits none:
-// the gate of tutor v0.1.35 admits no entry for it (В72).
+// reading of a workbook page, CallWorkbook, and that of a sheet admits none.
 func TestAWorkbookPageBeginsByItsKindOfCall(t *testing.T) {
 	t.Parallel()
 
@@ -345,8 +343,11 @@ func TestTheGateTutorReadsAWorkbookPage(t *testing.T) {
 	if read.Outcome.Kind != tutor.Failed || len(read.Outcome.Usage) != 0 {
 		t.Errorf("ReadWorkbook with no task = %v, want a failure with no call", read.Outcome.Kind)
 	}
-	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || g.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {
-		t.Error("the gate's adapter admits otherwise than the gate: the sheet, and no workbook page")
+	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || !g.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {
+		t.Error("the gate's adapter admits otherwise than the gate: the sheet and the workbook page")
+	}
+	if full := learning.GateTutor(gate(t, adultFacts, config.RungFull)); full.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {
+		t.Error("the gate's adapter admits a workbook page at the stage full, which admits none (R90)")
 	}
 }
 

@@ -123,32 +123,39 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 // deployment with no facts closes, leaves the tasks a tap checks and says so,
 // and so does the own key of a provider whose models are not admitted; the
 // adult's own key of Anthropic, which the stage "author" admits, gives the
-// handwriting of a sheet too, and says so still of the workbook page, whose
-// reading no entry admits (R81).
+// handwriting of a sheet, the workbook page and the lesson of an essay too,
+// whose calls the author's word admits there (R90), and at the stage "full"
+// none of them.
 func TestThePoolGoesByTheRoute(t *testing.T) {
 	t.Parallel()
 
 	pkg := packagestest.Own(t, "choices")
-	g := gateAt(t, "author")
-	s := &Service{admits: gateTutor{g}}
 	for _, tc := range []struct {
+		rung     string
 		ownKey   string
-		apples   bool
+		read     bool
+		lessons  int
 		narrowed bool
 	}{
-		{"", false, true},
-		{"openai", false, true},
-		// The workbook page is left out by any route: no entry admits its reading (В72).
-		{"anthropic", true, true},
+		{"author", "", false, 2, true},
+		{"author", "openai", false, 2, true},
+		{"author", "anthropic", true, 3, false},
+		{"full", "anthropic", false, 2, true},
 	} {
+		s := &Service{admits: gateTutor{gateAt(t, tc.rung)}}
 		m, narrowed, err := s.candidates(pkg, learnermodel.Graph{}, formatv0.AgeCategoryAdult, tc.ownKey, true)
 		if err != nil {
 			t.Fatal(err)
 		}
-		apples := slices.ContainsFunc(m.Pool, func(c engine.Candidate) bool { return c.Task.ID == "example/choices/task/apples" })
-		if apples != tc.apples || len(m.Lessons) != 2 || narrowed != tc.narrowed {
-			t.Errorf("the pool by %q holds apples %v, %d lessons, narrowed %v; want %v, both lessons, %v", tc.ownKey, apples,
-				len(m.Lessons), narrowed, tc.apples, tc.narrowed)
+		for _, task := range []string{"apples", "table"} {
+			in := slices.ContainsFunc(m.Pool, func(c engine.Candidate) bool { return c.Task.ID == "example/choices/task/"+task })
+			if in != tc.read {
+				t.Errorf("the pool at %s by %q holds %s %v, want %v", tc.rung, tc.ownKey, task, in, tc.read)
+			}
+		}
+		if len(m.Lessons) != tc.lessons || narrowed != tc.narrowed {
+			t.Errorf("the pool at %s by %q holds %d lessons, narrowed %v; want %d, %v", tc.rung, tc.ownKey,
+				len(m.Lessons), narrowed, tc.lessons, tc.narrowed)
 		}
 	}
 }

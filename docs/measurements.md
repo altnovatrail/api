@@ -242,3 +242,16 @@ For R86 and its 2026-11-16 amendments to R27, R28 and R30. The time of each job 
 | Withdrawals | 241 s | the stage `toolchain` built from the Dockerfile and `ci-withdrawals`, one step, 233 s | — | not run on `main` since the merge |
 
 After — read 2026-11-16, when T100 was closed: the run of CI on `main` after the merge of T100, 43909131792, the first on the new Dockerfile, and the release of that commit, Release 43912635423. The run is cold: the keys hold the hash of the Dockerfile, so "Image" and "Modules" found no image in the cache and built their stage inside their long step, and every job of "Go" missed its Go caches and saved them (its log: "Cache not found", "Cache saved with key"). The before run missed its Go caches too and found its images, so "Go / test" — 319 s against 410 s, `ci-test` 270 s against 356 s — compares two cold Go caches, one run a side, and "Image" and "Modules" compare a warm image with a cold one. The release, with no cache either way, gained 201 s: "Work out the version" 248 s less and the signatures 28 s less, while "Build the files" took 68 s more. The run of the pull request, 43907246572, gave "Image" 392 s and "Go / test" 408 s, `ci-test` 358 s. The warm numbers and the first "Withdrawals" on the core are Д45.
+
+## 12. What a run of `dev-check` spends of the quota on `tutor` v0.1.46, T106, 2026-11-17
+
+For R90. `just dev-check` on the dev projects of Firebase and Neon (R39), twice one after the other in one family day, from the devcontainer, 2026-11-17 at about 04:30 UTC, on `modules` v0.2.7 and `tutor` v0.1.46, the reading mode `pair`; the account `dev-author` on the tariff `dev_check` held what the day's earlier runs had spent.
+
+| Run | The account's counters: spent | In reserve |
+|---|---|---|
+| the first | 1,988,920 | 0 |
+| the second | 2,052,187 | 0 |
+
+- **One run** spends 63,267 micro-dollars of the account's family day, against 174,210 in measurements 8. Of them the child's workbook page of 8 boxes is 30,165, `tutor`'s expected price of a page by the pair, in place of 14,000 a box; the owner's essay 892 — the reading 271 and the assessment 621, in place of 30,000 —; the remaining 32,210 are the readings of handwriting as in measurements 8. The prices are those of `Gate.Price` on the stub's gate, read the same day.
+- **What it means for the tariffs:** the owner's profile spends 33,102 a run; on `closed_slice` the account's $1.50 holds 23 runs a day and the owner's $0.50 15; on `dev_check` the account's $15.00 holds 237 and the owner's $5.00 151.
+- **Money:** none, as in measurements 8: the first server's key is one Anthropic refuses, the second server is on the stub of `tutor`. No call of AI reached a model, $0.

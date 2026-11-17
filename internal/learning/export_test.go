@@ -29,8 +29,7 @@ func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ forma
 }
 
 // WithAdmits is whether a kind of call that reads the work is admitted, in place
-// of the gate, for every learner and route: a test's own, since no entry of
-// tutor v0.1.35 admits the reading of a workbook page (В72).
+// of the gate, for every learner and route: a test's own.
 func WithAdmits(admits func(call tutor.Call) bool) Option {
 	return func(s *Service) { s.admits = admitsFunc(admits) }
 }
@@ -120,8 +119,7 @@ func GateTutor(g *admission.Gate) interface {
 }
 
 // WithEssay is what reads the essay of a task with a rubric and assesses its
-// text, in place of tutor: a test's own, for want of a provider and of an entry
-// that admits either call (В72).
+// text, in place of tutor: a test's own, for want of a provider.
 func WithEssay(read func(ctx context.Context, r tutor.EssayReading) tutor.EssayRead,
 	assess func(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed) Option {
 	return func(s *Service) { s.essay, s.assessor = essayFunc(read), assessorFunc(assess) }
