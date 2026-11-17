@@ -35,8 +35,9 @@ const finishReserve = 3 * time.Second
 
 // SubmitWork checks a submission of a task with a verdict, under its idempotency
 // key: the verdict of every item and answer slot, by module-kit, on the options
-// tapped and on what tutor's two readers read of the crop of a handwriting
-// sheet (R46) or of the crops of a workbook page's filled boxes (R81). A
+// tapped and on what tutor's readers — the pair, or one reader (R88) — read of
+// the crop of a handwriting sheet (R46) or of the crops of a workbook page's
+// filled boxes (R81). A
 // submission with an answer slot "not_yet" is a wrong answer; "unreadable" and
 // "unchecked" are none (R09). One whose every item is correct
 // closes the attempt "correct", and its answer holds the task solved, its keys
@@ -355,11 +356,12 @@ var aiOutcomes = map[tutor.Kind]string{
 
 // verdict is the verdict of the submission out on the attempt h, in the
 // contract's words, and the observation the submission keeps: the readings of
-// the two readers joined, valid as module-kit takes it, from which the same
-// release gives the verdict again with the options tapped — which the answer
-// holds as the values of their slots (§ 10 of spec's contracts text). None when
-// AI read nothing. A reading that gave no observation, or two that module-kit
-// cannot join, leaves the slots AI reads "unchecked", with the outcome's cause.
+// the two readers joined, or the one reader's (R88), valid as module-kit takes
+// it, from which the same release gives the verdict again with the options
+// tapped — which the answer holds as the values of their slots (§ 10 of spec's
+// contracts text). None when AI read nothing. A reading that gave no
+// observation, or two that module-kit cannot join, or one it does not take,
+// leaves the slots AI reads "unchecked", with the outcome's cause.
 func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitWorkResponse, *observationv1.Observation, error) {
 	var joined *observationv1.Observation
 	var outcome *v1.Outcome
@@ -390,9 +392,14 @@ func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitW
 	return answer, joined, nil
 }
 
-// joined is the observation of the two readers of out joined by module-kit, or
-// none with the outcome that left the slots AI reads unchecked: the quota that
-// did not hold the reading, or what the call came to.
+// joined is the observation of the reading of out, in the mode of reading of
+// s (R88): by the pair, the observations of the two readers joined by
+// module-kit; by one reader, its one observation as it is, valid as module-kit
+// takes it, which module-kit gives the verdict on and api keeps as it keeps a
+// joined one (R86 spec). Or none, with the outcome that left the slots AI reads
+// unchecked: the quota that did not hold the reading, what the call came to, or
+// a failure of AI for a reading of another number of observations, or of one
+// that module-kit does not take.
 func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observation, *v1.Outcome) {
 	if out.reserve.refused != nil {
 		return nil, out.reserve.refused
@@ -401,13 +408,20 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	if r.Outcome.Kind != tutor.Answered {
 		return nil, outcomeOf(r.Outcome, out.route.AI)
 	}
+	failure := &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
+	if s.reading == tutor.ReadingSingle {
+		if len(r.Observations) != 1 || observation.Validate(task.Items, r.Observations[0]) != nil {
+			return nil, failure
+		}
+		return r.Observations[0], nil
+	}
 	if len(r.Observations) != 2 {
-		return nil, &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
+		return nil, failure
 	}
 	joined, err := observation.Join(task.Items, r.Observations[0], r.Observations[1])
 	if err != nil {
 		// An observation that is not valid is as a failure of AI.
-		return nil, &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
+		return nil, failure
 	}
 	return joined, nil
 }

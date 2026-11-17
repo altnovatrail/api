@@ -11,7 +11,7 @@
 // first value its check holds not right —, and square is illegible. It reads
 // each filled box of a workbook page the same way, by the shape of the box's
 // crop, and admits that reading itself wherever the gate admits a sheet's, for
-// the same category and route: tutor v0.1.42 admits it nowhere (В72). It finds
+// the same category and route: tutor v0.1.45 admits it nowhere (В72). It finds
 // the values by module-kit's verdict on the instance, the key with it, which
 // the stub alone is given: tutor sees the open view (R67 spec). It reads an
 // essay by the shape of the sheet's crop too — wider than tall a text of its
@@ -65,9 +65,6 @@ const Model = "stub"
 // provider is the provider of the models the admission table admits, which the
 // stub stands for.
 const provider = "anthropic"
-
-// readers is how many readers read a sheet: tutor's pair (R68 spec).
-const readers = 2
 
 // mostTried is the largest whole number the stub tries as a value, from 0, when
 // neither the key nor an option gives one.
@@ -149,12 +146,15 @@ func nextMonth(at time.Time) time.Time {
 }
 
 // Gate is what the stub asks of the gate of admission: whether a reading and
-// the tutor's words are admitted, and what a call is expected to cost.
+// the tutor's words are admitted, what a call is expected to cost, and the mode
+// tutor reads handwriting by, which says how many readers read a sheet or a
+// workbook page (R88).
 type Gate interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
+	Reading() tutor.Reading
 }
 
 // Stub reads sheets, workbook pages and essays, assesses essays and words the
@@ -167,10 +167,10 @@ type Stub struct {
 func New(gate Gate) *Stub { return &Stub{gate: gate} }
 
 // ReadSheet reads the crop of r by its shape, on task, the instance whose open
-// view r holds: both readers read the same, so module-kit joins them as they
-// are. A value stands with the crop box of the whole crop, in thousandths, and a
-// reason with none, as an observation has them (R53 spec). A task with no answer
-// slot bound anywhere, a crop that is no PNG, or a request whose context ended
+// view r holds: each reader of the gate's mode reads the same, so module-kit
+// joins the pair's as they are. A value stands with the crop box of the whole
+// crop, in thousandths, and a reason with none, as an observation has them (R53
+// spec). A task with no answer slot bound anywhere, a crop that is no PNG, or a request whose context ended
 // while the stub looked for a value, fails, as tutor's reading does. Past those
 // checks an own key of an ending of the stub's is refused by it, own being its
 // value.
@@ -205,8 +205,8 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 		answer.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}
 	}
 	read := tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Answered,
-		Usage: s.usage(tutor.CallSheet, r.Route, readers)}}
-	for range readers {
+		Usage: s.usage(tutor.CallSheet, r.Route, s.readers())}}
+	for range s.readers() {
 		read.Observations = append(read.Observations, &observationv1.Observation{
 			AnswerSlots: []*observationv1.AnswerSlotObservation{answer}})
 	}
@@ -394,8 +394,8 @@ var feedback = map[string]string{
 // reads a sheet's: wider than tall the box's right value, taller than wide a
 // wrong one, square illegible. The observation holds every box of the page in
 // the task's order, a box that sent no crop unreadable, blank, and a value with
-// no crop box, as tutor's does; both readers read the same. Of tutor's checks
-// before its call the stub keeps those of the request's form: a task that is no
+// no crop box, as tutor's does; each reader of the gate's mode reads the same.
+// Of tutor's checks before its call the stub keeps those of the request's form: a task that is no
 // workbook page, a crop of a place the page has no box of or of one box twice,
 // more than maxBoxes crops, or a crop that is no PNG or is larger than
 // maxBoxSide on a side fails, as does a request whose context ended while the
@@ -464,9 +464,9 @@ func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task f
 	}
 	out := tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Answered}}
 	if len(r.Boxes) > 0 {
-		out.Outcome.Usage = s.usage(tutor.CallWorkbook, r.Route, readers)
+		out.Outcome.Usage = s.usage(tutor.CallWorkbook, r.Route, s.readers())
 	}
-	for range readers {
+	for range s.readers() {
 		out.Observations = append(out.Observations, proto.CloneOf(page))
 	}
 	return out
@@ -706,4 +706,13 @@ func candidates(slot verdict.AnswerSlot) []string {
 func base(language string) string {
 	tag, _, _ := strings.Cut(strings.ReplaceAll(language, "_", "-"), "-")
 	return strings.ToLower(tag)
+}
+
+// readers is how many readers read a sheet or a workbook page by the gate's
+// mode of reading: the two of the pair of R68 spec, or the one reader (R88).
+func (s *Stub) readers() int {
+	if s.gate.Reading() == tutor.ReadingSingle {
+		return 1
+	}
+	return 2
 }

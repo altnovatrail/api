@@ -36,6 +36,12 @@ const (
 	// words the tutor's words from a list of its own, and calls no provider
 	// (R66; R146 spec). Admission, the prices and the quota stay tutor's own.
 	VarTutorStub = "API_TUTOR_STUB"
+	// VarReadingMode is how tutor reads the handwriting of a sheet and of a
+	// workbook page: "pair", both readers of R68 spec, whose observations
+	// module-kit joins, or "single", Haiku 5.5 at medium alone, whose
+	// observation is the reading (the author's word of 2026-11-17; R88). Unset
+	// or empty, it is "pair"; it holds at either stage.
+	VarReadingMode = "API_READING_MODE"
 )
 
 // The stages of admission, as tutor codes them.
@@ -44,10 +50,17 @@ const (
 	RungFull   = "full"
 )
 
+// The modes of reading handwriting, as tutor codes them.
+const (
+	ReadingPair   = "pair"
+	ReadingSingle = "single"
+)
+
 func init() {
 	declared[VarAdmissionFactsFile] = struct{}{}
 	declared[VarAdmissionRung] = struct{}{}
 	declared[VarTutorStub] = struct{}{}
+	declared[VarReadingMode] = struct{}{}
 	for _, name := range []string{VarAnthropicKey, VarOpenAIKey} {
 		declared[name] = struct{}{}
 		declared[name+fileSuffix] = struct{}{}
@@ -68,6 +81,9 @@ type Admission struct {
 	Keys PlatformKeys
 	// Stub says whether tutor's calls go to the stub of the dev mode (R66).
 	Stub bool
+	// Reading is the mode of reading handwriting, ReadingPair or ReadingSingle
+	// (R88).
+	Reading string
 }
 
 // AdmissionFrom reads what the deployment declares for admission from a set of
@@ -103,6 +119,14 @@ func AdmissionFrom(environ []string) (Admission, error) {
 	}
 	if cfg.Rung != RungAuthor && cfg.Rung != RungFull {
 		problems = append(problems, fmt.Errorf("%w: %s must be %s or %s, got %q", ErrInvalid, VarAdmissionRung, RungAuthor, RungFull, cfg.Rung))
+	}
+	switch cfg.Reading = env[VarReadingMode]; cfg.Reading {
+	case "":
+		cfg.Reading = ReadingPair
+	case ReadingPair, ReadingSingle:
+	default:
+		problems = append(problems, fmt.Errorf("%w: %s must be %s, %s or unset, got %q",
+			ErrInvalid, VarReadingMode, ReadingPair, ReadingSingle, cfg.Reading))
 	}
 	_, inline := env[VarAnthropicKey]
 	_, fromFile := env[VarAnthropicKey+fileSuffix]

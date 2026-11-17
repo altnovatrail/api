@@ -28,11 +28,13 @@ import (
 )
 
 // gate admits the words as admitted says, a reading of the kinds of reads, and
-// prices each kind of call by prices.
+// prices each kind of call by prices, and reads handwriting by reading, the pair
+// when empty, as the gate of the dev mode names it.
 type gate struct {
 	admitted bool
 	reads    map[tutor.Call]bool
 	prices   map[tutor.Call]tutor.CallPrice
+	reading  tutor.Reading
 }
 
 func (g gate) Reads(call tutor.Call, _ formatv0.AgeCategory, _ string) bool { return g.reads[call] }
@@ -42,6 +44,8 @@ func (g gate) Words(bool, formatv0.AgeCategory, string) bool { return g.admitted
 func (g gate) CorrectWords(formatv0.AgeCategory, string) bool { return g.admitted }
 
 func (g gate) Price(call tutor.Call, _ tutor.Route) tutor.CallPrice { return g.prices[call] }
+
+func (g gate) Reading() tutor.Reading { return g.reading }
 
 // priced is a gate that admits, and expects a sheet to cost $0.020001, which
 // the two readers do not share evenly, the words with the work a cent, the
@@ -828,5 +832,37 @@ func TestTheStubFailsAnAssessmentTutorFails(t *testing.T) {
 	if got := tutorstub.New(priced).AssessEssay(ctx, assessment(adult, "en", 2), ""); got.Outcome.Kind != tutor.Failed ||
 		!errors.Is(got.Outcome.Err, context.Canceled) || got.Feedback != "" {
 		t.Errorf("AssessEssay cut short = %+v, want a failure", got)
+	}
+}
+
+// By one reader (R88), a sheet and a workbook page read into one observation,
+// which module-kit takes as it is, and the reading spends the whole of what
+// tutor expects it to cost on one row: the one reader's.
+func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
+	t.Parallel()
+
+	single := priced
+	single.reading = tutor.ReadingSingle
+	tk := task(formatv0.Check{Kind: formatv0.CheckKindNumber, Key: ptr("12")})
+	sheet := tutorstub.New(single).ReadSheet(t.Context(), tutor.SheetReading{Route: adult, Crop: crop(t, 40, 10)}, tk, "")
+	if sheet.Outcome.Kind != tutor.Answered || len(sheet.Observations) != 1 {
+		t.Fatalf("ReadSheet = %v with %d observations, want the one reader's", sheet.Outcome.Kind, len(sheet.Observations))
+	}
+	if err := observation.Validate(tk.Items, sheet.Observations[0]); err != nil || sheet.Observations[0].GetAnswerSlots()[0].GetValue() != "12" {
+		t.Errorf("the one reading %v, %v; want the right value, valid", sheet.Observations[0], err)
+	}
+	if want := quota.USD(0.020001); len(sheet.Outcome.Usage) != 1 || quota.USD(sheet.Outcome.Usage[0].USD) != want {
+		t.Errorf("the reading spent %v, want the reserve, %d, on one row", sheet.Outcome.Usage, want)
+	}
+
+	book := book()
+	page := tutor.WorkbookReading{Route: adult, Boxes: []tutor.BoxCrop{boxOf(1, 1, crop(t, 30, 10))}}
+	read := tutorstub.New(single).ReadWorkbook(t.Context(), page, book, "")
+	if read.Outcome.Kind != tutor.Answered || len(read.Observations) != 1 || len(read.Outcome.Usage) != 1 {
+		t.Fatalf("ReadWorkbook = %v with %d observations over %d rows, want the one reader's", read.Outcome.Kind,
+			len(read.Observations), len(read.Outcome.Usage))
+	}
+	if err := observation.Validate(book.Items, read.Observations[0]); err != nil {
+		t.Errorf("module-kit does not take the one reading of the page: %v", err)
 	}
 }

@@ -54,6 +54,9 @@ func Adapters() map[admissionv0.Provider]provider.Dial {
 // before its call.
 type Gate struct {
 	tutor *tutor.Tutor
+	// reading is the mode tutor reads handwriting by, which says how many
+	// observations a reading gives (R88).
+	reading tutor.Reading
 	// providers are the providers of the table, in its order.
 	providers []Provider
 }
@@ -86,6 +89,8 @@ type Report struct {
 	PlatformKeys int
 	// Stub says whether tutor's calls go to the stub of the dev mode (R66).
 	Stub bool
+	// Reading is the mode of reading handwriting, pair or single (R88).
+	Reading string
 }
 
 // stubKey stands for the platform's key of Anthropic in the dev mode's stub,
@@ -182,18 +187,18 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		// The configuration holds no platform key beside the stub (R66).
 		adapters, keys = StubAdapters(), map[admissionv0.Provider]string{"anthropic": stubKey}
 	}
-	g := &Gate{}
+	g := &Gate{reading: tutor.Reading(cfg.Reading)}
 	if g.providers, err = tableProviders(); err != nil {
 		return nil, Report{}, err
 	}
-	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung), Keys: keys,
-		Adapters: adapters}); err != nil {
-		// What tutor.New refuses is what cfg declares: a stage, or a key of a
-		// provider api gives no adapter of.
+	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung),
+		Reading: g.reading, Keys: keys, Adapters: adapters}); err != nil {
+		// What tutor.New refuses is what cfg declares: a stage, a mode of
+		// reading, or a key of a provider api gives no adapter of.
 		return nil, Report{}, fmt.Errorf("%w: %w", config.ErrInvalid, err)
 	}
 	return g, Report{TableVersion: t.Version(), FactsFile: cfg.FactsFile != "", Rung: cfg.Rung, RungSet: cfg.RungSet,
-		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub}, nil
+		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading())}, nil
 }
 
 // tableProviders are the providers of the table that tutor reads,
@@ -362,15 +367,16 @@ func (g *Gate) route(category formatv0.AgeCategory, ownKeyProvider string) tutor
 	return r
 }
 
-// ReadSheet reads the work of a handwriting sheet by tutor's two readers: the
-// observation of each, or the outcome of a call that gave none.
+// ReadSheet reads the work of a handwriting sheet by tutor's readers, the pair
+// or one reader by the mode of reading (R88): the observation of each, or the
+// outcome of a call that gave none.
 func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead {
 	return g.tutor.ReadSheet(ctx, r)
 }
 
-// ReadWorkbook reads the filled boxes of a workbook page by tutor's two
-// readers: the observation of each over every box of the page, or the outcome
-// of a call that gave none (R81).
+// ReadWorkbook reads the filled boxes of a workbook page by tutor's readers,
+// the pair or one by the mode of reading (R88): the observation of each over
+// every box of the page, or the outcome of a call that gave none (R81).
 func (g *Gate) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead {
 	return g.tutor.ReadWorkbook(ctx, r)
 }
@@ -421,4 +427,15 @@ func (g *Gate) Price(call tutor.Call, route tutor.Route) tutor.CallPrice {
 func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
 	entry, _, err := g.tutor.ChooseCall(call, route)
 	return err == nil && len(entry.Models) > 0
+}
+
+// Reading is the mode tutor reads the handwriting of a sheet and of a workbook
+// page by, and so how many observations its reading gives: two of the pair, or
+// one of the one reader (R88). A configuration that names none is the pair, as
+// tutor takes it.
+func (g *Gate) Reading() tutor.Reading {
+	if g.reading == "" {
+		return tutor.ReadingPair
+	}
+	return g.reading
 }

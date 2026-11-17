@@ -1105,10 +1105,11 @@ func TestANewAttemptClosesALapsedOneByItsLapse(t *testing.T) {
 }
 
 // gate is the gate of a deployment that declares facts, YAML in a file of its
-// own when not empty, at the stage rung, with the platform's key of Anthropic.
-func gate(t *testing.T, facts, rung string) *admission.Gate {
+// own when not empty, at the stage rung, with the platform's key of Anthropic,
+// and the variables more declares.
+func gate(t *testing.T, facts, rung string, more ...string) *admission.Gate {
 	t.Helper()
-	environ := []string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"}
+	environ := append([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"}, more...)
 	if facts != "" {
 		path := filepath.Join(t.TempDir(), "facts.yaml")
 		if err := os.WriteFile(path, []byte(facts), 0o600); err != nil {

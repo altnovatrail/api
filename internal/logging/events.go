@@ -136,6 +136,9 @@ const (
 	// FieldTutorStub says whether tutor's calls go to the stub of the dev mode,
 	// which calls no provider (R66).
 	FieldTutorStub = "tutor_stub"
+	// FieldReadingMode is the mode tutor reads handwriting by, pair or single
+	// (R88).
+	FieldReadingMode = "reading_mode"
 	// FieldLegalDir says whether the deployment names a folder of its own legal
 	// texts, rather than serving those of spec's tag.
 	FieldLegalDir = "legal_dir"
@@ -239,7 +242,7 @@ const (
 // events is every event and the fields it may carry.
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
-		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldLegalDir, FieldConsentForms},
+		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldLegalDir, FieldConsentForms},
 	EventStopping: {},
 	EventStopped:  {FieldCutShort},
 	EventShutdown: {FieldStarted},
@@ -251,7 +254,7 @@ var events = map[string][]string{
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
-	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldLegalDir, FieldConsentForms},
+	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
 		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled, FieldModelMS, FieldRetries, FieldFirstTokenMS},
 	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
@@ -306,6 +309,7 @@ var fields = map[string]rule{
 	FieldRungSet:        {kind: slog.KindBool},
 	FieldPlatformKeys:   {kind: slog.KindInt64},
 	FieldTutorStub:      {kind: slog.KindBool},
+	FieldReadingMode:    {kind: slog.KindString, values: ReadingModes},
 	FieldLegalDir:       {kind: slog.KindBool},
 	FieldConsentForms:   {kind: slog.KindString, values: FormsStores},
 	FieldOutcomeCause:   {kind: slog.KindString, shape: matches(causeShape)},
@@ -376,6 +380,11 @@ var TokenClasses = []string{"expired", "invalid", "revoked", "no_user", "disable
 // Rungs is the value set of FieldRung: the stages of tutor's rule of admission
 // of models, in tutor's codes (R25). admission's tests hold the set to config's.
 var Rungs = []string{"author", "full"}
+
+// ReadingModes is the value set of FieldReadingMode: the modes of tutor's
+// reading of handwriting, in its codes (R88). admission's tests hold the set to
+// config's and tutor's.
+var ReadingModes = []string{"pair", "single"}
 
 // Providers is the value set of FieldProvider: the providers of the admission
 // table, by their codes (R96 spec). admission's tests hold the set to the table.
