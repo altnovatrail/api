@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and update this file. An entry is never rewritten: an amendment with its date at the end of the entry corrects it, or a new entry replaces it, and the old one stays where it is, marked "Superseded".
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69) and the same day to v0.17.9 (R75), and 2026-11-15 to v0.17.12 (R79), and 2026-11-16 to v0.18.3 (R84), whose plan took the layout of R153–R155 spec the same day (R85), and the same day to v0.18.4 (R86) and to v0.18.6 (R87), and 2026-11-17 to v0.18.9 (R89) and the same day to v0.18.14 (R91). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R92.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec), moved 2026-10-20 to `spec` v0.2.9 (R01), 2026-11-02 to v0.6.2 (R02) and the same day to v0.6.6 (R16), 2026-11-07 to v0.9.4 (R23), 2026-11-08 to v0.9.11 (R24), 2026-11-09 to v0.12.0 (R40), 2026-11-11 to v0.15.0 (R52), and 2026-11-12 to v0.15.1 (R60) and the same day to v0.16.3 (R62), and 2026-11-13 to v0.16.5 (R64) and the same day to v0.16.7 (R68), and 2026-11-14 to v0.17.1 (R69) and the same day to v0.17.9 (R75), and 2026-11-15 to v0.17.12 (R79), and 2026-11-16 to v0.18.3 (R84), whose plan took the layout of R153–R155 spec the same day (R85), and the same day to v0.18.4 (R86) and to v0.18.6 (R87), and 2026-11-17 to v0.18.9 (R89) and the same day to v0.18.14 (R91). How it comes to differ from the template over time — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R93.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -328,6 +328,8 @@
 — *Amendment 2026-11-14* (T76; R71): `modules.json` pins `modules` v0.2.7, where there are six packages in the window 0.4: the five of v0.2.5 and the module of `tutor`'s board, so four modules, each with a current version.
 
 — *Amendment 2026-11-15* (T92; R79): a new attempt and a new lesson run are on the current version of a module that the deployment's list names, when it has one (R150 spec): a module the list leaves out keeps its current version, but no new attempt or run is begun on it — "no current version" —, and an attempt or a run already open on it goes on to its end on its package.
+
+— *Amendment 2026-11-17* (T110; R92): `modules.json` pins `modules` v0.2.12, where there are seven packages in the window 0.4: the six of v0.2.7 and `novatrail/english-essays` 0.2.1, which is the current version of that module.
 
 ## Carrying progress over
 
@@ -1814,6 +1816,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-14* (T76; R71): `modules` v0.2.7 is pinned, `sha256:6c46a1a9…2083a`; the test of the pinned release runs its subtest "the board module" in the dev mode, and `ci-modules` still looks for the line of the test's pass.
 
+— *Amendment 2026-11-17* (T110; R92): `modules` v0.2.12 is pinned, `sha256:cb16bb45…1d71a`; `api packages` lays seven packages and 1179 files, as many as for six: the new package changes no file of the device part.
+
 ## Catalog and package in code
 
 **R42. `PackageService`, `ModuleService` and the files of the device parts are answered by the package `internal/catalog`, from the set of packages that `serve` read at start. The open views are built once, at start, and a package whose views do not build is a start failure. A `200` answer of an open view and of a file is cached for a day, a file also by an `ETag` of its digest, a refusal is cached by nobody, and a `503` of a file comes with `Retry-After: 30`. The connected modules are the table `connected_modules`: the profile's ID, the module's ID and the time of connection, without a version.** Task T32 of epic E3, 2026-11-09; the table in T32 and not in T33, and one task, are the author's decisions in the planning of T32.
@@ -2373,6 +2377,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Consequence:* the 2026-11-11 amendments to R07, R41, R47, R49 and R52; Д8, Д17 and Д28 closed, Д24 and Д26 extended. The size of the image with packages is 130,402,471 bytes for the release image and the image from the source code, the job "Image" of pull request #58; the image of `main` after T43, without packages, is 115,392,656 bytes, so the packages add 15.0 MB. Д8 is closed. — `modules.json`; `go.mod`, `go.sum`; `internal/store/model.go`; `internal/model/`; `internal/export/`; `internal/learning/release_test.go`; `justfile`, `ci-modules`; `.github/modules.sh`; `.github/workflows/ci.yml`, the job "Modules"; `scripts/dev.sh`; RUN.md, T44; README.md; CLAUDE.md; [architecture.md](architecture.md).
 
 — *Amendment 2026-11-14* (T76; R71): `modules.json` pins `modules` v0.2.7, `sha256:6c46a1a9…2083a`, where the packages of v0.2.5 stand with one more, `novatrail/check-board` 0.1.0; its current versions are those above and that one. The release test walks the owner's path on the board module too, on the stub of `tutor`.
+
+— *Amendment 2026-11-17* (T110; R92): `modules.json` pins `modules` v0.2.12, `sha256:cb16bb45…1d71a`; the current version of `novatrail/english-essays` is 0.2.1, and those of the other modules are as above.
 
 ## `tutor` v0.1.24
 
@@ -3068,6 +3074,8 @@ This is how the author walked the path of the first app on 2026-11-12.
 
 — *Amendment 2026-11-16* (T94; R84; row 6.23 of `COORDINATION.md` spec): "on every deployment" is no longer so. Since R79 a deployment runs at the stage its operator names, and `novatrail` runs at `author` (R149 spec), where the tasks of the board module begin for an adult as they do locally: on platform AI once its facts and its key open it — the admission table 0.4 asks of Anthropic only the data processing agreement for an adult (the second 2026-11-15 amendment to R96 spec), and row 6.24 of `infra` declares it without `minimal_retention` —, and on Anthropic's own key at once (R72). At the stage `full` they are still refused "not admitted", as above.
 
+— *Amendment 2026-11-17* (T110; R92): `modules.json` pins `modules` v0.2.12, `sha256:cb16bb45…1d71a`, whose one new entry is `novatrail/english-essays` 0.2.1; `check-board` 0.1.0 stays its module's current version, and the subtest "the board module" runs as above.
+
 ## The providers of the own key
 
 **R72. `ListOwnKeyProviders` names the providers of the admission table, in its order, whose own key `tutor` admits at the profile's category for one kind of call `api` makes at least — `CallSheet`, `CallWords` or `CallHint` —, by the code and the name the table writes. A profile not of the category `adult` gets none, with no refusal. The gate's `OwnKeyOpen` answers whether a provider is open, one function for the list and for the check of a key (T78), so that a provider out of the list is "provider closed" with no call. On `tutor` v0.1.33 the list is Anthropic at the stage `author` and nobody at `full`.** Task T77 of epic E11, 2026-11-14; the list by `tutor`'s admission rather than by the cell of the table alone, and no limit of `api`'s own on the checks of a key, were decided by the author when the epic was set up, by the executor's recommendation.
@@ -3558,3 +3566,16 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Rejected:* the submodule at v0.18.14 without rule 10 — the plan would drift from the template with no decision that holds it, and the executor's contract already binds the language of pull requests; a check in `api invite` for the entries of the author's word — a gate that a run of eval on `tutor`'s side could not lift without a release of `api`, for a bound the operator keeps by the order of the rollout.
 
 — *Consequence:* `spec`, `go.mod`, `go.sum`; CLAUDE.md; RUN.md, its opening and rule 10; `.bestpractices.json`; [architecture.md](architecture.md), the status; R90 by an amendment; `run/DEBT.md`, Д46; [plan/E14.md](plan/E14.md), T108.
+
+## The essays without the reminder of names
+
+**R92. `modules.json` pins `modules` v0.2.12 — the latest release as of 2026-11-17 — with the index `sha256:cb16bb45…1d71a`: in window 0.4 it has seven packages, and the current versions are those of R71 but `novatrail/english-essays` 0.2.1, the essays without the paragraph on names in five task statements. `api`'s code does not change, and the merge makes a release of `api` by `release.yml`, since `modules.json` is among its paths (R41).** Task T110 between epics, 2026-11-17, row 6.38 of `COORDINATION.md` spec in the orchestrator's run of «Порядок», by the text of the task that the orchestrator gave.
+- **What the release carries** (the indexes of v0.2.7 and v0.2.12 and the notes of v0.2.12, read 2026-11-17): the index of v0.2.12 is that of v0.2.7 with one more entry, `novatrail/english-essays` 0.2.1, format 0.4, package `sha256:5975e7c5…de9fb5`, in v0.2.12; the releases v0.2.8–v0.2.11 add no package. T81 `modules`: the paragraph "Do not write your name or the real name of anyone you know." left five statements, since `app` shows that reminder above Check (Д152 spec; the 2026-11-17 amendment to R127 spec); `module-kit diff` names it a patch.
+- **What was decided:** the pinning by the rules of R07 and R41; the tests take each module's current version from the index, so none names 0.2.0 and none changes; essays come back to the catalog of `novatrail` by `infra`'s list, row 6.39 of `COORDINATION.md` spec, after this release; row 3.12 (`canvas.digit_height`) waits on Д18 `tutor` and is not in it.
+- **Checked on 2026-11-17:** `release-verify modules v0.2.12` — "signed by the shared release.yml of .github v0.1.31"; `just ci-modules` — four current versions, `english-essays` 0.2.1 among them, seven packages and 1179 files laid — each file of the device part of 0.2.1 is already there under its digest —, `TestThePinnedReleaseIsLearnedOn` and its four subtests pass; `just ci-test` and `ci-lint`. No call of AI, $0.
+
+— *Why:* the author's answers to В51 and В54 `infra`, by the review «в реестр spec» of 2026-11-17: the essays return to `novatrail` only as version 0.2.1, with no reminder that `app` already shows.
+
+— *Rejected:* waiting for row 3.12 to pin one release with both — it waits on Д18 `tutor`, and the essays would wait with it; an intermediate release, v0.2.8–v0.2.11 — no package of their own.
+
+— *Consequence:* the 2026-11-17 amendments to R07, R41, R53 and R71; Д47. — `modules.json`; `run/DEBT.md`; CLAUDE.md; RUN.md, T110; [plan/E14.md](plan/E14.md), T110; [architecture.md](architecture.md), section 3.3.
