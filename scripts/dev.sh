@@ -92,7 +92,7 @@ in_working_tree() {
 # load exports the API_* variables of the dev file. A line that is not KEY=VALUE, or names another
 # variable, is named by its number, not its text, which may hold a secret.
 load() {
-    [[ -f $config ]] || die "no configuration at $config: put dev.env there, as README.md shows, or name another file by API_DEV_CONFIG"
+    [[ -f $config ]] || die "no configuration at $config: put dev.env there, as docs/build.md shows, or name another file by API_DEV_CONFIG"
     if in_working_tree "$(dirname "$(realpath "$config")")"; then
         die "$config is in a git working tree: keep it outside any repository"
     fi
