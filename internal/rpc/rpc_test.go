@@ -100,8 +100,8 @@ func (a *accounts) CreateAccount(ctx context.Context, _ *v1.CreateAccountRequest
 		rpc.NoteOutcome(ctx, v1.Cause_CAUSE_AI_FAILURE)
 		rpc.NoteKeyCheck(ctx, logging.KeyCheckUnanswered)
 		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "answered", Duration: 1500 * time.Millisecond, Usage: []rpc.AIUsage{
-			{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 1200, OutputTokens: 40, ThinkingTokens: 300,
-				Took: 1400 * time.Millisecond, Retries: 1, FirstToken: 900 * time.Millisecond},
+			{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 1200, CacheWriteTokens: 2100, CacheReadTokens: 700,
+				OutputTokens: 40, ThinkingTokens: 300, Took: 1400 * time.Millisecond, Retries: 1, FirstToken: 900 * time.Millisecond},
 		}})
 		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "not_admitted"})
 	}
@@ -733,7 +733,7 @@ func TestTheCallsOfAIAreLoggedBesideTheirRequest(t *testing.T) {
 	for _, want := range []string{
 		`"outcome_cause":"CAUSE_AI_FAILURE"`,
 		`"key_check":"unanswered"`,
-		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","provider":"anthropic","model":"claude-opus-5-5","input_tokens":1200,"output_tokens":40,"thinking_tokens":300,"ai_outcome":"answered","duration_ms":1500,"cost_micro_usd":0,"billed":false,"model_ms":1400,"retries":1,"first_token_ms":900`,
+		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","provider":"anthropic","model":"claude-opus-5-5","input_tokens":1200,"cache_write_tokens":2100,"cache_read_tokens":700,"output_tokens":40,"thinking_tokens":300,"ai_outcome":"answered","duration_ms":1500,"cost_micro_usd":0,"billed":false,"model_ms":1400,"retries":1,"first_token_ms":900`,
 		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","ai_outcome":"not_admitted","duration_ms":0`,
 	} {
 		if !strings.Contains(log, want) {

@@ -68,9 +68,10 @@ const (
 	EventAdmission = "admission"
 	// EventAIUsage is the line of what one model of a call of AI took, beside the
 	// line of the request that made the call (R12, R46): the method, the provider
-	// and the model, its tokens, how the call ended and how long it took, and the
-	// model's own time, retries and first text (R107 tutor) — never
-	// the work, what was read or what failed in its words.
+	// and the model, its tokens — those of the cache apart (R94) —, how the call
+	// ended and how long it took, and the model's own time, retries and first
+	// text (R107 tutor) — never the work, what was read or what failed in its
+	// words.
 	EventAIUsage = "ai_usage"
 	// EventQuotaExhausted is the line of a call of platform AI that the quota did
 	// not hold, so that it made no call, beside the line of its request (R12): the
@@ -151,10 +152,16 @@ const (
 	// FieldProvider is a provider of AI, by its code in the admission table.
 	FieldProvider = "provider"
 	// FieldModel is a model of a provider, by the ID the provider answered with.
-	FieldModel          = "model"
-	FieldInputTokens    = "input_tokens"
-	FieldOutputTokens   = "output_tokens"
-	FieldThinkingTokens = "thinking_tokens"
+	FieldModel = "model"
+	// FieldInputTokens is the input of a call of a model without the cache, as
+	// tutor counts it; FieldCacheWriteTokens, what it wrote to the provider's
+	// cache, for every time the cache keeps a write, and FieldCacheReadTokens,
+	// what it read from it: the three add up to the call's input (R94).
+	FieldInputTokens      = "input_tokens"
+	FieldCacheWriteTokens = "cache_write_tokens"
+	FieldCacheReadTokens  = "cache_read_tokens"
+	FieldOutputTokens     = "output_tokens"
+	FieldThinkingTokens   = "thinking_tokens"
 	// FieldAIOutcome is how a call of AI ended, in a word of AIOutcomes.
 	FieldAIOutcome = "ai_outcome"
 	// FieldWordsCheck is the check that turned the tutor's words down, so that
@@ -255,8 +262,8 @@ var events = map[string][]string{
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
 	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldLegalDir, FieldConsentForms},
-	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldOutputTokens, FieldThinkingTokens,
-		FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled, FieldModelMS, FieldRetries, FieldFirstTokenMS},
+	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldCacheWriteTokens, FieldCacheReadTokens,
+		FieldOutputTokens, FieldThinkingTokens, FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled, FieldModelMS, FieldRetries, FieldFirstTokenMS},
 	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
 	EventPlatformLimit:    {FieldMethod},
 	EventPlatformAIOpened: {FieldWasClosed},
@@ -275,59 +282,61 @@ type rule struct {
 
 // fields is every field and its rule.
 var fields = map[string]rule{
-	FieldVersion:        {kind: slog.KindString, shape: matches(versionShape)},
-	FieldCommit:         {kind: slog.KindString, shape: matches(commitShape)},
-	FieldDate:           {kind: slog.KindString, shape: isBuildDate},
-	FieldPort:           {kind: slog.KindInt64},
-	FieldDeployed:       {kind: slog.KindBool},
-	FieldStarted:        {kind: slog.KindBool},
-	FieldCutShort:       {kind: slog.KindBool},
-	FieldMoment:         {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen}},
-	FieldErrorKind:      {kind: slog.KindLogValuer},
-	FieldPanicKind:      {kind: slog.KindLogValuer},
-	FieldApplied:        {kind: slog.KindInt64},
-	FieldSchemaVersion:  {kind: slog.KindInt64},
-	FieldDatabase:       {kind: slog.KindString, values: []string{DatabaseAPI, DatabaseOpenFGA}},
-	FieldStoreCreated:   {kind: slog.KindBool},
-	FieldModelWritten:   {kind: slog.KindBool},
-	FieldMethod:         {kind: slog.KindString, shape: matches(methodShape)},
-	FieldCode:           {kind: slog.KindString, values: Codes},
-	FieldCause:          {kind: slog.KindString, shape: matches(causeShape)},
-	FieldTokenClass:     {kind: slog.KindString, values: TokenClasses},
-	FieldDurationMS:     {kind: slog.KindInt64},
-	FieldStep:           {kind: slog.KindString, values: Steps},
-	FieldDone:           {kind: slog.KindInt64},
-	FieldFailed:         {kind: slog.KindInt64},
-	FieldFinished:       {kind: slog.KindBool},
-	FieldModulesRelease: {kind: slog.KindString, shape: matches(releaseShape)},
-	FieldPackages:       {kind: slog.KindInt64},
-	FieldFiles:          {kind: slog.KindInt64},
-	FieldStatus:         {kind: slog.KindInt64},
-	FieldAdmissionTable: {kind: slog.KindString, shape: matches(tableShape)},
-	FieldFactsFile:      {kind: slog.KindBool},
-	FieldRung:           {kind: slog.KindString, values: Rungs},
-	FieldRungSet:        {kind: slog.KindBool},
-	FieldPlatformKeys:   {kind: slog.KindInt64},
-	FieldTutorStub:      {kind: slog.KindBool},
-	FieldReadingMode:    {kind: slog.KindString, values: ReadingModes},
-	FieldLegalDir:       {kind: slog.KindBool},
-	FieldConsentForms:   {kind: slog.KindString, values: FormsStores},
-	FieldOutcomeCause:   {kind: slog.KindString, shape: matches(causeShape)},
-	FieldProvider:       {kind: slog.KindString, values: Providers},
-	FieldModel:          {kind: slog.KindString, shape: matches(modelShape)},
-	FieldInputTokens:    {kind: slog.KindInt64},
-	FieldOutputTokens:   {kind: slog.KindInt64},
-	FieldThinkingTokens: {kind: slog.KindInt64},
-	FieldAIOutcome:      {kind: slog.KindString, values: AIOutcomes},
-	FieldWordsCheck:     {kind: slog.KindString, values: WordsChecks},
-	FieldKeyCheck:       {kind: slog.KindString, values: KeyChecks},
-	FieldCostMicroUSD:   {kind: slog.KindInt64},
-	FieldBilled:         {kind: slog.KindBool},
-	FieldModelMS:        {kind: slog.KindInt64},
-	FieldRetries:        {kind: slog.KindInt64},
-	FieldFirstTokenMS:   {kind: slog.KindInt64},
-	FieldQuotaCap:       {kind: slog.KindString, values: QuotaCaps},
-	FieldWasClosed:      {kind: slog.KindBool},
+	FieldVersion:          {kind: slog.KindString, shape: matches(versionShape)},
+	FieldCommit:           {kind: slog.KindString, shape: matches(commitShape)},
+	FieldDate:             {kind: slog.KindString, shape: isBuildDate},
+	FieldPort:             {kind: slog.KindInt64},
+	FieldDeployed:         {kind: slog.KindBool},
+	FieldStarted:          {kind: slog.KindBool},
+	FieldCutShort:         {kind: slog.KindBool},
+	FieldMoment:           {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen}},
+	FieldErrorKind:        {kind: slog.KindLogValuer},
+	FieldPanicKind:        {kind: slog.KindLogValuer},
+	FieldApplied:          {kind: slog.KindInt64},
+	FieldSchemaVersion:    {kind: slog.KindInt64},
+	FieldDatabase:         {kind: slog.KindString, values: []string{DatabaseAPI, DatabaseOpenFGA}},
+	FieldStoreCreated:     {kind: slog.KindBool},
+	FieldModelWritten:     {kind: slog.KindBool},
+	FieldMethod:           {kind: slog.KindString, shape: matches(methodShape)},
+	FieldCode:             {kind: slog.KindString, values: Codes},
+	FieldCause:            {kind: slog.KindString, shape: matches(causeShape)},
+	FieldTokenClass:       {kind: slog.KindString, values: TokenClasses},
+	FieldDurationMS:       {kind: slog.KindInt64},
+	FieldStep:             {kind: slog.KindString, values: Steps},
+	FieldDone:             {kind: slog.KindInt64},
+	FieldFailed:           {kind: slog.KindInt64},
+	FieldFinished:         {kind: slog.KindBool},
+	FieldModulesRelease:   {kind: slog.KindString, shape: matches(releaseShape)},
+	FieldPackages:         {kind: slog.KindInt64},
+	FieldFiles:            {kind: slog.KindInt64},
+	FieldStatus:           {kind: slog.KindInt64},
+	FieldAdmissionTable:   {kind: slog.KindString, shape: matches(tableShape)},
+	FieldFactsFile:        {kind: slog.KindBool},
+	FieldRung:             {kind: slog.KindString, values: Rungs},
+	FieldRungSet:          {kind: slog.KindBool},
+	FieldPlatformKeys:     {kind: slog.KindInt64},
+	FieldTutorStub:        {kind: slog.KindBool},
+	FieldReadingMode:      {kind: slog.KindString, values: ReadingModes},
+	FieldLegalDir:         {kind: slog.KindBool},
+	FieldConsentForms:     {kind: slog.KindString, values: FormsStores},
+	FieldOutcomeCause:     {kind: slog.KindString, shape: matches(causeShape)},
+	FieldProvider:         {kind: slog.KindString, values: Providers},
+	FieldModel:            {kind: slog.KindString, shape: matches(modelShape)},
+	FieldInputTokens:      {kind: slog.KindInt64},
+	FieldCacheWriteTokens: {kind: slog.KindInt64},
+	FieldCacheReadTokens:  {kind: slog.KindInt64},
+	FieldOutputTokens:     {kind: slog.KindInt64},
+	FieldThinkingTokens:   {kind: slog.KindInt64},
+	FieldAIOutcome:        {kind: slog.KindString, values: AIOutcomes},
+	FieldWordsCheck:       {kind: slog.KindString, values: WordsChecks},
+	FieldKeyCheck:         {kind: slog.KindString, values: KeyChecks},
+	FieldCostMicroUSD:     {kind: slog.KindInt64},
+	FieldBilled:           {kind: slog.KindBool},
+	FieldModelMS:          {kind: slog.KindInt64},
+	FieldRetries:          {kind: slog.KindInt64},
+	FieldFirstTokenMS:     {kind: slog.KindInt64},
+	FieldQuotaCap:         {kind: slog.KindString, values: QuotaCaps},
+	FieldWasClosed:        {kind: slog.KindBool},
 }
 
 // The shapes of the build's identity, as the justfile's build stamps it: a

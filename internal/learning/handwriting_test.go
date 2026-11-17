@@ -201,9 +201,9 @@ func TestAHandwritingSheetIsReadByTwoReaders(t *testing.T) {
 	if !strings.Contains(log, `"ai_outcome":"failed"`) {
 		t.Errorf("the log has no line of a call that no model answered: %s", log)
 	}
-	if !strings.Contains(log, `"message":"ai_usage"`) || !strings.Contains(log, `"model":"claude-opus-5-5"`) ||
+	if !strings.Contains(log, `"message":"ai_usage"`) || !strings.Contains(log, `"model":"claude-opus-5-5","input_tokens":1200,"cache_write_tokens":0,"cache_read_tokens":0,`) ||
 		!strings.Contains(log, `"outcome_cause":"CAUSE_AI_FAILURE"`) {
-		t.Errorf("the log has no usage of the readers or no cause of an outcome: %s", log)
+		t.Errorf("the log has no usage of the readers, with no tokens of the cache, or no cause of an outcome: %s", log)
 	}
 }
 

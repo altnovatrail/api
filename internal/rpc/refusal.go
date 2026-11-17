@@ -89,11 +89,14 @@ type AICall struct {
 }
 
 // AIUsage is what one call of a model took: its provider and model, its tokens
-// and what they cost, and how long it took at tutor, how many times its SDK
-// sent it again and when its first text came (R107 tutor).
+// — the input without the cache, written to the cache and read from it, which
+// add up to its input, the output and the thinking (R94) — and what they cost,
+// and how long it took at tutor, how many times its SDK sent it again and when
+// its first text came (R107 tutor).
 type AIUsage struct {
-	Provider, Model                           string
-	InputTokens, OutputTokens, ThinkingTokens int64
+	Provider, Model                                string
+	InputTokens, CacheWriteTokens, CacheReadTokens int64
+	OutputTokens, ThinkingTokens                   int64
 	// CostMicroUSD is what it cost by tutor's prices, at its worst when Billed is
 	// false: its tokens are not its whole bill (R12).
 	CostMicroUSD int64
