@@ -287,10 +287,9 @@ func TestTheGateHearsNoEndingOfAnOwnKey(t *testing.T) {
 // adult and enters the pool, but not for a child, whose sheet the facts of an
 // adult do not admit; by the facts of a child it begins for the child too, as
 // dev-check declares them to its server on the stub. A tall crop of the box reads a wrong value, and a wide
-// one the right value, which solves the task and gives its evidence. tutor
-// expects no price of the page, so each reading keeps the reserve of the kind,
-// 14,000 micro-dollars a box, as spent (R12, R81), with nothing left in
-// reserve. On an own key the stub refuses the page by the key's ending.
+// one the right value, which solves the task and gives its evidence. Each
+// reading keeps tutor's expected price of a page as spent, the price of the
+// entry the author's word admits (R90), with nothing left in reserve. On an own key the stub refuses the page by the key's ending.
 func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 
@@ -341,11 +340,13 @@ func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 	}
 
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
-	box := quota.Reserve(tutor.CallWorkbook, g.Price(tutor.CallWorkbook, adult), 1)
-	want := quota.Counter{Spent: 3 * box}
-	if profile, account := w.counted(t, l.accountID, l.adult); box != 14_000 || profile != want || account != want {
-		t.Errorf("the counters = %+v, %+v by %d a box; want 14,000 a box and three readings on platform AI kept as spent, %+v",
-			profile, account, box, want)
+	price := g.Price(tutor.CallWorkbook, adult)
+	pageReserve := quota.Reserve(tutor.CallWorkbook, price, 1)
+	want := quota.Counter{Spent: 3 * pageReserve}
+	if profile, account := w.counted(t, l.accountID, l.adult); !price.Expected || pageReserve != quota.USD(price.ExpectedUSD) ||
+		profile != want || account != want {
+		t.Errorf("the counters = %+v, %+v by %d a page; want tutor's expected price of a page and three readings on platform AI kept as spent, %+v",
+			profile, account, pageReserve, want)
 	}
 	if log := w.log.String(); !strings.Contains(log, `"model":"stub"`) || strings.Contains(log, "sk-ant-synthetic") {
 		t.Errorf("the log = %s, want the stub's usage and no own key", log)
@@ -360,9 +361,9 @@ func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 // blank, each giving the assessment's reserve back; a wide one reads the stub's
 // text, assessed every criterion met but the last, with the stub's feedback,
 // which passes the leak check and the rule of feedback. "Done" then closes the
-// attempt with story's criteria. tutor expects no price of either call, so each
-// reading keeps 15,000 micro-dollars as spent, and the assessment 15,000 more
-// (R12, R82). The log holds neither the text nor the feedback, nor the key.
+// attempt with story's criteria. Each reading keeps tutor's expected price of
+// the reading as spent, and the assessment its own, the prices of the entries
+// the author's word admits (R90). The log holds neither the text nor the feedback, nor the key.
 func TestAnEssayRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 
@@ -414,16 +415,37 @@ func TestAnEssayRunsOnTheStub(t *testing.T) {
 	}
 
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
-	reading := quota.Reserve(tutor.CallEssay, g.Price(tutor.CallEssay, adult), 1)
-	assessing := quota.Reserve(tutor.CallRubric, g.Price(tutor.CallRubric, adult), 1)
+	readPrice, assessPrice := g.Price(tutor.CallEssay, adult), g.Price(tutor.CallRubric, adult)
+	reading, assessing := quota.Reserve(tutor.CallEssay, readPrice, 1), quota.Reserve(tutor.CallRubric, assessPrice, 1)
 	want := quota.Counter{Spent: 3*reading + assessing}
-	if profile, account := w.counted(t, l.accountID, l.adult); reading != 15_000 || assessing != 15_000 || profile != want || account != want {
-		t.Errorf("the counters = %+v, %+v by %d and %d; want 15,000 each, three readings and an assessment on platform AI kept as spent, %+v",
+	if profile, account := w.counted(t, l.accountID, l.adult); !readPrice.Expected || !assessPrice.Expected ||
+		reading != quota.USD(readPrice.ExpectedUSD) || assessing != quota.USD(assessPrice.ExpectedUSD) || profile != want || account != want {
+		t.Errorf("the counters = %+v, %+v by %d and %d; want tutor's expected prices, three readings and an assessment on platform AI kept as spent, %+v",
 			profile, account, reading, assessing, want)
 	}
 	if log := w.log.String(); !strings.Contains(log, `"model":"stub"`) || strings.Contains(log, text) || strings.Contains(log, feedback) ||
 		strings.Contains(log, refusedKey) {
 		t.Errorf("the log = %s, want the stub's usage and neither the text, the feedback nor the own key", log)
+	}
+}
+
+// At the stage full the stub admits neither a workbook page nor an essay, as
+// tutor admits none of the entries of the author's word there (R90): neither
+// table nor story begins, nor enters the pool.
+func TestTheStubAtTheStageFullReadsNoWorkbookAndNoEssay(t *testing.T) {
+	t.Parallel()
+
+	g := stubGateOf(t, childFacts, "API_ADMISSION_RUNG=full")
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	l := w.learner(t)
+	pool, _, err := w.service.Candidates(w.current, formatv0.AgeCategoryAdult, "")
+	if err != nil || slices.Contains(pool, module+"/task/table") || slices.Contains(pool, module+"/task/story") {
+		t.Errorf("the pool at the stage full = %v, %v; want neither table nor story", pool, err)
+	}
+	for _, task := range []string{"table", "story"} {
+		_, err := w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+			Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, l.adult, task)}})
+		t.Run(task, func(t *testing.T) { refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED) })
 	}
 }
 

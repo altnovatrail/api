@@ -10,14 +10,11 @@
 // value, taller than wide a wrong one — the slot's first trap value, or the
 // first value its check holds not right —, and square is illegible. It reads
 // each filled box of a workbook page the same way, by the shape of the box's
-// crop, and admits that reading itself wherever the gate admits a sheet's, for
-// the same category and route: tutor v0.1.45 admits it nowhere (В72). It finds
-// the values by module-kit's verdict on the instance, the key with it, which
-// the stub alone is given: tutor sees the open view (R67 spec). It reads an
-// essay by the shape of the sheet's crop too — wider than tall a text of its
-// own, taller than wide a blank sheet, square illegible —, assesses the text
-// every criterion met but the last, and admits both calls itself where the gate
-// admits a sheet's reading, as it admits a workbook page. Its words — a rung's
+// crop. It finds the values by module-kit's verdict on the instance, the key
+// with it, which the stub alone is given: tutor sees the open view (R67 spec).
+// It reads an essay by the shape of the sheet's crop too — wider than tall a
+// text of its own, taller than wide a blank sheet, square illegible —, and
+// assesses the text every criterion met but the last. Its words — a rung's
 // questions, the praise after a correct answer and the feedback on an essay —
 // are its own, which pass the leak check and the form check. Each call spends
 // what tutor expects a call of its kind to cost on its route, so that the quota
@@ -215,16 +212,10 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 }
 
 // Reads says whether the reading by the call of the kind is admitted for a
-// learner of category, on the route of ownKeyProvider: the reading of a
-// workbook page, of an essay and the essay's assessment wherever the gate
-// admits a sheet's, CallSheet, for the same category and route, since no entry
-// of tutor v0.1.35 admits any of the three (В72; the 2026-11-15 amendments to
-// R66); and any other kind as the gate says.
+// learner of category, on the route of ownKeyProvider, as the gate says: since
+// tutor v0.1.46 admits the workbook, the essay and the rubric by the author's
+// word, the stub admits none of them itself (R90).
 func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	switch call {
-	case tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric:
-		call = tutor.CallSheet
-	}
 	return s.gate.Reads(call, category, ownKeyProvider)
 }
 
@@ -239,9 +230,9 @@ func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvi
 // bound otherwise, no open view of the task, a crop that is no PNG or is larger
 // than maxCropSide on a side, and a request whose context ended, fail. Past those checks an own key
 // of an ending of the stub's, own being its value, is refused by it. The call
-// spends the expected price of CallEssay on the route, which tutor v0.1.35 does
-// not give: none, so the quota keeps its reserve by the value of the kind as
-// spent (R12, R82).
+// spends the expected price of CallEssay on the route, tutor's by the entry the
+// author's word admits (R90); with none, nothing priced, so the quota keeps its
+// reserve by the value of the kind as spent (R12, R82).
 func (s *Stub) ReadEssay(ctx context.Context, r tutor.EssayReading, task formatv0.Task, own string) tutor.EssayRead {
 	fail := func(err error) tutor.EssayRead {
 		return tutor.EssayRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
@@ -328,9 +319,9 @@ func essayPlace(task formatv0.Task) (*observationv1.AnswerSlotPlace, error) {
 // a language words.Feedback cannot check, fails, as does a request whose
 // context ended, every criterion without a mark. Past those checks an own key of
 // an ending of the stub's, own being its value, is refused by it. The call
-// spends the expected price of CallRubric on the route, which tutor v0.1.35 does
-// not give: none, so the quota keeps its reserve by the value of the kind as
-// spent (R12, R82).
+// spends the expected price of CallRubric on the route, tutor's by the entry the
+// author's word admits (R90); with none, nothing priced, so the quota keeps its
+// reserve by the value of the kind as spent (R12, R82).
 func (s *Stub) AssessEssay(ctx context.Context, r tutor.RubricAssessment, own string) tutor.RubricAssessed {
 	none := func(o tutor.Outcome) tutor.RubricAssessed {
 		return tutor.RubricAssessed{Criteria: make([]tutor.CriterionMark, len(r.Criteria)), Outcome: o}
@@ -403,8 +394,9 @@ var feedback = map[string]string{
 // stub looked for the values. A page with no crop goes to no model and spends
 // nothing, as tutor's does; past those checks an own key of an ending of the
 // stub's, own being its value, is refused by it. The call spends the expected
-// price of CallWorkbook on the route, which tutor v0.1.35 does not give: none,
-// so the quota keeps its reserve by the value of the kind as spent (R12, R81).
+// price of CallWorkbook on the route, tutor's by the entry the author's word
+// admits (R90); with none, nothing priced, so the quota keeps its reserve by the
+// value of the kind as spent (R12, R81).
 func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead {
 	fail := func(err error) tutor.WorkbookRead {
 		return tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}

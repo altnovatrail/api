@@ -109,11 +109,11 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 			if got := g.Reads(tutor.CallSheet, tc.category, tc.provider); got != tc.want {
 				t.Errorf("Reads(sheet, %s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
 			}
-			// No entry of tutor v0.1.35 measured the prompts of the workbook and the
-			// essay (В72).
+			// The workbook, the essay and the rubric are admitted by the author's word
+			// at the rung author alone, where the sheet is (R126 tutor; R90).
 			for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
-				if g.Reads(call, tc.category, tc.provider) {
-					t.Errorf("Reads(%s, %s, %q) = true, want no entry", call, tc.category, tc.provider)
+				if got := g.Reads(call, tc.category, tc.provider); got != tc.want {
+					t.Errorf("Reads(%s, %s, %q) = %v, want %v", call, tc.category, tc.provider, got, tc.want)
 				}
 			}
 		})
@@ -401,8 +401,17 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 	if p := g.Price(tutor.CallSheet, child); p.Expected || p.ExpectedUSD != 0 {
 		t.Errorf("the price of a route not admitted = %+v, want none", p)
 	}
-	if p := g.Price(tutor.CallEssay, adult); p.Expected {
-		t.Errorf("the price of an essay, which no entry admits = %+v, want none", p)
+	// The workbook, the essay and the rubric have the expected price of the
+	// entries the author's word admits at the rung author (R126 tutor), and none
+	// at the rung full, which admits none of them (R90).
+	full := load(t, keyed(t, file(t, adultFacts), config.RungFull))
+	for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
+		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
+			t.Errorf("the price of %s for an adult = %+v, want an expected price of cents", call, p)
+		}
+		if p := full.Price(call, adult); p.Expected {
+			t.Errorf("the price of %s at the rung full = %+v, want none", call, p)
+		}
 	}
 }
 

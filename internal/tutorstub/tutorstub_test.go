@@ -445,34 +445,20 @@ func (g asking) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProv
 	return g.gate.Reads(call, category, ownKeyProvider)
 }
 
-// The stub admits the reading of a workbook page, of an essay and the essay's
-// assessment itself wherever the gate admits a sheet's, for the same category
-// and route, since no entry of tutor v0.1.35 admits any of them (В72); any
-// other kind of call is the gate's.
-func TestTheStubAdmitsAWorkbookAndAnEssayWhereTheGateAdmitsASheet(t *testing.T) {
+// The stub admits each kind of call as the gate does, on its category and
+// route: tutor v0.1.46 admits the workbook, the essay and the rubric by the
+// author's word, so the stub admits none of them in a sheet's stead (R90).
+func TestTheStubAdmitsAsTheGateDoes(t *testing.T) {
 	t.Parallel()
 
 	var asked []string
-	sheets := tutorstub.New(asking{gate{reads: map[tutor.Call]bool{tutor.CallSheet: true}}, &asked})
-	if !sheets.Reads(tutor.CallWorkbook, formatv0.AgeCategoryUnder13, "anthropic") || !sheets.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") ||
-		sheets.Reads(tutor.CallWords, formatv0.AgeCategoryAdult, "") {
-		t.Error("the stub does not admit a workbook page and a sheet where the gate admits a sheet, and the words as the gate does")
+	books := tutorstub.New(asking{gate{reads: map[tutor.Call]bool{tutor.CallWorkbook: true, tutor.CallEssay: true}}, &asked})
+	if !books.Reads(tutor.CallWorkbook, formatv0.AgeCategoryUnder13, "anthropic") || !books.Reads(tutor.CallEssay, formatv0.AgeCategoryAdult, "") ||
+		books.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || books.Reads(tutor.CallRubric, formatv0.AgeCategoryFrom13ToConsent, "") {
+		t.Error("the stub admits otherwise than the gate")
 	}
-	if want := []string{"sheet under_13 anthropic", "sheet adult ", "words adult "}; !slices.Equal(asked, want) {
-		t.Errorf("the gate was asked %q, want %q: a sheet for a workbook page, on its category and route", asked, want)
-	}
-	asked = nil
-	if !sheets.Reads(tutor.CallEssay, formatv0.AgeCategoryFrom13ToConsent, "") || !sheets.Reads(tutor.CallRubric, formatv0.AgeCategoryAdult, "anthropic") {
-		t.Error("the stub does not admit an essay and its assessment where the gate admits a sheet")
-	}
-	if want := []string{"sheet from_13_to_consent ", "sheet adult anthropic"}; !slices.Equal(asked, want) {
-		t.Errorf("the gate was asked %q, want %q: a sheet for an essay and its assessment, on their category and route", asked, want)
-	}
-	others := tutorstub.New(gate{reads: map[tutor.Call]bool{tutor.CallWorkbook: true, tutor.CallEssay: true, tutor.CallRubric: true}})
-	for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
-		if others.Reads(call, formatv0.AgeCategoryAdult, "") {
-			t.Errorf("the stub admits %s where the gate admits no sheet", call)
-		}
+	if want := []string{"workbook under_13 anthropic", "essay adult ", "sheet adult ", "rubric from_13_to_consent "}; !slices.Equal(asked, want) {
+		t.Errorf("the gate was asked %q, want %q: each kind on its own category and route", asked, want)
 	}
 }
 
@@ -504,7 +490,7 @@ func boxOf(item, slot int, crop []byte) tutor.BoxCrop {
 // blank. Both readers read the same, each box of the page in the task's order,
 // whatever order the crops came in, which module-kit joins as it joins tutor's
 // pair. The reading spends the expected price of the page, shared by the two
-// readers, and with no price, which tutor v0.1.35 gives none of, nothing priced.
+// readers, and with no price nothing priced.
 // A page left blank goes to no model: every box blank, no usage.
 func TestTheStubReadsAWorkbookPageByItsBoxes(t *testing.T) {
 	t.Parallel()
@@ -649,8 +635,7 @@ func assessment(route tutor.Route, language string, n int) tutor.RubricAssessmen
 // 2026-11-15): wider than tall the stub's text, taller than wide a blank sheet,
 // square illegible, each an observation of the one slot bound to the sheet,
 // with no crop box, which module-kit takes as an essay read or unreadable. One
-// reader reads it, spending the expected price of the essay, and with no price,
-// which tutor v0.1.35 gives none of, nothing priced.
+// reader reads it, spending the expected price of the essay, and with no price nothing priced.
 func TestTheStubReadsAnEssayByTheShapeOfTheCrop(t *testing.T) {
 	t.Parallel()
 
