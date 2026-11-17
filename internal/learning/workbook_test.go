@@ -14,6 +14,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/learning"
@@ -346,5 +347,55 @@ func TestTheGateTutorReadsAWorkbookPage(t *testing.T) {
 	}
 	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || g.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {
 		t.Error("the gate's adapter admits otherwise than the gate: the sheet, and no workbook page")
+	}
+}
+
+// In the mode single a workbook page is read by one reader (R88): each box's
+// verdict is module-kit's on its one observation, which the submission keeps,
+// and two observations are a failure of AI.
+func TestAWorkbookPageIsReadByOneReaderInTheModeSingle(t *testing.T) {
+	t.Parallel()
+
+	ps := &pageReaders{}
+	w := worldOf(t, gate(t, adultFacts, config.RungAuthor, "API_READING_MODE=single"), []learning.Option{
+		learning.WithAdmits(func(tutor.Call) bool { return true }), learning.WithWorkbookReader(ps.read)})
+	l := w.learner(t)
+	png := pngOf(t, 40, 30)
+	one := func(o *observationv1.Observation) tutor.WorkbookRead {
+		return tutor.WorkbookRead{Observations: []*observationv1.Observation{o}, Outcome: tutor.Outcome{Kind: tutor.Answered}}
+	}
+	for _, tc := range []struct {
+		name    string
+		got     tutor.WorkbookRead
+		work    *v1.Work
+		verdict string
+		cause   v1.Cause
+	}{
+		{"not yet", one(read("5")), page(boxCrop(1, 1, png)), "not_yet[not_yet 5]", v1.Cause_CAUSE_UNSPECIFIED},
+		{"a page left blank", one(blankBox()), page(), "unreadable[unreadable blank]", v1.Cause_CAUSE_UNSPECIFIED},
+		{"two readings", readPage(read("4"), read("4")), page(boxCrop(1, 1, png)), "unchecked[unchecked ]", v1.Cause_CAUSE_AI_FAILURE},
+		{"correct", one(read("4")), page(boxCrop(1, 1, png)), "correct[correct 4]", v1.Cause_CAUSE_UNSPECIFIED},
+	} {
+		attempt := w.begin(t, l, l.adult, "table").GetAttemptId()
+		ps.give(tc.got)
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt,
+			IdempotencyKey: uuid.NewString(), Work: tc.work})
+		t.Run(tc.name, func(t *testing.T) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := verdicts(res); got != tc.verdict || res.GetOutcome().GetCause() != tc.cause {
+				t.Errorf("SubmitWork = %s, %v; want %s, %v", got, res.GetOutcome().GetCause(), tc.verdict, tc.cause)
+			}
+		})
+	}
+	var observed []byte
+	if err := w.pool.QueryRow(t.Context(), `SELECT observation FROM submissions ORDER BY submitted_at DESC, number DESC LIMIT 1`).
+		Scan(&observed); err != nil {
+		t.Fatal(err)
+	}
+	o := &observationv1.Observation{}
+	if err := proto.Unmarshal(observed, o); err != nil || !proto.Equal(o, read("4")) {
+		t.Errorf("the submission keeps %v (%v), want the one reader's observation", o, err)
 	}
 }

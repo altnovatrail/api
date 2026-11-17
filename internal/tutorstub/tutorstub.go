@@ -170,10 +170,10 @@ func New(gate Gate) *Stub { return &Stub{gate: gate} }
 // view r holds: each reader of the gate's mode reads the same, so module-kit
 // joins the pair's as they are. A value stands with the crop box of the whole
 // crop, in thousandths, and a reason with none, as an observation has them (R53
-// spec). A task with no answer slot bound anywhere, a crop that is no PNG, or a request whose context ended
-// while the stub looked for a value, fails, as tutor's reading does. Past those
-// checks an own key of an ending of the stub's is refused by it, own being its
-// value.
+// spec). A task with no answer slot bound anywhere, a crop that is no PNG, or a
+// request whose context ended while the stub looked for a value, fails, as
+// tutor's reading does. Past those checks an own key of an ending of the stub's
+// is refused by it, own being its value.
 func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead {
 	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
 	if err != nil {
@@ -204,9 +204,10 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 	} else {
 		answer.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}
 	}
+	n := s.readers()
 	read := tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Answered,
-		Usage: s.usage(tutor.CallSheet, r.Route, s.readers())}}
-	for range s.readers() {
+		Usage: s.usage(tutor.CallSheet, r.Route, n)}}
+	for range n {
 		read.Observations = append(read.Observations, &observationv1.Observation{
 			AnswerSlots: []*observationv1.AnswerSlotObservation{answer}})
 	}
@@ -395,9 +396,9 @@ var feedback = map[string]string{
 // wrong one, square illegible. The observation holds every box of the page in
 // the task's order, a box that sent no crop unreadable, blank, and a value with
 // no crop box, as tutor's does; each reader of the gate's mode reads the same.
-// Of tutor's checks before its call the stub keeps those of the request's form: a task that is no
-// workbook page, a crop of a place the page has no box of or of one box twice,
-// more than maxBoxes crops, or a crop that is no PNG or is larger than
+// Of tutor's checks before its call the stub keeps those of the request's form:
+// a task that is no workbook page, a crop of a place the page has no box of or
+// of one box twice, more than maxBoxes crops, or a crop that is no PNG or is larger than
 // maxBoxSide on a side fails, as does a request whose context ended while the
 // stub looked for the values. A page with no crop goes to no model and spends
 // nothing, as tutor's does; past those checks an own key of an ending of the
@@ -462,11 +463,12 @@ func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task f
 		answer.AnswerSlot = &observationv1.AnswerSlotPlace{Item: int32(at.item), Slot: int32(at.slot)}
 		page.AnswerSlots = append(page.AnswerSlots, answer)
 	}
+	n := s.readers()
 	out := tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Answered}}
 	if len(r.Boxes) > 0 {
-		out.Outcome.Usage = s.usage(tutor.CallWorkbook, r.Route, s.readers())
+		out.Outcome.Usage = s.usage(tutor.CallWorkbook, r.Route, n)
 	}
-	for range s.readers() {
+	for range n {
 		out.Observations = append(out.Observations, proto.CloneOf(page))
 	}
 	return out

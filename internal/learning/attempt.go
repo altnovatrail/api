@@ -37,10 +37,9 @@ const finishReserve = 3 * time.Second
 // key: the verdict of every item and answer slot, by module-kit, on the options
 // tapped and on what tutor's readers — the pair, or one reader (R88) — read of
 // the crop of a handwriting sheet (R46) or of the crops of a workbook page's
-// filled boxes (R81). A
-// submission with an answer slot "not_yet" is a wrong answer; "unreadable" and
-// "unchecked" are none (R09). One whose every item is correct
-// closes the attempt "correct", and its answer holds the task solved, its keys
+// filled boxes (R81). A submission with an answer slot "not_yet" is a wrong
+// answer; "unreadable" and "unchecked" are none (R09). One whose every item is
+// correct closes the attempt "correct", and its answer holds the task solved, its keys
 // and its solution (R05 spec). A call of AI that gives no reading is no
 // refusal: the slots AI reads get "unchecked", and the answer names the
 // outcome. The submission is recorded with its answer and, when AI read, the

@@ -48,7 +48,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 
 ## Table 1. Current epic — none
 
-The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author picks the next one at planning. Until then — tasks between epics (rule 9), their bodies in [run/TASKS.md](run/TASKS.md) and, done, in the archive of the next epic, [docs/plan/E14.md](docs/plan/E14.md). T96 and T97 are the further parts of the move T94 (rule 11; R84); T98–T100 — row 7.15 of COORDINATION.md spec, done. T101 — wave 0 of the orchestrator's run of «Порядок» (R156 spec), done; T102 — row 6.25 of COORDINATION.md spec in that run, done; T103 — row 6.27 in that run, done; T104 — row 6.30 in that run.
+The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author picks the next one at planning. Until then — tasks between epics (rule 9), their bodies in [run/TASKS.md](run/TASKS.md) and, done, in the archive of the next epic, [docs/plan/E14.md](docs/plan/E14.md). T96 and T97 are the further parts of the move T94 (rule 11; R84); T98–T100 — row 7.15 of COORDINATION.md spec, done. T101 — wave 0 of the orchestrator's run of «Порядок» (R156 spec), done; T102 — row 6.25 of COORDINATION.md spec in that run, done; T103 — row 6.27 in that run, done; T104 — row 6.30 in that run, done.
 
 | Статус | ID | Задача | Кто | План | Зависит от |
 |---|---|---|---|---|---|
@@ -63,4 +63,4 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T101 | Переход на тег `spec` v0.18.6 | Claude | — | — |
 | [x] | T102 | `just dev-app` с синтетическим ребёнком | Claude | — | — |
 | [x] | T103 | `access_returns` в `OwnKeyLimit` | Claude | — | — |
-| [ ] | T104 | Режим чтения почерка: `API_READING_MODE` | Claude | — | `tutor` v0.1.45 |
+| [x] | T104 | Режим чтения почерка: `API_READING_MODE` | Claude | — | `tutor` v0.1.45 |

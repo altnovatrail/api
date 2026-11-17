@@ -21,6 +21,7 @@ package admission
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -187,7 +188,9 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		// The configuration holds no platform key beside the stub (R66).
 		adapters, keys = StubAdapters(), map[admissionv0.Provider]string{"anthropic": stubKey}
 	}
-	g := &Gate{reading: tutor.Reading(cfg.Reading)}
+	// A configuration that names no mode of reading is the pair, as tutor takes
+	// it, and the report and the readers of the gate say so.
+	g := &Gate{reading: tutor.Reading(cmp.Or(cfg.Reading, config.ReadingPair))}
 	if g.providers, err = tableProviders(); err != nil {
 		return nil, Report{}, err
 	}
@@ -431,11 +434,5 @@ func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
 
 // Reading is the mode tutor reads the handwriting of a sheet and of a workbook
 // page by, and so how many observations its reading gives: two of the pair, or
-// one of the one reader (R88). A configuration that names none is the pair, as
-// tutor takes it.
-func (g *Gate) Reading() tutor.Reading {
-	if g.reading == "" {
-		return tutor.ReadingPair
-	}
-	return g.reading
-}
+// one of the one reader (R88).
+func (g *Gate) Reading() tutor.Reading { return g.reading }
