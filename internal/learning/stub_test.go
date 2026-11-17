@@ -49,14 +49,15 @@ const childFacts = `anthropic:
   minor_safeguards: [under_13]
 `
 
-// stubGateOf is the gate of the dev mode on the facts given.
-func stubGateOf(t *testing.T, given string) *admission.Gate {
+// stubGateOf is the gate of the dev mode on the facts given, with the variables
+// more declares.
+func stubGateOf(t *testing.T, given string, more ...string) *admission.Gate {
 	t.Helper()
 	facts := filepath.Join(t.TempDir(), "facts.yaml")
 	if err := os.WriteFile(facts, []byte(given), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.AdmissionFrom([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author", "API_ADMISSION_FACTS_FILE=" + facts})
+	cfg, err := config.AdmissionFrom(append([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author", "API_ADMISSION_FACTS_FILE=" + facts}, more...))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,5 +424,47 @@ func TestAnEssayRunsOnTheStub(t *testing.T) {
 	if log := w.log.String(); !strings.Contains(log, `"model":"stub"`) || strings.Contains(log, text) || strings.Contains(log, feedback) ||
 		strings.Contains(log, refusedKey) {
 		t.Errorf("the log = %s, want the stub's usage and neither the text, the feedback nor the own key", log)
+	}
+}
+
+// In the mode single (R88) the stub reads a sheet by one reader, as tutor's
+// Haiku alone: module-kit gives the verdict on the one observation, each
+// reading spends what tutor expects of the one reader, less than the pair, on
+// one line of usage, and nothing is left in reserve.
+func TestThePathRunsOnTheStubByOneReader(t *testing.T) {
+	t.Parallel()
+
+	g := stubGateOf(t, adultFacts, "API_READING_MODE=single")
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	l := w.learner(t)
+	a := w.begin(t, l, l.adult, "apples").GetAttemptId()
+	submit := func(width, height int) *v1.SubmitWorkResponse {
+		t.Helper()
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a,
+			IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, width, height))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if res := submit(10, 10); verdicts(res) != "unreadable[unreadable illegible]" || res.GetOutcome() != nil {
+		t.Fatalf("a square crop = %s, %v; want illegible", verdicts(res), res.GetOutcome())
+	}
+	if res := submit(10, 40); !strings.HasPrefix(verdicts(res), "not_yet") || res.GetWrongAnswers() != 1 {
+		t.Fatalf("a tall crop = %s, %d wrong; want not yet, one wrong", verdicts(res), res.GetWrongAnswers())
+	}
+	if res := submit(40, 10); verdicts(res) != "correct[correct 7]" || res.GetSolved() == nil {
+		t.Errorf("a wide crop = %s, solved %v; want correct and solved", verdicts(res), res.GetSolved())
+	}
+
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
+	one := quota.USD(g.Price(tutor.CallSheet, adult).ExpectedUSD)
+	two := quota.USD(stubGate(t).Price(tutor.CallSheet, adult).ExpectedUSD)
+	want := quota.Counter{Spent: 3 * one}
+	if profile, account := w.counted(t, l.accountID, l.adult); one == 0 || one >= two || profile != want || account != want {
+		t.Errorf("the counters = %+v, %+v; want %+v, the one reader's price, less than the pair's %d", profile, account, want, two)
+	}
+	if n := strings.Count(w.log.String(), `"message":"ai_usage"`); n != 3 {
+		t.Errorf("the log has %d lines of usage, want one for each of the three readings", n)
 	}
 }

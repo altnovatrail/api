@@ -17,7 +17,7 @@ func TestAdmissionDefaultsToNoFactsAndTheStageFull(t *testing.T) {
 
 	for _, environ := range [][]string{nil, {"API_ADMISSION_FACTS_FILE=", "API_ADMISSION_RUNG="}, {"K_SERVICE=api"}} {
 		got, err := config.AdmissionFrom(environ)
-		if err != nil || got != (config.Admission{Rung: config.RungFull}) {
+		if err != nil || got != (config.Admission{Rung: config.RungFull, Reading: config.ReadingPair}) {
 			t.Errorf("AdmissionFrom(%q) = %+v, %v; want no file and the stage full, unnamed", environ, got, err)
 		}
 	}
@@ -28,12 +28,12 @@ func TestAdmissionReadsWhatIsDeclared(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "facts.yaml")
 	for environ, want := range map[string]config.Admission{
-		"API_ADMISSION_RUNG=author":                             {Rung: config.RungAuthor, RungSet: true},
-		"API_ADMISSION_RUNG=full K_SERVICE=api":                 {Rung: config.RungFull, RungSet: true},
-		"API_ADMISSION_RUNG=full CLOUD_RUN_JOB=check":           {Rung: config.RungFull, RungSet: true},
-		"API_ADMISSION_RUNG=author K_SERVICE=api":               {Rung: config.RungAuthor, RungSet: true},
-		"API_ADMISSION_RUNG=author CLOUD_RUN_JOB=check":         {Rung: config.RungAuthor, RungSet: true},
-		"API_ADMISSION_FACTS_FILE=" + path + " CLOUD_RUN_JOB=c": {FactsFile: path, Rung: config.RungFull},
+		"API_ADMISSION_RUNG=author":                             {Rung: config.RungAuthor, RungSet: true, Reading: config.ReadingPair},
+		"API_ADMISSION_RUNG=full K_SERVICE=api":                 {Rung: config.RungFull, RungSet: true, Reading: config.ReadingPair},
+		"API_ADMISSION_RUNG=full CLOUD_RUN_JOB=check":           {Rung: config.RungFull, RungSet: true, Reading: config.ReadingPair},
+		"API_ADMISSION_RUNG=author K_SERVICE=api":               {Rung: config.RungAuthor, RungSet: true, Reading: config.ReadingPair},
+		"API_ADMISSION_RUNG=author CLOUD_RUN_JOB=check":         {Rung: config.RungAuthor, RungSet: true, Reading: config.ReadingPair},
+		"API_ADMISSION_FACTS_FILE=" + path + " CLOUD_RUN_JOB=c": {FactsFile: path, Rung: config.RungFull, Reading: config.ReadingPair},
 	} {
 		got, err := config.AdmissionFrom(strings.Fields(environ))
 		if err != nil || got != want {
@@ -82,7 +82,7 @@ func TestServeReadsWhatIsDeclaredForAdmission(t *testing.T) {
 	t.Parallel()
 
 	serve, err := config.ServeFrom(append(serveEnviron, "API_ADMISSION_RUNG=author"), loaded(t, nil))
-	if err != nil || serve.Admission != (config.Admission{Rung: config.RungAuthor, RungSet: true}) {
+	if err != nil || serve.Admission != (config.Admission{Rung: config.RungAuthor, RungSet: true, Reading: config.ReadingPair}) {
 		t.Errorf("ServeFrom = %+v, %v; want the stage author", serve, err)
 	}
 	deployed := append(without(serveEnviron, "API_FIREBASE_CREDENTIALS"), "K_SERVICE=api", "API_ADMISSION_RUNG=author")
@@ -144,9 +144,9 @@ func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
 	t.Parallel()
 
 	for environ, want := range map[string]config.Admission{
-		"API_TUTOR_STUB=1":                           {Rung: config.RungFull, Stub: true},
-		"API_TUTOR_STUB=1 API_ADMISSION_RUNG=author": {Rung: config.RungAuthor, RungSet: true, Stub: true},
-		"API_TUTOR_STUB=":                            {Rung: config.RungFull},
+		"API_TUTOR_STUB=1":                           {Rung: config.RungFull, Stub: true, Reading: config.ReadingPair},
+		"API_TUTOR_STUB=1 API_ADMISSION_RUNG=author": {Rung: config.RungAuthor, RungSet: true, Stub: true, Reading: config.ReadingPair},
+		"API_TUTOR_STUB=":                            {Rung: config.RungFull, Reading: config.ReadingPair},
 	} {
 		got, err := config.AdmissionFrom(strings.Fields(environ))
 		if err != nil || got != want {
@@ -177,5 +177,34 @@ func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
 				t.Errorf("error %q holds the key", err)
 			}
 		})
+	}
+}
+
+// The mode of reading is pair unset or empty, and single where it is named, at
+// either stage, deployed too (R88): a value tutor does not code is refused by
+// its variable.
+func TestTheModeOfReading(t *testing.T) {
+	t.Parallel()
+
+	for environ, want := range map[string]config.Admission{
+		"API_READING_MODE=":                                             {Rung: config.RungFull, Reading: config.ReadingPair},
+		"API_READING_MODE=pair":                                         {Rung: config.RungFull, Reading: config.ReadingPair},
+		"API_READING_MODE=single":                                       {Rung: config.RungFull, Reading: config.ReadingSingle},
+		"API_READING_MODE=single API_ADMISSION_RUNG=full":               {Rung: config.RungFull, RungSet: true, Reading: config.ReadingSingle},
+		"API_READING_MODE=single API_ADMISSION_RUNG=author":             {Rung: config.RungAuthor, RungSet: true, Reading: config.ReadingSingle},
+		"API_READING_MODE=single K_SERVICE=api":                         {Rung: config.RungFull, Reading: config.ReadingSingle},
+		"API_READING_MODE=single API_TUTOR_STUB=1":                      {Rung: config.RungFull, Stub: true, Reading: config.ReadingSingle},
+		"API_READING_MODE=pair API_ADMISSION_RUNG=author K_SERVICE=api": {Rung: config.RungAuthor, RungSet: true, Reading: config.ReadingPair},
+	} {
+		got, err := config.AdmissionFrom(strings.Fields(environ))
+		if err != nil || got != want {
+			t.Errorf("AdmissionFrom(%s) = %+v, %v; want %+v", environ, got, err, want)
+		}
+	}
+	for _, value := range []string{"Single", "one", "pair,single"} {
+		_, err := config.AdmissionFrom([]string{"API_READING_MODE=" + value})
+		if !errors.Is(err, config.ErrInvalid) || !strings.Contains(err.Error(), "API_READING_MODE") {
+			t.Errorf("AdmissionFrom(API_READING_MODE=%s) error = %v, want %v naming the variable", value, err, config.ErrInvalid)
+		}
 	}
 }

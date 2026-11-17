@@ -149,14 +149,14 @@ func TestTheReportSaysWhatWasDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.4", FactsFile: true, Rung: "author", RungSet: true}); r != want {
+	if want := (admission.Report{TableVersion: "0.4", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
 		t.Errorf("Report = %+v, want %+v", r, want)
 	}
 	_, r, err = admission.Load(config.Admission{Rung: config.RungFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.4", Rung: "full"}); r != want {
+	if want := (admission.Report{TableVersion: "0.4", Rung: "full", Reading: "pair"}); r != want {
 		t.Errorf("Report of nothing declared = %+v, want %+v", r, want)
 	}
 }
@@ -180,6 +180,12 @@ func TestTheCategoriesAndTheStagesAreOneSet(t *testing.T) {
 	}
 	if got := strings.Join(logging.Rungs, " "); got != config.RungAuthor+" "+config.RungFull {
 		t.Errorf("the log's stages = %q, want config's", got)
+	}
+	if got := strings.Join(logging.ReadingModes, " "); got != config.ReadingPair+" "+config.ReadingSingle {
+		t.Errorf("the log's modes of reading = %q, want config's", got)
+	}
+	if config.ReadingPair != string(tutor.ReadingPair) || config.ReadingSingle != string(tutor.ReadingSingle) {
+		t.Errorf("config's modes of reading are not tutor's")
 	}
 }
 
@@ -848,5 +854,38 @@ func TestACheckWithTooLittleTimeDoesNotBegin(t *testing.T) {
 	}
 	if n := dials.Load(); n != 0 {
 		t.Errorf("a check with too little time dialled %d models", n)
+	}
+}
+
+// In the mode single (R88), tutor reads a sheet by Haiku 5.5 at medium alone,
+// which the report and the gate say: it admits the reading where the pair is
+// admitted, at the author's stage, for less than the pair, and at the stage
+// full, which admits no model of the pair, it is no refusal of the
+// configuration but no admission of the reading.
+func TestTheModeSingleReadsByOneReader(t *testing.T) {
+	t.Parallel()
+
+	single := keyed(t, file(t, adultFacts), config.RungAuthor)
+	single.Reading = config.ReadingSingle
+	g, r, err := admission.Load(single)
+	if err != nil || r.Reading != config.ReadingSingle || g.Reading() != tutor.ReadingSingle {
+		t.Fatalf("Load in the mode single = %+v, %v; want the mode single", r, err)
+	}
+	pair := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
+	if pair.Reading() != tutor.ReadingPair {
+		t.Errorf("the mode by default = %q, want the pair", pair.Reading())
+	}
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(formatv0.AgeCategoryAdult)}
+	one, two := g.Price(tutor.CallSheet, adult), pair.Price(tutor.CallSheet, adult)
+	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || !one.Expected || one.ExpectedUSD <= 0 || one.ExpectedUSD >= two.ExpectedUSD {
+		t.Errorf("a sheet by one reader costs %+v, by the pair %+v; want it admitted, for less", one, two)
+	}
+	full := keyed(t, file(t, adultFacts), config.RungFull)
+	full.Reading = config.ReadingSingle
+	if g := load(t, full); g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") {
+		t.Error("the stage full admits the reading by one reader, want none: it admits no model of the pair")
+	}
+	if _, _, err := admission.Load(config.Admission{Rung: config.RungFull, Reading: "both"}); !errors.Is(err, config.ErrInvalid) {
+		t.Errorf("Load in an unknown mode = %v, want a refusal of the configuration", err)
 	}
 }

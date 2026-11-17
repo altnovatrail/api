@@ -36,7 +36,7 @@ func TestCheckSaysWhatIsDeclared(t *testing.T) {
 		stderr  string
 	}{
 		{"nothing declared", []string{"CLOUD_RUN_JOB=check"}, nil, exitOK,
-			map[string]any{"message": "admission", "admission_table": "0.4", "facts_file": false, "rung": "full", "rung_set": false, "platform_keys": float64(0), "tutor_stub": false}, ""},
+			map[string]any{"message": "admission", "admission_table": "0.4", "facts_file": false, "rung": "full", "rung_set": false, "platform_keys": float64(0), "tutor_stub": false, "reading_mode": "pair"}, ""},
 		{"the first app's", []string{"API_ADMISSION_FACTS_FILE=" + known, "API_ADMISSION_RUNG=author"}, nil, exitOK,
 			map[string]any{"message": "admission", "admission_table": "0.4", "facts_file": true, "rung": "author", "rung_set": true}, ""},
 		{"a fact the table does not know", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_FACTS_FILE=" + unknown}, nil, exitFailure, nil,
@@ -54,6 +54,12 @@ func TestCheckSaysWhatIsDeclared(t *testing.T) {
 			map[string]any{"message": "admission"}, ""},
 		{"the dev mode's stub", []string{"API_TUTOR_STUB=1", "API_ADMISSION_FACTS_FILE=" + known, "API_ADMISSION_RUNG=author"}, nil, exitOK,
 			map[string]any{"message": "admission", "rung": "author", "platform_keys": float64(0), "tutor_stub": true}, ""},
+		{"one reader at the stage full", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_FACTS_FILE=" + known, "API_READING_MODE=single"}, nil, exitOK,
+			map[string]any{"message": "admission", "rung": "full", "reading_mode": "single"}, ""},
+		{"one reader at the author's stage", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_RUNG=author", "API_READING_MODE=single"}, nil, exitOK,
+			map[string]any{"message": "admission", "rung": "author", "reading_mode": "single"}, ""},
+		{"a mode of reading tutor does not code", []string{"CLOUD_RUN_JOB=check", "API_READING_MODE=haiku"}, nil, exitFailure, nil,
+			"api: config: invalid: API_READING_MODE must be pair, single or unset"},
 		{"the stub as a job", []string{"CLOUD_RUN_JOB=check", "API_TUTOR_STUB=1"}, nil, exitFailure, nil,
 			"api: config: invalid: API_TUTOR_STUB must not be set when CLOUD_RUN_JOB is set"},
 		{"a wrong level", []string{"API_LOG_LEVEL=loud"}, nil, exitFailure, nil, "api: config: invalid: API_LOG_LEVEL"},

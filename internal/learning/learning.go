@@ -59,6 +59,9 @@ type Service struct {
 	// by the criteria: the gate's tutor (R82).
 	essay    essayReader
 	assessor rubricAssessor
+	// reading is the mode tutor reads handwriting by, the gate's, which says
+	// how many observations a reading gives (R88).
+	reading tutor.Reading
 	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
 	// provider: its words after a correct answer go whatever the day (R66).
 	stubbed bool
@@ -185,6 +188,7 @@ func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, err
 	if gate == nil {
 		return nil, errors.New("learning: no gate of admission")
 	}
+	s.reading = gate.Reading()
 	if s.price == nil {
 		s.price = gate.Price
 	}

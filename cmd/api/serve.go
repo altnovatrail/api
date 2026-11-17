@@ -180,6 +180,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldConsentForms, opens.Agreements.Forms(),
 		logging.FieldPlatformKeys, declared.PlatformKeys,
 		logging.FieldTutorStub, declared.Stub,
+		logging.FieldReadingMode, declared.Reading,
 	)
 
 	if err := srv.Run(ctx); err != nil {

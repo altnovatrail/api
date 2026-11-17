@@ -330,3 +330,62 @@ func TestASubmissionWithTooLittleTimeIsRefused(t *testing.T) {
 		t.Errorf("the key's records = %d (%v), want none", records, err)
 	}
 }
+
+// In the mode single, a handwriting sheet is read by one reader (R88): module-kit
+// gives the verdict on its one observation as it is, which the submission
+// keeps; a reading of two observations, or of one module-kit does not take, is
+// a failure of AI, and a refusal of the admission is not admitted, as in the
+// pair.
+func TestAHandwritingSheetIsReadByOneReaderInTheModeSingle(t *testing.T) {
+	t.Parallel()
+
+	rs := &readers{}
+	w := worldOf(t, gate(t, adultFacts, config.RungAuthor, "API_READING_MODE=single"), []learning.Option{learning.WithReader(rs.read)})
+	l := w.learner(t)
+	one := func(o *observationv1.Observation) tutor.SheetRead {
+		return tutor.SheetRead{Observations: []*observationv1.Observation{o}, Outcome: tutor.Outcome{Kind: tutor.Answered,
+			Usage: []tutor.Usage{{Provider: "anthropic", Model: "claude-haiku-5-5", InputTokens: 1200, OutputTokens: 35}}}}
+	}
+	illegible := &observationv1.Observation{AnswerSlots: []*observationv1.AnswerSlotObservation{{
+		AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1},
+		Read:       &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE},
+	}}}
+	for _, tc := range []struct {
+		name    string
+		got     tutor.SheetRead
+		verdict string
+		wrong   int32
+		cause   v1.Cause
+	}{
+		{"not yet", one(read("6")), "not_yet[not_yet 6]", 1, v1.Cause_CAUSE_UNSPECIFIED},
+		{"illegible", one(illegible), "unreadable[unreadable illegible]", 0, v1.Cause_CAUSE_UNSPECIFIED},
+		{"two readings", answered(read("7"), read("7")), "unchecked[unchecked ]", 0, v1.Cause_CAUSE_AI_FAILURE},
+		{"no reading", tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Answered}}, "unchecked[unchecked ]", 0, v1.Cause_CAUSE_AI_FAILURE},
+		{"a reading of no slot", one(&observationv1.Observation{}), "unchecked[unchecked ]", 0, v1.Cause_CAUSE_AI_FAILURE},
+		{"not admitted", tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.NotAdmitted}}, "unchecked[unchecked ]", 0, v1.Cause_CAUSE_NOT_ADMITTED},
+		{"correct", one(read("7")), "correct[correct 7]", 0, v1.Cause_CAUSE_UNSPECIFIED},
+	} {
+		attempt := w.begin(t, l, l.adult, "apples").GetAttemptId()
+		rs.give(tc.got)
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt,
+			IdempotencyKey: uuid.NewString(), Work: sheet(crop(t))})
+		t.Run(tc.name, func(t *testing.T) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := verdicts(res); got != tc.verdict || res.GetWrongAnswers() != tc.wrong || res.GetOutcome().GetCause() != tc.cause {
+				t.Errorf("SubmitWork = %s, %d wrong, %v; want %s, %d, %v", got, res.GetWrongAnswers(), res.GetOutcome().GetCause(),
+					tc.verdict, tc.wrong, tc.cause)
+			}
+		})
+	}
+	var observed []byte
+	if err := w.pool.QueryRow(t.Context(), `SELECT observation FROM submissions ORDER BY submitted_at DESC, number DESC LIMIT 1`).
+		Scan(&observed); err != nil {
+		t.Fatal(err)
+	}
+	o := &observationv1.Observation{}
+	if err := proto.Unmarshal(observed, o); err != nil || !proto.Equal(o, read("7")) {
+		t.Errorf("the submission keeps %v (%v), want the one reader's observation", o, err)
+	}
+}
