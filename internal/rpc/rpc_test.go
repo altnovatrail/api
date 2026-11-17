@@ -444,9 +444,12 @@ func TestOpenViewsNeedNoTokenAndTheRestIsUnimplemented(t *testing.T) {
 	refusedAs(t, err, connect.CodeUnimplemented, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
-// A request runs no longer than its time limit.
+// A request runs no longer than its time limit. The limit is the second the
+// other tests take, which the checks before the handler fit in: one of
+// 50 ms ran out in them on a slow runner, and the answer was the checks'
+// unavailable, by the contract, not the handler's deadline_exceeded.
 func TestARequestEndsAtItsTimeLimit(t *testing.T) {
-	w := newWorld(t, 50*time.Millisecond)
+	w := newWorld(t, time.Second)
 	p := w.person(t, "uid-slow")
 	w.accounts.wait = true
 
