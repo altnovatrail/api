@@ -410,7 +410,7 @@ A rollback to the previous major is an extreme case. A withdrawn newest major is
 
 ```json
 {
-  "release": "v0.2.7",
+  "release": "v0.2.12",
   "index": "sha256:<64 hexadecimal digits>"
 }
 ```
