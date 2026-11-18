@@ -88,16 +88,14 @@ type world struct {
 	attempts apiv1connect.AttemptServiceClient
 	progress apiv1connect.ProgressServiceClient
 	works    apiv1connect.WorkServiceClient
-	// service is the service the server answers by.
-	service *learning.Service
+	service  *learning.Service
 	// set is the packages it reads, whose list a test narrows (R150 spec).
 	set     *packages.Set
 	current *modulepackage.Package
 	earlier *modulepackage.Package
 	// connected is the modules each learner's profiles have connected.
 	connected []string
-	// log is what the server wrote to its log.
-	log *lockedBuffer
+	log       *lockedBuffer
 	// denyManage takes the right can_manage away from every account, for the
 	// action of an adult; the checks before a handler still see the rights.
 	denyManage atomic.Bool
@@ -260,8 +258,7 @@ func (w *world) learner(t *testing.T) learner {
 }
 
 // child is a child's profile of the account, of category, with its consent
-// confirmed or with none. The confirmation of a child's consent is epic E4's:
-// the test writes it.
+// confirmed or with none, written straight to the database.
 func (w *world) child(t *testing.T, l learner, category string, confirmed bool) string {
 	t.Helper()
 	id := w.id(t, `INSERT INTO profiles
@@ -294,7 +291,7 @@ func (w *world) id(t *testing.T, sql string, args ...any) string {
 }
 
 // choice is an engine's choice of the task of the module choices for the
-// profile, as the engine's code will write it.
+// profile, as the engine's code writes it.
 func (w *world) choice(t *testing.T, profile, task string) string {
 	t.Helper()
 	return w.choiceOf(t, profile, module, task)
@@ -308,7 +305,7 @@ func (w *world) choiceOf(t *testing.T, profile, moduleID, task string) string {
 }
 
 // lessonChoice is a new engine's choice of the module's lesson for the profile,
-// as the engine's code will write it.
+// as the engine's code writes it.
 func (w *world) lessonChoice(t *testing.T, profile, lesson string) string {
 	t.Helper()
 	return w.lessonChoiceOf(t, profile, module, lesson)
@@ -748,8 +745,8 @@ func TestASubmissionThatTheTaskDoesNotTakeIsRefused(t *testing.T) {
 	}
 }
 
-// The check of a request closes an attempt on a package the image no longer
-// gives "unchecked", and one with no action for 7 days "abandoned", and the
+// The check of a request closes an attempt on a package the image does not
+// give "unchecked", and one with no action for 7 days "abandoned", and the
 // close stays; a package the index does not know waits, with nothing written.
 func TestTheCheckOfARequestClosesWhatCannotGoOn(t *testing.T) {
 	t.Parallel()
@@ -1080,7 +1077,7 @@ func TestTheVersionOfModuleKitIsTheOneGoModPins(t *testing.T) {
 }
 
 // A new attempt closes the open one as the check of a request would have: one
-// past its term "abandoned", one on a package the image no longer gives
+// past its term "abandoned", one on a package the image does not give
 // "unchecked", and the rest "left".
 func TestANewAttemptClosesALapsedOneByItsLapse(t *testing.T) {
 	t.Parallel()

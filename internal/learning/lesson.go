@@ -44,12 +44,11 @@ func runEnd(reason string, choice *v1.EngineChoice) *v1.RunEnd {
 	return &v1.RunEnd{Reason: runEnds[reason], Choice: choice}
 }
 
-// lessonID is the full ID of a module's lesson (§ 8 of the format's text).
+// lessonID is the full ID of a module's lesson.
 func lessonID(module formatv0.ModuleID, lesson formatv0.LessonID) string {
 	return string(module) + "/lesson/" + string(lesson)
 }
 
-// lessonOf is the lesson of pkg by its full ID, and whether pkg has it.
 func lessonOf(pkg *modulepackage.Package, full string) (formatv0.Lesson, bool) {
 	local, ok := strings.CutPrefix(full, lessonID(pkg.View.Manifest.ID, ""))
 	if !ok {
@@ -91,14 +90,14 @@ func lessonSuits(pkg *modulepackage.Package, lesson formatv0.Lesson, category fo
 }
 
 // checkRun checks the profile's run row, held in tx, as every request on it
-// does (R13; architecture 3.7): one ended is a runEndedError; one on a package
-// the index does not know, errPackageUnknown, with nothing written. A run whose
-// package the image no longer gives ends "unchecked", one with no action for 30
-// days "abandoned", and, when full, one whose module is no longer connected or
-// has no current version for the learner, or whose lesson or a task of it no
-// longer suits the learner on the run's package, "not suitable", with its open
-// attempt; the end commits, and the request is refused "run ended" after it.
-// The checks passed, the request is an action on the run.
+// does (R13): one ended is a runEndedError; one on a package the index does not
+// know, errPackageUnknown, with nothing written. A run whose package the image
+// does not give ends "unchecked", one with no action for 30 days "abandoned",
+// and, when full, one whose module is not connected or has no current version
+// for the learner, or whose lesson or a task of it does not suit the learner on
+// the run's package, "not suitable", with its open attempt; the end commits,
+// and the request is refused "run ended" after it. The checks passed, the
+// request is an action on the run.
 func (s *Service) checkRun(ctx context.Context, tx pgx.Tx, profileID string, row store.LessonRun, category formatv0.AgeCategory, ownKey string, now time.Time, full bool) (heldRun, error) {
 	return s.checkRunGiving(ctx, tx, profileID, row, category, ownKey, now, full, true)
 }
@@ -145,15 +144,13 @@ func (s *Service) checkRunGiving(ctx context.Context, tx pgx.Tx, profileID strin
 // endRun ends the run with reason at now and refuses the request "run ended"
 // after the end commits; when give says the request gives the end, with the
 // engine's choice of what comes next for a learner of category, on the route of
-// ownKey that the request names (R50, R65). Either way
-// the evidence the profile owes is settled: "not suitable" closed the run's open
-// attempt with it.
+// ownKey that the request names (R50, R65). Either way the evidence the profile
+// owes is settled: "not suitable" closed the run's open attempt with it.
 func (s *Service) endRun(ctx context.Context, tx pgx.Tx, profileID, runID, reason string, category formatv0.AgeCategory, ownKey string, now time.Time, give bool) error {
 	if err := store.EndLessonRun(ctx, tx, profileID, runID, reason, now); err != nil {
 		return err
 	}
 	if !give {
-		// "Not suitable" closed the run's open attempt with it.
 		if err := s.settle(ctx, tx, profileID, now); err != nil {
 			return err
 		}
@@ -188,10 +185,10 @@ func (s *Service) holdRun(ctx context.Context, tx pgx.Tx, profileID, runID strin
 // segment that this code cannot begin for the learner — a task whose kinds of
 // call the gate does not admit on the route, an essay's or a sheet's or a
 // workbook page's (R50), or one in a zone or on the whole sheet — is not
-// checked here: its attempt is "not admitted", and the run stays open (R48;
-// Д26). The segment of a task with a rubric ends once its attempt is
-// closed "done" (R13). The choice an end of its run gives goes by the route
-// own_key_provider names (R65).
+// checked here: its attempt is "not admitted", and the run stays open (R48).
+// The segment of a task with a rubric ends once its attempt is closed "done"
+// (R13). The choice an end of its run gives goes by the route own_key_provider
+// names (R65).
 func (l *LearningService) OpenLesson(ctx context.Context, req *v1.OpenLessonRequest) (*v1.OpenLessonResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -458,7 +455,7 @@ func (s *Service) nextOf(ctx context.Context, db store.Querier, profileID string
 	}
 	pkg, ok := s.set.Packages[formatv0.Digest(row.PackageDigest)]
 	if !ok {
-		// A repeat of an answer on a package the image no longer gives: the run ends
+		// A repeat of an answer on a package the image does not give: the run ends
 		// "unchecked" at its next request, and no segment comes next.
 		return nil, nil
 	}

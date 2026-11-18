@@ -121,7 +121,7 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 
 // offered gives, of an anchor skill, the modules of teachers that teach it and
 // are not connected, in their order: those the skill map offers beside it
-// (R63 spec; contract, AnchorSkillState).
+// (R63 spec).
 func offered(teachers map[formatv0.AnchorSkillID][]formatv0.ModuleID, connected []store.ConnectedModule) func(anchor string) []string {
 	ids := map[string]bool{}
 	for _, c := range connected {
@@ -141,8 +141,7 @@ func offered(teachers map[formatv0.AnchorSkillID][]formatv0.ModuleID, connected 
 // skillMap is the map of the module of view, of the package digest: the state
 // of each skill of its graph with a verdict, by local ID — with no practice, the
 // count of its evidence alone —, and of each anchor skill its graph names as a
-// prerequisite or a skill it teaches, with the modules offered that teach it
-// (contract, GetSkillMapResponse).
+// prerequisite or a skill it teaches, with the modules offered that teach it.
 func skillMap(view formatv0.CanonicalView, digest string, read learnermodel.Readout, offers func(anchor string) []string) *v1.GetSkillMapResponse {
 	out := &v1.GetSkillMapResponse{PackageDigest: digest}
 	graph := view.SkillGraph
@@ -317,7 +316,7 @@ var solvedBy = map[string]bool{closeCorrect: true, closeShown: true, closeDone: 
 
 // attemptRecord is the attempt r in the progress, with the titles of pkg, the
 // package it went on: of its lesson, and of the skills of its task once it is
-// solved. pkg is nil when the image no longer holds it, and the titles are
+// solved. pkg is nil when the image does not hold it, and the titles are
 // empty (R99 spec).
 func attemptRecord(r store.Record, pkg *modulepackage.Package) *v1.AttemptRecord {
 	out := &v1.AttemptRecord{
@@ -349,8 +348,8 @@ func attemptRecord(r store.Record, pkg *modulepackage.Package) *v1.AttemptRecord
 
 // skillTitles is the titles in graph of the skills the task trains: the primary
 // skills of its items, each item's own or else the task's, each once, in the
-// order of the items and of their lists (contract, AttemptRecord) — not
-// primarySkills, which sorts them.
+// order of the items and of their lists — not primarySkills, which sorts
+// them (R99 spec).
 func skillTitles(graph *formatv0.SkillGraph, task formatv0.Task) []string {
 	if graph == nil {
 		return nil

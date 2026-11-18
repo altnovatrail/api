@@ -73,11 +73,11 @@ func TestARequestOnPlatformAIGivesTheAccountItsFamilyDay(t *testing.T) {
 	}
 }
 
-// expected is the price every call of a quota world is expected to cost: $0.02.
+// expected is the price every call of a quota world is expected to cost.
 const expected quota.Micro = 20_000
 
 // newQuotaWorld is the world whose words are ts and whose handwriting rs reads,
-// admitted for every learner, where every call is expected to cost $0.02.
+// admitted for every learner, where every call costs the price expected.
 func newQuotaWorld(t *testing.T, ts *tellers, rs *readers) *world {
 	t.Helper()
 	return worldOf(t, gate(t, adultFacts, config.RungAuthor), []learning.Option{learning.WithWords(ts.tell),
@@ -375,7 +375,7 @@ func TestAnOwnKeyARepeatAndNoTariff(t *testing.T) {
 
 // The tariff of dev-check opens platform AI off a deployment, and deployed it is
 // a tariff with no caps: the words are the fallback text "not admitted", and a
-// new task of handwriting is refused so (В80).
+// new task of handwriting is refused so.
 func TestTheTariffOfDevCheckIsClosedDeployed(t *testing.T) {
 	t.Parallel()
 
@@ -478,7 +478,7 @@ func TestThePlatformsLimitClosesPlatformAIToAll(t *testing.T) {
 // with platform AI closed by the quota or the platform's limit, or not admitted
 // for the learner — is not what comes next: the engine gives a task that
 // begins, or nothing to give with why, and the run waits, open, until the
-// segment begins again, when the engine gives it again (В59 RUN.md).
+// segment begins again, when the engine gives it again.
 func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
 	t.Parallel()
 
@@ -582,7 +582,7 @@ func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
 	w.exec(t, `UPDATE platform_ai SET closed_at = NULL`)
 
 	// No AI is admitted to read a child's handwriting. A run on a package the
-	// image no longer gives does not wait: the lesson opened, it ends "unchecked",
+	// image does not give does not wait: the lesson opened, it ends "unchecked",
 	// and a new run begins.
 	stale := w.id(t, `INSERT INTO lesson_runs (profile_id, lesson_id, module_id, module_version, package_digest, choice_id)
 		VALUES ($1, $2, $3, '1.0.5', $4, $5) RETURNING id`, l.child, module+"/lesson/basics", module, string(withdrawn.Digest), w.lessonChoice(t, l.child, "basics"))

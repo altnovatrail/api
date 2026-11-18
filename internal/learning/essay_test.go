@@ -115,7 +115,8 @@ func init() { *yes = true }
 
 // newEssayWorld is the world of a deployment that admits the reading of an
 // adult's handwriting on a sheet, and, by the test's own admission, the reading
-// of an essay and its assessment too, by es, for want of a provider. opts are more of the world's options.
+// of an essay and its assessment too, by es, for want of a provider; opts are
+// more of the world's options.
 func newEssayWorld(t *testing.T, es *essays, opts ...learning.Option) *world {
 	t.Helper()
 	return worldOf(t, gate(t, adultFacts, config.RungAuthor), append([]learning.Option{

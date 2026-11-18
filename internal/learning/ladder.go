@@ -84,10 +84,9 @@ func spotAt(ctx context.Context, task formatv0.Task, s *v1.AnswerSlotVerdict) (s
 }
 
 // fallback is the rung's fallback text on the answer slot at, by the chain of
-// the format (§ 19 of its text; R57 spec): at rungs 1 and 2, the text of the
-// trap value the wrong value matched, then the advice of its trap, then the
-// module's template of the rung; at rung 3, the simpler case of the slot's item,
-// then what rung 2 gives.
+// the format (R57 spec): at rungs 1 and 2, the text of the trap value the wrong
+// value matched, then the advice of its trap, then the module's template of the
+// rung; at rung 3, the simpler case of the slot's item, then what rung 2 gives.
 func fallback(pkg *modulepackage.Package, task formatv0.Task, rung int, at spot) string {
 	if rung == lastRung {
 		if c := simplerCase(task, at); c != nil {
@@ -112,7 +111,6 @@ func fallback(pkg *modulepackage.Package, task formatv0.Task, rung int, at spot)
 	return ""
 }
 
-// simplerCase is the simpler case of the item of the slot at, if any.
 func simplerCase(task formatv0.Task, at spot) *formatv0.Text {
 	if at.item < 0 {
 		return nil
@@ -162,8 +160,7 @@ func statementOf(task formatv0.Task) string {
 }
 
 // styles is what of the presentation style changes the tutor's words, by the
-// learner's age category: the profile holds nothing else that goes to AI (Д74
-// RUN.md spec; R47).
+// learner's age category: the profile holds nothing else that goes to AI (R47).
 var styles = map[formatv0.AgeCategory]string{
 	formatv0.AgeCategoryUnder13:         "a child in primary school; use short, simple, everyday words",
 	formatv0.AgeCategoryFrom13ToConsent: "a teenager; use plain words",
@@ -173,9 +170,9 @@ var styles = map[formatv0.AgeCategory]string{
 
 // wordsAsked is the call of words of rung on the answer slot at of the attempt
 // h, by the route, with the crop when the work went, and the tutor's questions
-// asked so far (architecture 4.1 spec): the task's key of the slot and its
-// solution, which the model sees here alone, its traps that AI may name with
-// the one the program found, and its techniques.
+// asked so far (R47): the task's key of the slot and its solution, which the
+// model sees here alone, its traps that AI may name with the one the program
+// found, and its techniques.
 func wordsAsked(h held, route tutor.Route, rung int, at spot, crop []byte, asked []string) (tutor.WordsRequest, error) {
 	view, err := openview.Task(h.task)
 	if err != nil {
@@ -205,7 +202,6 @@ func wordsAsked(h held, route tutor.Route, rung int, at spot, crop []byte, asked
 	return w, nil
 }
 
-// solutionOf is the paragraphs of the task's solution that have text.
 func solutionOf(task formatv0.Task) []string {
 	var out []string
 	for _, p := range task.Solution {
@@ -216,8 +212,6 @@ func solutionOf(task formatv0.Task) []string {
 	return out
 }
 
-// techniqueTitles is the titles of the task's techniques, as the catalog of
-// its module names them.
 func techniqueTitles(pkg *modulepackage.Package, task formatv0.Task) []string {
 	var out []string
 	for _, id := range task.Techniques {

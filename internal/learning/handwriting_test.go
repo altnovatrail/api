@@ -45,13 +45,11 @@ func pngOf(t *testing.T, width, height int) []byte {
 	return b.Bytes()
 }
 
-// sheet is the work of a handwriting sheet with its crop.
 func sheet(crop []byte) *v1.Work {
 	return &v1.Work{Surface: &v1.Work_Sheet{Sheet: &v1.SheetWork{Crop: crop}}}
 }
 
-// read is the observation of a reader of apples' one slot: value read, or
-// unreadable for a reason.
+// read is the observation of a reader of apples' one slot, value read.
 func read(value string) *observationv1.Observation {
 	return &observationv1.Observation{AnswerSlots: []*observationv1.AnswerSlotObservation{{
 		AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1},

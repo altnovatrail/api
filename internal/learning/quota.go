@@ -32,10 +32,10 @@ const settleTimeout = 5 * time.Second
 
 // familyDay is the caller's family day at the request's time, on a request that
 // goes to platform AI by route, once it sent the offset of its device's clock,
-// if any (R11; the amendment of 2026-11-07 to it): the account keeps the
-// offset, when valid, for the days to come, and the day that holds now, in the
-// first transaction of the request, which holds the account's row. An own key
-// spends no quota and sends no offset: its route keeps nothing, and has no day.
+// if any (R11): the account keeps the offset, when valid, for the days to come,
+// and the day that holds now, in the first transaction of the request, which
+// holds the account's row. An own key spends no quota and sends no offset: its
+// route keeps nothing, and has no day.
 func (s *Service) familyDay(ctx context.Context, tx pgx.Tx, route tutor.Route, offset *int32) (quota.Day, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return quota.Day{}, nil
@@ -60,10 +60,10 @@ type reserve struct {
 // family day, in tx (R12): its expected price by tutor, or the value of its
 // kind when tutor has none, for each of the crops it shows (R81). Platform AI
 // that the limit of its provider closed makes no call, with the outcome
-// "platform limit" (R59). The quota of the
-// profile or the account that does not hold it refuses it with the outcome
-// "quota" and when the next family day begins; an account whose tariff has no
-// caps, with "not admitted": platform AI is closed to it by default (R11).
+// "platform limit" (R59). The quota of the profile or the account that does
+// not hold it refuses it with the outcome "quota" and when the next family day
+// begins; an account whose tariff has no caps, with "not admitted": platform AI
+// is closed to it by default (R11).
 // Either is noted in the request's log, with the cap and no ID.
 func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, crops int, day quota.Day) (reserve, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
@@ -122,9 +122,9 @@ func quotaOutcome(spent quota.Spent, day quota.Day) *v1.Outcome {
 }
 
 // closedRefusal is the refusal of a request that platform AI is closed to, as
-// the outcome o says (contract, Cause): "quota", resource_exhausted, with when
-// the next family day begins; "platform limit", resource_exhausted; "not
-// admitted", failed_precondition.
+// the outcome o says: "quota", resource_exhausted, with when the next family
+// day begins; "platform limit", resource_exhausted; "not admitted",
+// failed_precondition.
 func closedRefusal(ctx context.Context, o *v1.Outcome) error {
 	switch o.GetCause() {
 	case v1.Cause_CAUSE_QUOTA:
@@ -163,7 +163,6 @@ func (s *Service) afterCall(ctx context.Context, r reserve, o tutor.Outcome) {
 		}
 	}
 	if err := errors.Join(settled, closed); err != nil {
-		// The line names both failures, when both failed.
 		rpc.NoteFailure(ctx, err)
 	}
 }

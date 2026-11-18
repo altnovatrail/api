@@ -170,8 +170,8 @@ func TestTheEngineGetsATaskWithARubricByBothItsCalls(t *testing.T) {
 	}
 }
 
-// "Done" again on an attempt closed "done" on a package the index no longer
-// knows is "package unknown", and one on a database that fails is unavailable.
+// "Done" again on an attempt closed "done" on a package the index does not
+// know is "package unknown", and one on a database that fails is unavailable.
 func TestDoneThatCannotAnswerIsRefused(t *testing.T) {
 	t.Parallel()
 

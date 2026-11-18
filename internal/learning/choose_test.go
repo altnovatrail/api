@@ -164,7 +164,7 @@ func TestASkillChosenOnTheMapHolds(t *testing.T) {
 	if row := w.choiceRow(t, next.GetChoiceId()); row.mapSkill == nil || *row.mapSkill != comparing || row.afterAttempt == nil || *row.afterAttempt != pick {
 		t.Errorf("what came next = %+v, want the skill held, after the attempt", row)
 	}
-	// A skill its module no longer has holds no more.
+	// A held skill that its module does not have holds no more.
 	w.exec(t, `UPDATE engine_choices SET map_skill = $2 WHERE id = $1`, next.GetChoiceId(), module+"/skill/gone")
 	again := w.begin(t, l, l.adult, "pairs").GetAttemptId()
 	later, err := w.submit(l, l.adult, again, tap(1, 1, "21"), tap(2, 1, "30"))
@@ -205,7 +205,8 @@ func TestASkillChosenOnTheMapHolds(t *testing.T) {
 // What comes next after a task outside a lesson closed correct or with its
 // solution shown is the engine's choice; a repeat of the submission gets the
 // same choice; and the progress names when the engine chose each attempt's task,
-// or its run's lesson, and why — none for one begun by a choice written before.
+// or its run's lesson, and why — none for one begun by a choice that keeps no
+// code.
 func TestWhatComesNextOutsideALessonIsTheEnginesChoice(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +247,7 @@ func TestWhatComesNextOutsideALessonIsTheEnginesChoice(t *testing.T) {
 }
 
 // checkChosen checks that the attempt record names when its choice was made and
-// why, but the attempt begun by the test's own choice, written before the codes.
+// why, but the attempt begun by the test's own choice, which keeps no code.
 func (w *world) checkChosen(t *testing.T, a *v1.AttemptRecord, chosen, byTest string) {
 	t.Helper()
 	var id string

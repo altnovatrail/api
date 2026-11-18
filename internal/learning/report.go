@@ -13,8 +13,9 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// The bounds of a report (contract, ReportProblem): the words of the reply as
-// app showed them, and what the adult wrote, in code points.
+// The bounds of a report, as the contract's ReportProblemRequest sets them: the
+// words of the reply as app showed them, and what the adult wrote, in code
+// points.
 const (
 	maxReportWords = 4000
 	maxReportText  = 1000

@@ -285,7 +285,7 @@ func TestTheSegmentsOfALessonGoInOrder(t *testing.T) {
 }
 
 // api ends a run by itself, at a request on it, and the request gets "run
-// ended" with how: "unchecked" on a package the image no longer gives, "not
+// ended" with how: "unchecked" on a package the image does not give, "not
 // suitable" once the module is disconnected — with its open attempt closed so
 // —, and "abandoned" after 30 days with no request on the run or its attempts,
 // whose actions keep it open.
@@ -434,7 +434,7 @@ func TestALapseDoesNotStopALesson(t *testing.T) {
 	}
 }
 
-// A module the deployment's list leaves out is offered no more (R150 spec): the
+// A module the deployment's list leaves out is not offered (R150 spec): the
 // engine chooses none of it, a new attempt and a new run on it are refused as on
 // a module with no current version, and so is its skill map; the run open on it
 // goes on to its end on its package.

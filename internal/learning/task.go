@@ -22,7 +22,8 @@ import (
 // never reaches the device, and a template's instance comes of it (R59 spec).
 func newSeed() uint64 {
 	var b [8]byte
-	// crypto/rand.Read never fails, by its documentation since Go 1.24.
+	// crypto/rand.Read never fails, as its documentation says from Go 1.24; go.mod
+	// requires a later Go.
 	_, _ = rand.Read(b[:])
 	return binary.BigEndian.Uint64(b[:])
 }
@@ -64,7 +65,7 @@ func instanceAgain(pkg *modulepackage.Package, id formatv0.TaskID, picked *int) 
 
 // openTask is the open view of the task, an instance's when it is one, as JSON
 // of the format beside its version: no check, key, solution, trap, technique or
-// leading question is in it (R05 spec; contract, AttemptStart).
+// leading question is in it (R05 spec).
 func openTask(pkg *modulepackage.Package, task formatv0.Task) (*v1.OpenView, error) {
 	view, err := openview.Task(task)
 	if err != nil {
@@ -100,7 +101,7 @@ func rubric(task formatv0.Task) bool {
 }
 
 // byTap says whether a tap checks the whole task: every answer slot of every
-// item is bound choice, so that no AI reads it (architecture 4.2 spec).
+// item is bound choice, so that no AI reads it.
 func byTap(task formatv0.Task) bool {
 	for _, item := range task.Items {
 		for _, slot := range verdict.AnswerSlots(item) {
@@ -122,11 +123,10 @@ func techniques(task formatv0.Task) []string {
 	return ids
 }
 
-// solved is what reaches the device once the task is solved (contract,
-// SolvedTask): the key of each answer slot that has one, by its place, the
-// solution as JSON of the format, beside the format's version, and on a task
-// with a rubric the texts of its criteria in order, without the marks of any
-// assessment (R14; R87 spec).
+// solved is what reaches the device once the task is solved: the key of each
+// answer slot that has one, by its place, the solution as JSON of the format,
+// beside the format's version, and on a task with a rubric the texts of its
+// criteria in order, without the marks of any assessment (R14; R87 spec).
 func solved(pkg *modulepackage.Package, task formatv0.Task) (*v1.SolvedTask, error) {
 	out := &v1.SolvedTask{ModuleFormatVersion: string(pkg.View.Manifest.ModuleFormatVersion)}
 	if rubric(task) {
@@ -157,10 +157,9 @@ func placeOf(i, j int) *observationv1.AnswerSlotPlace {
 
 // itemVerdicts is the verdicts in the contract's words, each answer slot with
 // what was read in it: the text of the option tapped, or the value AI read and
-// the readers agreed on, in joined; the trap a value shows
-// stays in api (contract, AnswerSlotVerdict). wrong says whether a slot got
-// "not_yet", which makes the submission a wrong answer (R09), and correct
-// whether every item is correct.
+// the readers agreed on, in joined; the trap a value shows stays in api. wrong
+// says whether a slot got "not_yet", which makes the submission a wrong answer
+// (R09), and correct whether every item is correct.
 func itemVerdicts(verdicts []verdict.ItemVerdict, tapped map[string]string, joined *observationv1.Observation) (items []*v1.ItemVerdict, wrong, correct bool) {
 	read := maps.Clone(tapped)
 	if read == nil {
@@ -197,8 +196,8 @@ func placeKey(p *observationv1.AnswerSlotPlace) string {
 // callOf is tutor's kind of call that reads the work of the task, by its canvas
 // (R81): the reading of a sheet, CallSheet, for a handwriting sheet tutor reads
 // (sheetRead), and of a workbook page, CallWorkbook, for a workbook (bookRead).
-// A task of neither has none: one a tap checks, and one with a zone or the whole
-// sheet, which this release of tutor does not read.
+// A task of neither has none: one a tap checks, and one with a zone or the
+// whole sheet, which tutor does not read.
 func callOf(task formatv0.Task) (tutor.Call, bool) {
 	switch {
 	case sheetRead(task):
@@ -209,10 +208,10 @@ func callOf(task formatv0.Task) (tutor.Call, bool) {
 	return "", false
 }
 
-// bookRead says whether this release of tutor reads the task as a workbook
-// page: a workbook with a box at least, every answer slot of which is a box, as
-// the format has it (tutor's ReadWorkbook). The place of an answer slot is then
-// the place of its box among its item's.
+// bookRead says whether tutor reads the task as a workbook page: a workbook
+// with a box at least, every answer slot of which is a box, as the format has
+// it (tutor's ReadWorkbook). The place of an answer slot is then the place of
+// its box among its item's.
 func bookRead(task formatv0.Task) bool {
 	if task.Canvas.Kind != formatv0.CanvasKindWorkbook {
 		return false
@@ -229,10 +228,9 @@ func bookRead(task formatv0.Task) bool {
 	return boxes > 0
 }
 
-// sheetRead says whether this release of tutor reads the task as a sheet: a
-// handwriting sheet with one answer slot bound anywhere, which AI reads, and the
-// others bound choice (tutor's ReadSheet). A zone or the whole sheet it does not
-// read.
+// sheetRead says whether tutor reads the task as a sheet: a handwriting sheet
+// with one answer slot bound anywhere, which AI reads, and the others bound
+// choice (tutor's ReadSheet). A zone or the whole sheet it does not read.
 func sheetRead(task formatv0.Task) bool {
 	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
 		return false
@@ -252,10 +250,9 @@ func sheetRead(task formatv0.Task) bool {
 	return anywhere == 1
 }
 
-// essayRead says whether this release of tutor reads the task as an essay: a
-// handwriting sheet whose one answer slot is bound sheet and checked by a
-// rubric, as the format has a task with a rubric (tutor's ReadEssay; § 14 of its
-// text).
+// essayRead says whether tutor reads the task as an essay: a handwriting sheet
+// whose one answer slot is bound sheet and checked by a rubric, as the format
+// has a task with a rubric (tutor's ReadEssay).
 func essayRead(task formatv0.Task) bool {
 	if task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet {
 		return false

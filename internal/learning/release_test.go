@@ -38,12 +38,12 @@ const boardModule = "novatrail/check-board"
 // "something else" and what it gives begun, a lesson opened with its first
 // task segment, a task of the pool tapped with its leading question asked for,
 // a wrong answer and its rung's words, then the key — gives evidence of kind 2
-// that holds the question. A task with a time
-// of day describes its slot as one. The module of the board begins too, on the
-// stub of tutor, as boardIsLearnedOn tells, so does every task of the module of
-// workbook pages for a child, as workbookIsLearnedOn tells, so does every task with
-// a rubric of the module of essays for an adult, as essaysAreLearnedOn tells, and
-// the catalog of novatrail is its list, as novatrailCatalog tells. With no folder named, the
+// that holds the question. A task with a time of day describes its slot as
+// one. The module of the board begins too, on the stub of tutor, as
+// boardIsLearnedOn tells, so does every task of the module of workbook pages for
+// a child, as workbookIsLearnedOn tells, so does every task with a rubric of the
+// module of essays for an adult, as essaysAreLearnedOn tells, and the catalog of
+// novatrail is its list, as novatrailCatalog tells. With no folder named, the
 // test is skipped: ci-test runs with no network, and its packages are the
 // vectors.
 func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
@@ -144,13 +144,13 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	}
 }
 
-// boardIsLearnedOn walks the owner's path on the module of tutor's board (R71;
-// the 2026-11-14 amendment to R76 spec) in the dev mode, the gate and the stub
-// of tutor as just dev builds them: every task and lesson of it reaches the
-// engine for an adult, the owner's catalog gives its current version, it
-// connects, its lesson opens and its first task segment begins, and the sheet
-// is read — a tall crop not yet, with the words of rung 1 on the work, then a
-// wide one correct — and gives its evidence.
+// boardIsLearnedOn walks the owner's path on the module of tutor's board (R71,
+// R76 spec) in the dev mode, the gate and the stub of tutor as just dev builds
+// them: every task and lesson of it reaches the engine for an adult, the
+// owner's catalog gives its current version, it connects, its lesson opens and
+// its first task segment begins, and the sheet is read — a tall crop not yet,
+// with the words of rung 1 on the work, then a wide one correct — and gives its
+// evidence.
 func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	pkg, ok := set.Current(boardModule)
 	if !ok {
@@ -330,11 +330,11 @@ const workbookModule = "novatrail/grade-3-math"
 
 // workbookIsLearnedOn walks a child's path on the module of workbook pages in
 // the dev mode, on the stub of tutor, which admits a workbook page where the
-// gate admits a sheet (the 2026-11-15 amendment to R66), by the facts of a
-// child, as dev-check declares them to its server on the stub: every task and
-// lesson of it reaches the engine for a child, it connects, and every task of
-// it begins and is solved by a page of a wide crop in each of its boxes, which
-// the stub reads as the right value of each — a number, a fraction, a sign.
+// gate admits a sheet (R66), by the facts of a child, as dev-check declares
+// them to its server on the stub: every task and lesson of it reaches the
+// engine for a child, it connects, and every task of it begins and is solved by
+// a page of a wide crop in each of its boxes, which the stub reads as the right
+// value of each — a number, a fraction, a sign.
 func workbookIsLearnedOn(t *testing.T, set *packages.Set) {
 	pkg, ok := set.Current(workbookModule)
 	if !ok {
@@ -389,12 +389,11 @@ const essayModule = "novatrail/english-essays"
 
 // essaysAreLearnedOn walks an adult's path on the module of essays in the dev
 // mode, on the stub of tutor, which admits an essay and its assessment where
-// the gate admits a sheet (the 2026-11-15 amendments to R66): every task and
-// lesson of it reaches the engine for an adult, it connects, and every task of
-// it with a rubric begins, a wide crop of its sheet ends in feedback — the
-// stub's text read, its marks, and its words, which pass the leak check and
-// the rule of feedback on each task —, and "Done" closes it with the criteria
-// of its rubric.
+// the gate admits a sheet (R66): every task and lesson of it reaches the engine
+// for an adult, it connects, and every task of it with a rubric begins, a wide
+// crop of its sheet ends in feedback — the stub's text read, its marks, and its
+// words, which pass the leak check and the rule of feedback on each task —, and
+// "Done" closes it with the criteria of its rubric.
 func essaysAreLearnedOn(t *testing.T, set *packages.Set) {
 	pkg, ok := set.Current(essayModule)
 	if !ok {

@@ -70,7 +70,7 @@ type Service struct {
 	offDeployment bool
 	// texts is the legal texts api serves, whose privacy policy in force on the
 	// day of a request says whether the words after a correct answer go to a
-	// provider (Д214 spec).
+	// provider (R77).
 	texts *legal.Texts
 	// price is what tutor expects a call to cost, which the quota reserves (R58):
 	// the gate's.
@@ -107,8 +107,7 @@ func OffDeployment() Option { return func(s *Service) { s.offDeployment = true }
 // assesses the essays by their rubrics and words the tutor's words, those after
 // a correct answer too, and says which kinds of reading are admitted, in place
 // of the gate's tutor: the dev mode's stub (R66), which calls no provider and
-// admits a workbook page, an essay and its assessment itself (the 2026-11-15
-// amendments to R66).
+// admits a workbook page, an essay and its assessment itself.
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
@@ -131,8 +130,8 @@ func WithTexts(texts *legal.Texts) Option { return func(s *Service) { s.texts = 
 // instance, its key with it, which the dev mode's stub alone reads, to read a
 // right value (R66): tutor is given the open view of r alone (R67 spec). own is
 // the value of the request's own key, empty on platform AI, whose ending the
-// stub alone reads, to refuse as a provider would (the 2026-11-15 amendment to
-// R66): tutor takes the key from the route, which it alone opens.
+// stub alone reads, to refuse as a provider would (R66): tutor takes the key
+// from the route, which it alone opens.
 type sheetReader interface {
 	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead
 }
@@ -231,7 +230,6 @@ func (s *Service) Attempts(db rpc.DB, rights canner) *AttemptService {
 	return &AttemptService{s: s.on(db), rights: rights}
 }
 
-// on is s on db.
 func (s *Service) on(db rpc.DB) *Service {
 	c := *s
 	c.db = db
@@ -270,9 +268,9 @@ func (e *closedError) Error() string { return "learning: the attempt is closed "
 // image does not know: a deployment is going on (R07).
 var errPackageUnknown = errors.New("learning: the index of the image does not know the package")
 
-// lapsed is why the open attempt row can go on no longer at now, as the check
-// of a request and the beginning of another attempt close it: "unchecked" on a
-// package the image no longer gives (R07), "abandoned" past 7 days with no
+// lapsed is why the open attempt row cannot go on at now, as the check of a
+// request and the beginning of another attempt close it: "unchecked" on a
+// package the image does not give (R07), "abandoned" past 7 days with no
 // action, as the daily job closes it (R10); empty when it can go on.
 func (s *Service) lapsed(row store.Attempt, now time.Time) string {
 	switch {
@@ -397,8 +395,8 @@ var closeReasons = map[string]v1.CloseReason{
 
 // refused answers what a request met: a refusal of the contract as it is, the
 // attempt, the run or the choice not found, the run ended with its end, the
-// attempt closed with its reason, the
-// package unknown, the profile or the account gone meanwhile, or a failure.
+// attempt closed with its reason, the package unknown, the profile or the
+// account gone meanwhile, or a failure.
 func refused(ctx context.Context, err error) error {
 	var refusal *connect.Error
 	var closed *closedError
