@@ -109,7 +109,7 @@ ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}"
 # -- toolchain: the core, plus what the repository's tests need ---------------
 #
 # api's tests need one thing the core lacks, nss_wrapper below, its own difference from the
-# template (R30 in docs/decisions.md); its kind, go, adds no lines here. What this stage installs,
+# template (R30); its kind, go, adds no lines here. What this stage installs,
 # a release never builds, and neither do the checks that run no test: what the release and those
 # ci- recipes call belongs in toolchain-core.
 
@@ -117,7 +117,7 @@ FROM toolchain-core AS toolchain
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-# nss_wrapper, for the tests of the database (R30 in docs/decisions.md): the Go checks of .github's
+# nss_wrapper, for the tests of the database (R30): the Go checks of .github's
 # go.yml run this stage as the runner's uid, which /etc/passwd here does not know, and initdb
 # stops on a uid it cannot look up. The tests' helper then preloads the library with a passwd
 # file of its own; nothing else uses it, so it is here and not in toolchain-core, which a release

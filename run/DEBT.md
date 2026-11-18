@@ -4,7 +4,6 @@ Table 4 of [RUN.md](../RUN.md): what was put off on purpose, its risk, when to r
 
 - Never read whole: take the rows the task and its sections name — `grep -n '^| Д3 ' run/DEBT.md` — and those `grep -n` finds by the paths and parts it changes (RUN.md rule 2).
 - A row is what a task leaves open (RUN.md rule 9) and holds only what is open: drop a closed part, delete the row once closed.
-- «Д12 in table 4 of RUN.md» or «of `DEBT.md`» in older texts is the same row.
 
 ## Table 4. Technical debt
 

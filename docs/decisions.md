@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and rewrite its entry in its place, and every entry the change touches: an entry is its text in force — what was decided, why, what was rejected and where it is described —, git keeps the old text, and the commit says why. An entry that still has dated amendments, or is marked "Superseded", keeps them until a task touches it, and that task rewrites it whole, its amendments folded in (R160 spec).
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec); a move to a newer tag of `spec` is a commit of its own, with no entry of the log (R160 spec). How it comes to differ from the template — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R96.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec); a move to a newer tag of `spec` is a commit of its own, with no entry of the log (R160 spec); the entries of earlier moves, R01…R95, stay until a task touches them. How it comes to differ from the template — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R96.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >

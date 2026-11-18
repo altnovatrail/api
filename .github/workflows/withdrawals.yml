@@ -1,4 +1,4 @@
-# The watch over withdrawals (R61 in docs/decisions.md; R07): once a day, whether the newest release
+# The watch over withdrawals (R61; R07): once a day, whether the newest release
 # of modules withdraws a version that the release modules.json pins gives. A withdrawal reaches the
 # learners only with the pull request that pins a release that marks it, and no such pull request
 # opens by itself; so the job fails, on every run, until modules.json pins one. The failure is the

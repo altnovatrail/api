@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # What the job Image of ci.yml runs on the runner, which has Docker where the devcontainer has none
-# (R28 in docs/decisions.md). It builds the release's files as the shared release does, from an
+# (R28). It builds the release's files as the shared release does, from an
 # archive of the commit in the stage toolchain-core, the release's, whose image toolchain.sh
 # gives. Then it builds the image a deployment builds, the release's Dockerfile by --target release
 # around the release's binary, and the image built from the source, holds the binary of the second

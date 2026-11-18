@@ -74,7 +74,7 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T112 | Переход на релиз `tutor` с кешем инструкций слов | Claude | — | `tutor` v0.1.49 |
 | [x] | T113 | Переход на тег `spec` v0.18.27 | Claude | — | — |
 | [x] | T114 | Тексты без истории (R160 spec) и тег `spec` v0.18.34 | Claude | да | — |
-| [ ] | T115 | Тексты без истории: CLAUDE.md, README, `docs/README.md`, `docs/build.md`, архитектура 1, 2, 4 | Claude | — | T114 |
+| [ ] | T115 | Тексты без истории: CLAUDE.md, README, AGENTS.md, правила частей, `docs/README.md`, `docs/build.md`, архитектура 1, 2, 4 | Claude | — | T114 |
 | [ ] | T116 | Тексты без истории: архитектура 3.1–3.4 | Claude | — | T114 |
 | [ ] | T117 | Тексты без истории: архитектура 3.5–3.8 | Claude | — | T114 |
 | [ ] | T118 | Тексты без истории: архитектура 3.9–3.11 | Claude | — | T114 |

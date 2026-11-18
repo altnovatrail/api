@@ -21,7 +21,7 @@ updates:
     cooldown:
       default-days: 3
 
-  # The images of the Dockerfile of a release (R28 in docs/decisions.md): Dependabot raises their
+  # The images of the Dockerfile of a release (R28): Dependabot raises their
   # digests. The Go of the builder is the one go.mod and the devcontainer name, and moves with them
   # by hand, so its version is not raised here, only the digest of the tag it names.
   - package-ecosystem: docker
@@ -44,7 +44,7 @@ updates:
     cooldown:
       default-days: 3
     # spec's Go modules move together with the spec submodule, to its tag, in a task of its own,
-    # and ci-lint holds them to it (R64 in spec; R27 in docs/decisions.md): a tag of spec comes out
+    # and ci-lint holds them to it (R64 spec; R27): a tag of spec comes out
     # with every change to its documents, so Dependabot does not raise them. A library whose
     # release requires spec at its own tag joins them here when it joins go.mod: a newer one may
     # require a newer spec.
