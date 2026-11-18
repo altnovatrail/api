@@ -7,13 +7,6 @@ Open tasks outside the current epic, each as its body, in Russian (R154 spec, R1
 
 ## Tasks outside an epic
 
-#### T116. Тексты без истории: архитектура 3.1–3.4
-
-- **Цель:** разделы 3.1–3.4 `docs/architecture.md` держат текущее устройство, без истории (R160 spec).
-- **Сделать:** как в T115 — без хроник версий и повышений, файл вместо значения, решение — номером без пересказа, ссылки на переписанные поправки `spec` — на запись; пределы `sections` `docs-budgets.json` для 3.1–3.3 — по новому размеру или убрать.
-- **Как проверить:** `just -f spec/justfile docs-check-repo`; `/code-review high`.
-- **Разделы:** R160 spec; architecture 3.1–3.4.
-
 #### T117. Тексты без истории: архитектура 3.5–3.8
 
 - **Цель:** разделы 3.5–3.8 `docs/architecture.md` держат текущее устройство, без истории (R160 spec).
