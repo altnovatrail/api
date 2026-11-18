@@ -8,11 +8,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Record is an attempt in the progress of a profile (contract, AttemptRecord):
-// what it was of, on which package, the lesson of its run, how it closed, when
-// it began and closed, and when the engine chose its task — or its run's
-// lesson — and why: none for an attempt begun again, or by a choice written
-// before the codes.
+// Record is an attempt in the progress of a profile: what it was of, on which
+// package, the lesson of its run, how it closed, when it began and closed, and
+// when the engine chose its task — or its run's lesson — and why: none for an
+// attempt begun again, or by a choice with no reason code.
 type Record struct {
 	ID            string
 	PackageDigest string

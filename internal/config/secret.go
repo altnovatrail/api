@@ -40,10 +40,9 @@ const fileSuffix = "_FILE"
 // secret reads the secret called name: from the variable itself, or from the
 // file whose absolute path the variable name_FILE holds. Both are declared
 // when the secret is. The file lies outside the repository — a key in the
-// working tree is one commit away from git (RULES.md, Hard rules) — so a file
-// in any git working tree is refused; on Cloud Run it is a secret mounted as a
-// volume. One trailing newline, which an
-// editor or echo leaves, is not part of the value.
+// working tree is one commit away from git — so a file in any git working tree
+// is refused; on Cloud Run it is a secret mounted as a volume. One trailing
+// newline, which an editor or echo leaves, is not part of the value.
 //
 // Both at once is refused: which one wins would be a guess. So is an empty
 // value or file, since a secret that is empty is a deployment that lost it.

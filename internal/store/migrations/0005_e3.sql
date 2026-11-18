@@ -1,14 +1,14 @@
--- What epic E3 keeps of a learner's work (R43; architecture 3.2): the engine's choices,
--- lesson runs, attempts, the journal of evidence and the cache of the skill state. This is
--- their frame — keys, links, the rules of one open attempt and one open run, and the fields
--- of a row's life; each task of E3 adds the fields its code needs by a migration of its own,
--- adding first. Every row refers to its profile and goes with it (R21), and a row links only
--- to rows of its own profile: each link carries the profile. The codes are the contract's.
+-- What api keeps of a learner's work (R43): the engine's choices, lesson runs, attempts,
+-- the journal of evidence and the cache of the skill state. This is their frame — keys,
+-- links, the rules of one open attempt and one open run, and the fields of a row's life;
+-- the fields the code needs come by later migrations, each adding first. Every row refers
+-- to its profile and goes with it (R21), and a row links only to rows of its own profile:
+-- each link carries the profile. The codes are the contract's.
 
 -- +goose Up
 
--- An engine's choice (R06): of a task or of a lesson. What it chose and why, the tasks of
--- E3 add.
+-- An engine's choice (R06): of a task or of a lesson. What it chose and why comes in
+-- later migrations.
 CREATE TABLE engine_choices (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
@@ -172,8 +172,8 @@ CREATE TABLE skill_states (
 
 INSERT INTO skill_states (profile_id) SELECT id FROM profiles;
 
--- The targets of the idempotency keys of E3 (migration 0002): the attempt and the run, of
--- the key's own profile.
+-- The other targets of the idempotency keys of migration 0002: the attempt and the run,
+-- of the key's own profile.
 ALTER TABLE idempotency_keys
     ADD COLUMN attempt_id uuid,
     ADD COLUMN lesson_run_id uuid,

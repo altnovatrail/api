@@ -1,5 +1,5 @@
--- The contract of consent of spec's epic E4 (R52; R116, R130, R134, R136 spec): who gives a
--- consent — the owner, a parent by a signed form, or the learner — the code of a parent's request,
+-- The contract of consent (R52; R116, R130, R134, R136 spec): who gives a consent — the
+-- owner, a parent by a signed form, or the learner — the code of a parent's request,
 -- the state of the form and where its scan lies, outside this database, the age of the country the
 -- category was given by, and the versions of the texts a consent is given to; the texts an account
 -- was created on; the storage of works; and the problem reports of an adult.
@@ -23,7 +23,7 @@ ALTER TABLE consents
     ADD COLUMN request_code text CHECK (request_code ~ '^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$'),
     ADD COLUMN form_state text CHECK (form_state IN ('not_sent', 'sent', 'not_accepted')),
     -- The age of digital consent of the country on the day the age was given, which the category
-    -- was given by (consent-age/README.md of spec, section 6).
+    -- was given by (R134 spec).
     ADD COLUMN applied smallint CHECK (applied BETWEEN 13 AND 18),
     -- The version of the text the consent is given to: parent-consent of a parent's, teen-consent of
     -- the learner's; none while the text had no version in force.
@@ -62,7 +62,7 @@ $$;
 
 CREATE TRIGGER consents_defaults BEFORE INSERT ON consents FOR EACH ROW EXECUTE FUNCTION consent_defaults();
 
--- A code of a request is unique among the consents that wait (contract, ChildConsent).
+-- A code of a request is unique among the consents that wait.
 CREATE UNIQUE INDEX consents_request_code ON consents (request_code) WHERE state = 'waiting';
 
 -- The scans of the forms of a parent's consent, which lie in the closed bucket of the operator, out
@@ -93,7 +93,7 @@ $$;
 CREATE TRIGGER consents_form_kept BEFORE DELETE ON consents FOR EACH ROW EXECUTE FUNCTION consent_form_kept();
 
 -- The texts the owner accepted when the account was created: privacy-policy and terms-of-use, by
--- the versions the request named (contract, CreateAccount).
+-- the versions the request named.
 CREATE TABLE account_texts (
     account_id uuid NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
     text_id text NOT NULL CHECK (text_id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$'),

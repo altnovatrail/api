@@ -35,8 +35,7 @@ type KeyRecord struct {
 
 // KeyTarget is what a request done under a key acted on, and what its record
 // holds of the answer: the profile and the attempt it acted on, when it did, and
-// either the answer or the submission whose answer a repeat gets (architecture
-// 3.2).
+// either the answer or the submission whose answer a repeat gets (R17, R44).
 type KeyTarget struct {
 	ProfileID    string
 	AttemptID    string

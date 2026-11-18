@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The refusals of the creation of an account (R04; contract, CreateAccount).
+// The refusals of the creation of an account (R04).
 var (
 	// ErrAccountExists is a user who has an account already.
 	ErrAccountExists = errors.New("store: the account exists")
@@ -45,13 +45,13 @@ func SetTariff(ctx context.Context, db Querier, codeSHA256 []byte, tariff string
 
 // CreateAccount creates the account of the sign-in service's UID by the code of
 // codeSHA256, with the owner's statement that they are 18 or older dated now,
-// and returns its ID (R04; architecture 3.1, steps 2 and 3). It is one
-// transaction, in the order of the contract: an account the UID has already is
-// ErrAccountExists — or ErrAccountDeleting, when it is marked — before the code
-// is looked at, so that a repeat is not refused for the code it redeemed; then a
-// code not there or redeemed is ErrCodeNotAccepted, and no account is left. The
-// code is bound to the account, and its tariff passes to it, and the texts the
-// owner accepted are recorded with it (R136 spec).
+// and returns its ID (R04). It is one transaction, in the order of the
+// contract: an account the UID has already is ErrAccountExists — or
+// ErrAccountDeleting, when it is marked — before the code is looked at, so that
+// a repeat is not refused for the code it redeemed; then a code not there or
+// redeemed is ErrCodeNotAccepted, and no account is left. The code is bound to
+// the account, and its tariff passes to it, and the texts the owner accepted
+// are recorded with it (R136 spec).
 //
 // Two creations race safely. Two by one UID: the second waits on the UID's
 // unique index and finds the first's account. Two for one code: the second waits

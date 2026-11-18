@@ -32,9 +32,9 @@ type SkillState struct {
 // (R06). The profile's own row is held FOR KEY SHARE first, as the rows of the
 // journal that the caller then adds refer to it: a deletion of the profile,
 // which takes it FOR UPDATE before its cascade reaches the cache, waits, rather
-// than locking the two rows in the other order. A profile the image before this
-// one made has no row of the cache, so the row is made first, empty, when it is
-// not there (the 2026-11-10 amendment to R06); a profile gone is ErrNoProfile.
+// than locking the two rows in the other order. A profile may have no row of
+// the cache, so the row is made first, empty, when it is not there (R06); a
+// profile gone is ErrNoProfile.
 func HoldSkillState(ctx context.Context, tx pgx.Tx, profileID string) (SkillState, error) {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT id FROM profiles WHERE id = $1 FOR KEY SHARE`, profileID).Scan(&id)
@@ -95,8 +95,7 @@ type Owed struct {
 // owedWhere is the closed attempts that owe their evidence, on the packages of
 // the parameter digests: closed correct, with the solution shown or unchecked;
 // or left, abandoned or not suitable with wrong answers, since one with none
-// gives no evidence (the 2026-11-02 amendments to R06 and R10). "Done" gives
-// none (О-17).
+// gives no evidence (R06, R10). "Done" gives none (О-17).
 func owedWhere(digests string) string {
 	return `a.closed_at IS NOT NULL AND a.package_digest = ANY(` + digests + `::text[])
 	AND (a.close_reason IN ('correct', 'solution_shown', 'unchecked')
@@ -106,7 +105,8 @@ func owedWhere(digests string) string {
 
 // OwedAttempts is the profile's attempts that owe their evidence, on the
 // packages digests names — those the image holds: one whose package left the
-// image gives none (Д27) —, in the order they closed.
+// image gives none, as its evidence is built from the package (R49) —, in the
+// order they closed.
 func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []string) ([]Owed, error) {
 	rows, err := tx.Query(ctx, `SELECT a.id, a.package_digest, a.module_id, a.task_id, a.instance, a.close_reason,
 			a.wrong_answers, a.last_action_at, a.step_techniques_at IS NOT NULL, a.requested_techniques_at IS NOT NULL,

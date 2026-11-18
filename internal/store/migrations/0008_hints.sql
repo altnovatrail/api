@@ -1,8 +1,8 @@
--- What the hint ladder keeps (R47; R09, R10; architecture 3.2): when a hint asked for first
--- gave the task's techniques and its leading question, and the words of each rung the attempt
--- reached — the tutor's question or the rung's fallback text, and the words of "explain
--- differently" — which live until the attempt closes. Once it has, each rung keeps its number
--- and where its words came from, and the words are gone (R05).
+-- What the hint ladder keeps (R47; R09, R10): when a hint asked for first gave the task's
+-- techniques and its leading question, and the words of each rung the attempt reached — the
+-- tutor's question or the rung's fallback text, and the words of "explain differently" —
+-- which live until the attempt closes. Once it has, each rung keeps its number and where its
+-- words came from, and the words are gone (R05).
 --
 -- contract: everything here only adds (R29).
 
@@ -10,7 +10,7 @@
 
 -- When a hint asked for first gave the task's techniques, and when it first gave its leading
 -- question, which it records only when the task has one (R108 spec): two facts, kept apart, as
--- the evidence will carry them apart (the 2026-11-09 amendment to R82 spec).
+-- the evidence carries them apart (R82 spec).
 ALTER TABLE attempts
     ADD COLUMN requested_techniques_at timestamptz,
     ADD COLUMN leading_question_at timestamptz;

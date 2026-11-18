@@ -1,6 +1,5 @@
--- What a lesson run needs of the rest (R48; R13; architecture 3.2, 3.7): the lesson an
--- engine's choice of a lesson names, and the end of a run whose attempt of a segment is
--- closed "unchecked".
+-- What a lesson run needs of the rest (R48; R13): the lesson an engine's choice of a lesson
+-- names, and the end of a run whose attempt of a segment is closed "unchecked".
 --
 -- contract: the check of a choice is narrowed only for the choices of a lesson, which no
 -- release before this one writes; everything else here only adds (R29).
@@ -9,7 +8,7 @@
 
 -- The lesson an engine's choice of a lesson names: the module and the lesson's local ID. The
 -- choice names no version: the run begins on the module's current version (R07). The rest of
--- a choice comes with the engine's code.
+-- a choice comes in migration 0010.
 ALTER TABLE engine_choices
     ADD COLUMN lesson_id text CHECK (char_length(lesson_id) BETWEEN 1 AND 64),
     ADD CHECK (kind <> 'lesson' OR num_nonnulls(module_id, lesson_id) = 2);

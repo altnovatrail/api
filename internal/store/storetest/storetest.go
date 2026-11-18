@@ -1,8 +1,8 @@
 // Package storetest runs the tests of api's database on a real PostgreSQL with no
 // Docker, as the devcontainer and CI have none: embedded-postgres starts one server
-// for a test binary, when its first test asks for a database, migrates a template database once, and gives each test a
-// database of its own made from it, which is a copy and takes milliseconds (R29;
-// amendment of 2026-11-02 to R05).
+// for a test binary, when its first test asks for a database, migrates a template
+// database once, and gives each test a database of its own made from it, which is
+// a copy and takes milliseconds (R05, R29).
 //
 // A package whose tests use it runs them under its TestMain:
 //
@@ -39,7 +39,7 @@ const version = embeddedpostgres.V17
 // supervisorPackage is embedded-postgres's own supervisor, which stops PostgreSQL
 // when the test binary dies. It is built here from the module's sources, which
 // go.sum holds, rather than downloaded and checked against a sum the library
-// reads from the same release while it runs (amendment of 2026-11-02 to R05).
+// reads from the same release while it runs (R05).
 const supervisorPackage = "github.com/fergusstrange/embedded-postgres/v2/cmd/embedded-postgres"
 
 // The databases the migrations run in once, which each test's is a copy of: the

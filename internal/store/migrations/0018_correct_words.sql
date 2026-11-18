@@ -1,5 +1,5 @@
--- Whether the tutor's words after a correct answer were given on the attempt (R09; architecture
--- 3.5): they are given once, so the second request gets "no more words", and the export says so,
+-- Whether the tutor's words after a correct answer were given on the attempt (R09, R77): they
+-- are given once, so the second request gets "no more words", and the export says so,
 -- correct_answer_words_given. The words themselves are kept nowhere. Only an attempt a correct
 -- answer closed has them.
 

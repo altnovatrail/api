@@ -23,14 +23,14 @@ type ConnectedModule struct {
 // Learner is what a learning request reads of its profile, in one query: the
 // age category, by which a module's audience suits it (R07), and whether its
 // consent is confirmed: a profile has one consent at most, which a learner who
-// consents themselves, or whose age was given again, waits for (architecture
-// 3.1, step 5; R116, R136 spec).
+// consents themselves, or whose age was given again, waits for (R116, R136
+// spec).
 type Learner struct {
 	AgeCategory string
 	Consented   bool
 	// Country and Applied are the country of the learner and the age of digital
 	// consent their category was given by, by which their age may be asked again
-	// (consent-age/README.md of spec, section 6).
+	// (R134 spec).
 	Country string
 	Applied int
 }

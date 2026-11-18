@@ -81,7 +81,7 @@ func (w *world) share(t *testing.T, f family, profileID string, action v1.Action
 // A learner sees the share of their own profile alone, and an adult the
 // account's beside it: whole percent of the settled spending, rounded down,
 // with the reserves of calls still going left out, and the end of the day the
-// account keeps (the amendment of 2026-11-12 to R11).
+// account keeps (R11).
 func TestTheShareOfTheQuotaIsTheProfilesAndTheAdultsTheAccountsToo(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +172,7 @@ func TestATariffWithNoCapsHasNoShare(t *testing.T) {
 }
 
 // The tariff of dev-check has its share off a deployment, of $5.00 a profile,
-// and none deployed, where it is a tariff with no caps (В80).
+// and none deployed, where it is a tariff with no caps (R55).
 func TestTheTariffOfDevCheckHasNoShareDeployed(t *testing.T) {
 	t.Parallel()
 

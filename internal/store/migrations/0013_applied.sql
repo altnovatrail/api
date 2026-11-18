@@ -1,7 +1,7 @@
 -- The age of digital consent a consent for a child was given by, for the consents written before
 -- the table of ages (R52): the code before it took 13 for every country it accepted, so a category
 -- it gave was given by 13. Without it, a learner of 13 to 17 of that code would be asked the age
--- again by every country (consent-age/README.md of spec, section 6). The release before this one
+-- again by every country (R134 spec). The release before this one
 -- writes such a consent while a deployment goes on, and the trigger gives it the same.
 
 -- +goose Up

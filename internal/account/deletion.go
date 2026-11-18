@@ -15,7 +15,7 @@ import (
 // way, and the last profile leaves the account without profiles. A tuple left
 // after the database is done is still "deleted": its line names the failure,
 // and the profile's row is gone, so the tuple gives a right to nothing; its
-// repeat deletes it (architecture 3.10).
+// repeat deletes it (R37).
 func (s *Service) DeleteProfile(ctx context.Context, req *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	if err := deleted(ctx, s.deleter.Profile(ctx, caller.AccountID, req.GetProfileId())); err != nil {

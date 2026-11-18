@@ -1,8 +1,8 @@
 // Package account is api's AccountService of the contract novatrail.api.v1: the
-// account and its invite code, and, task by task, its PIN, profiles and
-// deletion (R04, R34, R35, R36). Its methods run after the checks of architecture 3.1,
-// which give them the caller (rpc.CallerFrom); a method it has no handler for
-// yet answers unimplemented.
+// account and its invite code, its PIN, profiles, consents and deletion (R04,
+// R34, R35, R36). Its methods run after the checks of package rpc, which give
+// them the caller (rpc.CallerFrom); a method it has no handler for answers
+// unimplemented.
 package account
 
 import (
@@ -88,8 +88,8 @@ func New(db rpc.DB, rights Rights, signin deletion.Signin, options ...Option) *S
 }
 
 // GetAccount gives the account of the caller: whether its PIN is set, its
-// profiles and its consents for a child with no profile. Open attempts and lesson
-// runs come with epic E3, which keeps them.
+// profiles, with their open attempts and lesson runs, and its consents for a
+// child with no profile.
 func (s *Service) GetAccount(ctx context.Context, _ *v1.GetAccountRequest) (*v1.GetAccountResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	view, err := store.AccountView(ctx, s.db, caller.AccountID)
@@ -101,11 +101,11 @@ func (s *Service) GetAccount(ctx context.Context, _ *v1.GetAccountRequest) (*v1.
 
 // CreateAccount creates the caller's account by an invite code, the owner's
 // statement that they are 18 or older and the current versions of
-// privacy-policy and terms-of-use, which it records (R130, R136 spec): a text in
-// force left out, or a version not current, is CAUSE_TEXT_NOT_CURRENT. A caller with an account already gets
-// CAUSE_ALREADY_EXISTS before the statement and the code are looked at, so that
-// a repeat after a lost answer gets that rather than a code redeemed (contract,
-// CreateAccount).
+// privacy-policy and terms-of-use, which it records (R130, R136 spec): a text
+// in force left out, or a version not current, is CAUSE_TEXT_NOT_CURRENT. A
+// caller with an account already gets CAUSE_ALREADY_EXISTS before the statement
+// and the code are looked at, so that a repeat after a lost answer gets that
+// rather than a code redeemed.
 func (s *Service) CreateAccount(ctx context.Context, req *v1.CreateAccountRequest) (*v1.CreateAccountResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	if caller.AccountID != "" {
@@ -221,7 +221,7 @@ func (s *Service) profile(p store.Profile) *v1.Profile {
 		}
 	}
 	// The category of a child is refined a year after its age was given; the
-	// owner's is their statement (privacy 3.3 spec).
+	// owner's is their statement.
 	out.AgeCheckDue = !p.Owner && p.AgeStatedOn != nil && !now.UTC().Before(p.AgeStatedOn.AddDate(1, 0, 0))
 	return out
 }

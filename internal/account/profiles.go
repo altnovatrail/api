@@ -18,8 +18,8 @@ var errCountry = errors.New("account: the country is not accepted")
 
 // CreateOwnerProfile creates the owner's profile, of the category adult by the
 // owner's statement, with its consent, and its tuple before the COMMIT (R04,
-// R36; architecture 3.1). A profile of the owner there already comes before the
-// country, so that a repeat is told it is there.
+// R36). A profile of the owner there already comes before the country, so that
+// a repeat is told it is there.
 func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerProfileRequest) (*v1.CreateOwnerProfileResponse, error) {
 	if !s.ages.Country(req.GetCountry()) {
 		return nil, rpc.Malformed("country")
@@ -51,8 +51,8 @@ func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerPro
 	return &v1.CreateOwnerProfileResponse{Profile: s.profile(p)}, nil
 }
 
-// UpdateProfile changes the settings sent, and leaves the others (contract,
-// ProfileSettings). The checks have held the right can_manage.
+// UpdateProfile changes the settings sent, and leaves the others. The checks
+// have held the right can_manage.
 func (s *Service) UpdateProfile(ctx context.Context, req *v1.UpdateProfileRequest) (*v1.UpdateProfileResponse, error) {
 	p, err := s.change(ctx, req.GetProfileId(), req.GetSettings())
 	if err != nil {

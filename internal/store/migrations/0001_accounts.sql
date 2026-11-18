@@ -1,9 +1,8 @@
--- The account, its invite codes, its consents and its profiles: what epic E2 keeps
--- (architecture 3.1, 3.2 and 3.10; R29). Migrations only go forward: api rolls back
--- only forward (R106 spec), so there is no Down. A migration adds first and removes
--- later: the release still serving while this one rolls out reads the schema as it was,
--- so a statement that drops, renames or narrows comes only in a migration marked
--- "-- contract:" with the reason the old schema is no longer read.
+-- The account, its invite codes, its consents and its profiles (R29). Migrations only
+-- go forward: api rolls back only forward (R106 spec), so there is no Down. A migration
+-- adds first and removes later: the release still serving while this one rolls out reads
+-- the schema as it was, so a statement that drops, renames or narrows comes only in a
+-- migration marked "-- contract:" with the reason the old schema is no longer read.
 
 -- +goose Up
 
@@ -37,9 +36,9 @@ CREATE TABLE invite_codes (
     CHECK (account_id IS NULL OR redeemed_at IS NOT NULL)
 );
 
--- A learner's profile, with the fields of section 1 and of the contract's Profile. The
--- codes are the contract's. A row about a profile refers to it, so that one written
--- after the profile is gone fails on the key (R21).
+-- A learner's profile, with the fields of the contract's Profile, whose codes it keeps.
+-- A row about a profile refers to it, so that one written after the profile is gone
+-- fails on the key (R21).
 CREATE TABLE profiles (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id uuid NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
@@ -57,7 +56,7 @@ CREATE TABLE profiles (
     ask_before_showing boolean NOT NULL,
     active_on date NOT NULL DEFAULT current_date,
     created_at timestamptz NOT NULL DEFAULT now(),
-    -- A profile of the category adult never asks before showing (contract, Profile).
+    -- A profile of the category adult never asks before showing.
     CHECK (age_category <> 'adult' OR NOT ask_before_showing),
     -- The owner's own profile is an adult's.
     CHECK (NOT owner OR age_category = 'adult')
@@ -68,8 +67,8 @@ CREATE UNIQUE INDEX profiles_one_owner ON profiles (account_id) WHERE owner;
 CREATE INDEX profiles_account ON profiles (account_id);
 
 -- A consent: an adult's own, given with the profile, or one for a child, waiting under
--- the account, with its category and country, until it is confirmed (architecture 3.1).
--- What the record writes besides — who gave it and how it was checked — T26 settles.
+-- the account, with its category and country, until it is confirmed. Who gives it
+-- comes in migration 0012.
 CREATE TABLE consents (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id uuid NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,

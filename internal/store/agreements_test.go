@@ -203,7 +203,7 @@ func TestAFailedStatementOfTheExportIsAFailure(t *testing.T) {
 	}
 }
 
-// The consents of the contract of spec's epic E4 in the store: a code of a
+// The consents of the contract of consent in the store (R52): a code of a
 // request unique among those that wait, a form sent, the learner's own consent,
 // the age given again, the storage of works and a problem report.
 func TestTheAgreementsInTheStore(t *testing.T) {

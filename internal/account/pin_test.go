@@ -246,7 +246,7 @@ func TestARequestStillGoingIsToldSo(t *testing.T) {
 	ctx := w.owner(t, "uid-owner")
 	k := &keys{}
 	w.setPin(t, ctx, k, thePIN)
-	// A record that waits for its answer, as one of epic E3 does while AI works.
+	// A record that waits for its answer, as one does while AI works.
 	if _, err := w.pool.Exec(t.Context(), `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state)
 		SELECT id, 'going', '/novatrail.api.v1.AccountService/VerifyPin', $1, 'going' FROM accounts`,
 		fingerprintOf(&v1.VerifyPinRequest{Pin: thePIN})); err != nil {

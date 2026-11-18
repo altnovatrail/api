@@ -11,7 +11,7 @@ import (
 const (
 	// VarLegalDir is the absolute path of a self-hosted copy's folder of its
 	// operator's legal texts, outside any git working tree; unset, api serves
-	// the texts of its tag of spec (legal/README.md of spec, section 8).
+	// the texts of its tag of spec (R115 spec).
 	VarLegalDir = "API_LEGAL_DIR"
 	// VarConsentFormsBucket is the operator's closed bucket of Cloud Storage the
 	// scans of the forms of a parent's consent go to, under the prefix of

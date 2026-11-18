@@ -23,9 +23,10 @@ type ProfileRef struct {
 }
 
 // MarkedBefore is up to limit accounts marked "deleting" before before, whose ID
-// comes after after — empty for the first page —, by ID: the marks a request left unfinished, which the daily
-// job finishes (R21). The job pages by the last ID it saw, so that an account it
-// fails on is not chosen again in the same pass.
+// comes after after — empty for the first page —, by ID: the marks a request
+// left unfinished, which the daily job finishes (R21). The job pages by the last
+// ID it saw, so that an account it fails on is not chosen again in the same
+// pass.
 func MarkedBefore(ctx context.Context, db Lister, before time.Time, after string, limit int) ([]AccountRef, error) {
 	return accountRefs(ctx, db, `SELECT id, auth_uid FROM accounts
 		WHERE deleting_at < $1 AND id > $2 ORDER BY id LIMIT $3`, before, from(after), limit)
@@ -219,7 +220,7 @@ type OpenOn struct {
 
 // OpenAttemptsOn is up to limit open attempts on the packages of digests, whose
 // ID comes after after, by ID, of accounts no deletion marked: those whose
-// package the image no longer gives (R07). An account marked goes with its
+// package the image does not give (R07). An account marked goes with its
 // attempts.
 func OpenAttemptsOn(ctx context.Context, db Lister, digests []string, after string, limit int) ([]OpenOn, error) {
 	return openOn(ctx, db, "the attempts", `SELECT t.id, t.profile_id, p.account_id FROM attempts t
