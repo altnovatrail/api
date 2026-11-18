@@ -121,7 +121,6 @@ func newQuotaWorld(t *testing.T, tariff string) quotaWorld {
 	return w
 }
 
-// charge is a charge of amount on the profile.
 func (w quotaWorld) charge(profile string, amount quota.Micro) store.Charge {
 	return store.Charge{AccountID: w.account, ProfileID: profile, Day: w.day, Amount: amount}
 }
@@ -240,7 +239,7 @@ func TestAnAccountWithNoTariffHasNoRoom(t *testing.T) {
 
 // The tariff of dev-check has its caps off a deployment, $5.00 a profile, and
 // none deployed or not told it is off one: the reserve, the room and the share
-// there read it as no tariff (В80).
+// there read it as no tariff (R55).
 func TestTheTariffOfDevCheckHasNoCapsDeployed(t *testing.T) {
 	t.Parallel()
 

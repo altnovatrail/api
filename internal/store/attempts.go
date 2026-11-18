@@ -24,7 +24,7 @@ var (
 	// profile does not have: another profile's is the same (R04).
 	ErrNotFound = errors.New("store: the profile has no such row")
 	// ErrChoiceBegun is an engine's choice of a task that has begun an attempt
-	// already (contract, BeginAttempt).
+	// already.
 	ErrChoiceBegun = errors.New("store: the choice has begun an attempt already")
 )
 

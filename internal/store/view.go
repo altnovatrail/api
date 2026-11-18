@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// View is the account as GetAccount gives it (contract, Account): whether its
-// PIN is set, its profiles with their open attempts, and its consents for a
+// View is the account as GetAccount gives it: whether its PIN is set, its
+// profiles with their open attempts and lesson runs, and its consents for a
 // child with no profile yet.
 type View struct {
 	// ID is the account's ID.
@@ -44,7 +44,7 @@ type Profile struct {
 	// (R113 spec).
 	WorkStorage bool
 	// AgeStatedOn is the day the age was last given, by UTC: a year after it, the
-	// category is refined (privacy 3.3 spec).
+	// category is refined (R98 spec).
 	AgeStatedOn *time.Time
 	// Consent is the profile's consent, which AccountView and ProfileWithConsent
 	// read.
@@ -77,8 +77,8 @@ type ChildConsent struct {
 
 // AccountView reads the account in one snapshot, so that its profiles and its
 // consents are of one moment: a device erases the profiles the list does not
-// hold (contract, GetAccount). An account that is not there is ErrNoAccount, and
-// one marked "deleting" ErrAccountDeleting.
+// hold. An account that is not there is ErrNoAccount, and one marked
+// "deleting" ErrAccountDeleting.
 func AccountView(ctx context.Context, db TxBeginner, accountID string) (View, error) {
 	view := View{ID: accountID}
 	snapshot := pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}

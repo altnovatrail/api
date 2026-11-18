@@ -14,7 +14,7 @@ import (
 // (R113 spec).
 var ErrStorageOff = errors.New("store: the storage of the profile's works is off")
 
-// The kinds of a stored work, by the attempt's task (contract, WorkKind).
+// The kinds of a stored work, by the attempt's task.
 const (
 	WorkHandwriting = "handwriting"
 	WorkEssay       = "essay"

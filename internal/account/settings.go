@@ -14,7 +14,7 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// The bounds of the settings (contract, ProfileSettings).
+// The bounds of the settings.
 const (
 	maxPseudonym = 30
 	maxAvatar    = 64

@@ -229,8 +229,8 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			// Confirmed, as epic E4 will: the profile is made and bound, and its skill
-			// state is what fails.
+			// Confirmed: the profile is made and bound, and its skill state is what
+			// fails.
 			if _, err := tx.Exec(t.Context(), `UPDATE consents SET state = 'confirmed', confirmed_at = now(), method = 'synthetic'
 				WHERE id = $1`, c.ID); err != nil {
 				return err

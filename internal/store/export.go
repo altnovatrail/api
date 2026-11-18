@@ -273,8 +273,8 @@ var reasonCodes = map[int16]exportv3.ChoiceReasonCode{
 }
 
 // exportChoices is the engine's choices of the profile that gave a task or a
-// lesson and were written with their reason code: a choice of nothing is not
-// exported, and one written before the codes has none to give (R50).
+// lesson and have their reason code: a choice of nothing is not exported, and
+// one with no reason code has none to give (R50).
 func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *exportv3.Profile) error {
 	rows, err := tx.Query(ctx, `SELECT id, kind, chosen_at, module_id, task_id, lesson_id, reason_code, engine_version,
 			learner_model_version, coalesce(digests, '{}'), coalesce(engine_digests, '{}'), modules_release, last_seq,

@@ -48,7 +48,7 @@ func (s *Service) ListOwnKeyProviders(ctx context.Context, req *v1.ListOwnKeyPro
 	}
 	caller, _ := rpc.CallerFrom(ctx)
 	// The category alone, in one query: the request is an adult's, which no
-	// consent of the profile's refuses (contract, ListOwnKeyProviders).
+	// consent of the profile's refuses.
 	l, err := store.LearnerOf(ctx, s.db, caller.AccountID, req.GetProfileId())
 	if err != nil {
 		return nil, refusedProfile(ctx, err)

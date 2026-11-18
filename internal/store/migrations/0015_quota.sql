@@ -1,4 +1,4 @@
--- The quota of platform AI (R11, R12, R57; architecture 3.6): a counter of each profile and of
+-- The quota of platform AI (R11, R12, R57): a counter of each profile and of
 -- each account for each family day that had a reserve — spent and in reserve, in whole
 -- micro-dollars of tutor's estimate —, and the one row of the flag "platform AI closed" of the
 -- deployment. A counter is keyed by the beginning of its day, not by a date: a change of the offset

@@ -11,9 +11,9 @@ import (
 	"github.com/altnovatrail/api/internal/quota"
 )
 
-// The quota of platform AI as the database keeps it (R11, R12; architecture
-// 3.6): the account's family day — its offset, the beginning and the end of its
-// current day.
+// The quota of platform AI as the database keeps it (R11, R12, R56): the
+// account's family day — its offset, the beginning and the end of its current
+// day.
 
 // clockOf is the family day the account keeps, as read in q.
 func clockOf(ctx context.Context, q Querier, accountID string) (quota.Clock, error) {
@@ -56,7 +56,7 @@ func FamilyDay(ctx context.Context, tx pgx.Tx, accountID string, reported *int32
 
 // Today is the account's family day at now as it keeps it, writing nothing: for
 // a request that sends no offset, such as the beginning of an attempt (R97
-// spec; the amendment of 2026-11-07 to R11).
+// spec; R11).
 func Today(ctx context.Context, q Querier, accountID string, now time.Time) (quota.Day, error) {
 	c, err := clockOf(ctx, q, accountID)
 	if err != nil {
@@ -139,7 +139,7 @@ func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, err
 // Settled is what a profile and its account have spent of the quota of a family
 // day, as their calls were settled, without the reserves of calls still going,
 // beside the caps of the account's tariff: what the share of the quota counts
-// by (the amendment of 2026-11-12 to R11).
+// by (R11).
 type Settled struct {
 	Day quota.Day
 	// Caps are the caps of the account's tariff, and Capped is false when it has

@@ -193,8 +193,8 @@ func SolutionsSent(ctx context.Context, db Lister, profileID string) ([]Solution
 // ClosedAttempt is a closed attempt of the profile as the engine's input reads
 // it: what it was of, how and when it closed, the full ID of the lesson of its
 // run, the reason code of the choice that began it — of its run's, for a
-// segment; none for an attempt begun again or by a choice written before the
-// codes —, and its evidence, when the journal has it.
+// segment; none for an attempt begun again or by a choice with no reason code
+// —, and its evidence, when the journal has it.
 type ClosedAttempt struct {
 	ID            string
 	PackageDigest string

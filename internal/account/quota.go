@@ -17,12 +17,12 @@ import (
 
 // GetQuota is the share of the family day's quota of platform AI that the
 // profile has spent, and beside an adult's action the account's too, never a
-// sum in dollars (the amendment of 2026-11-12 to R11; Д229 spec). A learning
-// action holds can_learn, which the checks asked, and the profile's consent and
-// age, as every learning request; an adult's, can_view, which the handler asks —
-// the checks before it hold can_learn alone, as for the skill map. The share is
-// of the spending settled, without the reserves of calls still going, on the
-// day the account keeps: the request carries no offset, and writes nothing.
+// sum in dollars (R11). A learning action holds can_learn, which the checks
+// asked, and the profile's consent and age, as every learning request; an
+// adult's, can_view, which the handler asks — the checks before it hold
+// can_learn alone, as for the skill map. The share is of the spending settled,
+// without the reserves of calls still going, on the day the account keeps: the
+// request carries no offset, and writes nothing.
 func (s *Service) GetQuota(ctx context.Context, req *v1.GetQuotaRequest) (*v1.GetQuotaResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	profileID := req.GetProfileId()

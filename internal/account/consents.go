@@ -19,8 +19,7 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// youngestAge and oldestAge bound the age in years of a child: from 0 to 17
-// (contract, RequestChildConsent).
+// youngestAge and oldestAge bound the age in years of a child: from 0 to 17.
 const (
 	youngestAge = 0
 	oldestAge   = 17
@@ -28,13 +27,12 @@ const (
 
 // waitingConsentsMax is how many consents for a child may wait under an
 // account with no profile: a family needs a few, not hundreds, and each request
-// with a new key makes a row and a key's record (R36; contract,
-// CAUSE_TOO_MANY_CONSENTS). The slow fingerprint of a request is worked out
-// before the count, so the limit bounds the rows, not that work. The number is
-// api's.
+// with a new key makes a row and a key's record (R36). The slow fingerprint of a
+// request is worked out before the count, so the limit bounds the rows, not
+// that work. The number is api's.
 const waitingConsentsMax = 10
 
-// The scan of a form (contract, SendConsentForm): up to 10 MiB, a photo or a PDF.
+// The scan of a form: up to 10 MiB, a photo or a PDF.
 const maxForm = 10 << 20
 
 var formTypes = map[string]bool{"image/jpeg": true, "image/png": true, "application/pdf": true}
@@ -48,7 +46,7 @@ const codeTries = 4
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 // requestCode is a code of a parent's request: ten characters of Crockford's
-// base32 in two groups of five, ABCDE-FGHJK (contract, ChildConsent).
+// base32 in two groups of five, ABCDE-FGHJK.
 func requestCode() string {
 	var b [10]byte
 	_, _ = rand.Read(b[:])
@@ -65,12 +63,12 @@ func requestCode() string {
 // RequestChildConsent records a consent for a child that waits, with the
 // category worked out of the age and the country by the table of the age of
 // digital consent; the age in years lives in this request's memory alone
-// (privacy 3.3 spec; R134 spec). Below the age of the country the consent is a
-// parent's, by a code of its request; from it, the learner's own. The request
-// names the current version of parent-consent whoever gives it, on the day of
-// its time in UTC. A repeat under its key is the same consent, at the limit and
-// past the day of a new version too, since the limit and the texts are checked
-// after the key.
+// (R134 spec). Below the age of the country the consent is a parent's, by a
+// code of its request; from it, the learner's own. The request names the
+// current version of parent-consent whoever gives it, on the day of its time in
+// UTC. A repeat under its key is the same consent, at the limit and past the
+// day of a new version too, since the limit and the texts are checked after the
+// key.
 func (s *Service) RequestChildConsent(ctx context.Context, req *v1.RequestChildConsentRequest) (*v1.RequestChildConsentResponse, error) {
 	if req.AgeYears == nil || req.GetAgeYears() < youngestAge || req.GetAgeYears() > oldestAge {
 		return nil, rpc.Malformed("age_years")
@@ -121,7 +119,6 @@ func (s *Service) askConsent(ctx context.Context, tx pgx.Tx, accountID string, c
 	return store.ChildConsent{}, errors.New("account: no code of a request was free")
 }
 
-// textVersion is the version a reference names, or none.
 func textVersion(ref *v1.LegalTextRef) *int32 {
 	if ref == nil {
 		return nil
@@ -132,10 +129,9 @@ func textVersion(ref *v1.LegalTextRef) *int32 {
 
 // CreateChildProfile creates a child's profile by its consent, of its category
 // and country, and its tuple before the COMMIT: a parent's consent once it is
-// confirmed; the learner's own at once, and the profile waits for it (contract,
-// CreateChildProfile). A consent with its profile already is
-// CAUSE_ALREADY_EXISTS before its state is looked at, so that a repeat is told
-// the profile is there.
+// confirmed; the learner's own at once, and the profile waits for it. A consent
+// with its profile already is CAUSE_ALREADY_EXISTS before its state is looked
+// at, so that a repeat is told the profile is there.
 func (s *Service) CreateChildProfile(ctx context.Context, req *v1.CreateChildProfileRequest) (*v1.CreateChildProfileResponse, error) {
 	consentID := req.GetConsentId()
 	if !store.CanonicalID(consentID) {
@@ -325,11 +321,11 @@ func (s *Service) WithdrawOwnConsent(ctx context.Context, req *v1.WithdrawOwnCon
 
 // RestateAge gives the age of a profile again — after CAUSE_AGE_NEEDED, at the
 // yearly check, or with a new country — and works out its category anew by the
-// table, keeping the age nowhere (privacy 3.3 spec; R134 spec). A category whose
-// consent another gives leaves the profile waiting for it: the learner's own,
-// or a parent's by a new code; the consent before is kept as its minimal
-// record. The owner's profile gives its country alone. A repeat under its key is
-// the same profile; the fingerprint is slow, as the request carries the age.
+// table, keeping the age nowhere (R134 spec). A category whose consent another
+// gives leaves the profile waiting for it: the learner's own, or a parent's by
+// a new code; the consent before is kept as its minimal record. The owner's
+// profile gives its country alone. A repeat under its key is the same profile;
+// the fingerprint is slow, as the request carries the age.
 func (s *Service) RestateAge(ctx context.Context, req *v1.RestateAgeRequest) (*v1.RestateAgeResponse, error) {
 	if req.AgeYears != nil && (req.GetAgeYears() < youngestAge || req.GetAgeYears() > oldestAge) {
 		return nil, rpc.Malformed("age_years")

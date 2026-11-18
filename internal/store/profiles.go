@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// The refusals of a profile (contract, AccountService).
+// The refusals of a profile.
 var (
 	// ErrProfileExists is a profile there already: the owner's second, or the
 	// profile of a consent that has one.
@@ -35,9 +35,9 @@ func scanProfile(row pgx.Row) (Profile, error) {
 
 // CreateOwnerProfile makes the owner's profile in tx, of the category adult by
 // the owner's statement, with its consent: confirmed now, given by that
-// statement (R36; architecture 3.1), and the row of its skill state. The date
-// the age was given is the date of the statement, and every date is by UTC, as
-// TouchProfile writes it. The account has one owner's profile: a second is
+// statement (R36), and the row of its skill state. The date the age was given
+// is the date of the statement, and every date is by UTC, as TouchProfile
+// writes it. The account has one owner's profile: a second is
 // ErrProfileExists.
 func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Profile) (Profile, error) {
 	p.Owner, p.AgeCategory = true, "adult"

@@ -65,8 +65,8 @@ func TouchAccount(ctx context.Context, db Querier, accountID string) error {
 
 // ProfileOf says whether the account has the profile, and the date of the
 // profile's last activity. It is read after the right to the profile, never
-// before (architecture 3.1): a tuple whose profile is gone — dangling, R21 —
-// gives a right to nothing.
+// before: a tuple whose profile is gone — dangling (R21) — gives a right to
+// nothing.
 func ProfileOf(ctx context.Context, db Querier, accountID, profileID string) (bool, time.Time, error) {
 	var activeOn time.Time
 	err := db.QueryRow(ctx, `SELECT active_on FROM profiles WHERE id = $1 AND account_id = $2`,

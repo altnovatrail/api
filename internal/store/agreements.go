@@ -51,8 +51,8 @@ type NewConsent struct {
 
 // AskChildConsent records a consent for a child that waits, under the account:
 // with no pseudonym, no other field of the profile, and not the age in years
-// (privacy 3.3 spec; R36). A code of a request another waiting consent has is
-// ErrCodeTaken, and tx can go on: the insert runs in a savepoint of its own.
+// (R36). A code of a request another waiting consent has is ErrCodeTaken, and
+// tx can go on: the insert runs in a savepoint of its own.
 func AskChildConsent(ctx context.Context, tx pgx.Tx, accountID string, c NewConsent) (ChildConsent, error) {
 	out := ChildConsent{AgeCategory: c.AgeCategory, Country: c.Country, State: ConsentWaiting, Giver: c.Giver,
 		RequestCode: c.RequestCode}
@@ -115,8 +115,7 @@ func ConsentOfProfile(ctx context.Context, tx pgx.Tx, accountID, profileID strin
 // CancelChildConsent takes back the account's consent for a child with no
 // profile, and says whether there was one: one that waits is erased, with its
 // form; one confirmed leaves its minimal record and its form for their term
-// (R117 spec; contract, CancelChildConsent). Neither counts toward the limit
-// after.
+// (R117 spec). Neither counts toward the limit after.
 func CancelChildConsent(ctx context.Context, tx pgx.Tx, accountID, consentID string) (bool, error) {
 	if _, err := tx.Exec(ctx, fmt.Sprintf(minimalRecords, `id = $1 AND account_id = $2 AND profile_id IS NULL`),
 		consentID, accountID); err != nil {

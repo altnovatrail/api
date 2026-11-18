@@ -23,7 +23,7 @@ import (
 // digest is a package digest of the tests.
 var digest = "sha256:" + strings.Repeat("a", 64)
 
-// e3 is a profile with what epic E3 keeps of it, as the tests write it.
+// e3 is a profile whose choices, lesson runs and attempts the tests write.
 type e3 struct {
 	pool      *pgxpool.Pool
 	accountID string
@@ -245,7 +245,7 @@ func TestTheLinksOfE3StayInTheirKindAndProfile(t *testing.T) {
 	}
 }
 
-// What E3 keeps of a profile goes with it, and with its account.
+// The rows of a profile's learning go with it, and with its account (R21).
 func TestWhatE3KeepsGoesWithTheProfile(t *testing.T) {
 	t.Parallel()
 

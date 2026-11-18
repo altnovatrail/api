@@ -29,7 +29,7 @@ func (w *world) askConsent(t *testing.T, ctx context.Context, key string, age in
 	return res.GetConsent(), err
 }
 
-// confirm confirms a consent, as the operator will in epic E4.
+// confirm confirms a consent, as the operator does.
 func (w *world) confirm(t *testing.T, consentID string) {
 	t.Helper()
 	if _, err := w.pool.Exec(t.Context(), `UPDATE consents SET state = 'confirmed', confirmed_at = now(), method = 'synthetic'
@@ -241,13 +241,12 @@ func TestAChildsTupleNotWrittenLeavesNoProfile(t *testing.T) {
 }
 
 // consentsLimit is the consents for a child that may wait under an account
-// (the 2026-11-09 amendment to R98 spec; R36): 10, the author's number.
+// (R36, R40).
 const consentsLimit = account.WaitingConsentsMax
 
-// Consents wait up to the limit: one more is refused as a form, with no Refusal
-// until spec's epic E4 gives the contract its cause, and a repeat at the limit
-// is still the same consent. A confirmed consent and another account's do not
-// count.
+// Consents wait up to the limit: one more is CAUSE_TOO_MANY_CONSENTS, and a
+// repeat at the limit is still the same consent. A confirmed consent and
+// another account's do not count.
 func TestConsentsWaitUpToTheLimit(t *testing.T) {
 	t.Parallel()
 

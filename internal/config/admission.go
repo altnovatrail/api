@@ -8,12 +8,12 @@ import (
 
 // The variables of admission to AI (R25, R45): what the deployment declares,
 // beside its rollout list in infra, and the first app in a file of the
-// author's own (the amendment of 2026-11-08 to R106 spec).
+// author's own (R106 spec).
 const (
 	// VarAdmissionFactsFile is the absolute path of the file of the deployment's
-	// facts (the admission text of spec, section 5), as the path of a secret's
-	// file is given; on Cloud Run, a volume of an exact version of a secret. Its
-	// type and how it is read are tutor's.
+	// facts of admission, as the path of a secret's file is given; on Cloud Run,
+	// a volume of an exact version of a secret. Its type and how it is read are
+	// tutor's.
 	VarAdmissionFactsFile = "API_ADMISSION_FACTS_FILE"
 	// VarAdmissionRung is the least stage of tutor's rule of admission of
 	// models, which api hands to Table.Select: the operator names it, "author"
@@ -25,11 +25,11 @@ const (
 	// twin with the suffix _FILE names — on Cloud Run, a volume of a secret of
 	// Secret Manager (R11, R46). Unset, platform AI has no route to Anthropic.
 	VarAnthropicKey = "API_ANTHROPIC_KEY"
-	// VarOpenAIKey was the platform's key of OpenAI. api gives tutor no adapter
-	// of OpenAI, whose models the admission table admits for nothing, so the
-	// variable, or its twin _FILE, set is a refusal: a deployment that still
-	// passes it learns so at its start rather than holding a key nothing calls
-	// (R54).
+	// VarOpenAIKey names a platform key of OpenAI, which api refuses: it gives
+	// tutor no adapter of OpenAI, whose models the admission table admits for
+	// nothing, so the variable, or its twin _FILE, set is a refusal, and a
+	// deployment that passes it learns so at its start rather than holding a key
+	// nothing calls (R54).
 	VarOpenAIKey = "API_OPENAI_KEY"
 	// VarTutorStub, set to 1, puts tutor's calls on a stub in api's process,
 	// off a deployment alone: the stub reads a sheet by the shape of its crop and
@@ -39,8 +39,8 @@ const (
 	// VarReadingMode is how tutor reads the handwriting of a sheet and of a
 	// workbook page: "pair", both readers of R68 spec, whose observations
 	// module-kit joins, or "single", Haiku 5.5 at medium alone, whose
-	// observation is the reading (the author's word of 2026-11-17; R88). Unset
-	// or empty, it is "pair"; it holds at either stage.
+	// observation is the reading (R88). Unset or empty, it is "pair"; it holds
+	// at either stage.
 	VarReadingMode = "API_READING_MODE"
 )
 
@@ -89,7 +89,7 @@ type Admission struct {
 // AdmissionFrom reads what the deployment declares for admission from a set of
 // KEY=VALUE strings, and validates it. The stage is the operator's, on a
 // deployment too: "author" on novatrail, where the author alone learns (R149
-// spec; the 2026-11-15 amendments to R25 and R45), and unset it is "full".
+// spec, R25, R45), and unset it is "full".
 // The file of facts holds no secret, but it lies outside any git working tree
 // as a secret's file does: the first app's is the author's own, outside the
 // repository.
