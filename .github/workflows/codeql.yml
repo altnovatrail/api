@@ -22,6 +22,6 @@ jobs:
       security-events: write
     uses: altnovatrail/.github/.github/workflows/codeql.yml@f1c7e9e6f8245fdbdbc23c4091f3c26350e3a44e # v0.1.33
     # Go is read from a build, with the Go the toolchain stage of .devcontainer/Dockerfile pins, from
-    # its archive checked by its sum, with no image (R09 .github, amended for Go; R45 .github; R27).
+    # its archive checked by its sum, with no image (R09 .github, R45 .github; R27).
     with:
       languages: go

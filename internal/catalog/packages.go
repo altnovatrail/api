@@ -11,9 +11,9 @@ import (
 	"github.com/altnovatrail/api/internal/rpc"
 )
 
-// PackageService gives what a package gives by its digest (R62 spec; contract,
-// PackageService): the four open views, which go without a token by Connect GET
-// and are cached for a day, and which digests the image still gives.
+// PackageService gives what a package gives by its digest (R62 spec, R18): the
+// four open views, which go without a token by Connect GET and are cached for a
+// day, and which digests the image still gives.
 type PackageService struct {
 	c *Catalog
 }
@@ -59,7 +59,7 @@ func (s *PackageService) GetSolvingSteps(ctx context.Context, req *v1.GetSolving
 }
 
 // CheckPackages gives each digest of the request, in its order, with whether the
-// image gives it. api keeps none of them (contract, CheckPackages).
+// image gives it. api keeps none of them, as the contract asks.
 func (s *PackageService) CheckPackages(_ context.Context, req *v1.CheckPackagesRequest) (*v1.CheckPackagesResponse, error) {
 	checks := make([]*v1.PackageCheck, 0, len(req.GetPackageDigests()))
 	for _, digest := range req.GetPackageDigests() {

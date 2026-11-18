@@ -362,7 +362,7 @@ func TestARunIsOnTheStubOrOnTheModels(t *testing.T) {
 	}
 }
 
-// The check's account gets the tariff dev_check (В80): an account whose code <UID>.code beside the
+// The check's account gets the tariff dev_check (R55): an account whose code <UID>.code beside the
 // dev file keeps by `api tariff`, one with no code kept deleted and made anew, and a new account's
 // code kept in the file, readable by its owner alone. A tariff refused, or a deletion not finished,
 // stops the check, naming why.
@@ -449,11 +449,11 @@ check_account && printf '%s' "${token:-}"`
 	}
 }
 
-// The run for app has one synthetic child under 13 (R67): a child of the pseudonym the account holds
-// who learns is taken as it is, and with none — or only one who has turned 13 or waits for a
-// consent — the consents with no profile are taken back and a child of 9 is made by a
-// parent's consent sent with its form and confirmed by the operator's command, then a profile. Its
-// ID is printed either way. A consent the command does not confirm stops the run.
+// The run for app has one synthetic child under 13 (R67): a child of the pseudonym the account
+// holds who learns is taken as it is, and with none — or only one who has turned 13 or waits for a
+// consent — the consents with no profile are taken back and a child of 9 is made by a parent's
+// consent sent with its form and confirmed by the operator's command, then a profile. Its ID is
+// printed either way. A consent the command does not confirm stops the run.
 func TestTheSyntheticChildOfDevAppIsMadeOnce(t *testing.T) {
 	t.Parallel()
 

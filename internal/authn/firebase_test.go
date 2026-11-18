@@ -72,8 +72,8 @@ func TestATokenWithNoTimeOfSignInHasNone(t *testing.T) {
 	}
 }
 
-// Each refusal of the SDK is its class, by the table of architecture 3.10, and a
-// revoked token, or one of a user who is gone, still gives its UID.
+// Each refusal of the SDK is its class (R20), and a revoked token, or one of a
+// user who is gone, still gives its UID.
 func TestEachRefusalIsItsClass(t *testing.T) {
 	now := time.Now()
 	for _, tc := range []struct {

@@ -49,7 +49,7 @@ type User struct {
 	Created time.Time
 }
 
-// Class is why a token was refused (R20; architecture 3.10).
+// Class is why a token was refused (R20).
 type Class int
 
 // The classes of a refusal.

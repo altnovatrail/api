@@ -103,7 +103,6 @@ func withdrawals(configFile, indexFile, latestFile string, stdout, stderr io.Wri
 	return 1
 }
 
-// check reads the files and checks them.
 func check(configFile, indexFile, mainConfigFile, mainIndexFile string) ([]packages.Current, error) {
 	cfg, index, err := read(configFile, indexFile)
 	if err != nil {

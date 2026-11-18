@@ -23,8 +23,8 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// The steps of reading a part, by the names section 5 of legal/README.md gives
-// them: the schema, then the rules in their order.
+// The steps of reading a part, by the names spec's legal/README.md gives them:
+// the schema, then the rules in their order.
 const (
 	StepSchema           = "schema"
 	RuleFiles            = "legal.files"
@@ -47,7 +47,7 @@ type Part struct {
 	Files    map[string][]byte
 }
 
-// Refusal is a part that a step of section 5 refuses, with the names it gives:
+// Refusal is a part that a step of reading refuses, with the names it gives:
 // the paths the schema refuses, or what a rule names, in the order of code
 // units.
 type Refusal struct {
@@ -59,10 +59,10 @@ func (r *Refusal) Error() string {
 	return fmt.Sprintf("legal: the part breaks %s: %s", r.Step, strings.Join(r.Names, ", "))
 }
 
-// Read reads the part by section 5 on the day today, YYYY-MM-DD in UTC (section
-// 2): the schema of the passport, then legal.files, legal.versions,
-// legal.set-texts, legal.markdown and legal.operator, then, when previous is the
-// part of the release before, legal.in-force-unchanged. It gives the passport,
+// Read reads the part on the day today, YYYY-MM-DD in UTC (R69): the schema of
+// the passport, then legal.files, legal.versions, legal.set-texts,
+// legal.markdown and legal.operator, then, when previous is the part of the
+// release before, legal.in-force-unchanged. It gives the passport,
 // or the Refusal of the first step that refuses the part: a part is never read
 // in part. A today that is no day is an error, and no Refusal.
 func Read(part Part, previous *Part, today string) (legalv3.Legal, error) {

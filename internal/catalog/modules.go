@@ -29,7 +29,7 @@ type DB interface {
 	store.Lister
 }
 
-// ModuleService gives the modules of a learner (R07; contract, ModuleService):
+// ModuleService gives the modules of a learner (R07, R42):
 // each method is a learning request, with the right can_learn, which the checks
 // hold before it, and a profile whose consent is not confirmed is refused. A
 // module suits a learner by the audience of its current version alone: the

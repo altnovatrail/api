@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// index is an index of one version out of api's window, as v0.1.4 of modules.
+// index is an index of one version out of api's window.
 const index = `{"module_format_version":"0.4","modules":{"example/older":{"0.1.0":{"module_format_version":"0.3","package_digest":"sha256:0000000000000000000000000000000000000000000000000000000000000003","release":"v0.1.4"}}}}`
 
 // files writes a modules.json of release for index and the index, and gives

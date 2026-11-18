@@ -1,7 +1,8 @@
 // Package authz is api's rights: OpenFGA, a library in api's own process, on its
-// store in the database openfga (R04, R31). The model is section 3.1's, which the
-// binary embeds; migrate puts it in the store, and the server only checks that the
-// store holds it. Code asks a right and writes the tuple owner through Rights.
+// store in the database openfga (R04, R31). The model is the one
+// docs/architecture.md gives, which the binary embeds; migrate puts it in the
+// store, and the server only checks that the store holds it. Code asks a right
+// and writes the tuple owner through Rights.
 package authz
 
 import (
@@ -36,7 +37,7 @@ var (
 	errManyStores = errors.New("authz: more than one store api")
 )
 
-// A Right is what a request asks on a learner's profile (architecture 3.1).
+// A Right is what a request asks on a learner's profile (R04).
 type Right string
 
 // The rights of the model.
@@ -178,7 +179,7 @@ func learner(profileID string) string { return "learner:" + profileID }
 
 // Can says whether the account has the right on the profile. A profile that is
 // not there, and one that is another account's, both say no, so that the answer
-// tells nothing of a profile the account does not own (architecture 3.1).
+// tells nothing of a profile the account does not own (R04).
 func (r *Rights) Can(ctx context.Context, accountID string, right Right, profileID string) (bool, error) {
 	switch right {
 	case CanLearn, CanManage, CanView:
@@ -200,7 +201,7 @@ func (r *Rights) Can(ctx context.Context, accountID string, right Right, profile
 
 // WriteOwner writes the tuple: the account owns the profile. A repeat is no
 // error. It is written inside the transaction of the database api that makes the
-// profile, before its COMMIT (architecture 3.1; R31).
+// profile, before its COMMIT (R04, R31).
 func (r *Rights) WriteOwner(ctx context.Context, accountID, profileID string) error {
 	_, err := r.srv.Write(ctx, &openfgav1.WriteRequest{
 		StoreId:              r.store,

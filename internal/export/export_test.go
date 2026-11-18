@@ -82,10 +82,10 @@ var choices *modulepackage.Package
 // state, an essay with the marks of its feedback by number (R15), a lesson run,
 // a choice, the storage of works, two stored works, a problem report and an
 // adult's correction of a level — named by its own ID where an attempt is —,
-// and of its account, is api.zip whose every file passes its schema of spec's part
-// export/, version 2, and keeps its rules of the layout and the .proto files
-// (R135 spec). A stored work is written newest first, its history and contexts
-// as the JSON they are and its picture in base64 (R70).
+// and of its account, is api.zip whose every file passes its schema of spec's
+// part export/ and keeps its rules of the layout and the .proto files
+// (R135 spec). A stored work is written newest first, named without its bytes
+// (R70, R84).
 func TestTheExportPassesItsSchemas(t *testing.T) {
 	t.Parallel()
 

@@ -68,7 +68,7 @@ func TestATariffHasItsCapsAndNoneIsClosed(t *testing.T) {
 // The tariff of dev-check caps a profile at $5.00 and an account at $15.00,
 // tenfold the closed slice, off a deployment; deployed, or not told it is off
 // one, it has no caps, and platform AI is closed to an account that got it all
-// the same (В80).
+// the same (R55).
 func TestTheTariffOfDevCheckIsTheDevProjectsAlone(t *testing.T) {
 	t.Parallel()
 

@@ -1,9 +1,9 @@
-// Package legal is the legal texts api serves (R52; R130, R136 spec): the part
-// legal/ of spec at the tag api pins, spec.Legal, or a self-hosted copy's folder
-// of its operator's texts, read once at the start by the rules of
-// legal/README.md, section 5. A version in force applies from its day, 00:00
-// UTC, and the texts are asked on a day, the day of each request in UTC, which
-// gives the current and the next version of each text (section 2). It answers
+// Package legal is the legal texts api serves (R52; R130 spec, R136 spec): the
+// part legal/ of spec at the tag api pins, spec.Legal, or a self-hosted copy's
+// folder of its operator's texts, read once at the start by the rules of
+// reading of spec's legal/README.md. A version in force applies from its day,
+// 00:00 UTC, and the texts are asked on a day, the day of each request in UTC,
+// which gives the current and the next version of each text (R69). It answers
 // LegalService.GetLegalTexts, and tells whether a request that gives a consent
 // names the current versions of the texts it is given to.
 package legal
@@ -31,7 +31,7 @@ import (
 	"github.com/altnovatrail/api/internal/consentage"
 )
 
-// The texts the requests of a consent name (contracts README, section 15).
+// The texts the requests of a consent name (R136 spec).
 const (
 	PrivacyPolicy  = "privacy-policy"
 	TermsOfUse     = "terms-of-use"
@@ -106,7 +106,7 @@ func NewService(texts *Texts, opts ...Option) *Service {
 func DayOf(at time.Time) string { return at.UTC().Format(time.DateOnly) }
 
 // Load is the texts of spec's Go module at the tag api pins, read on the day of
-// at as section 5 reads a part: spec checked them before its release, and the
+// at by the rules of reading: spec checked them before its release, and the
 // same rules hold them here, but legal.in-force-unchanged, which needs the
 // release before.
 func Load(at time.Time) (*Texts, error) {
@@ -119,10 +119,10 @@ func Load(at time.Time) (*Texts, error) {
 
 // LoadDir is the texts of a self-hosted copy's folder at dir, read on the day of
 // at, which holds VERSION, legal.yaml and texts/ alone, its VERSION that of the
-// part of spec's tag, and keeps the rules of section 5 but
+// part of spec's tag, and keeps the rules of reading but
 // legal.in-force-unchanged: the copy's operator keeps its own history
-// (legal/README.md, section 8). A folder whose privacy policy applies from no
-// day that has come breaks legal.operator.
+// (R115 spec). A folder whose privacy policy applies from no day that has come
+// breaks legal.operator.
 func LoadDir(dir string, at time.Time) (*Texts, error) {
 	fsys := os.DirFS(dir)
 	entries, err := fs.ReadDir(fsys, ".")
@@ -221,8 +221,8 @@ func newTexts(part Part, today string) (*Texts, error) {
 // pick is the current and the next version of a text on the day today, of its
 // versions: the current the version in force with the highest number whose day
 // has come, and the next the one that becomes current on the nearest day still
-// to come, the highest number among those of that day (legal/README.md,
-// section 2). 0 is none. YYYY-MM-DD compares as text.
+// to come, the highest number among those of that day (R69). 0 is none.
+// YYYY-MM-DD compares as text.
 func pick(versions []legalv3.TextVersion, today string) (current, next int64) {
 	nearest := ""
 	for _, v := range versions {
@@ -242,8 +242,8 @@ func pick(versions []legalv3.TextVersion, today string) (current, next int64) {
 }
 
 // Versions is the number of the current and of the next version of every text
-// of the passport that has one, by ID, on the day today, as a reader of section
-// 5 gives them.
+// of the passport that has one, by ID, on the day today, as a reader of the
+// part gives them.
 func Versions(passport legalv3.Legal, today string) (current, next map[string]int64) {
 	current, next = map[string]int64{}, map[string]int64{}
 	for id, text := range passport.Texts {
@@ -282,8 +282,7 @@ func (d Day) Current(id string) (int32, bool) {
 // has one, and no other text: a text with no current version is named by no
 // request, and a version that is not current — a next version before its day
 // among them —, a text with a current version left out, a text named twice or
-// one that is none of ids is CAUSE_TEXT_NOT_CURRENT (contracts README, section
-// 15).
+// one that is none of ids is CAUSE_TEXT_NOT_CURRENT (R69).
 func (d Day) Names(refs []*v1.LegalTextRef, ids ...string) bool {
 	want := map[string]int32{}
 	for _, id := range ids {
@@ -328,7 +327,7 @@ func (d Day) Refs(ids ...string) []*v1.LegalTextRef {
 
 // KeptFor is how long an answer on the day may be kept: an hour, and no longer
 // than until 00:00 UTC of the nearest day of a next version of the place app
-// it gives (contracts README, section 15).
+// it gives (R69).
 func (d Day) KeptFor() time.Duration {
 	kept := keptFor
 	for _, text := range d.next {
@@ -346,7 +345,7 @@ func (d Day) KeptFor() time.Duration {
 // every text whose place is app, and the next version of every one that has
 // one, each by ID in the order of code units: its body, its summary in the
 // language asked — or else in English — and its translation into it, when the
-// version has one, with no English in its place (contracts README, section 15).
+// version has one, with no English in its place.
 // The answer is kept for KeptFor, in whole seconds. A tag that is no BCP 47 is
 // the one refusal.
 func (s *Service) GetLegalTexts(ctx context.Context, req *v1.GetLegalTextsRequest) (*v1.GetLegalTextsResponse, error) {

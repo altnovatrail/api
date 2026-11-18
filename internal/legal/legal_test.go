@@ -44,10 +44,11 @@ func at(t *testing.T, moment string) time.Time {
 	return parsed
 }
 
-// Every vector of reading of the part gives what section 5 gives on its day:
-// the current and the next versions of the texts of a part accepted, or the
-// step that refuses it — and, for a rule, the names it gives. The names of the
-// schema's refusal are its library's, and only the step is held to the vector.
+// Every vector of reading of the part gives what the rules of reading give on
+// its day: the current and the next versions of the texts of a part accepted,
+// or the step that refuses it — and, for a rule, the names it gives. The names
+// of the schema's refusal are its library's, and only the step is held to the
+// vector.
 // api serves no set, so the versions of the sets are not held.
 func TestTheVectorsOfReading(t *testing.T) {
 	t.Parallel()

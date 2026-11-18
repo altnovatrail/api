@@ -13,9 +13,9 @@ import (
 	"github.com/altnovatrail/api/internal/packages"
 )
 
-// FilesPattern is the route of the files of the device parts (contract,
-// section 15): sha256-<hex> of the package, then the path of the file in its
-// device part — LICENSE, NOTICE or media/<path>.
+// FilesPattern is the route of the files of the device parts (R18, R42):
+// sha256-<hex> of the package, then the path of the file in its device part —
+// LICENSE, NOTICE or media/<path>.
 const FilesPattern = "GET /packages/{package}/device/{path...}"
 
 // retryAfter is how long, in seconds, app waits before it asks again for a file
@@ -24,7 +24,7 @@ const FilesPattern = "GET /packages/{package}/device/{path...}"
 const retryAfter = 30
 
 // mediaTypes are the media types of the four formats of media/, by their one
-// extension each (format/README.md, section 10).
+// extension each, as the module format gives them.
 var mediaTypes = map[string]string{
 	".png":  "image/png",
 	".jpg":  "image/jpeg",

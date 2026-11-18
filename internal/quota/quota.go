@@ -1,13 +1,13 @@
-// Package quota is the quota of platform AI (R11, R12; architecture 3.6): its
-// unit, the tariffs and their caps for a family day, the typical tasks a new
-// task of handwriting must find room for, and the reserve of a kind of call
-// when tutor gives no expected price.
+// Package quota is the quota of platform AI (R11, R12, R55): its unit, the
+// tariffs and their caps for a family day, the typical tasks a new task of
+// handwriting must find room for, and the reserve of a kind of call when tutor
+// gives no expected price.
 //
 // The values are the configuration of api, and a pull request changes them, as
 // R11 has it: they are product, not deployment, and a deployment that set its
 // own would make two platforms of one release without a word in the log. The
 // first values are those of the tariff of the closed slice, $0.50 a profile and
-// $1.50 an account; the estimates behind them are in architecture 3.6.
+// $1.50 an account.
 package quota
 
 import (
@@ -48,13 +48,13 @@ const (
 	// ClosedSlice is the tariff of the closed slice, a code's by default.
 	ClosedSlice = "closed_slice"
 	// Probe is a tariff of a few cents a day, which the operator gives an account
-	// to see the quota run out on a run with app (T52): room for a typical task
-	// and a few checks after it, and no more.
+	// to see the quota run out on a run with app: room for a typical task and a
+	// few checks after it, and no more (R55).
 	Probe = "probe"
 	// DevCheck is the tariff of the account of dev-check on the dev projects,
 	// tenfold the closed slice's, so that the runs of a chain of tasks in one
-	// family day all find room (В80). It is off a deployment alone: there the
-	// commands refuse it, and api reads it as a tariff with no caps.
+	// family day all find room. It is off a deployment alone: there the commands
+	// refuse it, and api reads it as a tariff with no caps (R55).
 	DevCheck = "dev_check"
 )
 
@@ -119,19 +119,17 @@ func CapsOf(name string, offDeployment bool) (Caps, bool) {
 	return t.caps, t.caps.Profile > 0 && t.caps.Account > 0
 }
 
-// The typical tasks (R11; the amendment of 2026-11-02 to it). A new task that
-// platform AI checks begins only when what is left of the day holds one, so
-// that the learner does not begin work nobody can read today.
+// The typical tasks (R11, R55). A new task that platform AI checks begins only
+// when what is left of the day holds one, so that the learner does not begin
+// work nobody can read today.
 const (
 	// TypicalHandwriting is a task of handwriting: two checks and the words of a
-	// rung and of praise. By tutor v0.1.24's expected prices, $0.0093 a check by
-	// the pair and $0.0182 the words (Tutor.Price), with praise as the words, it
-	// is $0.055; by tutor v0.1.35's, praise is $0.0135 (CallCorrect; R76), and it
-	// is $0.050. The first app measured $0.014 a check (T42), and this is $0.06.
+	// rung and of praise, ≈ $0.05 by tutor's expected prices (Tutor.Price), with
+	// room for checks dearer than expected, as the first app measured them.
 	TypicalHandwriting Micro = 60_000
 	// TypicalRubric is a task with a rubric: two readings of the essay with their
-	// assessment, the first submission and one rewrite, ≈ $0.06 by the price of
-	// an essay at tutor (architecture 3.4 tutor).
+	// assessment, the first submission and one rewrite, ≈ $0.06 by tutor's price
+	// of an essay.
 	TypicalRubric Micro = 60_000
 )
 
@@ -139,13 +137,13 @@ const (
 const wordsReserve Micro = 18_200
 
 // reserves are what a call of a kind reserves when tutor's price of it has no
-// expected tokens (В13; R12): the sheet by the pair at the first app's measure
-// (T42), the words by tutor's v0.1.24, the hint without the work as the words —
-// the same prompt and model with no picture, so no dearer, while tutor v0.1.33
+// expected tokens (R12, R55): the sheet by the pair as the first app measured
+// it, the words by tutor's expected price, the hint without the work as the
+// words — the same prompt and model with no picture, so no dearer, and tutor
 // expects no tokens of it (R106 tutor) —, the essay's reading and assessment
-// half each of $0.030 (architecture 3.4 tutor), and a page of a workbook by each
-// of its crops, as a sheet. The words after a correct answer have no value here:
-// tutor v0.1.35 expects their tokens (CallCorrect; R113 tutor, R76).
+// half each of $0.030, tutor's price of an essay, and a page of a workbook by
+// each of its crops, as a sheet. The words after a correct answer have no value
+// here: tutor expects their tokens (R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:    14_000,
 	tutor.CallWords:    wordsReserve,
@@ -184,7 +182,7 @@ type Counter struct {
 }
 
 // Share is the share of the cap limit that spent takes, in whole percent rounded
-// down, as the share of the quota gives it (the amendment of 2026-11-12 to R11):
+// down, as the share of the quota gives it (R11):
 // 100 is the cap reached, and spending past it is 100 too, as is any of no cap.
 func Share(spent, limit Micro) int32 {
 	if limit <= 0 || spent >= limit {

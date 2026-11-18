@@ -1,8 +1,9 @@
 // Package forms is the port of the store of the scans of the forms of a
 // parent's consent (R52; R116 spec): the closed bucket of the operator in Cloud
 // Storage, where api writes under a prefix of its own and reads nothing, and a
-// folder outside every git working tree for the dev projects and the first app.
-// The scan never enters the database api (R114 spec).
+// folder outside every git working tree, which no development agent gets (R114
+// spec), for the dev projects and the first app. The scan never enters the
+// database api (R116 spec).
 package forms
 
 import (

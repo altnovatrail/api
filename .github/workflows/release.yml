@@ -1,8 +1,8 @@
 # NovaTrail's shared release (R18 .github), pinned to a release of .github by SHA with its version
 # beside it. RELEASE_LINE is the line the releases are numbered in; paths, what they are built from.
 # A release of api is its binaries and the Dockerfile a deployment builds the image by, each
-# signed (R105, R106 spec; R28). Nobody tags by hand: the shared workflow
-# tags the commit it releases.
+# signed (R105 spec, R106 spec; R28). Nobody tags by hand: the shared workflow tags the commit it
+# releases.
 name: Release
 
 on:

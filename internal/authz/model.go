@@ -8,8 +8,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// modelDSL is the model of section 3.1 of docs/architecture.md, word for word: a
-// test holds the two to each other.
+// modelDSL is the model docs/architecture.md gives, word for word: a test holds
+// the two to each other.
 //
 //go:embed model.fga
 var modelDSL string

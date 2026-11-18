@@ -22,7 +22,7 @@ default:
 # The build's identity: a build between tags says how far past one it is, a
 # tree with changes says so, and a repository with no tag yet names the commit.
 # The binary is static, without cgo and without the paths of this machine, as a production image
-# needs it (RULES.md, Production images).
+# needs it (R105 spec).
 # Build the binary into bin/api.
 build:
     #!/usr/bin/env bash
@@ -46,11 +46,11 @@ migrate:
 
 # What .github's shared release.yml runs to build a release, in the stage toolchain-core of the
 # commit it releases, from that commit's tree with no git in it, and then signs every file (R28;
-# R18, R47 .github). dist/ is made afresh and holds plain files alone: the binary for each
+# R18 .github, R47 .github). dist/ is made afresh and holds plain files alone: the binary for each
 # platform below, static and named api_<version>_<os>_<arch>; the Dockerfile a deployment builds
-# the image by (R105, R106 spec); the licenses a binary has to come with; and SHA256SUMS over the rest. The
-# commit and its time come from internal/version/archive.txt, which git archive writes, so a build
-# of the same commit gives the same bytes wherever it runs.
+# the image by (R105 spec, R106 spec); the licenses a binary has to come with; and SHA256SUMS over
+# the rest. The commit and its time come from internal/version/archive.txt, which git archive
+# writes, so a build of the same commit gives the same bytes wherever it runs.
 # Build a release's files into dist/, for a version such as v0.1.0.
 release-files version:
     #!/usr/bin/env bash
@@ -286,8 +286,8 @@ release-licenses folder:
 
 # The ci- recipes are what .github's shared go.yml runs, one job each, in a
 # stage of .devcontainer/Dockerfile: "Go / test" in toolchain, "Go / lint",
-# "Go / vuln" and "Go / licenses" in toolchain-core (R30 spec; R47 .github). The job checks out no submodule,
-# so none of them reads spec/.
+# "Go / vuln" and "Go / licenses" in toolchain-core (R30 spec; R47 .github).
+# The job checks out no submodule, so none of them reads spec/.
 
 # The code takes spec's files from its Go modules, and the documents from the submodule spec/,
 # and the two move together, to one tag (R64 spec; R27): the commit the index records for the
@@ -346,7 +346,7 @@ ci-test:
 # fuzzes one test of one package at a time, so each test is run in turn, for fuzztime. An input
 # that fails a test is written to testdata/fuzz/ of its package, stays in the corpus, and fails
 # ci-test until the code is fixed (R27). A new input is minimized for 2 s, not Go's 60: the
-# minimizing stops the fuzzing, and FuzzUnpack made half its executions with 60 (measurements 5).
+# minimizing stops the fuzzing.
 # Fuzz the fuzz tests of the readers of foreign input, or the one named, for fuzztime each.
 fuzz fuzztime="1m" test="":
     #!/usr/bin/env bash
@@ -426,15 +426,16 @@ ci-modules:
     grep -q '^--- PASS: TestThePinnedReleaseIsLearnedOn ' "$work/release-test.log" \
         || { echo "ci-modules: the test of the pinned release did not pass" >&2; exit 1; }
     # The .proto files of learner-model that the export carries are those of its release file,
-    # which release-verify accepts (R52; export/README.md of spec, section 9).
+    # which release-verify accepts (R52; R135 spec).
     {{ quote(just_executable()) }} learner-model-proto check
 
 # The check of the scheduled job Withdrawals of withdrawals.yml (R61), in the stage
 # toolchain-core, with the network: the newest release of modules is the one the public address
-# releases/latest leads to, with no token; its index and its signature, which release-verify checks on every run, even
-# when it is the pinned release; the pinned release's index, which its digest holds (R77 spec); then
-# cmd/modules-check with -latest, which fails while the newest index withdraws a version that the
-# pinned one gives, until modules.json pins a release that marks it (R07).
+# releases/latest leads to, with no token; its index and its signature, which release-verify
+# checks on every run, even when it is the pinned release; the pinned release's index, which its
+# digest holds (R77 spec); then cmd/modules-check with -latest, which fails while the newest index
+# withdraws a version that the pinned one gives, until modules.json pins a release that marks it
+# (R07).
 # Fail when the newest release of modules withdraws a version modules.json's release gives.
 ci-withdrawals:
     #!/usr/bin/env bash
@@ -472,8 +473,8 @@ ci-withdrawals:
 
 # The .proto files of learner-model that the export of a profile carries (R52; R135 spec): those of
 # the release file of the version go.mod names, which release-verify accepts. "lay" lays them in
-# internal/export/proto/, with the descriptors built of them; "check" refuses files or descriptors that
-# differ from the release's.
+# internal/export/proto/, with the descriptors built of them; "check" refuses files or descriptors
+# that differ from the release's.
 # Lay or check the .proto files of learner-model the export carries.
 learner-model-proto action="lay":
     #!/usr/bin/env bash
@@ -529,8 +530,8 @@ packages dir="/home/vscode/.novatrail-dev/packages":
     go run ./cmd/api packages "$dir"
 
 # The configuration is a file outside any git working tree, API_DEV_CONFIG, by default
-# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39); docs/build.md shows
-# its lines. Nothing of it is printed.
+# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39). Nothing of it
+# is printed.
 # Run a command of api on the dev projects, as `just dev migrate` or `just dev serve`: on the stub
 # of tutor, which calls no provider and costs nothing; the dev file's key of platform AI is not
 # passed (R66).
@@ -539,7 +540,7 @@ dev *args:
     bash scripts/dev.sh run "$@"
 
 # The same on the models, with the dev file's key of platform AI: only for a task that checks the
-# words of a model, under the cap its text names (rule 4 of RUN.md; R146 spec).
+# words of a model, under the cap its text names (R66; R146 spec).
 [positional-arguments]
 dev-ai *args:
     bash scripts/dev.sh run-ai "$@"

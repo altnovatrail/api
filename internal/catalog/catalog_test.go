@@ -183,7 +183,7 @@ func (w *world) learner(t *testing.T, uid string) learner {
 		t.Fatal(err)
 	}
 	l := learner{ctx: ctx, accountID: created.GetAccount().GetAccountId(), adult: owner.GetProfile().GetProfileId()}
-	// The confirmation of a child's consent is epic E4's: the test writes it.
+	// A child's consent is confirmed by a flow of its own: the test writes it.
 	if err := w.pool.QueryRow(t.Context(), `INSERT INTO profiles
 		(account_id, owner, pseudonym, age_category, country, voicing_enabled, default_mode, ask_before_showing)
 		VALUES ($1, false, 'Fox', 'under_13', 'US', true, 'by_steps', true) RETURNING id`, l.accountID).Scan(&l.child); err != nil {

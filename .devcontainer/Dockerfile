@@ -109,28 +109,28 @@ ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}"
 # -- toolchain: the core, plus what the repository's tests need ---------------
 #
 # api's tests need one thing the core lacks, nss_wrapper below, its own difference from the
-# template (R30); its kind, go, adds no lines here. What this stage installs,
-# a release never builds, and neither do the checks that run no test: what the release and those
-# ci- recipes call belongs in toolchain-core.
+# template (R30); its kind, go, adds no lines here. What this stage installs, a release never
+# builds, and neither do the checks that run no test: what the release and those ci- recipes call
+# belongs in toolchain-core.
 
 FROM toolchain-core AS toolchain
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-# nss_wrapper, for the tests of the database (R30): the Go checks of .github's
-# go.yml run this stage as the runner's uid, which /etc/passwd here does not know, and initdb
-# stops on a uid it cannot look up. The tests' helper then preloads the library with a passwd
-# file of its own; nothing else uses it, so it is here and not in toolchain-core, which a release
-# and the checks that run no test build (R31 spec). apt pins no versions by itself, so it comes
-# from the Ubuntu archive as it was at one moment: a snapshot, whose ID is raised by hand like a
-# version (R40 spec). apt checks the archive's signatures as it does on any update.
+# nss_wrapper, for the tests of the database (R30): the Go checks of .github's go.yml run this
+# stage as the runner's uid, which /etc/passwd here does not know, and initdb stops on a uid it
+# cannot look up. The tests' helper then preloads the library with a passwd file of its own;
+# nothing else uses it, so it is here and not in toolchain-core, which a release and the checks
+# that run no test build (R31 spec). apt pins no versions by itself, so it comes from the Ubuntu
+# archive as it was at one moment: a snapshot, whose ID is raised by hand like a version
+# (R40 spec). apt checks the archive's signatures as it does on any update.
 #
 # apt reads the snapshot alone, from a source of its own that names the snapshot in its URI, with
 # the suites and components of the base image's ubuntu.sources, as the template's kind typescript
-# does (the 2026-11-16 amendment to R40 spec): apt-get update --snapshot reads the live archive's
-# indexes as well as the snapshot's. The base image's own sources stay as they are, for whoever
-# runs apt in the devcontainer, and this RUN reads none of them. The suites are those of noble,
-# the base image's Ubuntu: a base image of a newer one changes them with the ID.
+# does (R40 spec): apt-get update --snapshot reads the live archive's indexes as well as the
+# snapshot's. The base image's own sources stay as they are, for whoever runs apt in the
+# devcontainer, and this RUN reads none of them. The suites are those of noble, the base image's
+# Ubuntu: a base image of a newer one changes them with the ID.
 ARG UBUNTU_SNAPSHOT=20261101T000000Z
 RUN sources="$(mktemp -d)"; \
     printf '%s\n' 'Types: deb' "URIs: https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}/" \

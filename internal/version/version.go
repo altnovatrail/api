@@ -28,10 +28,9 @@ var Date = "unknown"
 const moduleKit = "github.com/altnovatrail/module-kit"
 
 // ModuleKit is the version of module-kit the binary is built with, which every
-// attempt keeps beside its package, so that its verdict repeats
-// (architecture 3.2). It is read from the list of modules the build records, as
-// go.mod pins it, and is empty in a binary that recorded none or links no
-// module-kit.
+// attempt keeps beside its package, so that its verdict repeats (R44). It is
+// read from the list of modules the build records, as go.mod pins it, and is
+// empty in a binary that recorded none or links no module-kit.
 func ModuleKit() string { return dependency(moduleKit) }
 
 // moduleVersion is the version of the module path among deps, as replaced

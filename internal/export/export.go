@@ -50,7 +50,7 @@ var files embed.FS
 // ExportProfile and ExportAccount name.
 var Version = strconv.Itoa(store.ExportFormat)
 
-// The names of the files of api.zip (export/README.md of spec, section 3).
+// The names of the files of api.zip, by spec's part export/.
 const (
 	accountFile = "account.json"
 	protoDir    = "proto"
