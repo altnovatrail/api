@@ -1,6 +1,6 @@
 // The evidence of one finished attempt, as the learner model reads it: what happened in the
 // attempt, observed rather than concluded, so that a later version of the model can read it by its
-// own rule when it recomputes the state from the log (docs/architecture.md, section 3.5, of
+// own rule when it recomputes the state from the log (R08 of
 // github.com/altnovatrail/learner-model). api keeps the bytes as they are, in an append-only log.
 syntax = "proto3";
 

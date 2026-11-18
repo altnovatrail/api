@@ -1,9 +1,9 @@
-// What the evidence and the state of the learner model share: places of bands, answer slots and
-// the values both name. The bytes of these messages are written by learner-model's own codec,
-// canonically, and this schema describes them (docs/architecture.md, section 3.7, of
-// github.com/altnovatrail/learner-model). A field is never renumbered or removed: the schema only
-// grows. A learner's export holds the evidence log and the state as the JSON of these messages,
-// with the fields' names as here, beside this file (export/README.md of spec, R135 of spec).
+// What the evidence and the state of the learner model share: places of bands, answer slots and the
+// values both name. The bytes of these messages are written by learner-model's own codec,
+// canonically, and this schema describes them (R10 of github.com/altnovatrail/learner-model). A
+// field is never renumbered or removed: the schema only grows. A learner's export holds the
+// evidence log and the state as the JSON of these messages, with the fields' names as here, beside
+// this file (export/README.md of spec, R135 spec).
 syntax = "proto3";
 
 package novatrail.learnermodel.v1;
