@@ -50,8 +50,8 @@ github.com/Yiling-J/theine-go v0.6.2 h1:1GeoXeQ0O0AUkiwj2S9Jc0Mzx+hpqzmqsJ4kIC4M
 github.com/Yiling-J/theine-go v0.6.2/go.mod h1:08QpMa5JZ2pKN+UJCRrCasWYO1IKCdl54Xa836rpmDU=
 github.com/altnovatrail/engine v0.1.8 h1:F73o3eAwVr96ELRE0k5idoQsxfMBfo4UIhaUaxN7f40=
 github.com/altnovatrail/engine v0.1.8/go.mod h1:j5g5m7Yqnp+pSeETCYeEPoCzw+AwYqPedAqsqbALEk0=
-github.com/altnovatrail/learner-model v0.1.13 h1:Zk4wdbq4uwqX090pglfrFykTci0hpvv+VU6rxN7WJdM=
-github.com/altnovatrail/learner-model v0.1.13/go.mod h1:RXiblPvAomqm/gZw1jRhGO7Ns8dI7m1uk5g9zmUkxEU=
+github.com/altnovatrail/learner-model v0.1.16 h1:t1Tiitr56PkX/jSG26WgutCPUtwtti+zOQEl+UY4d0A=
+github.com/altnovatrail/learner-model v0.1.16/go.mod h1:RXiblPvAomqm/gZw1jRhGO7Ns8dI7m1uk5g9zmUkxEU=
 github.com/altnovatrail/module-kit v0.3.3 h1:5dSle0rugRZnXCIW58kMuqIEWcO1hTzC+oIwWPYdtK4=
 github.com/altnovatrail/module-kit v0.3.3/go.mod h1:BbphAra8euOsiflvfKltLsATzp2oB/hKVxc7u9tcTJ8=
 github.com/altnovatrail/spec v0.18.34 h1:53IFsbIaTutHShbiSpbq6Hln6jP9k42Zr6oY+64hQsw=
