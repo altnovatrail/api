@@ -184,7 +184,7 @@ func gateAt(t *testing.T, rung string) *admission.Gate {
 }
 
 // Nothing to give says why only when the closed AI left a task out of the pool:
-// "not admitted" — as a choice written before the causes were kept —, "quota"
+// "not admitted" — as a choice not admitted that keeps no cause —, "quota"
 // with when the next family day begins, or "platform limit"; a choice no module
 // of the engine holds has no package.
 func TestNothingToGiveSaysWhyOnlyForAI(t *testing.T) {

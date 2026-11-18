@@ -365,7 +365,7 @@ func TestALearnerWhoConsentsThemselvesErasesTheirWork(t *testing.T) {
 	}
 }
 
-// A work of an attempt whose package the image holds no longer — out of the
+// A work of an attempt whose package the image does not hold — out of the
 // window of format versions — keeps the kind of the work kept of it before, and
 // with none is refused CAUSE_VERSION_NOT_GIVEN.
 func TestAWorkOfAPackageOutOfTheWindowKeepsItsKind(t *testing.T) {
@@ -446,8 +446,8 @@ func TestTheWorksOnADatabaseThatFailsAreUnavailable(t *testing.T) {
 
 // The learner's ListWorks and GetWork, and DeleteWork, go while the profile
 // waits for a consent, as the learner's ExportProfile goes: app builds the
-// export by them (the 2026-11-15 amendment to R113 spec; R84). PutWork is still
-// "no consent", and a profile not the account's is still "no profile".
+// export by them (R113 spec, R84). PutWork is still "no consent", and a profile
+// not the account's is still "no profile".
 func TestTheWorksAreReadWhileTheConsentWaits(t *testing.T) {
 	t.Parallel()
 

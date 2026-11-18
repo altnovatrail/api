@@ -327,7 +327,7 @@ func TestTheProgressGivesTheAttemptsAndTheTrapsThatRepeat(t *testing.T) {
 
 // The progress names an attempt's lesson, open or closed, and the skills of a
 // solved attempt's task, by the package it went on; an attempt left names no
-// skills, and one on a package the image no longer holds names neither.
+// skills, and one on a package the image does not hold names neither.
 func TestTheProgressNamesTheLessonAndTheSkillsSolved(t *testing.T) {
 	t.Parallel()
 

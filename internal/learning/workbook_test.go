@@ -74,7 +74,8 @@ func readPage(first, second *observationv1.Observation) tutor.WorkbookRead {
 
 // newBookWorld is the world of a deployment that admits the reading of an
 // adult's handwriting on a sheet, and, by the test's own admission, on a
-// workbook page too, read by ps, for want of a provider. opts are more of the world's options.
+// workbook page too, read by ps, for want of a provider. opts are more of the
+// world's options.
 func newBookWorld(t *testing.T, ps *pageReaders, opts ...learning.Option) *world {
 	t.Helper()
 	return worldOf(t, gate(t, adultFacts, config.RungAuthor), append([]learning.Option{

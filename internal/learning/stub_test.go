@@ -131,12 +131,12 @@ func TestThePathRunsOnTheStub(t *testing.T) {
 	}
 }
 
-// On an own key the stub ends each call of AI by how the key ends (the
-// 2026-11-15 amendment to R66), which api hands it beside the route: the
-// reading, the words of a rung, "explain differently" and the words after a
-// correct answer are refused — the key refused, or a limit with its cause —,
-// while a key of no such ending is read and worded. Nothing of the quota of
-// platform AI is spent, and the log holds no key.
+// On an own key the stub ends each call of AI by how the key ends (R66), which
+// api hands it beside the route: the reading, the words of a rung, "explain
+// differently" and the words after a correct answer are refused — the key
+// refused, or a limit with its cause —, while a key of no such ending is read
+// and worded. Nothing of the quota of platform AI is spent, and the log holds
+// no key.
 func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	t.Parallel()
 
@@ -160,7 +160,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		t.Helper()
 		// The ceiling of the tier alone says when access returns: 00:00 UTC on the
 		// first of the next month, or of the month after, should the month turn
-		// while the test runs (sources 2.8 spec).
+		// while the test runs.
 		returns := o.GetOwnKeyLimit().GetAccessReturns()
 		timed := want == v1.LimitCause_LIMIT_CAUSE_TIER
 		next := time.Date(before.Year(), before.Month()+1, 1, 0, 0, 0, 0, time.UTC)
@@ -282,14 +282,15 @@ func TestTheGateHearsNoEndingOfAnOwnKey(t *testing.T) {
 	}
 }
 
-// A workbook page runs on the stub (the 2026-11-15 amendment to R66): the stub
-// admits its reading where the gate admits a sheet's, so the page begins for an
-// adult and enters the pool, but not for a child, whose sheet the facts of an
-// adult do not admit; by the facts of a child it begins for the child too, as
-// dev-check declares them to its server on the stub. A tall crop of the box reads a wrong value, and a wide
-// one the right value, which solves the task and gives its evidence. Each
+// A workbook page runs on the stub (R66): the stub admits its reading where the
+// gate admits a sheet's, so the page begins for an adult and enters the pool,
+// but not for a child, whose sheet the facts of an adult do not admit; by the
+// facts of a child it begins for the child too, as dev-check declares them to
+// its server on the stub. A tall crop of the box reads a wrong value, and a
+// wide one the right value, which solves the task and gives its evidence. Each
 // reading keeps tutor's expected price of a page as spent, the price of the
-// entry the author's word admits (R90), with nothing left in reserve. On an own key the stub refuses the page by the key's ending.
+// entry the author's word admits (R90), with nothing left in reserve. On an own
+// key the stub refuses the page by the key's ending.
 func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 
@@ -353,17 +354,17 @@ func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 	}
 }
 
-// An essay runs on the stub (the 2026-11-15 amendments to R66): the stub
-// admits its reading and its assessment where the gate admits a sheet's, so
-// story begins for an adult and enters the pool, but not for a child, whose
-// sheet the facts of an adult do not admit. On an own key the stub refuses the
-// reading by the key's ending; a square crop reads illegible and a tall one
-// blank, each giving the assessment's reserve back; a wide one reads the stub's
-// text, assessed every criterion met but the last, with the stub's feedback,
-// which passes the leak check and the rule of feedback. "Done" then closes the
-// attempt with story's criteria. Each reading keeps tutor's expected price of
-// the reading as spent, and the assessment its own, the prices of the entries
-// the author's word admits (R90). The log holds neither the text nor the feedback, nor the key.
+// An essay runs on the stub (R66): the stub admits its reading and its
+// assessment where the gate admits a sheet's, so story begins for an adult and
+// enters the pool, but not for a child, whose sheet the facts of an adult do
+// not admit. On an own key the stub refuses the reading by the key's ending; a
+// square crop reads illegible and a tall one blank, each giving the
+// assessment's reserve back; a wide one reads the stub's text, assessed every
+// criterion met but the last, with the stub's feedback, which passes the leak
+// check and the rule of feedback. "Done" then closes the attempt with story's
+// criteria. Each reading keeps tutor's expected price of the reading as spent,
+// and the assessment its own, the prices of the entries the author's word
+// admits (R90). The log holds neither the text nor the feedback, nor the key.
 func TestAnEssayRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 

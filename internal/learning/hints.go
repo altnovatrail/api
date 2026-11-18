@@ -110,9 +110,7 @@ type correctTeller interface {
 	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, own string) tutor.CorrectAnswer
 }
 
-// telling is a request for words between the parts of its request: the attempt
-// and its rung, the answer slot the rung speaks of, the call of words and what
-// came of it — or, when no call goes, the answer it gets already.
+// telling is a request for words between the parts of its request.
 type telling struct {
 	h       held
 	rung    int
@@ -139,9 +137,8 @@ func wordsCall(t telling) tutor.Call {
 }
 
 // call calls the words of t, when it has no answer ready, until finishReserve
-// before the request's deadline, and notes the call in the request's log; own is
-// the value of the request's own key, for the stub. The crop goes no further
-// than the call.
+// before the request's deadline; own is the value of the request's own key, for
+// the stub. The crop goes no further than the call.
 func (s *Service) call(ctx context.Context, t telling, own string) telling {
 	if t.ready != nil || t.reserve.refused != nil {
 		return t
@@ -165,8 +162,8 @@ func finishing(ctx context.Context) (context.Context, context.CancelFunc) {
 	return ctx, func() {}
 }
 
-// noteCall notes a call of AI in the request's log: its outcome, how long it
-// took, and what each model it asked spent (R12).
+// noteCall notes a call of AI in the request's log, with what each model it
+// asked spent (R12).
 func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 	call := rpc.AICall{Outcome: aiOutcomes[o.Kind], Duration: took}
 	for _, u := range o.Usage {
@@ -186,7 +183,7 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 // question, when it passed the leak check and the form check, or the rung's
 // fallback text, with the outcome of a call that gave no words — or that the
 // quota did not hold, and made none; none when the words came and failed a
-// check, which goes to the request's line of the log (contract, § 15; R47).
+// check, which goes to the request's line of the log (R47).
 func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
 	if t.answer.Outcome.Kind == tutor.Answered {
 		check := turnedDown(t.h.pkg, t.h.task, t.answer.Question, words.Hint)
@@ -276,7 +273,7 @@ func (s *Service) keptWords(ctx context.Context, tx pgx.Tx, profileID, attemptID
 
 // ownKeyFits refuses an own key, or its provider alone, that a request sends
 // for a learner who is not an adult: only the owner's own profile goes by its
-// key (contract, § 15).
+// key (R04).
 func ownKeyFits(ctx context.Context, category formatv0.AgeCategory, sent bool) error {
 	if sent && category != formatv0.AgeCategoryAdult {
 		return rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
@@ -656,12 +653,11 @@ func (s *Service) otherTold(ctx context.Context, tx pgx.Tx, profileID string, t 
 
 // correctPolicy is the version of the privacy policy from which the words after
 // a correct answer go to a provider: the first that names what goes to AI for
-// them — the key, the solution and the techniques of the task (Д214 spec).
+// them — the key, the solution and the techniques of the task (R77).
 const correctPolicy = 3
 
 // praising is a request for the words after a correct answer between the parts
-// of its request: the attempt a correct answer closed, held, its package and
-// its task, the call of the words and what came of it.
+// of its request.
 type praising struct {
 	row     store.Attempt
 	pkg     *modulepackage.Package
@@ -679,7 +675,7 @@ type praising struct {
 // policyCovers says whether the words after a correct answer may go on the day
 // of at, in UTC: on the stub always, since nothing reaches a provider; to a
 // provider once the privacy policy in force on that day of the texts api serves
-// is of version 3 or later, which names what goes for them (Д214 spec).
+// is of version correctPolicy or later (R77).
 func (s *Service) policyCovers(at time.Time) bool {
 	if s.stubbed {
 		return true
@@ -690,7 +686,7 @@ func (s *Service) policyCovers(at time.Time) bool {
 
 // GetCorrectAnswerWords gives the tutor's words after a correct answer, once,
 // on the attempt that the answer has just closed, while the profile has begun
-// no other (R09): an attempt closed otherwise, or open, one the profile left
+// no other (R09, R77): an attempt closed otherwise, or open, one the profile left
 // for another, and one whose words were given already get "no more words". The
 // words are the model's praise and its question on the technique that helped,
 // once they passed the leak check and the form check of tutor's words.Correct;
@@ -830,9 +826,8 @@ func praisable(ctx context.Context, tx pgx.Tx, profileID string, row store.Attem
 }
 
 // praise calls the words after a correct answer of p, when the quota holds the
-// call, until finishReserve before the request's deadline, and notes the call
-// in the request's log; own is the value of the request's own key, for the stub.
-// The crop goes no further than the call.
+// call, until finishReserve before the request's deadline; own is the value of
+// the request's own key, for the stub. The crop goes no further than the call.
 func (s *Service) praise(ctx context.Context, p praising, own string) praising {
 	if p.reserve.refused != nil {
 		return p

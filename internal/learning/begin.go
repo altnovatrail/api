@@ -87,7 +87,6 @@ func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttempt
 	return answer, nil
 }
 
-// started is the task the beginning names, by what it begins by.
 func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRequest, category formatv0.AgeCategory, now time.Time) (begun, error) {
 	profileID := req.GetProfileId()
 	switch start := req.GetStart().(type) {
@@ -128,7 +127,6 @@ func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRe
 	}
 }
 
-// firstOf is err when there is one, and else refusal.
 func firstOf(err, refusal error) error {
 	if err != nil {
 		return err
@@ -137,8 +135,9 @@ func firstOf(err, refusal error) error {
 }
 
 // begin begins the attempt of b for a learner of category, by the own key of
-// ownKey when it names a provider, at now: the checks of the module and the
-// task and its admission, then the close of the open attempt and the row.
+// ownKey when it names a provider, at now: the checks of the module, the task,
+// its admission and the quota come first, so that a refusal leaves the
+// profile's open attempt as it is; then the open attempt is closed.
 func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, b begun, now time.Time) (*v1.AttemptStart, error) {
 	if b.openAttempt != "" {
 		// The segment's open attempt goes on as it is; one that lapsed is closed by
@@ -326,12 +325,12 @@ func startOf(h held) (*v1.AttemptStart, error) {
 // admitted says whether this code begins an attempt of the task for a learner
 // of category, by the own key of ownKey when it names a provider: the same rule
 // for a beginning and for the pool the engine chooses from (R50). A task with a
-// rubric is, when tutor reads it as an essay and both its calls — the reading of
-// the essay and its assessment by the rubric — are admitted (R82); one AI would
-// read in a zone or on the whole sheet is not, as this release of tutor does not
-// read it (R46); nor is one of handwriting whose kind of call, a sheet's or a
-// workbook page's, the table, the facts, the stage and the platform's keys of
-// the deployment do not admit models for (R45, R81).
+// rubric is, when tutor reads it as an essay and both its calls — the reading
+// of the essay and its assessment by the rubric — are admitted (R82); one AI
+// would read in a zone or on the whole sheet is not, as tutor does not read it
+// (R46); nor is one of handwriting whose kind of call, a sheet's or a workbook
+// page's, the table, the facts, the stage and the platform's keys of the
+// deployment do not admit models for (R45, R81).
 func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ownKey string) bool {
 	switch {
 	case rubric(task):

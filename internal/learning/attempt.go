@@ -39,12 +39,12 @@ const finishReserve = 3 * time.Second
 // the crop of a handwriting sheet (R46) or of the crops of a workbook page's
 // filled boxes (R81). A submission with an answer slot "not_yet" is a wrong
 // answer; "unreadable" and "unchecked" are none (R09). One whose every item is
-// correct closes the attempt "correct", and its answer holds the task solved, its keys
-// and its solution (R05 spec). A call of AI that gives no reading is no
+// correct closes the attempt "correct", and its answer holds the task solved,
+// its keys and its solution (R05 spec). A call of AI that gives no reading is no
 // refusal: the slots AI reads get "unchecked", and the answer names the
 // outcome. The submission is recorded with its answer and, when AI read, the
-// observation of what it read; the key's record names it (architecture 3.2),
-// and the crop lives in the request's memory alone (R15).
+// observation of what it read; the key's record names it, and the crop lives in
+// the request's memory alone (R15).
 //
 // A task tapped alone is checked in one transaction (rpc.Once). One that AI
 // reads runs in three parts (rpc.Across): the checks of the attempt and the
@@ -179,9 +179,10 @@ func (s *Service) attemptTask(ctx context.Context, profileID, attemptID string) 
 	return task, ok
 }
 
-// record writes the submission out on the profile's attempt h: its verdict, the close of
-// a task solved, with the engine's choice on the route of ownKey, and the
-// submission with its answer and observation, which the key's record names.
+// record writes the submission out on the profile's attempt h — its verdict,
+// the submission with its answer and observation, and, for a task solved, the
+// close with the engine's choice on the route of ownKey —, and the target the
+// key's record names: the attempt and the submission.
 func (s *Service) record(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, h held, out sending) (*v1.SubmitWorkResponse, store.KeyTarget, error) {
 	now := s.clock()
 	answer, observed, err := s.verdict(ctx, h, out)
@@ -313,9 +314,9 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 
 // read reads the crop of out, or the crops of its workbook page, by tutor, when
 // AI reads a slot of its task, until finishReserve before the request's
-// deadline, and notes the call in the request's log; own is the value of the
-// request's own key, for the stub. A reading the quota does not hold is not
-// called, and one called settles its reserve by what it cost.
+// deadline; own is the value of the request's own key, for the stub. A reading
+// the quota does not hold is not called, and one called settles its reserve by
+// what it cost.
 func (s *Service) read(ctx context.Context, out sending, own string) sending {
 	if !out.ai {
 		return out
@@ -357,10 +358,10 @@ var aiOutcomes = map[tutor.Kind]string{
 // contract's words, and the observation the submission keeps: the readings of
 // the two readers joined, or the one reader's (R88), valid as module-kit takes
 // it, from which the same release gives the verdict again with the options
-// tapped — which the answer holds as the values of their slots (§ 10 of spec's
-// contracts text). None when AI read nothing. A reading that gave no
-// observation, or two that module-kit cannot join, or one it does not take,
-// leaves the slots AI reads "unchecked", with the outcome's cause.
+// tapped — which the answer holds as the values of their slots. None when AI
+// read nothing. A reading that gave no observation, or two that module-kit
+// cannot join, or one it does not take, leaves the slots AI reads "unchecked",
+// with the outcome's cause.
 func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitWorkResponse, *observationv1.Observation, error) {
 	var joined *observationv1.Observation
 	var outcome *v1.Outcome
@@ -554,7 +555,7 @@ func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.Don
 // doneAgain is the answer of "Done" again on the profile's attempt row, held
 // and closed "done": the task solved, of the package and the instance it went
 // on, and what came next, which the close gave and the engine is not asked
-// again (R14). A package the index no longer knows is errPackageUnknown, as for
+// again (R14). A package the index does not know is errPackageUnknown, as for
 // a request on an open attempt.
 func (s *Service) doneAgain(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, ownKey string, now time.Time) (*v1.DoneResponse, error) {
 	digest := formatv0.Digest(row.PackageDigest)

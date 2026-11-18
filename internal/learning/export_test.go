@@ -21,7 +21,6 @@ func WithReader(read func(ctx context.Context, r tutor.SheetReading) tutor.Sheet
 	return func(s *Service) { s.reader = readerFunc(read) }
 }
 
-// readerFunc is a function as a sheetReader.
 type readerFunc func(ctx context.Context, r tutor.SheetReading) tutor.SheetRead
 
 func (f readerFunc) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
@@ -34,7 +33,6 @@ func WithAdmits(admits func(call tutor.Call) bool) Option {
 	return func(s *Service) { s.admits = admitsFunc(admits) }
 }
 
-// admitsFunc is a function as an admitter.
 type admitsFunc func(call tutor.Call) bool
 
 func (f admitsFunc) Reads(call tutor.Call, _ formatv0.AgeCategory, _ string) bool { return f(call) }
@@ -46,7 +44,6 @@ func WithWorkbookReader(read func(ctx context.Context, r tutor.WorkbookReading) 
 	return func(s *Service) { s.workbook = workbookFunc(read) }
 }
 
-// workbookFunc is a function as a workbookReader.
 type workbookFunc func(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead
 
 func (f workbookFunc) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ formatv0.Task, _ string) tutor.WorkbookRead {
@@ -55,8 +52,8 @@ func (f workbookFunc) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading,
 
 // WithWords is what words the tutor's words, in place of tutor: a test's own,
 // admitted for every learner and route, so that no test calls a provider. The
-// real gate admits the words at the author's stage since tutor v0.1.24 (R54), so
-// a test on it must not ask for them.
+// real gate admits the words at the author's stage (R54), so a test on it must
+// not ask for them.
 func WithWords(tell func(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer) Option {
 	return func(s *Service) { s.teller = tellerFunc(tell) }
 }
@@ -125,14 +122,12 @@ func WithEssay(read func(ctx context.Context, r tutor.EssayReading) tutor.EssayR
 	return func(s *Service) { s.essay, s.assessor = essayFunc(read), assessorFunc(assess) }
 }
 
-// essayFunc is a function as an essayReader.
 type essayFunc func(ctx context.Context, r tutor.EssayReading) tutor.EssayRead
 
 func (f essayFunc) ReadEssay(ctx context.Context, r tutor.EssayReading, _ formatv0.Task, _ string) tutor.EssayRead {
 	return f(ctx, r)
 }
 
-// assessorFunc is a function as a rubricAssessor.
 type assessorFunc func(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed
 
 func (f assessorFunc) AssessEssay(ctx context.Context, r tutor.RubricAssessment, _ string) tutor.RubricAssessed {

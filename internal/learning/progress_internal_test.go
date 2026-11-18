@@ -83,7 +83,7 @@ func TestTheSkillsOfATaskComeInTheOrderOfItsItems(t *testing.T) {
 
 // An attempt names its lesson's title, open or closed, and the titles of its
 // task's skills only once it is solved — by a correct answer, the solution
-// shown or "done"; on a package the image no longer holds it names neither.
+// shown or "done"; on a package the image does not hold it names neither.
 func TestAnAttemptNamesItsSkillsOnceSolved(t *testing.T) {
 	t.Parallel()
 

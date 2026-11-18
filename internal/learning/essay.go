@@ -43,10 +43,7 @@ func (g gateTutor) AssessEssay(ctx context.Context, r tutor.RubricAssessment, _ 
 	return g.Gate.AssessEssay(ctx, r)
 }
 
-// essaying is a submission of an essay between the parts of its request: the
-// attempt and the instance and package it goes on, the crop of the sheet, the
-// route and the family day, the reserves of the reading and the assessment, and
-// what came of the two calls.
+// essaying is a submission of an essay between the parts of its request.
 type essaying struct {
 	attemptID string
 	task      formatv0.Task
@@ -63,24 +60,21 @@ type essaying struct {
 }
 
 // SubmitEssay sends the sheet of a task with a rubric for its feedback, under
-// its idempotency key: one request, two calls of tutor (R14, R82). The crop of
-// the sheet is read by one reader, and the text read is assessed by the
-// criteria of the rubric, with the statement as its topic, the style of the
-// learner's category and the module's language of explanations; the feedback
-// goes once it passes the leak check and the rule of feedback, words.Feedback,
-// and without it the answer has none, and app shows "no feedback this time".
-// The submission ends "feedback", "unreadable" — the reading said the sheet as
-// a whole cannot be read, and the assessment is not called — or "unchecked",
-// with the outcome of a call that gave nothing, or none when the assessment
-// assessed no criterion. The request goes in three parts (rpc.Across): the
-// checks of the attempt and the crop, and the reserve of the reading together
-// with the assessment (R12), beside the key's record going; the two calls; and
-// the attempt held again, with the submission recorded — how it ended, and
-// beside feedback the marks and the source of the words, never the text, the
-// evidence or the words (R15). An attempt closed meanwhile by another device is
-// no refusal: the answer comes from the request's memory, names the close, and
-// nothing is recorded. A repeat under the key gets the answer without the text
-// and the words, repeated.
+// its idempotency key: one request, two calls of tutor (R14, R82). One reader
+// reads the crop, and the text read is assessed by the criteria of the rubric,
+// with the statement as its topic, the style of the learner's category and the
+// module's language of explanations; the feedback goes once it passes the leak
+// check and the rule of feedback, words.Feedback, and without it the answer has
+// none. The submission ends "feedback", "unreadable" — the sheet as a whole
+// cannot be read, and the assessment is not called — or "unchecked", with the
+// outcome of a call that gave nothing, or none when no criterion was assessed.
+// The reserve covers the reading with the assessment (R12), and the calls run
+// between two transactions (rpc.Across). The server records how the submission
+// ended and, beside feedback, the marks and the source of the words, never the
+// text, the evidence or the words (R15). An attempt closed meanwhile by another
+// device is no refusal: the answer comes from the request's memory, names the
+// close, and nothing is recorded. A repeat under the key gets the answer
+// without the text and the words.
 func (a *AttemptService) SubmitEssay(ctx context.Context, req *v1.SubmitEssayRequest) (*v1.SubmitEssayResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -163,9 +157,8 @@ func (s *Service) essayed(ctx context.Context, tx pgx.Tx, req *v1.SubmitEssayReq
 }
 
 // assess reads the essay of e and, once it is read, assesses its text, until
-// finishReserve before the request's deadline, each call noted in the request's
-// log and settling its part of the reserve by what it cost; own is the value of
-// the request's own key, for the stub. A reserve the quota did not hold calls
+// finishReserve before the request's deadline; own is the value of the
+// request's own key, for the stub. A reserve the quota did not hold calls
 // nothing, and an essay that was not read gives the assessment's part back. The
 // crop goes no further than the reading.
 func (s *Service) assess(ctx context.Context, e essaying, own string) essaying {

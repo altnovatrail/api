@@ -26,7 +26,7 @@ import (
 // history, of the contexts of its submissions and of its picture (R113 spec).
 const MaxWork = 4 << 20
 
-// pngSignature is what the picture of a work begins with (RFC 2083, section 3.1).
+// pngSignature is what the picture of a work begins with (RFC 2083).
 var pngSignature = []byte("\x89PNG\r\n\x1a\n")
 
 // workKinds is each kind of a stored work, as the contract names it.
@@ -36,7 +36,7 @@ var workKinds = map[string]v1.WorkKind{
 	store.WorkDrawing:     v1.WorkKind_WORK_KIND_DRAWING,
 }
 
-// errNoKind is a work of an attempt whose package the image holds no longer —
+// errNoKind is a work of an attempt whose package the image does not hold —
 // out of the window of format versions —, with no work kept of it before to
 // tell its kind.
 var errNoKind = errors.New("learning: the image no longer holds the package of the attempt")
@@ -44,8 +44,8 @@ var errNoKind = errors.New("learning: the image no longer holds the package of t
 // WorkService is the stored works of the profiles (R70): each work of a profile
 // as the device holds it, which api keeps while the storage of the profile's
 // works is on, reads no more of than its form, and gives to no AI provider
-// (R113 spec; contract, section 15). Each request repeats by the state of the
-// profile's works, with no idempotency key.
+// (R113 spec). Each request repeats by the state of the profile's works, with
+// no idempotency key.
 type WorkService struct {
 	apiv1connect.UnimplementedWorkServiceHandler
 	s      *Service
@@ -193,8 +193,8 @@ func (w *WorkService) DeleteWork(ctx context.Context, req *v1.DeleteWorkRequest)
 // request as every one is, but for the consent and the age — ListWorks,
 // GetWork and DeleteWork go while the profile waits for its consent or its
 // age, as the learner's ExportProfile goes, since app builds the export by them
-// (the 2026-11-15 amendment to R113 spec; R84) —, and an adult's by
-// can_manage, which the checks before it do not hold.
+// (R113 spec, R84) —, and an adult's by can_manage, which the checks before it
+// do not hold.
 func (w *WorkService) reader(ctx context.Context, profileID string, action v1.Action) error {
 	switch action {
 	case v1.Action_ACTION_LEARNING:
@@ -220,7 +220,7 @@ func (w *WorkService) reader(ctx context.Context, profileID string, action v1.Ac
 // workKind is the kind of the work of the profile's attempt, by its task, read
 // with no lock: what an attempt is of never changes. The package is the
 // image's, withdrawn too; one whose digest the index does not know is a
-// deployment going on. A task the image holds no longer — its package out of
+// deployment going on. A task the image does not hold — its package out of
 // the window — leaves the kind of the work kept of the attempt before, or
 // errNoKind.
 func (s *Service) workKind(ctx context.Context, profileID, attemptID string) (string, error) {
@@ -242,9 +242,9 @@ func (s *Service) workKind(ctx context.Context, profileID, attemptID string) (st
 	return kind, err
 }
 
-// workKind is what a work of the task is (contract, WorkKind): an essay, when an
-// item has a rubric; handwriting, when an answer slot is checked by a key or a
-// predicate; a drawing, when none is checked.
+// workKind is what a work of the task is: an essay, when an item has a rubric;
+// handwriting, when an answer slot is checked by a key or a predicate; a
+// drawing, when none is checked.
 func workKind(task formatv0.Task) string {
 	kind := store.WorkDrawing
 	for _, item := range task.Items {
@@ -271,10 +271,10 @@ func workSize(work *v1.StoredWork) int64 {
 }
 
 // WorkMalformed is the field of the work whose form the contract refuses, or
-// none (contract, section 15): its history a JSON array and each context a JSON
-// object, in UTF-8, so that the export writes them as the JSON they are; each
-// count of the history's events not below zero, as the export's schema asks;
-// and its picture a PNG by its signature. Nothing more is read of them.
+// none: its history a JSON array and each context a JSON object, in UTF-8, so
+// that the export writes them as the JSON they are; each count of the history's
+// events not below zero, as the export's schema asks; and its picture a PNG by
+// its signature. Nothing more is read of them.
 func WorkMalformed(work *v1.StoredWork) string {
 	if !jsonOf(work.GetHistory(), '[') {
 		return "history"
