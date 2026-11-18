@@ -25,7 +25,7 @@ jobs:
       contents: write
       id-token: write
       actions: read
-    uses: altnovatrail/.github/.github/workflows/release.yml@93c848fb51a10a245968cf730b99cc709a7748bf # v0.1.31
+    uses: altnovatrail/.github/.github/workflows/release.yml@f1c7e9e6f8245fdbdbc23c4091f3c26350e3a44e # v0.1.33
     # The go kind's list, and what api's release takes beyond it: the Dockerfile it carries, the
     # file git archive writes the commit into, with the attributes that make it do so, and
     # modules.json, which the binary embeds, so that a pull request that pins another release of
