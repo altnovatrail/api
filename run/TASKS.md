@@ -7,4 +7,70 @@ Open tasks outside the current epic, each as its body, in Russian (R154 spec, R1
 
 ## Tasks outside an epic
 
-None open.
+#### T115. Тексты без истории: CLAUDE.md, README, `docs/README.md`, `docs/build.md` и разделы 1, 2 и 4 архитектуры
+
+- **Цель:** эти тексты держат текущее состояние, без истории (R160 spec): CLAUDE.md, README.md, `docs/README.md`, `docs/build.md`, а в `docs/architecture.md` — начало с абзацем «Status», разделы 1, 2, начало раздела 3 и раздел 4.
+- **Сделать:**
+  - убрать хроники версий, статусов и повышений: документ называет файл, где задано значение — подмодуль `spec`, `go.mod`, `modules.json`, `ARG` Dockerfile, — а не значение; «Status» архитектуры — без перечня переходов на теги;
+  - архитектура описывает текущее устройство и ссылается на решение номером, не пересказывая его;
+  - ссылка на поправку записи `spec`, которую тег переписал на месте (R143, R145, R154, R155 spec и те, что переписали задачи E16 `spec`), — на запись;
+  - записи журнала не переписывать, кроме тех, что задача меняет (R160 spec); пределы `docs-budgets.json`, которые станут велики, — снизить.
+- **Как проверить:** `just -f spec/justfile docs-check-repo`; `/code-review high`.
+- **Разделы:** R160 spec; RULES.md spec, The bar; architecture 1, 2, 4.
+
+#### T116. Тексты без истории: архитектура 3.1–3.4
+
+- **Цель:** разделы 3.1–3.4 `docs/architecture.md` держат текущее устройство, без истории (R160 spec).
+- **Сделать:** как в T115 — без хроник версий и повышений, файл вместо значения, решение — номером без пересказа, ссылки на переписанные поправки `spec` — на запись; пределы `sections` `docs-budgets.json` для 3.1–3.3 — по новому размеру или убрать.
+- **Как проверить:** `just -f spec/justfile docs-check-repo`; `/code-review high`.
+- **Разделы:** R160 spec; architecture 3.1–3.4.
+
+#### T117. Тексты без истории: архитектура 3.5–3.8
+
+- **Цель:** разделы 3.5–3.8 `docs/architecture.md` держат текущее устройство, без истории (R160 spec).
+- **Сделать:** как в T116; предел `sections` для 3.6 — по новому размеру или убрать.
+- **Как проверить:** `just -f spec/justfile docs-check-repo`; `/code-review high`.
+- **Разделы:** R160 spec; architecture 3.5–3.8.
+
+#### T118. Тексты без истории: архитектура 3.9–3.11
+
+- **Цель:** разделы 3.9–3.11 `docs/architecture.md` держат текущее устройство, без истории (R160 spec).
+- **Сделать:** как в T116.
+- **Как проверить:** `just -f spec/justfile docs-check-repo`; `/code-review high`.
+- **Разделы:** R160 spec; architecture 3.9–3.11.
+
+#### T119. Комментарии кода по R160 spec: `internal/learning`
+
+- **Цель:** комментарии `internal/learning` — по R160 spec, «Comments».
+- **Сделать:** комментарий говорит, чего не скажут код и имена: почему, ограничение, ловушка, контракт экспортируемого API; без пересказа кода, истории, номеров задач и разделов документов; где причина — решение, ограничение одной фразой и номер в конце, `(R25)`; номер решения `spec` — `(R25 spec)`, другого репозитория — `(R100 tutor)`. Код и тесты — те же.
+- **Как проверить:** `just -f spec/justfile docs-check-repo`; проверки правила `.claude/rules/go.md`; `/code-review high`.
+- **Разделы:** R160 spec, R32 spec.
+
+#### T120. Комментарии кода по R160 spec: `internal/store`, `internal/account`, `internal/config`
+
+- **Цель:** комментарии этих пакетов — по R160 spec, «Comments».
+- **Сделать:** как в T119.
+- **Как проверить:** как в T119.
+- **Разделы:** R160 spec, R32 spec.
+
+#### T121. Комментарии кода по R160 spec: `cmd/api` и пакеты `internal/` от `rpc` до `logging`
+
+- **Цель:** комментарии `cmd/api`, `internal/rpc`, `internal/tutorstub`, `internal/packages`, `internal/admission`, `internal/model`, `internal/sweep` и `internal/logging` — по R160 spec, «Comments».
+- **Сделать:** как в T119.
+- **Как проверить:** как в T119.
+- **Разделы:** R160 spec, R32 spec.
+
+#### T122. Комментарии кода по R160 spec: остальной Go, justfile, CI, Dockerfile и скрипты
+
+- **Цель:** комментарии остального кода — по R160 spec, «Comments»: пакеты `internal/`, которых нет в T119–T121, `cmd/modules-check`, Go в `scripts/`, а также `#` justfile, `.github/`, `Dockerfile`, `.devcontainer/` и `scripts/`.
+- **Сделать:** как в T119; файлы `.proto`, скопированные из релизов, — не трогать, `just learner-model-proto check` сверяет их с релизом. Проверки частей — по `.claude/rules/go.md` и `.claude/rules/ci.md`.
+- **Как проверить:** `just -f spec/justfile docs-check-repo`; проверки правил `.claude/rules/go.md` и `.claude/rules/ci.md`; `/code-review high`.
+- **Разделы:** R160 spec, R32 spec.
+
+#### T123. `"comments": true` в `docs-budgets.json` с релизом `learner-model` по R160 spec
+
+- **Цель:** `docs-check-repo` проверяет номера решений в комментариях кода (R32 spec).
+- **Почему:** в `internal/export/proto/novatrail/learnermodel/v1/common.proto` — копии релиза `learner-model` — комментарий называет `R135 of spec`, и проверка читает его как `R135` этого журнала, которой нет; файл правится только новым релизом `learner-model` (T114).
+- **Сделать:** перейти на релиз `learner-model`, чей `common.proto` пишет номер по R32 spec: `go.mod`, `just learner-model-proto`, что релиз несёт — по правилам `.claude/rules/go.md`; добавить `"comments": true` в `docs-budgets.json`.
+- **Как проверить:** `just -f spec/justfile docs-check-repo` с проверкой комментариев; проверки правила `.claude/rules/go.md`; `/code-review high`.
+- **Разделы:** R160 spec, R32 spec; строка 7.29 COORDINATION.md spec.

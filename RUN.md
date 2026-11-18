@@ -1,6 +1,6 @@
 # RUN.md — work plan of api
 
-What api does, does not do and has still to decide — [docs/architecture.md](docs/architecture.md); why — [docs/decisions.md](docs/decisions.md). The platform is in `spec/`, a submodule at tag v0.18.27: the component's card — architecture 3.5 spec; the order of repositories — repositories 6 spec; learners' data and law — privacy spec; the platform's decisions — spec's log. Small tasks, one at a time, each reviewed by the author; only the current epic is in detail (R19 spec). Other tables, each a file opening with its rules (R153 spec): 2, epics for later — [run/EPICS.md](run/EPICS.md); 3, questions to the author — [run/QUESTIONS.md](run/QUESTIONS.md); 4, debt — [run/DEBT.md](run/DEBT.md). Open tasks outside an epic — [run/TASKS.md](run/TASKS.md) (R155 spec). The archives of the done epics — [docs/plan/](docs/plan/).
+What api does, does not do and has still to decide — [docs/architecture.md](docs/architecture.md); why — [docs/decisions.md](docs/decisions.md). The platform is in `spec/`, a submodule at tag v0.18.34: the component's card — architecture 3.5 spec; the order of repositories — repositories 6 spec; learners' data and law — privacy spec; the platform's decisions — spec's log. Small tasks, one at a time, each reviewed by the author; only the current epic is in detail (R19 spec). Other tables, each a file opening with its rules (R153 spec): 2, epics for later — [run/EPICS.md](run/EPICS.md); 3, questions to the author — [run/QUESTIONS.md](run/QUESTIONS.md); 4, debt — [run/DEBT.md](run/DEBT.md). Open tasks outside an epic — [run/TASKS.md](run/TASKS.md) (R155 spec). The archives of the done epics — [docs/plan/](docs/plan/).
 
 Language (R154 spec): rules and tables in English, terse, for the session; the bodies of tasks in table 1 and in `run/TASKS.md` in Russian — the author writes and reviews them.
 
@@ -23,7 +23,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
    Then `/code-review high`, one round: fix the findings, do not rerun. A small change may skip the review even if «Как проверить» names it.
 7. Do not commit: the author commits after review. A run of spec's orchestrator, «Сделай эпик E…», is the author's word otherwise: its executor works by the contract `spec/tools/orchestrator/executor.md` — commits, pushes and opens the pull request, never merges (R156 spec).
 8. End with a short report in Russian: what was done, files, how to check, what the review found or why there was none, what is open and what goes «в реестр spec».
-9. When done: table 1 `[ ]` → `[x]`; append to the body «Сделано (дата)» — what was done, how checked — and «Открыто». A question for the author from «Открыто» is also a row of [run/QUESTIONS.md](run/QUESTIONS.md); what is put off, a row of [run/DEBT.md](run/DEBT.md).
+9. When done: table 1 `[ ]` → `[x]`; append to the body «Сделано (дата)» — one line, what was done and its pull request, which says how it was checked; where the author commits after review, the report says it. What stays open is rows, not text: a question for the author, of [run/QUESTIONS.md](run/QUESTIONS.md); what is put off, of [run/DEBT.md](run/DEBT.md) (R160 spec).
    - Then move the body verbatim, relative links fixed, to the epic archive `docs/plan/<epic>.md`, with a gist sentence — an unheaded list item at the start of the receiving section: «T01 — сделана <дата>: <итог одной фразой>». Neither stays here, and a search by heading finds one body, in the archive (R153 spec).
    - A task outside an epic's plan — a move to a tag of `spec`, an analysis by the threshold of R145 spec — is a row of table 1, and its body is in `run/TASKS.md` (R155 spec). Done, it goes to the current epic's archive; between epics, table 1 holds such rows alone, and they go to the archive of the epic that comes into table 1 next (R63; R85).
 10. Language (R14 spec, R42 spec, R143 spec, R154 spec): this plan and `run/` in English, the bodies of tasks, the epic archives `docs/plan/` and the reports in Russian; `docs/` in English; README, CLAUDE.md, AGENTS.md, code, comments, schema descriptions, prompts and normative texts for authors in English; commit messages and a pull request's title and description in English and terse, for the session, never a copy of the report.
@@ -36,7 +36,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 
 **Plan:** «да» — plan mode first: decisions missing from the documents, or larger than one review (rule 11); «—» — run at once.
 
-**Task body** (Russian): «Цель», «Сделать», «Как проверить», «Разделы»; as needed «Не делать», «Решить при планировании», «Мой шаг», «Стоимость», «Риски»; from planning «Почему», «Решено автором (дата)», «Выяснилось при планировании»; when done «Сделано (дата)», «Открыто» (rule 9).
+**Task body** (Russian): «Цель», «Сделать», «Как проверить», «Разделы»; as needed «Не делать», «Решить при планировании», «Мой шаг», «Стоимость», «Риски»; from planning «Почему», «Решено автором (дата)», «Выяснилось при планировании»; when done «Сделано (дата)» (rule 9).
 
 **Citations.** Own sections — `architecture 2`, own decisions — `R03`; spec's sections and decisions — «architecture 3.5 spec», «R18 spec», its open questions — «Т-22», «П-7», «О-2»: the repository keeps no registers; other NovaTrail repositories' decisions — «R03 tutor»; MathTrail's — «R44 canvas-api», «R163 standalone», in a list «canvas-api: R44, R59». Each log numbers its own: «R19 spec» and `R19` of this log differ. A task — «T03», from another repository «T03 api»; one not here is in `run/TASKS.md` or an archive: `grep -n '^#### T03\.' RUN.md run/TASKS.md docs/plan/*.md`. Task numbers are global and never reused: take the one free when writing it down.
 
@@ -48,7 +48,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 
 ## Table 1. Current epic — none
 
-The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author picks the next one at planning. Until then — tasks between epics (rule 9), their bodies in [run/TASKS.md](run/TASKS.md) and, done, in the archive of the next epic, [docs/plan/E14.md](docs/plan/E14.md). T96 and T97 are the further parts of the move T94 (rule 11; R84); T98–T100 — row 7.15 of COORDINATION.md spec, done. T101 — wave 0 of the orchestrator's run of «Порядок» (R156 spec), done; T102 — row 6.25 of COORDINATION.md spec in that run, done; T103 — row 6.27 in that run, done; T104 — row 6.30 in that run, done; T105 — row 6.28 in that run, done; T106 — row 6.32 in that run, done; T107 — README by the author's word in that run, done; T108 — the move to v0.18.14 in that run, done; T109 — the review of the debt whose time has come, in that run, done; T110 — row 6.38 in that run, done; T111 — README by the author's word in that run, done; T112 — the release of `tutor` with the cache of the words' instructions, by `tutor`'s В92 in that run, done; T113 — the move to v0.18.27 in that run, done.
+The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author picks the next one at planning. Until then — tasks between epics (rule 9), their bodies in [run/TASKS.md](run/TASKS.md) and, done, in the archive of the next epic, [docs/plan/E14.md](docs/plan/E14.md). T115–T123 are the further parts of T114 (rule 11), in [run/TASKS.md](run/TASKS.md).
 
 | Статус | ID | Задача | Кто | План | Зависит от |
 |---|---|---|---|---|---|
@@ -73,3 +73,13 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T111 | README — только описание компонента и его место в архитектуре | Claude | — | — |
 | [x] | T112 | Переход на релиз `tutor` с кешем инструкций слов | Claude | — | `tutor` v0.1.49 |
 | [x] | T113 | Переход на тег `spec` v0.18.27 | Claude | — | — |
+| [x] | T114 | Тексты без истории (R160 spec) и тег `spec` v0.18.34 | Claude | да | — |
+| [ ] | T115 | Тексты без истории: CLAUDE.md, README, `docs/README.md`, `docs/build.md`, архитектура 1, 2, 4 | Claude | — | T114 |
+| [ ] | T116 | Тексты без истории: архитектура 3.1–3.4 | Claude | — | T114 |
+| [ ] | T117 | Тексты без истории: архитектура 3.5–3.8 | Claude | — | T114 |
+| [ ] | T118 | Тексты без истории: архитектура 3.9–3.11 | Claude | — | T114 |
+| [ ] | T119 | Комментарии кода по R160 spec: `internal/learning` | Claude | — | T114 |
+| [ ] | T120 | Комментарии кода по R160 spec: `internal/store`, `account`, `config` | Claude | — | T114 |
+| [ ] | T121 | Комментарии кода по R160 spec: `cmd/api`, `internal/` от `rpc` до `logging` | Claude | — | T114 |
+| [ ] | T122 | Комментарии кода по R160 spec: остальной Go, justfile, CI, Dockerfile, скрипты | Claude | — | T114 |
+| [ ] | T123 | `"comments": true` с релизом `learner-model` по R160 spec | Claude | — | T114; релиз `learner-model` строки 7.29 |
