@@ -7,13 +7,6 @@ Open tasks outside the current epic, each as its body, in Russian (R154 spec, R1
 
 ## Tasks outside an epic
 
-#### T122. Комментарии кода по R160 spec: остальной Go, justfile, CI, Dockerfile и скрипты
-
-- **Цель:** комментарии остального кода — по R160 spec, «Comments»: пакеты `internal/`, которых нет в T119–T121, `cmd/modules-check`, Go в `scripts/`, а также `#` justfile, `.github/`, `Dockerfile`, `.devcontainer/` и `scripts/`.
-- **Сделать:** как в T119; файлы `.proto`, скопированные из релизов, — не трогать, `just learner-model-proto check` сверяет их с релизом. Проверки частей — по `.claude/rules/go.md` и `.claude/rules/ci.md`.
-- **Как проверить:** `just -f spec/justfile docs-check-repo`; проверки правил `.claude/rules/go.md` и `.claude/rules/ci.md`; `/code-review high`.
-- **Разделы:** R160 spec, R32 spec.
-
 #### T123. `"comments": true` в `docs-budgets.json` с релизом `learner-model` по R160 spec
 
 - **Цель:** `docs-check-repo` проверяет номера решений в комментариях кода (R32 spec).

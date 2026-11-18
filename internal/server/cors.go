@@ -4,10 +4,10 @@ import (
 	"net/http"
 )
 
-// The answers of CORS to app's origin (R18, R33; contracts README, section 15):
-// the methods Connect and the files of a package take, the headers a request of
-// app carries — Authorization by its name, which * does not cover — and how
-// long a browser may keep a preflight.
+// The answers of CORS to app's origin (R18, R33): the methods Connect and the
+// files of a package take, the headers a request of app carries —
+// Authorization by its name, which * does not cover — and how long a browser
+// may keep a preflight.
 const (
 	corsMethods = "GET, POST"
 	corsHeaders = "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms"

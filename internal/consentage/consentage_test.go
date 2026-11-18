@@ -22,7 +22,7 @@ func day(t *testing.T, d consentagev1.Day) time.Time {
 }
 
 // The category, applied and asking again are those of the vectors of the part,
-// consent-age/vectors/category/ (consent-age/README.md, section 8).
+// consent-age/vectors/category/.
 func TestTheVectorsOfTheCategory(t *testing.T) {
 	t.Parallel()
 

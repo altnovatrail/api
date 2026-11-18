@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # What the job Image of ci.yml runs on the runner, which has Docker where the devcontainer has none
-# (R28). It builds the release's files as the shared release does, from an
-# archive of the commit in the stage toolchain-core, the release's, whose image toolchain.sh
-# gives. Then it builds the image a deployment builds, the release's Dockerfile by --target release
-# around the release's binary, and the image built from the source, holds the binary of the second
-# to the release's binary of the same platform, byte for byte, and checks each image: the version
-# and commit it says, the user it runs as, its migrations, its health check, its answer to a file of a
-# package it does not know, the release of modules whose packages it read, its size, and a stop on
-# SIGTERM that it ends well. serve opens its databases and the sign-in service before it starts
-# (R33): the databases are a PostgreSQL of the runner's, 17.11 as the tests' is, pinned by its
-# digest, and the sign-in service takes a key made here for the run, which no call ever uses.
+# (R28). It builds the release's files as the shared release does, from an archive of the commit in
+# the stage toolchain-core, the release's, whose image toolchain.sh gives. Then it builds the image
+# a deployment builds, the release's Dockerfile by --target release around the release's binary,
+# and the image built from the source, holds the binary of the second to the release's binary of
+# the same platform, byte for byte, and checks each image: the version and commit it says, the user
+# it runs as, its migrations, its health check, its answer to a file of a package it does not know,
+# the release of modules whose packages it read, its size, and a stop on SIGTERM that it ends well.
+# serve opens its databases and the sign-in service before it starts (R33): the databases are a
+# PostgreSQL of the runner's, 17.11 as the tests' is, pinned by its digest, and the sign-in service
+# takes a key made here for the run, which no call ever uses.
 set -euo pipefail
 
 version=v0.0.0-ci
@@ -53,9 +53,7 @@ docker build --build-arg "VERSION=${version}" --build-arg "COMMIT=${commit}" --b
 
 # The build is reproducible: the binary of the image from the source, built in golang's image by
 # the Dockerfile's stage build, is the release's binary for linux/amd64, built in the stage
-# toolchain-core by release-files, byte for byte. A second run of release-files, as cold as the
-# first, held two builds in one stage to the same bytes; this holds two builds in two stages to
-# them, with no build of its own.
+# toolchain-core by release-files, byte for byte.
 source_binary="$(docker create api:source)"
 containers+=("$source_binary")
 docker cp --quiet "${source_binary}:/api" "${work}/source-api"
@@ -135,7 +133,7 @@ check() {
     [[ "$log" == *'"message":"shutdown"'* ]] || fail "${image} logs no shutdown line: ${log}"
     # serve read the packages of the release modules.json pins, which the image's build laid (R41).
     [[ "$log" == *'"modules_release":"'"${modules_release}"'"'* ]] || fail "${image} read no packages of modules ${modules_release}: ${log}"
-    # The size of the image, which R07 left to measure (Д8 in RUN.md).
+    # The size of the image, which every version of the pinned index it holds grows (R07).
     echo "${image}: $(docker image inspect --format '{{.Size}}' "$image") bytes"
 }
 # A digest no index names.

@@ -1,7 +1,7 @@
-# The watch over withdrawals (R61; R07): once a day, whether the newest release
-# of modules withdraws a version that the release modules.json pins gives. A withdrawal reaches the
-# learners only with the pull request that pins a release that marks it, and no such pull request
-# opens by itself; so the job fails, on every run, until modules.json pins one. The failure is the
+# The watch over withdrawals (R61; R07): once a day, whether the newest release of modules
+# withdraws a version that the release modules.json pins gives. A withdrawal reaches the learners
+# only with the pull request that pins a release that marks it, and no such pull request opens by
+# itself; so the job fails, on every run, until modules.json pins one. The failure is the
 # signal: GitHub notifies the one who last changed the line of cron below, and the job needs no
 # permission beyond reading and no setting of the repository. GitHub runs a schedule from the latest
 # commit of main, may delay it at the start of an hour, which is why the minute is not round, and

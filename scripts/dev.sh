@@ -2,18 +2,17 @@
 # The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
 # of the binary with the configuration of the dev file on the stub of tutor, which calls no provider
 # (R66), `just dev-ai <command>` the same with the dev file's key of platform AI, on the models, and
-# `just dev-check` goes the whole way —
-# migrations, an invite code, a country, the packages of modules, the opening of platform AI, the
-# server, an ID token, the legal texts, the account, the owner's profile, its progress and "something
-# else", the own key's providers and its check, a reading of handwriting with its reserve and
-# settlement of the quota, a stored work by the storage switched on and off, a parent's consent by
-# its form, on the stub of tutor an own key refused by its ending, the words after a correct answer,
-# a child's workbook page and an essay with its feedback and "Done", then the job after a rollout — and
-# checks the answers and the logs. The server's key of
-# platform AI is one Anthropic refuses, so that no call of the check reaches a model. `just dev-app`
-# keeps the server up on the stub for the local build of app, with a synthetic child of 9 whose
-# workbook pages it admits, and app signs in by a custom token this script lays in a volume the two
-# devcontainers share (R67).
+# `just dev-check` goes the whole way — migrations, an invite code, a country, the packages of
+# modules, the opening of platform AI, the server, an ID token, the legal texts, the account, the
+# owner's profile, its progress and "something else", the own key's providers and its check, a
+# reading of handwriting with its reserve and settlement of the quota, a stored work by the storage
+# switched on and off, a parent's consent by its form, on the stub of tutor an own key refused by
+# its ending, the words after a correct answer, a child's workbook page and an essay with its
+# feedback and "Done", then the job after a rollout — and checks the answers and the logs. The
+# server's key of platform AI is one Anthropic refuses, so that no call of the check reaches a
+# model. `just dev-app` keeps the server up on the stub for the local build of app, with a synthetic
+# child of 9 whose workbook pages it admits, and app signs in by a custom token this script lays in
+# a volume the two devcontainers share (R67).
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
@@ -114,7 +113,7 @@ stubbed() {
 }
 
 # modelled puts the run on the models, with the dev file's key: `just dev-ai`, for a task that checks
-# the words of a model under the cap its text names (rule 4 of RUN.md; R146 spec).
+# the words of a model under the cap its text names (R66; R146 spec).
 modelled() {
     unset API_TUTOR_STUB
 }
@@ -371,7 +370,7 @@ started() {
 }
 
 # legal_texts asks for the legal texts, which go with no token, and keeps them in $work/texts.json: a
-# new account names the current versions of the policy and the terms (R52; R130, R136 spec).
+# new account names the current versions of the policy and the terms (R52; R130 spec, R136 spec).
 legal_texts() {
     call LegalService/GetLegalTexts <<< '{}'
     expect GetLegalTexts
@@ -421,7 +420,7 @@ keep_code() {
     echo "$who: the code of the new account is kept in $2"
 }
 
-# check_account makes sure the account of the check is there on the tariff dev_check (В80), with
+# check_account makes sure the account of the check is there on the tariff dev_check (R55), with
 # its owner's profile, as owner_account does. The invite code of the account of each UID is kept in
 # <UID>.code beside the dev file, where it really lies, outside any working tree. An account whose
 # code the file keeps gets the tariff by `api tariff`; one with no code kept, made before the tariff,
@@ -804,7 +803,8 @@ check() {
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, crop: env.PIXEL, clock_offset_minutes: 0}')
     expect SubmitEssay
     # An essay keeps tutor's expected prices of the account's family day as spent, the reading's and
-    # the assessment's, under 1,000 micro-dollars (R82, R90): the account's quota is named apart, as for the page above.
+    # the assessment's, under 1,000 micro-dollars (R82, R90): the account's quota is named apart, as
+    # for the page above.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
         die "the quota of platform AI of the account's family day has no room left for an essay: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
     jq -e '.end == "SUBMISSION_END_FEEDBACK" and (.text // "") != "" and (.feedback // "") != ""' "$work/answer.json" > /dev/null ||
@@ -822,7 +822,7 @@ check() {
     expect DisconnectModule
     echo "$who: an essay is read, assessed with its feedback and done on the stub, with its $criteria criteria"
     # What the account's counters hold, over their family days, by the export: of two runs one after
-    # the other, the difference is what the second spent (В80).
+    # the other, the difference is what the second spent (R55).
     exported "$work/end"
     read -r spent_after reserved_after <<< "$(counted "$work/end/account.json")"
     echo "$who: the account's counters of the quota hold $spent_after micro-dollars spent and $reserved_after in reserve"
@@ -868,12 +868,12 @@ app_done() {
     ((failed == 0)) || exit 1
 }
 
-# app keeps api up for the local build of app, whose container cannot run this script (R67; R146
-# spec): the server on the stub of tutor on port 8080, on the packages of the pinned release and
-# the facts of a child, the account dev-app with its owner's profile and a synthetic child of 9 by a
-# parent's consent confirmed, whose profile ID it prints, and a custom token of that account laid
-# anew every half hour in the folder of the volume both devcontainers mount, until the server stops.
-# The token is never printed.
+# app keeps api up for the local build of app, whose container cannot run this script
+# (R67; R146 spec): the server on the stub of tutor on port 8080, on the packages of the pinned
+# release and the facts of a child, the account dev-app with its owner's profile and a synthetic
+# child of 9 by a parent's consent confirmed, whose profile ID it prints, and a custom token of that
+# account laid anew every half hour in the folder of the volume both devcontainers mount, until the
+# server stops. The token is never printed.
 app() {
     local port
     # Not local: app_done reads them when the script exits.

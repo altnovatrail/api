@@ -21,9 +21,9 @@ import (
 
 // The caching of the answers (R18): what a digest gives never changes, so an
 // open view and a file are kept for a day, and a withdrawal reaches the
-// learners only with the author's pull request anyway (Д9 in RUN.md). A refusal
-// is kept by nobody: the next request may find the version given, or the
-// deployment over.
+// learners only with the author's pull request anyway (R07). A refusal is kept
+// by nobody: the next request may find the version given, or the deployment
+// over.
 const (
 	cacheFor = "public, max-age=86400"
 	noStore  = "no-store"

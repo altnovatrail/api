@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # The image of a stage of .devcontainer/Dockerfile, tagged novatrail-toolchain, for image.sh and
-# modules.sh (R27). TOOLCHAIN_STAGE names the stage, as it does to
-# spec/tools/toolchain/toolchain.sh (R31 spec): toolchain, the default, which the tests of the
-# database need for its nss_wrapper (R30), or toolchain-core, Node, just, Go and buf, which is all
-# a release's files and a check of modules.json without its test need. The jobs Image and Modules of
-# ci.yml restore the file of docker save that the shared workflows of .github save on main for
-# that stage, by the same key and path, and name it in TOOLCHAIN_TAR; the file holds the image
-# novatrail-toolchain, the name spec's toolchain.sh gives whichever the stage (R42, R47 .github).
-# The Dockerfile pins everything it installs, so the image from the file is the one it would
-# build. With no file, as in withdrawals.yml, or one that does not load as the image
-# novatrail-toolchain, the image is built from the Dockerfile: the cache costs a run its speed,
-# never its verdict. The file is deleted once read, so that nothing of it is left on the runner.
+# modules.sh (R27). TOOLCHAIN_STAGE names the stage, as it does to spec/tools/toolchain/toolchain.sh
+# (R31 spec): toolchain, the default, which the tests of the database need for its nss_wrapper
+# (R30), or toolchain-core, Node, just, Go and buf, which is all a release's files and a check of
+# modules.json without its test need. The jobs Image and Modules of ci.yml restore the file of
+# docker save that the shared workflows of .github save on main for that stage, by the same key
+# and path, and name it in TOOLCHAIN_TAR; the file holds the image novatrail-toolchain, the name
+# spec's toolchain.sh gives whichever the stage (R42 .github, R47 .github). The Dockerfile pins
+# everything it installs, so the image from the file is the one it would build. With no file, as
+# in withdrawals.yml, or one that does not load as the image novatrail-toolchain, the image is
+# built from the Dockerfile: the cache costs a run its speed, never its verdict. The file is deleted once read, so that nothing of it is left on the runner.
 set -euo pipefail
 
 stage="${TOOLCHAIN_STAGE:-toolchain}"
@@ -23,8 +22,8 @@ tar="${TOOLCHAIN_TAR:-}"
 if [[ -z "$tar" ]]; then
     :
 elif [[ ! -f "$tar" ]]; then
-    # A miss is said, so that a key or a path that no longer matches the entry of "Go" shows in
-    # the log.
+    # A miss is said, so that a key or a path that has drifted from the entry of "Go" shows in the
+    # log.
     echo "toolchain.sh: the cache gave no image of the stage ${stage} for this Dockerfile: it is built from it"
 elif docker load --quiet --input "$tar" && docker image inspect novatrail-toolchain > /dev/null; then
     rm -f -- "$tar"

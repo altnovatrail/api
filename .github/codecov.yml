@@ -1,7 +1,7 @@
 # What Codecov does with the coverage of the tests, which the coverage job of .github's shared
-# go.yml uploads (R48 spec; R16 .github; R27): the Go profile ci-test
-# writes in coverage/go.out. A Go profile names a file by its import path, which Codecov cuts down
-# to the path in the repository by a default rule of its own.
+# go.yml uploads (R48 spec; R16 .github; R27): the Go profile ci-test writes in coverage/go.out. A
+# Go profile names a file by its import path, which Codecov cuts down to the path in the repository
+# by a default rule of its own.
 
 coverage:
   status:

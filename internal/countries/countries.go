@@ -1,7 +1,8 @@
 // Package countries is what api knows of a learner's country before the DPIA
-// (R119 spec; R36): its form, and the countries no deployment may take learners from
-// until the DPIA is done — those of the GDPR and of the UK GDPR. Which countries
-// a deployment takes is the operator's list in the database, closed by default.
+// (R119 spec; R36): its form, and the countries no deployment may take
+// learners from until the DPIA is done — those of the GDPR and of the UK GDPR.
+// Which countries a deployment takes is the operator's list in the database,
+// closed by default.
 package countries
 
 import "slices"

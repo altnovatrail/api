@@ -1,8 +1,8 @@
-// Package consentage is the age of digital consent by country (R52; R134
-// spec): the table of spec's part consent-age/, at the tag api pins, and the
-// category of a learner it gives — consent-age/README.md, section 6. api keeps
-// the category, the day it was given and applied, the age of the country on
-// that day, and never the age in years (privacy 3.3 spec).
+// Package consentage is the age of digital consent by country (R52): the table
+// of spec's part consent-age/, at the tag api pins, and the category of a
+// learner it gives. api keeps the category, the day it was given and applied,
+// the age of the country on that day, and never the age in years (R06 spec,
+// R134 spec).
 package consentage
 
 import (
@@ -19,7 +19,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// The categories of a learner by age (privacy 3.1 spec).
+// The categories of a learner by age (R134 spec).
 const (
 	Under13         = "under_13"
 	From13ToConsent = "from_13_to_consent"
@@ -27,8 +27,8 @@ const (
 	Adult           = "adult"
 )
 
-// The ages section 6 is bound by: below the first a learner is under 13
-// everywhere, and from the second an adult.
+// The ages the category is bound by: below the first a learner is under 13
+// everywhere, and from the second an adult (R134 spec).
 const (
 	childAge = 13
 	adultAge = 18
@@ -54,7 +54,7 @@ type entry struct {
 
 // Load is the table of spec's Go module at the tag api pins, spec.ConsentAge:
 // spec's own check accepted it before its release, so it is read, not checked
-// again (consent-age/README.md, section 5).
+// again.
 func Load() (*Table, error) {
 	return Read(spec.ConsentAge)
 }

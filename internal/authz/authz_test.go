@@ -147,7 +147,8 @@ func TestTheOwnedProfilesAreReadAndDeletedPastAPage(t *testing.T) {
 // The tuple is written inside the transaction of the database api that makes the
 // profile, before its COMMIT (R31). A write that fails after it rolls the profile
 // back and leaves the tuple dangling: it gives a right to a profile that is not
-// there, which the requests answer as "no profile", and T28 removes it.
+// there, which the requests answer as "no profile", and the daily job removes it
+// (R21).
 func TestTheTupleIsWrittenBeforeTheCommit(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +207,8 @@ func TestTheTupleIsWrittenBeforeTheCommit(t *testing.T) {
 	}
 }
 
-// The model the binary embeds is section 3.1's, word for word.
+// The model the binary embeds is the one docs/architecture.md gives, word for
+// word.
 func TestTheModelIsSection31s(t *testing.T) {
 	t.Parallel()
 
