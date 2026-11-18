@@ -78,7 +78,7 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T116 | Тексты без истории: архитектура 3.1–3.4 | Claude | — | T114 |
 | [x] | T117 | Тексты без истории: архитектура 3.5–3.8 | Claude | — | T114 |
 | [x] | T118 | Тексты без истории: архитектура 3.9–3.11 | Claude | — | T114 |
-| [ ] | T119 | Комментарии кода по R160 spec: `internal/learning` | Claude | — | T114 |
+| [x] | T119 | Комментарии кода по R160 spec: `internal/learning` | Claude | — | T114 |
 | [ ] | T120 | Комментарии кода по R160 spec: `internal/store`, `account`, `config` | Claude | — | T114 |
 | [ ] | T121 | Комментарии кода по R160 spec: `cmd/api`, `internal/` от `rpc` до `logging` | Claude | — | T114 |
 | [ ] | T122 | Комментарии кода по R160 spec: остальной Go, justfile, CI, Dockerfile, скрипты | Claude | — | T114 |

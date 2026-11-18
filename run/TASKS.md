@@ -7,13 +7,6 @@ Open tasks outside the current epic, each as its body, in Russian (R154 spec, R1
 
 ## Tasks outside an epic
 
-#### T119. Комментарии кода по R160 spec: `internal/learning`
-
-- **Цель:** комментарии `internal/learning` — по R160 spec, «Comments».
-- **Сделать:** комментарий говорит, чего не скажут код и имена: почему, ограничение, ловушка, контракт экспортируемого API; без пересказа кода, истории, номеров задач и разделов документов; где причина — решение, ограничение одной фразой и номер в конце, `(R25)`; номер решения `spec` — `(R25 spec)`, другого репозитория — `(R100 tutor)`. Код и тесты — те же.
-- **Как проверить:** `just -f spec/justfile docs-check-repo`; проверки правила `.claude/rules/go.md`; `/code-review high`.
-- **Разделы:** R160 spec, R32 spec.
-
 #### T120. Комментарии кода по R160 spec: `internal/store`, `internal/account`, `internal/config`
 
 - **Цель:** комментарии этих пакетов — по R160 spec, «Comments».
