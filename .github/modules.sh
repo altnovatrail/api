@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # What the job Modules of ci.yml and the job Withdrawals of withdrawals.yml run on the runner (R07,
-# R41, R53, R61 in docs/decisions.md): the recipe each names, just ci-modules or just
+# R41, R53, R61): the recipe each names, just ci-modules or just
 # ci-withdrawals, in a stage of the devcontainer, whose image toolchain.sh gives — toolchain for
 # ci-modules, toolchain-core for ci-withdrawals, which TOOLCHAIN_STAGE names. Each has Node for
 # release-verify, Go for cmd/modules-check and api packages, and curl and jq, with the network;

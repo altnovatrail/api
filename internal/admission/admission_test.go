@@ -248,7 +248,7 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	}
 }
 
-// The tutor's words are admitted where the table admits them (R100 of tutor):
+// The tutor's words are admitted where the table admits them (R100 tutor):
 // at the author's stage, for an adult, by the platform's key of Anthropic or an
 // own key of Anthropic, the hint and the analysis with the work alike; at the
 // stage full, for a child, with no key of the platform, or by a provider api

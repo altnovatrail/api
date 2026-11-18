@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The image of a stage of .devcontainer/Dockerfile, tagged novatrail-toolchain, for image.sh and
-# modules.sh (R27 in docs/decisions.md). TOOLCHAIN_STAGE names the stage, as it does to
+# modules.sh (R27). TOOLCHAIN_STAGE names the stage, as it does to
 # spec/tools/toolchain/toolchain.sh (R31 spec): toolchain, the default, which the tests of the
 # database need for its nss_wrapper (R30), or toolchain-core, Node, just, Go and buf, which is all
 # a release's files and a check of modules.json without its test need. The jobs Image and Modules of

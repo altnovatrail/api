@@ -1,4 +1,4 @@
-# The image of api in production (R105, R106 in spec; R28 in docs/decisions.md). NovaTrail publishes
+# The image of api in production (R105, R106 spec; R28). NovaTrail publishes
 # no image: a release of api carries its signed binaries and this file, and whoever deploys builds
 # the image around the binary that release-verify accepted, by --target release:
 #
@@ -40,7 +40,7 @@ EXPOSE 8080
 ENTRYPOINT ["/api"]
 CMD ["serve"]
 
-# The packages of modules the image holds (R07, R41 in docs/decisions.md): the binary lays them
+# The packages of modules the image holds (R07, R41): the binary lays them
 # itself, by its command packages, from the release of modules that the modules.json embedded in
 # it pins — the index by its digest, each package by module-kit by the chain from it — so the
 # build needs the network, and no file of the main context. The runtime has no shell, so the RUN
