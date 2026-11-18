@@ -82,4 +82,4 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T120 | Комментарии кода по R160 spec: `internal/store`, `account`, `config` | Claude | — | T114 |
 | [x] | T121 | Комментарии кода по R160 spec: `cmd/api`, `internal/` от `rpc` до `logging` | Claude | — | T114 |
 | [x] | T122 | Комментарии кода по R160 spec: остальной Go, justfile, CI, Dockerfile, скрипты | Claude | — | T114 |
-| [ ] | T123 | `"comments": true` с релизом `learner-model` по R160 spec | Claude | — | T114; релиз `learner-model` строки 7.29 |
+| [x] | T123 | `"comments": true` с релизом `learner-model` по R160 spec | Claude | — | T114; релиз `learner-model` строки 7.29 |
