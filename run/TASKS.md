@@ -7,17 +7,6 @@ Open tasks outside the current epic, each as its body, in Russian (R154 spec, R1
 
 ## Tasks outside an epic
 
-#### T115. Тексты без истории: CLAUDE.md, README, AGENTS.md, правила частей, `docs/README.md`, `docs/build.md` и разделы 1, 2 и 4 архитектуры
-
-- **Цель:** эти тексты держат текущее состояние, без истории (R160 spec): CLAUDE.md, README.md, AGENTS.md, `.claude/rules/*.md`, `run/EPICS.md`, `docs/README.md`, `docs/build.md`, а в `docs/architecture.md` — начало с абзацем «Status», разделы 1, 2, начало раздела 3 и раздел 4.
-- **Сделать:**
-  - убрать хроники версий, статусов и повышений: документ называет файл, где задано значение — подмодуль `spec`, `go.mod`, `modules.json`, `ARG` Dockerfile, — а не значение; «Status» архитектуры — без перечня переходов на теги; правила частей — без хроник задач («as T53, T54 and T61 did») и «the last amendment to R27»: они называют решение и файл, где задана версия;
-  - архитектура описывает текущее устройство и ссылается на решение номером, не пересказывая его;
-  - ссылка на поправку записи `spec`, которую тег переписал на месте (R143, R145, R154, R155 spec и те, что переписали задачи E16 `spec`), — на запись;
-  - записи журнала не переписывать, кроме тех, что задача меняет (R160 spec); пределы `docs-budgets.json`, которые станут велики, — снизить.
-- **Как проверить:** `just -f spec/justfile docs-check-repo`; `/code-review high`.
-- **Разделы:** R160 spec; RULES.md spec, The bar; architecture 1, 2, 4.
-
 #### T116. Тексты без истории: архитектура 3.1–3.4
 
 - **Цель:** разделы 3.1–3.4 `docs/architecture.md` держат текущее устройство, без истории (R160 spec).
