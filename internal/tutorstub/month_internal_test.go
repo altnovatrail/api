@@ -7,7 +7,7 @@ import (
 
 // The ceiling of the tier lets a key go at 00:00 UTC on the first day of the
 // next month by UTC, the year's last month included, wherever the clock's zone
-// puts the time (sources 2.8 spec).
+// puts the time.
 func TestTheTierReturnsOnTheFirstOfTheNextMonth(t *testing.T) {
 	t.Parallel()
 

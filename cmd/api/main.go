@@ -133,8 +133,8 @@ func exitCode(stderr io.Writer, err error) int {
 	return exitFailure
 }
 
-// flags is the flag set of a command that takes no flags yet, which still
-// answers -h and refuses what it does not know.
+// flags reads the command line of a command that takes no flags and no
+// arguments: it still answers -h and refuses what it does not know.
 func flags(name string, args []string, stderr io.Writer) error {
 	set := flag.NewFlagSet("api "+name, flag.ContinueOnError)
 	set.SetOutput(stderr)

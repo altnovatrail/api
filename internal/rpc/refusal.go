@@ -33,7 +33,7 @@ func AccountGone(ctx context.Context) error {
 	return Refuse(ctx, connect.CodeUnauthenticated, v1.Cause_CAUSE_ACCOUNT_GONE)
 }
 
-// The other refusals of the checks (architecture 3.1, 3.10).
+// The other refusals of the checks.
 func noAccess(ctx context.Context) error {
 	return Refuse(ctx, connect.CodePermissionDenied, v1.Cause_CAUSE_NO_ACCESS)
 }

@@ -45,10 +45,10 @@ func (s *Set) File(digest formatv0.Digest) string {
 
 // Read reads the folder dir that Lay laid for cfg: its index must have the digest
 // cfg pins, so that a folder of another release is a failed start rather than
-// another set of versions (architecture 3.3), and each package of that index in
-// the window must be there: its texts whole, by the chain of digests from the
-// index, and each file its listing names, of the size it names. The files of the
-// device parts are not read again: Lay laid each under its digest after
+// another set of versions (R41), and each package of that index in the window
+// must be there: its texts whole, by the chain of digests from the index, and
+// each file its listing names, of the size it names. The files of the device
+// parts are not read again: Lay laid each under its digest after
 // module-kit had read it, and an image does not change; so serve holds no media
 // in memory and does not hash them at every start.
 func Read(dir string, cfg Config) (*Set, error) {

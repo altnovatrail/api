@@ -29,7 +29,7 @@ type Told struct {
 
 // Tell is what the rows of the attempt o tell: its items of its answers alone,
 // and the rest when the image holds its package — one that left the image tells
-// no trap, technique or question (Д27).
+// no trap, technique or question (R49).
 func (m *Model) Tell(ctx context.Context, o store.Owed) (Told, error) {
 	answers := make([]*v1.SubmitWorkResponse, len(o.Answers))
 	for i, written := range o.Answers {

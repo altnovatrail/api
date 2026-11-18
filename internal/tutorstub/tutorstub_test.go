@@ -446,8 +446,8 @@ func (g asking) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProv
 }
 
 // The stub admits each kind of call as the gate does, on its category and
-// route: tutor v0.1.46 admits the workbook, the essay and the rubric by the
-// author's word, so the stub admits none of them in a sheet's stead (R90).
+// route: admission is tutor's, so the stub admits none of them in a sheet's
+// stead (R90).
 func TestTheStubAdmitsAsTheGateDoes(t *testing.T) {
 	t.Parallel()
 
@@ -631,11 +631,11 @@ func assessment(route tutor.Route, language string, n int) tutor.RubricAssessmen
 	return a
 }
 
-// An essay is read by the shape of its sheet's crop (the author's decision of
-// 2026-11-15): wider than tall the stub's text, taller than wide a blank sheet,
-// square illegible, each an observation of the one slot bound to the sheet,
-// with no crop box, which module-kit takes as an essay read or unreadable. One
-// reader reads it, spending the expected price of the essay, and with no price nothing priced.
+// An essay is read by the shape of its sheet's crop (R66): wider than tall the
+// stub's text, taller than wide a blank sheet, square illegible, each an
+// observation of the one slot bound to the sheet, with no crop box, which
+// module-kit takes as an essay read or unreadable. One reader reads it,
+// spending the expected price of the essay, and with no price nothing priced.
 func TestTheStubReadsAnEssayByTheShapeOfTheCrop(t *testing.T) {
 	t.Parallel()
 
@@ -681,9 +681,8 @@ func TestTheStubReadsAnEssayByTheShapeOfTheCrop(t *testing.T) {
 // What tutor's reading of an essay fails before its call the stub fails too,
 // with no observation and no usage, on any key: a task that is no handwriting
 // sheet, has no slot bound to the sheet, two, or one bound otherwise, no open
-// view of the task, a crop
-// that is no PNG or is larger than 4096 px on a side; and so does a request cut
-// short.
+// view of the task, a crop that is no PNG or is larger than 4096 px on a side;
+// and so does a request cut short.
 func TestTheStubFailsAnEssayTutorFails(t *testing.T) {
 	t.Parallel()
 
@@ -726,12 +725,12 @@ func TestTheStubFailsAnEssayTutorFails(t *testing.T) {
 	}
 }
 
-// The stub assesses every criterion met but the last (the author's decision of
-// 2026-11-15), each with its synthetic evidence, and gives its feedback in
-// English and Russian, English in another language: each passes words.Feedback
-// against the text the stub reads and against any other, and the leak check of
-// the task, as api checks it (R82). The assessment spends the expected price of
-// the rubric, and with none nothing priced.
+// The stub assesses every criterion met but the last (R66), each with its
+// synthetic evidence, and gives its feedback in English and Russian, English in
+// another language: each passes words.Feedback against the text the stub reads
+// and against any other, and the leak check of the task, as api checks it
+// (R82). The assessment spends the expected price of the rubric, and with none
+// nothing priced.
 func TestTheStubAssessesEveryCriterionButTheLast(t *testing.T) {
 	t.Parallel()
 

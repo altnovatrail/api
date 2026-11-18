@@ -24,7 +24,7 @@ import (
 var ErrConfig = errors.New("packages: modules.json is not a release and the digest of its index")
 
 // Config is modules.json: the tag of a release of modules and the digest of the
-// bytes of its module-index.json (R07; architecture 3.3).
+// bytes of its module-index.json (R07).
 type Config struct {
 	// Release is the tag of the release, vX.Y.Z.
 	Release string `json:"release"`

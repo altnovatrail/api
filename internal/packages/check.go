@@ -17,7 +17,7 @@ var (
 	// marked only in the indexes of the releases after it (R63 spec).
 	ErrOlderRelease = errors.New("packages: the release is older than the one main pins")
 	// ErrLostVersion is a module that has a current version on main and would have
-	// none, other than by a withdrawal (R07; architecture 3.3).
+	// none, other than by a withdrawal (R07).
 	ErrLostVersion = errors.New("packages: a module would lose its current version")
 	// ErrNewestIndex is a file of the newest release of modules that is no module
 	// index (R61).
@@ -36,11 +36,10 @@ type Current struct {
 
 // Check is the check of CI of a modules.json, cfg, whose signature the job has
 // checked by release-verify (R07; R77 spec): index must be the bytes of its
-// index; and against main's — mainCfg and mainIndex, or nil when main pins none
-// yet — its release must not be older, and no module that has a current
-// version on main may lose it other than by a withdrawal. It gives the current
-// version of each module of either index, so that the author sees what the
-// learners get.
+// index; and against main's — mainCfg and mainIndex, or nil when main pins
+// none — its release must not be older, and no module that has a current version
+// on main may lose it other than by a withdrawal. It gives the current version
+// of each module of either index, so that the author sees what the learners get.
 func Check(cfg Config, index []byte, mainCfg *Config, mainIndex []byte) ([]Current, error) {
 	idx, err := checkIndex(index, cfg.Index)
 	if err != nil {

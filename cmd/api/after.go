@@ -18,11 +18,11 @@ import (
 // "unchecked" the open attempts and lesson runs on the packages this image no
 // longer gives — withdrawn, or out of the window — and writes the evidence the
 // attempts it closes owe, then exits. The rollout runs it as a Cloud Run job of
-// the new image once its revision takes all traffic (the amendment of 2026-11-08
-// to R106 spec). It opens the database api alone, by the pooler, and reads the
-// packages as serve does. The log goes to stdout, a line for each step with its
-// counts; the process exits 1 unless the pass was clean, and what it left the
-// next request on it, or the daily job, closes.
+// the new image once its revision takes all traffic (R51). It opens the
+// database api alone, by the pooler, and reads the packages as serve does. The
+// log goes to stdout, a line for each step with its counts; the process exits 1
+// unless the pass was clean, and what it left the next request on it, or the
+// daily job, closes.
 func afterPass(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	within, err := passFlags("after", args, stderr)
 	if err != nil {

@@ -6,8 +6,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 )
 
-// rule is what the checks of architecture 3.1 ask of a method before its handler
-// runs (R33).
+// rule is what the checks ask of a method before its handler runs (R33).
 type rule struct {
 	// open is a method that goes with no token: an open view of a package, and
 	// the legal texts.
@@ -22,11 +21,10 @@ type rule struct {
 	fresh bool
 	// dropsDangling is the deletion of a profile: a tuple whose profile is gone —
 	// a deletion before it that left the tuple — is deleted by its repeat, which
-	// is told "no profile" all the same (R21; architecture 3.10).
+	// is told "no profile" all the same (R21).
 	dropsDangling bool
 }
 
-// The rules' shapes, as the table of architecture 3.9 gives them.
 var (
 	openView  = rule{open: true}
 	ofAccount = rule{}

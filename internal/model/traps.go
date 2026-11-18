@@ -14,10 +14,10 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// Trap is a trap that repeats in a profile's closed attempts (contract,
-// RepeatingTrap): its full ID, its description and advice from the trap catalog
-// of the version of the last attempt that found it, how many attempts found it,
-// and when the last of them closed.
+// Trap is a trap that repeats in a profile's closed attempts: its full ID, its
+// description and advice from the trap catalog of the version of the last
+// attempt that found it, how many attempts found it, and when the last of them
+// closed.
 type Trap struct {
 	ID           string
 	Description  string
@@ -30,7 +30,7 @@ type Trap struct {
 // attempts or more, by full ID, the most found first, then the latest. An
 // attempt on a version withdrawn for a wrong key counts none: its verdicts are
 // wrong (R63 spec). A trap whose last version left the image has no catalog to
-// describe it by, and is left out (Д27).
+// describe it by, and is left out (R49).
 func (m *Model) RepeatingTraps(journal []store.Entry) ([]Trap, error) {
 	type found struct {
 		attempts int

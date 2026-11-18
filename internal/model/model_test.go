@@ -127,7 +127,6 @@ func answer(wrong int32, items ...[]slot) []byte {
 	return data
 }
 
-// closed is an attempt closed as given.
 type closed struct {
 	pkg      *modulepackage.Package
 	digest   string
@@ -222,7 +221,6 @@ func (l learner) journal(t *testing.T) (map[string]learnermodel.Evidence, []stor
 	return out, entries
 }
 
-// cache is the learner's row of the cache.
 func (l learner) cache(t *testing.T) store.SkillState {
 	t.Helper()
 	var s store.SkillState
@@ -368,9 +366,8 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 	}
 }
 
-// A slot whose check is a time of day, from format 0.4, is written as its own
-// kind, and one with a rubric, which learner-model does not know, as a kind not
-// given.
+// A slot whose check is a time of day is written as its own kind, and one with
+// a rubric, which learner-model does not know, as a kind not given.
 func TestATimeOfDayIsItsOwnKind(t *testing.T) {
 	t.Parallel()
 
@@ -525,7 +522,7 @@ func right(task string) [][]byte {
 
 // A trap repeats when two closed attempts found it, those of a version withdrawn
 // for a wrong key not counted, with the texts of the version of the last; one
-// whose last version left the image is left out (Д27).
+// whose last version left the image is left out (R49).
 func TestATrapRepeatsInTwoAttempts(t *testing.T) {
 	t.Parallel()
 

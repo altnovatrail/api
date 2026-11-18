@@ -65,7 +65,7 @@ func TestTariffGivesTheAccountOfACodeItsTariff(t *testing.T) {
 	if got := tariffOf(t, url, otherID); got == nil || *got != quota.ClosedSlice {
 		t.Errorf("another account's tariff = %v, want it as it was", got)
 	}
-	// Off a deployment the tariff of dev-check is given as any other (В80).
+	// Off a deployment the tariff of dev-check is given as any other (R55).
 	if exit, stdout, stderr := runCommand(t.Context(), []string{"API_DATABASE_URL=" + url}, "tariff", "-tariff", quota.DevCheck,
 		other); exit != exitOK || stdout != quota.DevCheck+"\n" || stderr != "" {
 		t.Fatalf("tariff dev_check = %d, %q, %q; want 0 and the tariff alone", exit, stdout, stderr)
@@ -86,7 +86,7 @@ func TestTariffGivesTheAccountOfACodeItsTariff(t *testing.T) {
 
 // A code that no account redeemed, or whose account is being deleted, changes
 // no tariff; what is no code or no tariff is a usage the command refuses, and so
-// is the tariff of dev-check, deployed (В80).
+// is the tariff of dev-check, deployed (R55).
 func TestTariffRefusesWhatItCannotRun(t *testing.T) {
 	t.Parallel()
 

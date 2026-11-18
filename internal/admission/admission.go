@@ -13,8 +13,8 @@
 // The file of facts and the stage are the deployment's, not the image's: with
 // no file no fact holds, and the table closes platform AI while it leaves an
 // adult's own key open; with no stage it is "full", closed by default (R25).
-// No model has passed the stage full yet, so there no reading is admitted at
-// all, by an own key either: the first app passes "author". A fact or a
+// No model has passed the stage full, so there no reading is admitted at all,
+// by an own key either: the first app passes "author". A fact or a
 // provider the table does not name is a refusal of the configuration, since a
 // typo would close a route without a word.
 package admission

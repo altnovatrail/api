@@ -14,7 +14,7 @@ import (
 
 // The daily job erases the scans whose consent is gone and whose term ended,
 // from the store and then their rows, and leaves the others; and it deletes the
-// reports reviewed more than a year ago (R116, R117, R123 spec).
+// reports reviewed more than a year ago (R116 spec, R117 spec, R123 spec).
 func TestThePassErasesTheFormsAndTheReportsPastTheirTerm(t *testing.T) {
 	t.Parallel()
 

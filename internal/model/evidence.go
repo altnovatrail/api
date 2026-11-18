@@ -22,11 +22,11 @@ import (
 const lastRung = 3
 
 // outcomeOf is the outcome of an attempt closed with reason after wrong wrong
-// answers (concepts 11 spec; architecture 3.5): correct at the first
-// submission, or after the hint of the rung its wrong answers reached; the
-// solution shown; left unfinished, when the learner left it, it was abandoned or
-// its lesson run ended "not suitable"; or unchecked. A hint asked for and
-// "explain differently" do not change it, and no hint of api is a sketch.
+// answers: correct at the first submission, or after the hint of the rung its
+// wrong answers reached; the solution shown; left unfinished, when the learner
+// left it, it was abandoned or its lesson run ended "not suitable"; or
+// unchecked. A hint asked for and "explain differently" do not change it, and
+// no hint of api is a sketch.
 func outcomeOf(reason string, wrong int) learnermodel.Outcome {
 	switch reason {
 	case "correct":
@@ -47,7 +47,7 @@ func outcomeOf(reason string, wrong int) learnermodel.Outcome {
 // none (О-17): none begins in this code (R14), and the path of a task with a
 // rubric takes one closed "unchecked" out of what is owed, which each settling
 // would find again. What it holds is the facts of the attempt, as learner-model
-// describes them (R06; architecture 3.5): the task, the start band by the
+// describes them (R06): the task, the start band by the
 // grade, the outcome, the time of the last action, the techniques given at a
 // step and on request, whether a hint asked for gave the leading question — a
 // hint gives it only before the first wrong answer, and only when asked for
@@ -165,7 +165,7 @@ func itemsOf(n int, answers []*v1.SubmitWorkResponse) []learnermodel.ItemAnswer 
 
 // reasonOf is why an item gave no verdict: blank, when every answer slot that
 // could not be read is blank; unreadable otherwise; or unchecked, when its
-// check could not run (concepts 9.1 spec).
+// check could not run.
 func reasonOf(item *v1.ItemVerdict) learnermodel.UnverdictedReason {
 	if verdict.Verdict(item.GetVerdict()) != verdict.Unreadable {
 		return learnermodel.UnverdictedUnchecked

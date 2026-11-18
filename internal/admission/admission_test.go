@@ -463,8 +463,8 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 }
 
-// apiCalls are the kinds of call api makes (R72, R76, R81, R82), and before are those it
-// made before tutor v0.1.35 brought the words after a correct answer.
+// apiCalls are the kinds of call api makes (R72, R76, R81, R82), and before are
+// the three that R72 names: the reading of a sheet, the words and the hint.
 var (
 	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook,
 		tutor.CallEssay, tutor.CallRubric}
@@ -492,10 +492,10 @@ func chosenOf(tu *tutor.Tutor, calls []tutor.Call, category formatv0.AgeCategory
 }
 
 // The words after a correct answer open no own key that the three kinds of call
-// before them left closed (R76): at either stage, for every category and every
-// provider of the table, OwnKeyOpen answers as the choice of the reading and
-// the words alone did, so ListOwnKeyProviders lists what it listed on tutor
-// v0.1.33.
+// of R72 leave closed (R76): at either stage, for every category and every
+// provider of the table, OwnKeyOpen answers as the choice of the reading, the
+// words and the hint alone, so ListOwnKeyProviders lists the providers those
+// three open.
 func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
 	t.Parallel()
 
@@ -517,9 +517,9 @@ func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
 	}
 }
 
-// The check of a key asks the models it asked on tutor v0.1.33, Opus 5.5 and
-// Haiku 5.5, each once: the words after a correct answer are on Opus 5.5, as
-// the words, so tutor v0.1.35 checks no other model (R73, R76).
+// The check of a key asks Opus 5.5 and Haiku 5.5, each once: the words after a
+// correct answer are on Opus 5.5, as the words, so they add no model to check
+// (R73, R76).
 func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 	t.Parallel()
 

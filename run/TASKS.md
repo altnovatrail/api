@@ -7,13 +7,6 @@ Open tasks outside the current epic, each as its body, in Russian (R154 spec, R1
 
 ## Tasks outside an epic
 
-#### T121. Комментарии кода по R160 spec: `cmd/api` и пакеты `internal/` от `rpc` до `logging`
-
-- **Цель:** комментарии `cmd/api`, `internal/rpc`, `internal/tutorstub`, `internal/packages`, `internal/admission`, `internal/model`, `internal/sweep` и `internal/logging` — по R160 spec, «Comments».
-- **Сделать:** как в T119.
-- **Как проверить:** как в T119.
-- **Разделы:** R160 spec, R32 spec.
-
 #### T122. Комментарии кода по R160 spec: остальной Go, justfile, CI, Dockerfile и скрипты
 
 - **Цель:** комментарии остального кода — по R160 spec, «Comments»: пакеты `internal/`, которых нет в T119–T121, `cmd/modules-check`, Go в `scripts/`, а также `#` justfile, `.github/`, `Dockerfile`, `.devcontainer/` и `scripts/`.
