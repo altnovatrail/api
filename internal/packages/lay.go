@@ -38,7 +38,7 @@ var (
 	ErrFetch = errors.New("packages: the file could not be fetched from the release")
 	// ErrArchive is an archive of a package that holds what a package does not:
 	// a link or another kind of entry, a sparse file, a path out of the package
-	// or of no part of it, or more bytes than its limit (architecture 3.10 spec).
+	// or of no part of it, or more bytes than its limit (R41).
 	ErrArchive = errors.New("packages: the archive is not a package's")
 	// ErrNotEmpty is a folder to lay the packages into that holds something.
 	ErrNotEmpty = errors.New("packages: the folder is not empty")
@@ -65,7 +65,7 @@ const (
 )
 
 // DefaultBase is where the releases of modules give their files, without a
-// token: /<release>/<file> follows it (architecture 3.10 spec).
+// token: /<release>/<file> follows it.
 const DefaultBase = "https://github.com/altnovatrail/modules/releases/download"
 
 // fetchTimeout bounds each file fetched: a release that stops answering fails
@@ -240,7 +240,7 @@ func fetch(ctx context.Context, client *http.Client, base, release, name string,
 }
 
 // archiveName is the name of the archive of the package of digest in its
-// release: the digest with - for : (architecture 3.10 spec).
+// release: the digest with - for : (R03 modules).
 func archiveName(digest formatv0.Digest) string { return Name(digest) + ".tar.gz" }
 
 // unpack is the files of an archive of a package, by their paths in its folder.
@@ -318,7 +318,7 @@ func sparse(header *tar.Header) bool {
 }
 
 // partOfPackage says whether name is a file a package as files has: its three
-// texts and the files of its device part (format/README.md, section 25).
+// texts and the files of its device part (R62 spec).
 func partOfPackage(name string) bool {
 	switch name {
 	case modulepackage.InventoryFile, modulepackage.ServerFile, modulepackage.DeviceFile:
@@ -377,7 +377,7 @@ func deviceFiles(listing formatv0.DeviceListing) []deviceFile {
 }
 
 // Name is a digest as a name in the folder and in a release, and in the path of
-// a file of a device part: sha256-<hex> (architecture 3.10 spec).
+// a file of a device part: sha256-<hex> (R99 spec).
 func Name(digest formatv0.Digest) string {
 	return strings.Replace(string(digest), ":", "-", 1)
 }

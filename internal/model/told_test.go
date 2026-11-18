@@ -8,7 +8,7 @@ import (
 
 // What an attempt's rows tell once its package reads them: its items of its
 // answers, the traps found in its wrong values, the task's techniques and its
-// leading question; with no package in the image, only the items (Д27).
+// leading question; with no package in the image, only the items (R49).
 func TestAnAttemptsRowsTellItsFacts(t *testing.T) {
 	t.Parallel()
 

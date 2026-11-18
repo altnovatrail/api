@@ -9,7 +9,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 )
 
-// Status is whether the image gives a package (R07; contract, PackageStatus).
+// Status is whether the image gives a package (R07).
 type Status int
 
 // The statuses of a digest.

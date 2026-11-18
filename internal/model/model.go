@@ -39,7 +39,7 @@ type Model struct {
 	// evidence the state leaves out (R63 spec); in the window or not.
 	wrongKey map[string]bool
 	// graphs is the graph of the current version of each module that has one
-	// (the 2026-11-02 amendment to R07): the index's, for every learner.
+	// (R07): the index's, for every learner.
 	graphs map[formatv0.ModuleID]learnermodel.Graph
 }
 
@@ -104,7 +104,7 @@ type Settled struct {
 //     recomputed of the whole journal;
 //   - a newer one — the image after this one, during a deployment, wrote it —:
 //     the state is recomputed for the answer, and the cache is not written
-//     (the 2026-11-02 amendment to R06).
+//     (R06).
 //
 // Then each owed attempt's evidence is appended to the state and to the journal,
 // with the start band the fold took. The evidence of a package withdrawn for a

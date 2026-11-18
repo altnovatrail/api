@@ -1,8 +1,8 @@
 // Package rpc is api's server of the contract novatrail.api.v1, on Connect v2
 // (R17, R18, R33): the methods of the contract, its codecs, and the interceptors
 // every request goes through — its line of the log, its time limit and the
-// checks of architecture 3.1, which run before any handler. The handlers of the
-// methods join it task by task; until then a method answers unimplemented.
+// checks, which run before any handler. A method with no handler answers
+// unimplemented.
 package rpc
 
 import (
@@ -80,10 +80,9 @@ func or[H any](set, unimplemented H) H {
 }
 
 // Mount puts the server's methods on mux, with the contract's codecs: binary
-// protobuf, and JSON for debugging, written with the protobuf names (R18;
-// contracts README, sections 6 and 9). The JSON codec of Connect discards
-// unknown fields already. A message larger than MaxMessage is refused
-// resource_exhausted before it is decoded.
+// protobuf, and JSON for debugging, written with the protobuf names (R18). The
+// JSON codec of Connect discards unknown fields already. A message larger than
+// MaxMessage is refused resource_exhausted before it is decoded.
 func Mount(mux *http.ServeMux, server *connect.Server) {
 	json := connectproto.NewJSONCodec()
 	json.MarshalOptions.UseProtoNames = true
@@ -93,10 +92,10 @@ func Mount(mux *http.ServeMux, server *connect.Server) {
 
 // MaxMessage is the largest message of a request the server reads, in bytes
 // (R33, R46, R52): 11 MiB. The largest message of the contract is the scan of a
-// parent's form of consent, up to 10 MiB by the contract (section 15), with the
-// rest of its request; a stored work is at most 4 MiB, and the crop of a
-// handwriting sheet, at most 1568 px a side in grey of 8 bits, is under 2.5 MB
-// even if PNG compressed nothing. The JSON of debugging writes the scan in
+// parent's form of consent, up to 10 MiB by the contract, with the rest of its
+// request; a stored work is at most 4 MiB, and the crop of a handwriting sheet,
+// at most 1568 px a side in grey of 8 bits, is under 2.5 MB even if PNG
+// compressed nothing. The JSON of debugging writes the scan in
 // base64, a third larger, and is no way to send one.
 const MaxMessage = 11 << 20
 

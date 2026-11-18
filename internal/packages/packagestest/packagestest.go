@@ -290,8 +290,8 @@ func Index(t testing.TB, entries ...Entry) []byte {
 }
 
 // teachesOf is the anchor skills the skills of view's graph teach, each once, in
-// the order of their bytes: the teaches of its entry, as a release of modules
-// writes it (format/README.md, section 26).
+// the order of their bytes, which for IDs of ASCII is the order of UTF-16 code
+// units a release of modules writes the teaches of its entry in (R63 spec).
 func teachesOf(view formatv0.CanonicalView) []string {
 	if view.SkillGraph == nil {
 		return nil

@@ -51,10 +51,10 @@ func CallerFrom(ctx context.Context) (Caller, bool) {
 	return caller, ok
 }
 
-// checks runs the checks of architecture 3.1 in their order, before the handler
-// (R20, R33): the class of the token, the mark "deleting", the account, the
-// right on the profile — on its message, before anything is read by its ID —
-// and the fresh sign-in, last.
+// checks runs the checks in this order, before the handler (R20, R33): the
+// class of the token, the mark "deleting", the account, the right on the
+// profile — on its message, before anything is read by its ID — and the fresh
+// sign-in, last.
 type checks struct {
 	signin authn.Port
 	db     DB
@@ -117,8 +117,7 @@ func (c *checks) intercept(next connect.ServerFunc) connect.ServerFunc {
 	}
 }
 
-// refused answers a token the sign-in service refused, by its class (R20;
-// architecture 3.10).
+// refused answers a token the sign-in service refused, by its class (R20).
 func (c *checks) refused(ctx context.Context, err error) error {
 	var refusal *authn.Refusal
 	if !errors.As(err, &refusal) {
@@ -145,8 +144,8 @@ func (c *checks) refused(ctx context.Context, err error) error {
 			// The user was deleted past api: the account goes too, by the same
 			// path as DeleteAccount, with no fresh sign-in, in this request (R20,
 			// R21). Its user is gone already; what else does not finish after the
-			// mark, the daily job does (T28). A mark that did not go is a failure,
-			// and a repeat marks it.
+			// mark, the daily job does. A mark that did not go is a failure, and a
+			// repeat marks it.
 			err := c.userGone(ctx, account.ID, refusal.UID)
 			var unfinished *deletion.Unfinished
 			switch {
@@ -229,14 +228,14 @@ func (s *checked) Receive(msg any) error {
 	return nil
 }
 
-// Learner is step 5 of architecture 3.1, for the handlers of the learning
-// requests: the profile's consent is confirmed, or the request is refused "no
-// consent" (R116 spec), and its age is not to be given again, or it is refused
-// "age needed": its country raised its age of digital consent above the one its
-// category was given by (R134 spec). It gives the profile's age category, read with the
-// consent in one query, by which a module and a task suit the learner (R07). It
-// runs after the checks, on the profile they let through: one gone meanwhile is
-// "no profile".
+// Learner is the check of consent, for the handlers of the learning requests:
+// the profile's consent is confirmed, or the request is refused "no consent"
+// (R116 spec), and its age is not to be given again, or it is refused "age
+// needed": its country raised its age of digital consent above the one its
+// category was given by (R134 spec). It gives the profile's age category, read
+// with the consent in one query, by which a module and a task suit the learner
+// (R07). It runs after the checks, on the profile they let through: one gone
+// meanwhile is "no profile".
 func Learner(ctx context.Context, db store.Querier, profileID string) (string, error) {
 	caller, _ := CallerFrom(ctx)
 	l, err := store.LearnerOf(ctx, db, caller.AccountID, profileID)

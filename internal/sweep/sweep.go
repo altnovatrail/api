@@ -231,7 +231,7 @@ func pages[T any](ctx context.Context, j *job, step *Step, choose func(after str
 }
 
 // marks finishes the deletions of the accounts marked longer ago than a request
-// may run: steps 2–4 (R21; architecture 3.10).
+// may run: what follows the mark, from the tuples to the account's row (R21).
 func (s *Sweeper) marks(ctx context.Context, now time.Time, step *Step) {
 	before := now.Add(-s.settle)
 	step.Finished = pages(ctx, &s.job, step,
@@ -385,8 +385,8 @@ func (s *Sweeper) tuples(ctx context.Context, now time.Time, step *Step) {
 // consentRecords erases the minimal records of consents for children 5 years
 // after their account or profile was deleted, by the calendar of UTC, in which
 // the date of deletion is written: a record of exactly 5 years is kept (R117
-// spec; R21). The record holds no ID of the account
-// or the profile, so the term runs from its own date of deletion.
+// spec; R21). The record holds no ID of the account or the profile, so the term
+// runs from its own date of deletion.
 func (s *Sweeper) consentRecords(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropConsentRecords(ctx, s.db, now.UTC().AddDate(-consentRecordYears, 0, 0))
 	step.Done = dropped
@@ -478,7 +478,7 @@ func (s *Sweeper) changelog(ctx context.Context, now time.Time, step *Step) {
 }
 
 // WithForms is the job with the store of the scans of the forms of consent,
-// whose scans past their term it erases (R116, R117 spec).
+// whose scans past their term it erases (R116 spec, R117 spec).
 func (s *Sweeper) WithForms(store forms.Store) *Sweeper {
 	s.forms = store
 	return s

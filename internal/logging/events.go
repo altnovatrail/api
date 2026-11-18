@@ -11,13 +11,13 @@ import (
 // for its value, and an event names the fields it may carry; whatever a line
 // carries beyond that is dropped before it is written (see guard).
 //
-// The table is what holds the log to privacy 4 spec, row "Журналы": events,
-// codes, times and versions, and no direct identifier, IP address, work,
-// reading or hint text (R09 spec). So a field holds a number, a flag, a
-// duration, a word from a closed set, a build's identity in its own shape, or
-// a kind this package made itself (see ErrorKind) — never free text. A new
-// event, or a new field, comes with the code that writes it, as a row here,
-// and the test of the table holds every row to its rules.
+// The table is what holds the log to events, codes, times and versions, and
+// no direct identifier, IP address, work, reading or hint text (R09 spec). So
+// a field holds a number, a flag, a duration, a word from a closed set, a
+// build's identity in its own shape, or a kind this package made itself (see
+// ErrorKind) — never free text. A new event, or a new field, comes with the
+// code that writes it, as a row here, and the test of the table holds every row
+// to its rules.
 
 // The events of the service's own lines.
 const (
@@ -46,10 +46,9 @@ const (
 	// or an ID (R18, R33). The path of a Connect GET holds the message, so the
 	// method is written, not the path.
 	EventRequest = "request"
-	// EventSwept is the line of a step of the daily job (R21) or of the job after
-	// a rollout (R07): which step, how many
-	// it did and failed, and whether it went to its end — counts alone, never an
-	// ID of what it did them to.
+	// EventSwept is the line of a step of the daily job (R38) or of the job after
+	// a rollout (R51): which step, how many it did and failed, and whether it
+	// went to its end — counts alone, never an ID of what it did them to.
 	EventSwept = "swept"
 	// EventPackagesLaid is the line of api packages that laid the packages of the
 	// pinned release of modules into a folder (R07, R41): the release, and how many
@@ -341,8 +340,8 @@ var fields = map[string]rule{
 
 // The shapes of the build's identity, as the justfile's build stamps it: a
 // version is "dev", a tag of semver — a prerelease too, v0.2.0-rc.1 — with how
-// far past it the build is (git describe), or a commit when there is no tag
-// yet; the last two may be dirty.
+// far past it the build is (git describe), or a commit when no tag is behind
+// it; the last two may be dirty.
 var (
 	versionShape = regexp.MustCompile(`^(dev|v\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?(-\d+-g[0-9a-f]{7,40})?(-dirty)?|[0-9a-f]{7,40}(-dirty)?)$`)
 	commitShape  = regexp.MustCompile(`^(unknown|[0-9a-f]{7,40})$`)

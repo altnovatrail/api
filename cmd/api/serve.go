@@ -101,7 +101,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// ask the gate before a task that AI checks (R45). In the dev mode the stub of
 	// tutor reads and words in place of tutor, which admits and prices still (R66).
 	// The privacy policy of the texts served says from which day the words after a
-	// correct answer go to a provider (Д214 spec). On the stub no key reaches a
+	// correct answer go to a provider (R77). On the stub no key reaches a
 	// provider, and the checks of a key have no limit (R78).
 	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithTexts(texts)}
 	accounts := []account.Option{account.WithTexts(texts), account.WithForms(store), account.WithExport(exporter),
@@ -111,7 +111,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		accounts = append(accounts, account.WithoutKeyCheckLimit())
 	}
 	// The tariff of dev-check has its caps off a deployment alone: deployed, an
-	// account that got it all the same opens no spending of the platform's (В80).
+	// account that got it all the same opens no spending of the platform's (R55).
 	if !cfg.Deployed() {
 		options = append(options, learning.OffDeployment())
 		accounts = append(accounts, account.OffDeployment())

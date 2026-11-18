@@ -72,12 +72,11 @@ const mostTried = 999
 const wholeCrop = 1000
 
 // The endings of a synthetic own key that a call of AI on the stub reads, past
-// the checks of the request's form, as a provider would answer it (the
-// 2026-11-15 amendment to R66): the key refused, or a limit — named by none of
-// tutor's reasons, or by one; the ceiling of the tier with when access returns,
-// as tutor's adapter of Claude gives it (the 2026-11-16 amendment to R66). A
-// key that ends in none of them calls the stub as platform AI does. docs/build.md
-// names them for app; CheckOwnKey takes them all.
+// the checks of the request's form, as a provider would answer it (R66): the
+// key refused, or a limit — named by none of tutor's reasons, or by one; the
+// ceiling of the tier with when access returns, as tutor's adapter of Claude
+// gives it. A key that ends in none of them calls the stub as platform AI does.
+// docs/build.md names them for app; CheckOwnKey takes them all.
 const (
 	KeyRefused      = "-refused"
 	KeyLimit        = "-limit"
@@ -109,11 +108,11 @@ var errRefused = errors.New("tutorstub: the stub refused the call by the ending 
 // refusal is what a call on the own key own comes to by its ending, as tutor
 // gives a provider's refusal: KeyRefused, or LimitReached with tutor's reason of
 // the ending and, for the tier, when access returns by the wall clock — no
-// other limit of Anthropic's says it but in its words (sources 2.8 spec) —, with
-// no usage, since a refused call has no tokens; ok is false for a key of no such
-// ending, and on platform AI, whose own is empty. A request whose context ended
-// fails instead, as a call cut short does. Neither the outcome nor its error
-// holds the key.
+// other limit of Anthropic's says it but in its words (R66) —, with no usage,
+// since a refused call has no tokens; ok is false for a key of no such ending,
+// and on platform AI, whose own is empty. A request whose context ended fails
+// instead, as a call cut short does. Neither the outcome nor its error holds
+// the key.
 func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 	switch i := slices.IndexFunc(limits, func(l limitEnding) bool { return strings.HasSuffix(own, l.ending) }); {
 	case strings.HasSuffix(own, KeyRefused):
@@ -135,8 +134,8 @@ func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 }
 
 // nextMonth is 00:00 UTC on the first day of the month after the one at falls
-// on, in UTC: when the ceiling of Anthropic's tier lets a key go (sources 2.8
-// spec), as tutor's adapter of Claude reckons it.
+// on, in UTC: when the ceiling of Anthropic's tier lets a key go, as tutor's
+// adapter of Claude reckons it (R66).
 func nextMonth(at time.Time) time.Time {
 	at = at.UTC()
 	return time.Date(at.Year(), at.Month()+1, 1, 0, 0, 0, 0, time.UTC)
@@ -212,9 +211,8 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 }
 
 // Reads says whether the reading by the call of the kind is admitted for a
-// learner of category, on the route of ownKeyProvider, as the gate says: since
-// tutor v0.1.46 admits the workbook, the essay and the rubric by the author's
-// word, the stub admits none of them itself (R90).
+// learner of category, on the route of ownKeyProvider, as the gate says:
+// admission is tutor's, so the stub admits no kind of call itself (R90).
 func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return s.gate.Reads(call, category, ownKeyProvider)
 }
@@ -222,13 +220,13 @@ func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvi
 // ReadEssay reads the essay of r, on task, by the shape of the crop of its
 // sheet, as ReadSheet reads a sheet: wider than tall the stub's text, essayText;
 // taller than wide a blank sheet, UNREADABLE_BLANK; square illegible,
-// UNREADABLE_ILLEGIBLE (the author's decision of 2026-11-15). One reader reads
-// it, as tutor's one model does, and the observation is of the one answer slot
-// bound to the sheet, a value with no crop box, as tutor's. Of tutor's checks
-// before its call the stub keeps those of the request's form: a task that is no
-// handwriting sheet, has no slot bound to the sheet, more than one, or a slot
-// bound otherwise, no open view of the task, a crop that is no PNG or is larger
-// than maxCropSide on a side, and a request whose context ended, fail. Past those checks an own key
+// UNREADABLE_ILLEGIBLE (R66). One reader reads it, as tutor's one model does,
+// and the observation is of the one answer slot bound to the sheet, a value
+// with no crop box, as tutor's. Of tutor's checks before its call the stub
+// keeps those of the request's form: a task that is no handwriting sheet, has
+// no slot bound to the sheet, more than one, or a slot bound otherwise, no open
+// view of the task, a crop that is no PNG or is larger than maxCropSide on a
+// side, and a request whose context ended, fail. Past those checks an own key
 // of an ending of the stub's, own being its value, is refused by it. The call
 // spends the expected price of CallEssay on the route, tutor's by the entry the
 // author's word admits (R90); with none, nothing priced, so the quota keeps its
@@ -313,15 +311,15 @@ func essayPlace(task formatv0.Task) (*observationv1.AnswerSlotPlace, error) {
 // does: every criterion met but the last, each with the stub's synthetic
 // evidence, and the stub's feedback in the language of r — English for a
 // language it has no words of —, which passes the leak check and
-// words.Feedback against any text, since it quotes none (the author's decision
-// of 2026-11-15). Of tutor's checks before its call the stub keeps those of the
-// request's form: no text, no criterion or a blank one, no topic, no style, or
-// a language words.Feedback cannot check, fails, as does a request whose
-// context ended, every criterion without a mark. Past those checks an own key of
-// an ending of the stub's, own being its value, is refused by it. The call
-// spends the expected price of CallRubric on the route, tutor's by the entry the
-// author's word admits (R90); with none, nothing priced, so the quota keeps its
-// reserve by the value of the kind as spent (R12, R82).
+// words.Feedback against any text, since it quotes none (R66). Of tutor's
+// checks before its call the stub keeps those of the request's form: no text,
+// no criterion or a blank one, no topic, no style, or a language words.Feedback
+// cannot check, fails, as does a request whose context ended, every criterion
+// without a mark. Past those checks an own key of an ending of the stub's, own
+// being its value, is refused by it. The call spends the expected price of
+// CallRubric on the route, tutor's by the entry the author's word admits (R90);
+// with none, nothing priced, so the quota keeps its reserve by the value of the
+// kind as spent (R12, R82).
 func (s *Stub) AssessEssay(ctx context.Context, r tutor.RubricAssessment, own string) tutor.RubricAssessed {
 	none := func(o tutor.Outcome) tutor.RubricAssessed {
 		return tutor.RubricAssessed{Criteria: make([]tutor.CriterionMark, len(r.Criteria)), Outcome: o}
@@ -389,14 +387,14 @@ var feedback = map[string]string{
 // no crop box, as tutor's does; each reader of the gate's mode reads the same.
 // Of tutor's checks before its call the stub keeps those of the request's form:
 // a task that is no workbook page, a crop of a place the page has no box of or
-// of one box twice, more than maxBoxes crops, or a crop that is no PNG or is larger than
-// maxBoxSide on a side fails, as does a request whose context ended while the
-// stub looked for the values. A page with no crop goes to no model and spends
-// nothing, as tutor's does; past those checks an own key of an ending of the
-// stub's, own being its value, is refused by it. The call spends the expected
-// price of CallWorkbook on the route, tutor's by the entry the author's word
-// admits (R90); with none, nothing priced, so the quota keeps its reserve by the
-// value of the kind as spent (R12, R81).
+// of one box twice, more than maxBoxes crops, or a crop that is no PNG or is
+// larger than maxBoxSide on a side fails, as does a request whose context ended
+// while the stub looked for the values. A page with no crop goes to no model
+// and spends nothing, as tutor's does; past those checks an own key of an
+// ending of the stub's, own being its value, is refused by it. The call spends
+// the expected price of CallWorkbook on the route, tutor's by the entry the
+// author's word admits (R90); with none, nothing priced, so the quota keeps its
+// reserve by the value of the kind as spent (R12, R81).
 func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead {
 	fail := func(err error) tutor.WorkbookRead {
 		return tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}

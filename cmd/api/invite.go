@@ -62,7 +62,7 @@ func createInvite(ctx context.Context, args, environ []string, stdout, stderr io
 }
 
 // devOnly refuses a tariff of the dev projects alone to the command named by
-// command when it runs deployed, by the variable Cloud Run sets (В80). From an
+// command when it runs deployed, by the variable Cloud Run sets (R55). From an
 // operator's own terminal no variable tells the database of a deployment, so
 // serve deployed reads such a tariff as one with no caps besides.
 func devOnly(command, tariff string, cfg *config.Operator, stderr io.Writer) error {

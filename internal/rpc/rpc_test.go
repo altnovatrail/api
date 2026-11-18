@@ -263,8 +263,7 @@ func TestAnOwnersRequestReachesItsHandler(t *testing.T) {
 	}
 }
 
-// Each class of a refused token is its answer, by the table of architecture
-// 3.10.
+// Each class of a refused token is its answer (R20).
 func TestEachClassOfATokenIsItsAnswer(t *testing.T) {
 	w := newWorld(t, time.Second)
 	marked := w.person(t, "uid-marked")
@@ -430,8 +429,8 @@ func TestTheFreshSignInIsCheckedLast(t *testing.T) {
 	}
 }
 
-// An open view goes with no token; a method not built yet answers unimplemented,
-// once its checks let it through.
+// An open view goes with no token; a method with no handler answers
+// unimplemented, once its checks let it through.
 func TestOpenViewsNeedNoTokenAndTheRestIsUnimplemented(t *testing.T) {
 	w := newWorld(t, time.Second)
 	p := w.person(t, "uid-reader")
@@ -445,8 +444,8 @@ func TestOpenViewsNeedNoTokenAndTheRestIsUnimplemented(t *testing.T) {
 }
 
 // A request runs no longer than its time limit. The limit is the second the
-// other tests take, which the checks before the handler fit in: one of
-// 50 ms ran out in them on a slow runner, and the answer was the checks'
+// other tests take, which the checks before the handler fit in: one of 50 ms
+// can run out in them on a slow runner, and the answer is then the checks'
 // unavailable, by the contract, not the handler's deadline_exceeded.
 func TestARequestEndsAtItsTimeLimit(t *testing.T) {
 	w := newWorld(t, time.Second)
@@ -552,8 +551,8 @@ func TestTheLogLineHoldsNoIdentifier(t *testing.T) {
 	}
 }
 
-// A learning request of E3 asks for the profile's consent: none confirmed is
-// "no consent"; a confirmed one lets it on; a database that does not answer is
+// A learning request asks for the profile's consent: none confirmed is "no
+// consent"; a confirmed one lets it on; a database that does not answer is
 // "unavailable".
 func TestALearningRequestNeedsItsConsent(t *testing.T) {
 	w := newWorld(t, time.Second)
@@ -701,7 +700,7 @@ func TestADanglingTupleIsNotDroppedWithoutAFreshSignIn(t *testing.T) {
 }
 
 // A message larger than MaxMessage is refused resource_exhausted before it is
-// decoded, whatever its method, with no Refusal (R46; contract, section 15).
+// decoded, whatever its method, with no Refusal (R46).
 func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
 	t.Parallel()
 

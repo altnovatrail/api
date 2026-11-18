@@ -22,8 +22,8 @@ Kingdom is never allowed before the DPIA.
 `
 
 // listCountries keeps the operator's list of the countries a deployment takes
-// learners from (R118, R119 spec; R36): it lists them, allows one, or removes one. A
-// country removed takes no new profile; the profiles of it stay.
+// learners from (R119 spec; R36): it lists them, allows one, or removes one.
+// A country removed takes no new profile; the profiles of it stay.
 func listCountries(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	set := flag.NewFlagSet("api countries", flag.ContinueOnError)
 	set.SetOutput(stderr)

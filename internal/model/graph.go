@@ -13,12 +13,12 @@ import (
 )
 
 // anchorPrefix opens the ID of an anchor skill of the shared taxonomy, which a
-// module names as it is: it has no module (format/README.md, section 13).
+// module names as it is: it has no module.
 const anchorPrefix = "core."
 
 // SkillID and TaskID are the full IDs of a skill and a task of a module, as the
 // learner model, the engine and the progress know them: the module's ID, the
-// kind and the local ID (concepts 3 spec).
+// kind and the local ID.
 func SkillID(module formatv0.ModuleID, id string) string {
 	return string(module) + "/skill/" + id
 }
@@ -33,7 +33,6 @@ func ModuleOfSkill(skill string) string {
 	return module
 }
 
-// trapID is the full ID of a trap of a module.
 func trapID(module formatv0.ModuleID, id formatv0.TrapID) string {
 	return string(module) + "/trap/" + string(id)
 }
@@ -114,8 +113,8 @@ func graphOf(pkg *modulepackage.Package) (learnermodel.Graph, error) {
 }
 
 // checkKinds is each check kind of the format that learner-model knows, in its
-// words: a time of day too, from format 0.4. A rubric it does not know: its
-// slot is a kind not given, and no evidence holds a task with one (О-17).
+// words. A rubric it does not know: its slot is a kind not given, and no
+// evidence holds a task with one (О-17).
 var checkKinds = map[formatv0.CheckKind]learnermodel.CheckKind{
 	formatv0.CheckKindNumber:    learnermodel.CheckKindNumber,
 	formatv0.CheckKindFraction:  learnermodel.CheckKindFraction,
@@ -130,7 +129,7 @@ var checkKinds = map[formatv0.CheckKind]learnermodel.CheckKind{
 // items, where its key and skill tags came from, and the kind of the check of
 // each answer slot, with the number of options of a choice. Every key of a
 // module is the author's, but a template's, which the program works out, and so
-// are its skill tags (concepts 9.4 spec).
+// are its skill tags.
 func Describe(pkg *modulepackage.Package, task formatv0.Task) (learnermodel.Task, error) {
 	m := pkg.View.Manifest
 	band := slices.IndexFunc(m.Bands, func(b formatv0.Band) bool { return b.ID == task.Band })

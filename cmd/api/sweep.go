@@ -15,18 +15,17 @@ import (
 	"github.com/altnovatrail/api/internal/version"
 )
 
-// defaultFor is how long a pass of sweep or after may run: under the 10 minutes Cloud Run
-// gives a task of a job by default, so that the pass stops between its items and
-// says so, rather than being stopped in one (R38).
+// defaultFor is how long a pass of sweep or after may run: under the 10
+// minutes Cloud Run gives a task of a job by default, so that the pass stops
+// between its items and says so, rather than being stopped in one (R38).
 const defaultFor = 9 * time.Minute
 
-// sweepPass runs one pass of the daily job (R21, R38, R49): it finishes the deletions
-// the requests left and deletes what is past its term, writes the evidence the closed
-// attempts owe, then exits. A deployment
-// runs it on a schedule as a Cloud Run job; here it is run by hand. The log goes
-// to stdout, a line for each step with its counts; the process exits 1 unless the
-// pass was clean, since a term that depends on the job runs to its next clean
-// pass.
+// sweepPass runs one pass of the daily job (R21, R38, R49): it finishes the
+// deletions the requests left and deletes what is past its term, writes the
+// evidence the closed attempts owe, then exits. A deployment runs it on a
+// schedule as a Cloud Run job; here it is run by hand. The log goes to stdout,
+// a line for each step with its counts; the process exits 1 unless the pass was
+// clean, since a term that depends on the job runs to its next clean pass.
 func sweepPass(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	within, err := passFlags("sweep", args, stderr)
 	if err != nil {
