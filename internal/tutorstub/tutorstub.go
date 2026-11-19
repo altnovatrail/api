@@ -1,7 +1,7 @@
 // Package tutorstub is the stub of tutor in api's dev mode (R66; R146 spec): it
 // stands behind the ports through which api calls tutor — the readings of a
-// sheet, a workbook page and an essay, the assessment of an essay and the
-// tutor's words — so that a run of the path on the dev projects calls no
+// sheet, a workbook page and an essay, the assessment of an essay, the tutor's
+// words and the finding of the tasks on the photo of a page — so that a run of the path on the dev projects calls no
 // provider and costs nothing. Admission and the prices stay tutor's own, on the
 // real table, by the gate the dev mode builds with the stub's adapter
 // (admission.StubAdapters); only the calls are the stub's.
@@ -14,7 +14,9 @@
 // with it, which the stub alone is given: tutor sees the open view (R67 spec).
 // It reads an essay by the shape of the sheet's crop too — wider than tall a
 // text of its own, taller than wide a blank sheet, square illegible —, and
-// assesses the text every criterion met but the last. Its words — a rung's
+// assesses the text every criterion met but the last. It finds the tasks on the
+// photo of a page by its shape as well: taller than wide five tasks, one under
+// another, wider than tall none, and square a failure of AI. Its words — a rung's
 // questions, the praise after a correct answer and the feedback on an essay —
 // are its own, which pass the leak check and the form check. Each call spends
 // what tutor expects a call of its kind to cost on its route, so that the quota
@@ -35,6 +37,8 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	// The JPEG of the photo of a page, which image.DecodeConfig reads.
+	_ "image/jpeg"
 	"image/png"
 	"slices"
 	"strconv"
@@ -630,6 +634,42 @@ func (s *Stub) usage(call tutor.Call, route tutor.Route, models int) []tutor.Usa
 		usage[i] = tutor.Usage{Provider: provider, Model: Model, Billed: true, USD: share.Dollars(), Priced: price.Expected}
 	}
 	return usage
+}
+
+// pageTasks is how many tasks the stub finds on a page taller than wide.
+const pageTasks = 5
+
+// FindTasks finds the tasks on the photo of f by its shape (R66): taller than
+// wide, pageTasks of them, one under another across the page, in its order;
+// wider than tall, none, which the learner frames by hand; square, a failure of
+// AI, which spends as a call that went. Of tutor's checks before its call the
+// stub keeps the photo's form: one that is no JPEG or PNG fails with no usage.
+// Past it an own key of an ending of the stub's, own being its value, is refused
+// by it. The call spends the expected price of CallFinding, tutor's; with none,
+// nothing priced, so the quota keeps its reserve by the value of the kind as
+// spent (R12).
+func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) tutor.TasksFound {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(f.Photo))
+	if err != nil {
+		return tutor.TasksFound{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: fmt.Errorf("tutorstub: the photo: %w", err)}}
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.TasksFound{Outcome: o}
+	}
+	usage := s.usage(tutor.CallFinding, f.Route, 1)
+	found := tutor.TasksFound{Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: usage}}
+	switch {
+	case cfg.Width == cfg.Height:
+		found.Outcome = tutor.Outcome{Kind: tutor.Failed, Usage: usage, Err: errors.New("tutorstub: a square photo fails the finding")}
+	case cfg.Height > cfg.Width:
+		// A fifth of the page each, less a margin, from 20 to 980 thousandths.
+		const step, height = (wholeCrop - 40) / pageTasks, (wholeCrop-40)/pageTasks - 20
+		for i := range int32(pageTasks) {
+			top := 20 + i*step
+			found.Frames = append(found.Frames, &observationv1.CropBox{Ymin: top, Xmin: 50, Ymax: top + height, Xmax: wholeCrop - 50})
+		}
+	}
+	return found
 }
 
 // failed is a reading that gave no observation.

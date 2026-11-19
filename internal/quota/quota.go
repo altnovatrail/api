@@ -18,7 +18,7 @@ import (
 )
 
 // Micro is an amount of US dollars by tutor's estimate, in whole micro-dollars,
-// as the export writes the counters (exportv3.QuotaCounter): a sum of them adds
+// as the export writes the counters (exportv4.QuotaCounter): a sum of them adds
 // up the same in every order, which a float does not.
 type Micro int64
 
@@ -142,8 +142,11 @@ const wordsReserve Micro = 18_200
 // words — the same prompt and model with no picture, so no dearer, and tutor
 // expects no tokens of it (R106 tutor) —, the essay's reading and assessment
 // half each of $0.030, tutor's price of an essay, and a page of a workbook by
-// each of its crops, as a sheet. The words after a correct answer have no value
-// here: tutor expects their tokens (R113 tutor, R76).
+// each of its crops, as a sheet. The finding of the tasks on the photo of a
+// page, admitted with no run (R134 tutor), by its model, Opus 5.5 at $4 and $20
+// per million tokens, on the largest photo, 4 784 tokens, its text and 1 500
+// tokens written. The words after a correct answer have no value here: tutor
+// expects their tokens (R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:    14_000,
 	tutor.CallWords:    wordsReserve,
@@ -151,6 +154,7 @@ var reserves = map[tutor.Call]Micro{
 	tutor.CallEssay:    15_000,
 	tutor.CallRubric:   15_000,
 	tutor.CallWorkbook: 14_000,
+	tutor.CallFinding:  52_000,
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected

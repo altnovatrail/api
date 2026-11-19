@@ -47,6 +47,7 @@ type Handlers struct {
 	Progress apiv1connect.ProgressServiceHandler
 	Legal    apiv1connect.LegalServiceHandler
 	Work     apiv1connect.WorkServiceHandler
+	Paper    apiv1connect.PaperServiceHandler
 }
 
 // NewServer is the server of the contract, with every method registered and
@@ -69,6 +70,7 @@ func register(server *connect.Server, h Handlers) {
 	apiv1connect.RegisterProgressServiceHandler(server, or[apiv1connect.ProgressServiceHandler](h.Progress, apiv1connect.UnimplementedProgressServiceHandler{}))
 	apiv1connect.RegisterLegalServiceHandler(server, or[apiv1connect.LegalServiceHandler](h.Legal, apiv1connect.UnimplementedLegalServiceHandler{}))
 	apiv1connect.RegisterWorkServiceHandler(server, or[apiv1connect.WorkServiceHandler](h.Work, apiv1connect.UnimplementedWorkServiceHandler{}))
+	apiv1connect.RegisterPaperServiceHandler(server, or[apiv1connect.PaperServiceHandler](h.Paper, apiv1connect.UnimplementedPaperServiceHandler{}))
 }
 
 // or is the handler set, or the one that answers unimplemented.

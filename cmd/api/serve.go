@@ -339,6 +339,7 @@ func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attemp
 		Attempt:  attempts.Attempts(p.pool, p.rights),
 		Progress: attempts.Progress(p.pool, p.rights),
 		Work:     attempts.Works(p.pool, p.rights),
+		Paper:    attempts.Paper(p.pool),
 	}
 	return rpc.Deps{Signin: p.signin, DB: p.pool, Rights: p.rights}, handlers, p.close, nil
 }

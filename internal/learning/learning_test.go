@@ -88,6 +88,7 @@ type world struct {
 	attempts apiv1connect.AttemptServiceClient
 	progress apiv1connect.ProgressServiceClient
 	works    apiv1connect.WorkServiceClient
+	paper    apiv1connect.PaperServiceClient
 	service  *learning.Service
 	// set is the packages it reads, whose list a test narrows (R150 spec).
 	set     *packages.Set
@@ -191,7 +192,8 @@ func worldOn(t *testing.T, set *packages.Set, g *admission.Gate, opts []learning
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
 		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Module: cat.Modules(w.pool), Learning: s.Learning(db),
-			Attempt: s.Attempts(db, adultRights{w}), Progress: s.Progress(db, adultRights{w}), Work: s.Works(db, adultRights{w})})
+			Attempt: s.Attempts(db, adultRights{w}), Progress: s.Progress(db, adultRights{w}), Work: s.Works(db, adultRights{w}),
+			Paper: s.Paper(db)})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
 	// The client reads a message as large as the server does: a stored work of
@@ -204,6 +206,7 @@ func worldOn(t *testing.T, set *packages.Set, g *admission.Gate, opts []learning
 	w.attempts = apiv1connect.NewAttemptServiceClient(transport)
 	w.progress = apiv1connect.NewProgressServiceClient(transport)
 	w.works = apiv1connect.NewWorkServiceClient(transport)
+	w.paper = apiv1connect.NewPaperServiceClient(transport)
 	return w
 }
 
@@ -989,7 +992,7 @@ func TestADatabaseThatFailsIsUnavailable(t *testing.T) {
 		"FROM profiles p", "FOR NO KEY UPDATE", "FROM idempotency_keys", "INSERT INTO idempotency_keys",
 		"FROM engine_choices", "choice_id = $2", "FROM connected_modules", "INSERT INTO attempts",
 		"FROM attempts\n", "SET close_reason", "INSERT INTO submissions", "SET wrong_answers", "SELECT answer",
-		"SET step_techniques_at", "FROM lesson_runs", "closed_at IS NULL FOR UPDATE",
+		"SET step_techniques_at", "FROM lesson_runs", "kind = 'module' FOR UPDATE",
 	} {
 		t.Run(failOn, func(t *testing.T) {
 			t.Parallel()

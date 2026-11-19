@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"slices"
 	"strings"
@@ -356,6 +357,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	praised := tutor.CorrectRequest{Route: own, Task: &open.Task{}, Language: "en", Style: "an adult"}
 	sheetOfEssay := tutor.EssayReading{Route: own, Task: &open.Task{}, Crop: crop(t, 40, 10)}
 	assessed := assessment(own, "en", 2)
+	photographed := tutor.TaskFinding{Route: own, Photo: photo(t, 30, 40)}
 	before := time.Now().UTC()
 	for ending, want := range map[string]struct {
 		kind    tutor.Kind
@@ -377,6 +379,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 			"TellCorrectWords": s.TellCorrectWords(t.Context(), praised, key).Outcome,
 			"ReadEssay":        s.ReadEssay(t.Context(), sheetOfEssay, essay(), key).Outcome,
 			"AssessEssay":      s.AssessEssay(t.Context(), assessed, key).Outcome,
+			"FindTasks":        s.FindTasks(t.Context(), photographed, key).Outcome,
 		} {
 			if o.Kind != want.kind || o.Limit != want.limit || len(o.Usage) != 0 || o.Err == nil || strings.Contains(o.Err.Error(), key) {
 				t.Errorf("%s on %q = %+v, want %v, limit %q, no usage, and an error with no key", call, ending, o, want.kind, want.limit)
@@ -406,6 +409,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		"TellCorrectWords": s.TellCorrectWords(ctx, praised, "sk-ant-synthetic"+tutorstub.KeyLimit).Outcome,
 		"ReadEssay":        s.ReadEssay(ctx, sheetOfEssay, essay(), "sk-ant-synthetic"+tutorstub.KeyLimitBalance).Outcome,
 		"AssessEssay":      s.AssessEssay(ctx, assessed, "sk-ant-synthetic"+tutorstub.KeyLimitPayment).Outcome,
+		"FindTasks":        s.FindTasks(ctx, photographed, "sk-ant-synthetic"+tutorstub.KeyRefused).Outcome,
 	} {
 		if o.Kind != tutor.Failed || !errors.Is(o.Err, context.Canceled) {
 			t.Errorf("%s cut short on an ending of the stub's = %+v, want a failure, as a call cut short", call, o)
@@ -430,6 +434,47 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		if a := s.AssessEssay(t.Context(), assessed, key); a.Outcome.Kind != tutor.Answered || a.Feedback == "" {
 			t.Errorf("AssessEssay on %q = %+v, want marks and feedback", key, a)
 		}
+		if f := s.FindTasks(t.Context(), photographed, key); f.Outcome.Kind != tutor.Answered || len(f.Frames) == 0 {
+			t.Errorf("FindTasks on %q = %+v, want frames", key, f)
+		}
+	}
+}
+
+// photo is a grey JPEG of width by height, as the camera of app takes it.
+func photo(t *testing.T, width, height int) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	if err := jpeg.Encode(&b, image.NewGray(image.Rect(0, 0, width, height)), nil); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// The shape of the photo says what the stub finds (R66): taller than wide, five
+// tasks one under another, in the order of the page; wider than tall, none;
+// square, a failure of AI that spent. A PNG is a photo too, and what is no
+// picture fails before the call, with no usage.
+func TestTheStubFindsTheTasksByTheShapeOfThePhoto(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallFinding: {ExpectedUSD: 0.04, Expected: true}}})
+	found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: photo(t, 300, 400)}, "")
+	if found.Outcome.Kind != tutor.Answered || len(found.Frames) != 5 || len(found.Outcome.Usage) != 1 || found.Outcome.Usage[0].USD != 0.04 {
+		t.Fatalf("a portrait photo: %+v", found)
+	}
+	for i, f := range found.Frames {
+		if f.GetYmin() >= f.GetYmax() || f.GetXmin() >= f.GetXmax() || f.GetYmax() > 1000 || i > 0 && f.GetYmin() < found.Frames[i-1].GetYmax() {
+			t.Errorf("frame %d is %v, want a box below the one before it, within the page", i+1, f)
+		}
+	}
+	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: crop(t, 400, 300)}, ""); found.Outcome.Kind != tutor.Answered || len(found.Frames) != 0 {
+		t.Errorf("a landscape PNG: %+v, want no task", found)
+	}
+	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: photo(t, 300, 300)}, ""); found.Outcome.Kind != tutor.Failed || len(found.Outcome.Usage) != 1 {
+		t.Errorf("a square photo: %+v, want a failure that spent", found)
+	}
+	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: []byte("a photo")}, "sk-ant-synthetic"+tutorstub.KeyRefused); found.Outcome.Kind != tutor.Failed || len(found.Outcome.Usage) != 0 {
+		t.Errorf("no picture: %+v, want a failure before the call", found)
 	}
 }
 

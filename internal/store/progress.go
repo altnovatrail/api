@@ -34,7 +34,7 @@ type Cursor struct {
 	ID        string
 }
 
-// ProgressPage is up to n of the profile's attempts, newest first, after the
+// ProgressPage is up to n of the profile's attempts of modules, newest first, after the
 // cursor when it is given.
 func ProgressPage(ctx context.Context, db Lister, profileID string, after *Cursor, n int) ([]Record, error) {
 	var at *time.Time
@@ -47,7 +47,7 @@ func ProgressPage(ctx context.Context, db Lister, profileID string, after *Curso
 		FROM attempts a LEFT JOIN lesson_runs r ON r.profile_id = a.profile_id AND r.id = a.lesson_run_id
 		LEFT JOIN engine_choices c ON c.profile_id = a.profile_id AND c.id = coalesce(a.choice_id, r.choice_id)
 			AND c.reason_code IS NOT NULL
-		WHERE a.profile_id = $1 AND ($2::timestamptz IS NULL OR (a.started_at, a.id) < ($2, $3::uuid))
+		WHERE a.profile_id = $1 AND a.kind = 'module' AND ($2::timestamptz IS NULL OR (a.started_at, a.id) < ($2, $3::uuid))
 		ORDER BY a.started_at DESC, a.id DESC LIMIT $4`, profileID, at, id, n)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the progress: %w", err)

@@ -319,8 +319,9 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 
 // Reads says whether the reading of handwriting by the call of the kind — of a
 // sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
-// essay, CallEssay, or its assessment, CallRubric, is admitted for a
-// learner of category: by platform AI, or, when ownKeyProvider names one, by
+// essay, CallEssay, or its assessment, CallRubric, or the finding of the tasks
+// on the photo of a page, CallFinding (R162 spec), is admitted for a learner of
+// category: by platform AI, or, when ownKeyProvider names one, by
 // the own key of that provider alone. It is admitted when tutor chooses, for
 // the call, an entry all of whose models the table admits at the deployment's
 // stage or above. On platform AI only the providers the platform holds a key
@@ -396,6 +397,12 @@ func (g *Gate) ReadEssay(ctx context.Context, r tutor.EssayReading) tutor.EssayR
 // the learner, or the outcome of a call that gave none (R82).
 func (g *Gate) AssessEssay(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed {
 	return g.tutor.AssessEssay(ctx, r)
+}
+
+// FindTasks finds the tasks on the photo of a page by tutor's model of the
+// finding: their frames, or the outcome of a call that gave none (R162 spec).
+func (g *Gate) FindTasks(ctx context.Context, f tutor.TaskFinding) tutor.TasksFound {
+	return g.tutor.FindTasks(ctx, f)
 }
 
 // TellWords asks tutor for the words of a rung: its question, with the box of

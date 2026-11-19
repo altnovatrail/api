@@ -113,4 +113,8 @@ var methods = map[string]rule{
 	apiv1connect.WorkServiceListWorksProcedure:  toLearn,
 	apiv1connect.WorkServiceGetWorkProcedure:    toLearn,
 	apiv1connect.WorkServiceDeleteWorkProcedure: toLearn,
+
+	// A task from paper (R10).
+	apiv1connect.PaperServiceFindTasksProcedure:          toLearn,
+	apiv1connect.PaperServiceBeginPaperAttemptsProcedure: toLearn,
 }

@@ -271,7 +271,7 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			_, err := store.HoldAttempt(t.Context(), tx, profile, none)
 			return err
 		}},
-		{"closed_at IS NULL FOR UPDATE", func(tx pgx.Tx) error {
+		{"kind = 'module' FOR UPDATE", func(tx pgx.Tx) error {
 			_, _, err := store.HoldOpenAttempt(t.Context(), tx, profile)
 			return err
 		}},

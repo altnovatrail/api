@@ -171,13 +171,14 @@ func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID strin
 	return nil
 }
 
-// LastAttempt says whether the attempt is the last the profile began: the
-// words after a correct answer are given while the profile has begun no other
-// (R09).
+// LastAttempt says whether the attempt is the last the profile began of its
+// kind: the words after a correct answer are given while the profile has begun
+// no other (R09), and an attempt of a module and the attempts of a page go
+// beside each other (R10).
 func LastAttempt(ctx context.Context, db Querier, profileID, attemptID string) (bool, error) {
 	var last bool
 	err := db.QueryRow(ctx, `SELECT NOT EXISTS (SELECT 1 FROM attempts b, attempts a
-		WHERE a.profile_id = $1 AND a.id = $2 AND b.profile_id = $1 AND b.started_at > a.started_at)`,
+		WHERE a.profile_id = $1 AND a.id = $2 AND b.profile_id = $1 AND b.kind = a.kind AND b.started_at > a.started_at)`,
 		profileID, attemptID).Scan(&last)
 	if err != nil {
 		return false, fmt.Errorf("store: read the profile's last attempt: %w", err)

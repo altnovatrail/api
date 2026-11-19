@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/altnovatrail/spec/types/exportv3"
+	"github.com/altnovatrail/spec/types/exportv4"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -106,7 +106,7 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 
 	r := newRich(t)
 	var e store.ExportedProfile
-	var a exportv3.Account
+	var a exportv4.Account
 	err := pgx.BeginFunc(t.Context(), r.pool, func(tx pgx.Tx) error {
 		var err error
 		if e, err = store.ExportProfile(t.Context(), tx, r.account, r.profile); err != nil {
@@ -119,15 +119,15 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := e.Profile
-	if p.Format != store.ExportFormat || p.ProfileID != exportv3.FileID(r.profile) || !p.Owner || p.Grade == nil || *p.Grade != 4 ||
-		p.Consent.Giver != exportv3.ConsentGiverOwner || len(p.Consent.Texts) != 2 {
+	if p.Format != store.ExportFormat || p.ProfileID != exportv4.FileID(r.profile) || !p.Owner || p.Grade == nil || *p.Grade != 4 ||
+		p.Consent.Giver != exportv4.ConsentGiverOwner || len(p.Consent.Texts) != 2 {
 		t.Errorf("the profile = %+v", p)
 	}
 	if len(p.ConnectedModules) != 1 || len(p.LessonRuns) != 1 || p.LessonRuns[0].EndReason == nil || len(p.StorageConsents) != 1 ||
 		p.StorageConsents[0].WithdrawnAt == nil || len(p.ProblemReports) != 1 || p.ProblemReports[0].Rung == nil || p.ProblemReports[0].ReviewedAt == nil {
 		t.Errorf("the records of the profile = %+v", p)
 	}
-	if len(p.Choices) != 1 || p.Choices[0].ReasonCode != exportv3.ChoiceReasonCodeRotation || p.Choices[0].Task == nil ||
+	if len(p.Choices) != 1 || p.Choices[0].ReasonCode != exportv4.ChoiceReasonCodeRotation || p.Choices[0].Task == nil ||
 		*p.Choices[0].Task != "example/m/task/t1" || len(p.Choices[0].PackageDigests) != 2 || !p.Choices[0].PackageDigests[0].EngineModule ||
 		p.Choices[0].Grade == nil || !p.Choices[0].PoolWithoutAi || p.Choices[0].Skill == nil {
 		t.Errorf("the choices = %+v", p.Choices)
@@ -141,7 +141,7 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		len(at.Owed.Answers) != 2 || !at.Owed.StepTechniques || !at.Owed.RequestedTechniques || at.Owed.CloseReason != "solution_shown" {
 		t.Errorf("the attempt = %+v", at)
 	}
-	if len(p.Works) != 1 || p.Works[0].AttemptID != exportv3.FileID(r.attempt) || p.Works[0].Kind != exportv3.WorkKindHandwriting ||
+	if len(p.Works) != 1 || p.Works[0].AttemptID != exportv4.FileID(r.attempt) || p.Works[0].Kind != exportv4.WorkKindHandwriting ||
 		p.Works[0].StoredAt == "" || p.Works[0].SizeBytes != 3 {
 		t.Errorf("the works = %+v", p.Works)
 	}
@@ -149,7 +149,7 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		p.State.LastSeq != 1 || p.State.LearnerModelVersion != "v0.1.4" {
 		t.Errorf("the records of protobuf = %d observations, %d evidence, state %q, %+v", len(e.Observations[r.attempt]), len(e.Evidence), e.State, p.State)
 	}
-	if a.AccountID != exportv3.ID(r.account) || a.Tariff != "closed_slice" || a.UtcOffsetMinutes == nil || a.DayEndsAt == nil ||
+	if a.AccountID != exportv4.ID(r.account) || a.Tariff != "closed_slice" || a.UtcOffsetMinutes == nil || a.DayEndsAt == nil ||
 		len(a.ProfileIds) != 1 || len(a.Consents) != 3 || len(a.QuotaCounters) != 1 || a.QuotaCounters[0].DayStart != "2026-11-12T05:00:00Z" ||
 		a.QuotaCounters[0].SpentMicroUsd != 21000 || a.QuotaCounters[0].ReservedMicroUsd != 9343 || len(p.QuotaCounters) != 1 ||
 		p.QuotaCounters[0].SpentMicroUsd != 21000 {
@@ -158,9 +158,9 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 	var parent, learner bool
 	for _, c := range a.Consents {
 		switch {
-		case c.Giver == exportv3.ConsentGiverParent && c.RequestCode != nil && c.Form != nil && len(c.Texts) == 1 && c.Texts[0].ID == "parent-consent":
+		case c.Giver == exportv4.ConsentGiverParent && c.RequestCode != nil && c.Form != nil && len(c.Texts) == 1 && c.Texts[0].ID == "parent-consent":
 			parent = true
-		case c.Giver == exportv3.ConsentGiverLearner && c.RequestCode == nil && len(c.Texts) == 1 && c.Texts[0].ID == "teen-consent":
+		case c.Giver == exportv4.ConsentGiverLearner && c.RequestCode == nil && len(c.Texts) == 1 && c.Texts[0].ID == "teen-consent":
 			learner = true
 		}
 	}
@@ -505,10 +505,10 @@ func TestTheExportReadsASegmentAndAnEssay(t *testing.T) {
 		t.Errorf("the segment = %+v, want segment 2 of the run %s", got.Segment, run)
 	}
 	essays := got.EssaySubmissions
-	if len(essays) != 2 || len(got.Submissions) != 0 || essays[0].End != exportv3.RubricSubmissionEndFeedback ||
-		len(essays[0].CriterionMarks) != 2 || essays[0].CriterionMarks[1] != exportv3.RubricSubmissionCriterionMarksNotAssessed ||
-		essays[0].FeedbackSource == nil || *essays[0].FeedbackSource != exportv3.RubricSubmissionFeedbackSourceModel ||
-		essays[1].End != exportv3.RubricSubmissionEndUnreadable || essays[1].FeedbackSource != nil {
+	if len(essays) != 2 || len(got.Submissions) != 0 || essays[0].End != exportv4.RubricSubmissionEndFeedback ||
+		len(essays[0].CriterionMarks) != 2 || essays[0].CriterionMarks[1] != exportv4.RubricSubmissionCriterionMarksNotAssessed ||
+		essays[0].FeedbackSource == nil || *essays[0].FeedbackSource != exportv4.RubricSubmissionFeedbackSourceModel ||
+		essays[1].End != exportv4.RubricSubmissionEndUnreadable || essays[1].FeedbackSource != nil {
 		t.Errorf("the essay's submissions = %+v, its submissions with a verdict %+v", essays, got.Submissions)
 	}
 }

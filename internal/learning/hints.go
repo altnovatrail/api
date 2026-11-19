@@ -2,6 +2,7 @@ package learning
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -777,8 +778,11 @@ func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrect
 		return praising{}, store.ErrNotFound
 	}
 	row, err := store.HoldAttempt(ctx, tx, profileID, req.GetAttemptId())
-	if err != nil {
+	switch {
+	case err != nil:
 		return praising{}, err
+	case row.Paper:
+		return praising{}, store.ErrPaper
 	}
 	p := praising{row: row}
 	if err := praisable(ctx, tx, profileID, row); err != nil {
@@ -923,6 +927,10 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 		func(tx pgx.Tx, _ string) (*v1.ShowSolutionResponse, store.KeyTarget, error) {
 			now := s.clock()
 			h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), now)
+			if errors.Is(err, store.ErrPaper) {
+				// The solution of a task from paper is never shown (R162 spec).
+				err = rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
+			}
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}

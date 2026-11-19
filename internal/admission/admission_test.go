@@ -149,14 +149,14 @@ func TestTheReportSaysWhatWasDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.4", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.5", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
 		t.Errorf("Report = %+v, want %+v", r, want)
 	}
 	_, r, err = admission.Load(config.Admission{Rung: config.RungFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.4", Rung: "full", Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.5", Rung: "full", Reading: "pair"}); r != want {
 		t.Errorf("Report of nothing declared = %+v, want %+v", r, want)
 	}
 }
