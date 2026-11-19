@@ -145,16 +145,23 @@ const wordsReserve Micro = 18_200
 // each of its crops, as a sheet. The finding of the tasks on the photo of a
 // page, admitted with no run (R134 tutor), by its model, Opus 5.5 at $4 and $20
 // per million tokens, on the largest photo, 4 784 tokens, its text and 1 500
-// tokens written. The words after a correct answer have no value here: tutor
-// expects their tokens (R113 tutor, R76).
+// tokens written. The calls of a task from paper, admitted with no run (R135
+// tutor), at their bounds, by Haiku 5.5 at $0.10 and $0.50 per million tokens:
+// the reading of the statement and the solution each on the largest photo, its
+// text and the most tokens it may write, 4 000 and 16 000; the reading of the
+// work as a sheet's, by the pair. The words after a correct answer have no value
+// here: tutor expects their tokens (R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
-	tutor.CallSheet:    14_000,
-	tutor.CallWords:    wordsReserve,
-	tutor.CallHint:     wordsReserve,
-	tutor.CallEssay:    15_000,
-	tutor.CallRubric:   15_000,
-	tutor.CallWorkbook: 14_000,
-	tutor.CallFinding:  52_000,
+	tutor.CallSheet:     14_000,
+	tutor.CallWords:     wordsReserve,
+	tutor.CallHint:      wordsReserve,
+	tutor.CallEssay:     15_000,
+	tutor.CallRubric:    15_000,
+	tutor.CallWorkbook:  14_000,
+	tutor.CallFinding:   52_000,
+	tutor.CallStatement: 2_600,
+	tutor.CallSolving:   8_600,
+	tutor.CallPaper:     14_000,
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected

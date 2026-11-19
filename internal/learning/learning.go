@@ -64,6 +64,9 @@ type Service struct {
 	// finder finds the tasks on the photo of a page from paper: the gate's tutor
 	// (R162 spec).
 	finder taskFinder
+	// paper reads the statement of a task from paper, solves it and reads the
+	// work on it: the gate's tutor (R162 spec).
+	paper paperChecker
 	// reading is the mode tutor reads handwriting by, the gate's, which says
 	// how many observations a reading gives (R88).
 	reading tutor.Reading
@@ -110,7 +113,8 @@ func OffDeployment() Option { return func(s *Service) { s.offDeployment = true }
 
 // WithTutor is what reads the sheets, the workbook pages and the essays,
 // assesses the essays by their rubrics, words the tutor's words, those after a
-// correct answer too, finds the tasks on the photo of a page, and says which
+// correct answer too, finds the tasks on the photo of a page, checks a task
+// from paper, and says which
 // kinds of reading are admitted, in place
 // of the gate's tutor: the dev mode's stub (R66), which calls no provider and
 // admits a workbook page, an essay and its assessment itself.
@@ -123,9 +127,10 @@ func WithTutor(t interface {
 	essayReader
 	rubricAssessor
 	taskFinder
+	paperChecker
 }) Option {
 	return func(s *Service) {
-		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.finder, s.stubbed = t, t, t, t, t, t, t, t, true
+		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.finder, s.paper, s.stubbed = t, t, t, t, t, t, t, t, t, true
 	}
 }
 
@@ -190,7 +195,7 @@ func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest,
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
 	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
 		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
-		finder: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+		finder: gateTutor{gate}, paper: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
@@ -296,7 +301,7 @@ func (s *Service) lapsed(row store.Attempt, now time.Time) string {
 // hold is the profile's open attempt, held in tx. Before anything acts on it, it
 // is checked as every request checks it: one the profile does not have is
 // store.ErrNotFound; one closed, a closedError; one of a task from paper,
-// store.ErrPaper, until its requests are answered here; one on a package the
+// store.ErrPaper, which holdPaper holds for its Check (R96); one on a package the
 // index does not know, errPackageUnknown, with nothing written; and one that lapsed is
 // closed by this check, and the refusal "closed" keeps the close (rpc.Keep).
 func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (held, error) {

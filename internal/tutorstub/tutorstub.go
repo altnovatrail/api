@@ -1,7 +1,8 @@
 // Package tutorstub is the stub of tutor in api's dev mode (R66; R146 spec): it
 // stands behind the ports through which api calls tutor — the readings of a
 // sheet, a workbook page and an essay, the assessment of an essay, the tutor's
-// words and the finding of the tasks on the photo of a page — so that a run of the path on the dev projects calls no
+// words, the finding of the tasks on the photo of a page and the check of a
+// task from paper — so that a run of the path on the dev projects calls no
 // provider and costs nothing. Admission and the prices stay tutor's own, on the
 // real table, by the gate the dev mode builds with the stub's adapter
 // (admission.StubAdapters); only the calls are the stub's.
@@ -16,7 +17,13 @@
 // text of its own, taller than wide a blank sheet, square illegible —, and
 // assesses the text every criterion met but the last. It finds the tasks on the
 // photo of a page by its shape as well: taller than wide five tasks, one under
-// another, wider than tall none, and square a failure of AI. Its words — a rung's
+// another, wider than tall none, and square a failure of AI. A task from paper
+// it checks by shapes too: the statement wider than tall reads into a formula
+// the solver takes, taller than wide is none and a solution of AI gives the
+// same answer, and square has no one answer, so the task has no key; the work
+// it reads by the shape of its crop, which takes in the tracing paper: more
+// than twice as wide as tall right, wider but not twice wrong, else illegible.
+// Its words — a rung's
 // questions, the praise after a correct answer and the feedback on an essay —
 // are its own, which pass the leak check and the form check. Each call spends
 // what tutor expects a call of its kind to cost on its route, so that the quota
@@ -47,6 +54,7 @@ import (
 
 	"github.com/altnovatrail/module-kit/verdict"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	tutorprovider "github.com/altnovatrail/tutor/provider"
@@ -747,4 +755,91 @@ func (s *Stub) readers() int {
 		return 1
 	}
 	return 2
+}
+
+// stubFormula is the formula the stub reads of a statement wider than tall, and
+// stubKey the one answer it gives a task from paper: the solver's of the
+// formula, so that both ways to the key give the same.
+const (
+	stubFormula = "37+48"
+	stubKey     = "85"
+)
+
+// ReadStatement reads the statement of a task from paper by the shape of its
+// crop (R66): wider than tall, the formula stubFormula, which the solver
+// takes; taller than wide or square, none, so that a solution of AI is asked.
+// Of tutor's checks before its call the stub keeps the crop's form: one that is
+// no JPEG or PNG fails with no usage. Past it an own key of an ending of the
+// stub's, own being its value, is refused by it.
+func (s *Stub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
+	cfg, o, ok := s.statement(ctx, tutor.CallStatement, p, own)
+	if !ok {
+		return tutor.StatementRead{Outcome: o}
+	}
+	read := tutor.StatementRead{Outcome: o}
+	if cfg.Width > cfg.Height {
+		read.Formula = stubFormula
+	}
+	return read
+}
+
+// SolveTask solves a task from paper by the shape of its crop, as
+// ReadStatement reads it: square, no one answer, which leaves the task no key;
+// otherwise the number stubKey.
+func (s *Stub) SolveTask(ctx context.Context, p tutor.PaperTask, own string) tutor.TaskSolved {
+	cfg, o, ok := s.statement(ctx, tutor.CallSolving, p, own)
+	solved := tutor.TaskSolved{Outcome: o}
+	if ok && cfg.Width != cfg.Height {
+		solved.Answer = &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: stubKey}}}
+	}
+	return solved
+}
+
+// statement is the size of the crop of p and the outcome of the call of its
+// kind, which spends the call's expected price: false for a crop that is no
+// JPEG or PNG, which fails, or an own key the stub refuses.
+func (s *Stub) statement(ctx context.Context, call tutor.Call, p tutor.PaperTask, own string) (image.Config, tutor.Outcome, bool) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(p.Statement))
+	if err != nil {
+		return cfg, tutor.Outcome{Kind: tutor.Failed, Err: fmt.Errorf("tutorstub: the statement: %w", err)}, false
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return cfg, o, false
+	}
+	return cfg, tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(call, p.Route, 1)}, true
+}
+
+// ReadPaper reads the work on a task from paper by the shape of its crop, which
+// takes in the tracing paper, a line of print as a rule: more than twice as
+// wide as tall — the task with a short answer — the stub's key, stubKey; wider
+// than tall but not twice — a stroke that reaches below the task — a wrong
+// value; square or taller, illegible. Each reader of the gate's mode reads the
+// same, in the place 1,1 of the task's one answer slot.
+func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead {
+	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
+	if err != nil {
+		return failed(err)
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.SheetRead{Outcome: o}
+	}
+	answer := &observationv1.AnswerSlotObservation{AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}}
+	switch {
+	case cfg.Width > 2*cfg.Height:
+		answer.Read = &observationv1.AnswerSlotObservation_Value{Value: stubKey}
+	case cfg.Width > cfg.Height:
+		answer.Read = &observationv1.AnswerSlotObservation_Value{Value: stubKey + "1"}
+	default:
+		answer.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}
+	}
+	if answer.GetValue() != "" {
+		answer.CropBox = &observationv1.CropBox{Ymax: wholeCrop, Xmax: wholeCrop}
+	}
+	n := s.readers()
+	read := tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, n)}}
+	for range n {
+		read.Observations = append(read.Observations, &observationv1.Observation{
+			AnswerSlots: []*observationv1.AnswerSlotObservation{answer}})
+	}
+	return read
 }

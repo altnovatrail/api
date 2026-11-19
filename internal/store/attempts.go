@@ -86,6 +86,10 @@ type Attempt struct {
 	// CorrectWordsGiven says whether the tutor's words after a correct answer
 	// were given on it (R09).
 	CorrectWordsGiven bool
+	// PaperKey is the key of an attempt of a task from paper, the message Key of
+	// novatrail.paper.v1, while the attempt is open: nil before the first
+	// submission derived it (R162 spec).
+	PaperKey []byte
 }
 
 // attemptColumns are the columns of an Attempt, in scanAttempt's order.
@@ -93,7 +97,7 @@ const attemptColumns = `id, kind = 'paper', coalesce(package_digest, ''), coales
 	coalesce(module_version, ''), coalesce(module_format_version, ''), coalesce(module_kit_version, ''),
 	coalesce(task_id, ''), coalesce(seed, 0), instance, choice_id, lesson_run_id, segment, previous_attempt_id,
 	last_action_at, close_reason, wrong_answers, step_techniques_at IS NOT NULL,
-	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given`
+	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given, paper_key`
 
 func scanAttempt(row pgx.Row) (Attempt, error) {
 	var a Attempt
@@ -101,7 +105,7 @@ func scanAttempt(row pgx.Row) (Attempt, error) {
 	err := row.Scan(&a.ID, &a.Paper, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.FormatVersion, &a.ModuleKit,
 		&a.TaskID, &seed, &a.Instance, &a.ChoiceID, &a.LessonRunID, &a.Segment, &a.PreviousID, &a.LastActionAt,
 		&a.CloseReason, &a.WrongAnswers, &a.StepTechniques, &a.RequestedTechniques, &a.LeadingQuestion,
-		&a.CorrectWordsGiven)
+		&a.CorrectWordsGiven, &a.PaperKey)
 	// The seed is module-kit's uint64, kept as the bits of a bigint.
 	a.Seed = uint64(seed)
 	return a, err
@@ -227,6 +231,21 @@ func ChoiceBegun(ctx context.Context, db Querier, profileID, choiceID string) (b
 		return false, fmt.Errorf("store: read the choice's attempt: %w", err)
 	}
 	return begun, nil
+}
+
+// SetPaperKey keeps the key of the profile's open attempt of a task from paper,
+// the message Key of novatrail.paper.v1, until the attempt closes (R162 spec).
+// An attempt that is not of paper, or closed, keeps none.
+func SetPaperKey(ctx context.Context, tx pgx.Tx, profileID, attemptID string, key []byte) error {
+	tag, err := tx.Exec(ctx, `UPDATE attempts SET paper_key = $3
+		WHERE profile_id = $1 AND id = $2 AND kind = 'paper' AND closed_at IS NULL`, profileID, attemptID, key)
+	if err != nil {
+		return fmt.Errorf("store: keep the key of the attempt: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return errors.New("store: no open attempt of paper to keep the key of")
+	}
+	return nil
 }
 
 // CloseAttempt closes the open attempt with reason at at; one closed already

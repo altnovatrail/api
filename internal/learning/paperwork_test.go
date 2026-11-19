@@ -1,0 +1,292 @@
+package learning_test
+
+import (
+	"strings"
+	"testing"
+
+	"connectrpc.com/connect/v2"
+	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
+	"github.com/altnovatrail/tutor"
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/altnovatrail/api/internal/learning"
+	"github.com/altnovatrail/api/internal/quota"
+	"github.com/altnovatrail/api/internal/tutorstub"
+)
+
+// paperWork is the work of a task from paper: the statement's crop, a JPEG of
+// width by height, which the stub reads into a formula when wider than tall,
+// and the crop of the work, whose shape says what the stub reads in it.
+func paperWork(t *testing.T, statement [2]int, crop []byte) *v1.Work {
+	return &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, statement[0], statement[1]), Crop: crop}}}
+}
+
+var (
+	formulaStatement = [2]int{400, 300}
+	wordStatement    = [2]int{300, 400}
+	noKeyStatement   = [2]int{300, 300}
+)
+
+// paperKey is the key the attempt keeps, or nil when it keeps none.
+func (w *world) paperKey(t *testing.T, attempt string) *paperv1.Key {
+	t.Helper()
+	var kept []byte
+	if err := w.pool.QueryRow(t.Context(), `SELECT paper_key FROM attempts WHERE id = $1`, attempt).Scan(&kept); err != nil {
+		t.Fatal(err)
+	}
+	if kept == nil {
+		return nil
+	}
+	k := &paperv1.Key{}
+	if err := proto.Unmarshal(kept, k); err != nil {
+		t.Fatal(err)
+	}
+	return k
+}
+
+// slotOf is the verdict of the one answer slot of a task from paper.
+func slotOf(t *testing.T, res *v1.SubmitWorkResponse) *v1.AnswerSlotVerdict {
+	t.Helper()
+	if len(res.GetItems()) != 1 || len(res.GetItems()[0].GetAnswerSlots()) != 1 {
+		t.Fatalf("the verdict = %v, want one item of one slot", res)
+	}
+	return res.GetItems()[0].GetAnswerSlots()[0]
+}
+
+// The first Check of a task from paper derives its key while the work is read
+// beside it (R162 spec): a statement the stub reads into a formula gets the
+// solver's key, and its solution is not asked, its part of the reserve given
+// back. A wrong value is a wrong answer, and a later Check reads the work alone
+// by the key kept; the right one closes the attempt "correct" with an empty
+// solved and no next, the key erased with the close. A repeat under the key
+// gives the answer kept, with no call.
+func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	wrong, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, wrong); s.GetVerdict() != "not_yet" || s.GetValue() != "851" || wrong.GetWrongAnswers() != 1 || wrong.GetSolved() != nil {
+		t.Errorf("a wrong value = %v, want not_yet, 851 read and one wrong answer", wrong)
+	}
+	k := w.paperKey(t, a)
+	if k.GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER || k.GetAnswer().GetNumber().GetValue() != "85" {
+		t.Errorf("the key kept = %v, want the solver's 85", k)
+	}
+	reading, stating := quota.Reserve(tutor.CallPaper, tutor.CallPrice{}, 1), quota.Reserve(tutor.CallStatement, tutor.CallPrice{}, 1)
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != reading+stating || profile.Reserved != 0 {
+		t.Errorf("the counter = %+v, want the reading and the statement spent, the solution given back", profile)
+	}
+
+	key := uuid.NewString()
+	req := &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: key, Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))}
+	right, err := w.attempts.SubmitWork(l.ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, right); s.GetVerdict() != "correct" || s.GetValue() != "85" || right.GetSolved() == nil || right.GetNext() != nil || right.GetWrongAnswers() != 1 {
+		t.Errorf("the right value = %v, want correct, solved and no next", right)
+	}
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*reading+stating {
+		t.Errorf("the counter = %+v, want a second reading alone", profile)
+	}
+	if w.closeOf(t, a) != "correct" || w.paperKey(t, a) != nil {
+		t.Errorf("the attempt closed %q, its key %v; want correct, and the key erased", w.closeOf(t, a), w.paperKey(t, a))
+	}
+	again, err := w.attempts.SubmitWork(l.ctx, req)
+	if err != nil || !proto.Equal(again, right) {
+		t.Errorf("the repeat = %v (%v), want the answer kept", again, err)
+	}
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*reading+stating {
+		t.Errorf("the counter after the repeat = %+v, want no call", profile)
+	}
+	_, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
+}
+
+// A statement that is no formula goes to one solution of AI, whose answer is
+// the key; a square crop of the work is illegible, no wrong answer.
+func TestATaskFromPaperIsCheckedByAIsKey(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, wordStatement, pngOf(t, 30, 30))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, res); s.GetVerdict() != "unreadable" || res.GetWrongAnswers() != 0 || res.GetOutcome() != nil {
+		t.Errorf("an illegible work = %v, want unreadable and no wrong answer", res)
+	}
+	if k := w.paperKey(t, a); k.GetProvenance() != paperv1.Provenance_PROVENANCE_AI || k.GetAnswer().GetNumber().GetValue() != "85" {
+		t.Errorf("the key kept = %v, want AI's 85", k)
+	}
+	all := quota.Reserve(tutor.CallPaper, tutor.CallPrice{}, 1) + quota.Reserve(tutor.CallStatement, tutor.CallPrice{}, 1) +
+		quota.Reserve(tutor.CallSolving, tutor.CallPrice{}, 1)
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
+		t.Errorf("the counter = %+v, want the three calls spent, %d", profile, all)
+	}
+}
+
+// A task whose solution gives no one answer has no key: the slot is unchecked
+// with CAUSE_NO_KEY, and a later Check calls no AI.
+func TestATaskFromPaperWithNoKeyIsNotChecked(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	calls := 0
+	for i := range 2 {
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+			Work: paperWork(t, noKeyStatement, pngOf(t, 90, 30))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_NO_KEY {
+			t.Errorf("Check %d = %v, want unchecked with CAUSE_NO_KEY", i+1, res)
+		}
+		if n := strings.Count(w.log.String(), `"model":"stub"`); i == 0 {
+			calls = n
+		} else if n != calls || calls == 0 {
+			t.Errorf("the log has %d calls of the stub after the second Check, %d after the first; want none more", n, calls)
+		}
+	}
+	if k := w.paperKey(t, a); k == nil || k.GetAnswer() != nil {
+		t.Errorf("the key kept = %v, want one with no answer", k)
+	}
+	all := quota.Reserve(tutor.CallPaper, tutor.CallPrice{}, 1) + quota.Reserve(tutor.CallStatement, tutor.CallPrice{}, 1) +
+		quota.Reserve(tutor.CallSolving, tutor.CallPrice{}, 1)
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
+		t.Errorf("the counter = %+v, want the first Check's calls alone, %d", profile, all)
+	}
+}
+
+// The quota that does not hold the calls leaves the slot unchecked with its
+// outcome and keeps no key, so the next Check derives it.
+func TestATaskFromPaperOverTheQuota(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	w.spend(t, l.accountID, 1_995_000)
+	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA {
+		t.Errorf("over the quota = %v, want unchecked with CAUSE_QUOTA", res)
+	}
+	if k := w.paperKey(t, a); k != nil {
+		t.Errorf("the key kept = %v, want none", k)
+	}
+}
+
+// What a Check of a task from paper refuses: no work of paper, a statement or a
+// crop the contract does not take, and taps; and a task's work on an attempt
+// of paper. Nothing is called.
+func TestATaskFromPaperRefusesWhatTheContractRefuses(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	for name, req := range map[string]*v1.SubmitWorkRequest{
+		"no work":         {},
+		"a sheet":         {Work: sheet(pngOf(t, 90, 30))},
+		"no statement":    {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Crop: pngOf(t, 90, 30)}}}},
+		"no crop":         {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, 40, 30)}}}},
+		"a JPEG for crop": {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, 40, 30), Crop: photoOf(t, 40, 30)}}}},
+		"taps":            {Work: paperWork(t, formulaStatement, pngOf(t, 90, 30)), TappedChoices: []*v1.TappedChoice{tap(1, 1, "85")}},
+	} {
+		req.ProfileId, req.AttemptId, req.IdempotencyKey = l.adult, a, uuid.NewString()
+		if _, err := w.attempts.SubmitWork(l.ctx, req); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("%s: %v, want invalid_argument", name, err)
+		}
+	}
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 0 || profile.Reserved != 0 {
+		t.Errorf("the counter = %+v, want nothing spent", profile)
+	}
+	m := w.begin(t, l, l.adult, "apples").GetAttemptId()
+	_, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: m, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("the work of paper on a task of a module: %v, want invalid_argument", err)
+	}
+}
+
+// One reader reads the work in the reading mode single, and the own key that a
+// provider refuses gives the outcome and keeps no key.
+func TestATaskFromPaperByOneReaderAndAnOwnKey(t *testing.T) {
+	t.Parallel()
+
+	g := stubGateOf(t, adultFacts, "API_READING_MODE=single")
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30)), OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-own" + tutorstub.KeyRefused}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_KEY_REFUSED || w.paperKey(t, a) != nil {
+		t.Errorf("a refused own key = %v, the key %v; want unchecked with CAUSE_KEY_REFUSED, and no key", res, w.paperKey(t, a))
+	}
+	res, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, res); s.GetVerdict() != "correct" || s.GetValue() != "85" {
+		t.Errorf("one reader = %v, want correct", res)
+	}
+}
+
+// The gate's tutor on the stub's adapter calls no provider: each call fails,
+// and the slot is unchecked with the failure of AI, with no key kept.
+func TestATaskFromPaperOnTheGatesTutor(t *testing.T) {
+	t.Parallel()
+
+	w := worldOf(t, stubGate(t), nil)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, wordStatement, pngOf(t, 90, 30))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE || w.paperKey(t, a) != nil {
+		t.Errorf("the gate's tutor = %v, the key %v; want unchecked with the failure of AI, and no key", res, w.paperKey(t, a))
+	}
+}
+
+// An attempt of paper past 7 days with no action is closed "abandoned" by the
+// Check, which reads nothing.
+func TestATaskFromPaperLapses(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	if _, err := w.pool.Exec(t.Context(), `UPDATE attempts SET last_action_at = last_action_at - interval '8 days' WHERE id = $1`, a); err != nil {
+		t.Fatal(err)
+	}
+	_, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
+	if w.closeOf(t, a) != "abandoned" {
+		t.Errorf("the attempt closed %q, want abandoned", w.closeOf(t, a))
+	}
+}

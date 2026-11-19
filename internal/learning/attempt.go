@@ -109,7 +109,9 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 		return h, out, err
 	}
 	var answer *v1.SubmitWorkResponse
-	if s.readsAI(ctx, profileID, req.GetAttemptId()) {
+	if s.paperAttempt(ctx, profileID, req.GetAttemptId()) {
+		answer, err = a.submitPaper(ctx, req, category, key)
+	} else if s.readsAI(ctx, profileID, req.GetAttemptId()) {
 		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[sending, *v1.SubmitWorkResponse]{
 			Prepare: func(tx pgx.Tx, _ string) (sending, store.KeyTarget, error) {
 				h, out, err := prepare(tx)
@@ -404,13 +406,18 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	if out.reserve.refused != nil {
 		return nil, out.reserve.refused
 	}
-	r := out.read
+	return s.joinOf(task.Items, out.read, out.route.AI)
+}
+
+// joinOf is the observation of the reading r of items in the mode of reading
+// of s, as joined has it, or none with the outcome of why, on the route.
+func (s *Service) joinOf(items []formatv0.Item, r tutor.SheetRead, route admissionv0.AiRoute) (*observationv1.Observation, *v1.Outcome) {
 	if r.Outcome.Kind != tutor.Answered {
-		return nil, outcomeOf(r.Outcome, out.route.AI)
+		return nil, outcomeOf(r.Outcome, route)
 	}
 	failure := &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
 	if s.reading == tutor.ReadingSingle {
-		if len(r.Observations) != 1 || observation.Validate(task.Items, r.Observations[0]) != nil {
+		if len(r.Observations) != 1 || observation.Validate(items, r.Observations[0]) != nil {
 			return nil, failure
 		}
 		return r.Observations[0], nil
@@ -418,7 +425,7 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	if len(r.Observations) != 2 {
 		return nil, failure
 	}
-	joined, err := observation.Join(task.Items, r.Observations[0], r.Observations[1])
+	joined, err := observation.Join(items, r.Observations[0], r.Observations[1])
 	if err != nil {
 		// An observation that is not valid is as a failure of AI.
 		return nil, failure

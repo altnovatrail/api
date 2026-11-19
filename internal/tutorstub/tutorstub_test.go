@@ -895,3 +895,52 @@ func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
 		t.Errorf("module-kit does not take the one reading of the page: %v", err)
 	}
 }
+
+// A task from paper by shapes (R66): the statement wider than tall reads into
+// the formula the solver takes, and any other none; a square statement has no
+// one answer, any other the stub's number; the work reads the key more than
+// twice as wide as tall, a wrong value wider but not twice, illegible square or
+// taller, by each reader. Each
+// call spends its expected price, and what is no picture fails before it.
+func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallStatement: {ExpectedUSD: 0.002, Expected: true}}})
+	task := func(width, height int) tutor.PaperTask {
+		return tutor.PaperTask{Route: adult, Statement: photo(t, width, height)}
+	}
+	if r := s.ReadStatement(t.Context(), task(400, 300), ""); r.Outcome.Kind != tutor.Answered || r.Formula != "37+48" || r.Outcome.Usage[0].USD != 0.002 {
+		t.Errorf("a wide statement: %+v, want 37+48", r)
+	}
+	if r := s.ReadStatement(t.Context(), task(300, 400), ""); r.Outcome.Kind != tutor.Answered || r.Formula != "" {
+		t.Errorf("a tall statement: %+v, want no formula", r)
+	}
+	if r := s.ReadStatement(t.Context(), tutor.PaperTask{Route: adult, Statement: []byte("no")}, ""); r.Outcome.Kind != tutor.Failed || len(r.Outcome.Usage) != 0 {
+		t.Errorf("no picture: %+v, want a failure before the call", r)
+	}
+	if r := s.SolveTask(t.Context(), task(300, 400), ""); r.Outcome.Kind != tutor.Answered || r.Answer.GetNumber().GetValue() != "85" {
+		t.Errorf("a tall statement solved: %+v, want 85", r)
+	}
+	if r := s.SolveTask(t.Context(), task(300, 300), ""); r.Outcome.Kind != tutor.Answered || r.Answer != nil {
+		t.Errorf("a square statement solved: %+v, want no answer", r)
+	}
+	if r := s.SolveTask(t.Context(), task(300, 400), "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused || r.Answer != nil {
+		t.Errorf("a refused key: %+v", r)
+	}
+	for _, c := range []struct {
+		width, height int
+		value         string
+	}{{90, 30, "85"}, {40, 30, "851"}, {30, 30, ""}, {30, 40, ""}} {
+		r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, c.width, c.height)}, "")
+		if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 2 || r.Observations[0].GetAnswerSlots()[0].GetValue() != c.value ||
+			(c.value == "") != (r.Observations[0].GetAnswerSlots()[0].GetUnreadable() == observationv1.Unreadable_UNREADABLE_ILLEGIBLE) {
+			t.Errorf("a work of %dx%d: %+v, want %q by two readers", c.width, c.height, r, c.value)
+		}
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: photo(t, 40, 30)}, ""); r.Outcome.Kind != tutor.Failed {
+		t.Errorf("a JPEG of the work: %+v, want a failure", r)
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30)}, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused {
+		t.Errorf("a refused key: %+v", r)
+	}
+}
