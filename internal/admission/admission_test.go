@@ -517,9 +517,10 @@ func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
 	}
 }
 
-// The check of a key asks Opus 5.5 and Haiku 5.5, each once: the words after a
-// correct answer are on Opus 5.5, as the words, so they add no model to check
-// (R73, R76).
+// The check of a key asks Opus 5.5, Haiku 5.5 and Sonnet 5.5, each once: the
+// words after a correct answer are on Opus 5.5, as the words, so they add no
+// model to check (R73, R76), and Sonnet is an attempt of the cascade of a task
+// from paper (R137 tutor).
 func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 	t.Parallel()
 
@@ -554,7 +555,7 @@ func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 		t.Fatalf("CheckKey = %v, %v, want accepted", got, err)
 	}
 	slices.Sort(dialed)
-	if want := []string{"claude-haiku-5-5", "claude-opus-5-5"}; !slices.Equal(dialed, want) {
+	if want := []string{"claude-haiku-5-5", "claude-opus-5-5", "claude-sonnet-5-5"}; !slices.Equal(dialed, want) {
 		t.Errorf("the check dialled %v, want %v", dialed, want)
 	}
 }
@@ -900,8 +901,9 @@ func TestTheModeSingleReadsByOneReader(t *testing.T) {
 }
 
 // The debug mode reaches tutor through the gate, which reports it, and the
-// gate gives the model the list admits for each call of a task from paper for
-// an adult on platform AI, none at the stage full (R97).
+// gate gives the models the list admits for each call of a task from paper for
+// an adult on platform AI, the attempts of its cascade in their order, none at
+// the stage full (R97).
 func TestTheGateOfTheDebugMode(t *testing.T) {
 	t.Parallel()
 
@@ -911,12 +913,16 @@ func TestTheGateOfTheDebugMode(t *testing.T) {
 	if err != nil || !r.Debug {
 		t.Fatalf("Load = %+v, %v; want the debug mode reported", r, err)
 	}
-	finding, ok := g.Admitted(tutor.CallFinding)
-	statement, ok2 := g.Admitted(tutor.CallStatement)
-	if !ok || !ok2 || finding.ID != "claude-opus-5-5" || statement.ID != "claude-haiku-5-5" {
-		t.Errorf("Admitted = %+v %v, %+v %v; want Opus and Haiku", finding, ok, statement, ok2)
+	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallSolving, tutor.CallPaper} {
+		var got []string
+		for _, m := range g.Admitted(call) {
+			got = append(got, m.Name())
+		}
+		if strings.Join(got, ", ") != "claude-haiku-5-5 high, claude-sonnet-5-5 medium, claude-opus-5-5 medium" {
+			t.Errorf("Admitted(%s) = %v; want the cascade of Haiku, Sonnet and Opus", call, got)
+		}
 	}
-	if _, ok := load(t, keyed(t, file(t, adultFacts), "full")).Admitted(tutor.CallFinding); ok {
+	if m := load(t, keyed(t, file(t, adultFacts), "full")).Admitted(tutor.CallFinding); len(m) != 0 {
 		t.Error("the stage full admitted the finding")
 	}
 }

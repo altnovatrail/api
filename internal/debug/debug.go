@@ -221,7 +221,7 @@ func (a *Action) Chosen() bool { return a != nil && a.first != nil }
 // record is tutor's record of a call of a model; the calls of one action may
 // come from two goroutines at once.
 func (a *Action) record(c tutor.DebugCall) {
-	call := &v1.DebugCall{Kind: callKinds[c.Call], Reader: int32(c.Reader), Model: c.Model.ID,
+	call := &v1.DebugCall{Kind: callKinds[c.Call], Reader: int32(c.Reader), Attempt: int32(c.Attempt), Model: c.Model.ID,
 		Effort: effortOf[c.Model.Effort], Thinking: !c.Model.NoThinking, Answer: c.Answer}
 	if u := c.Usage; u != nil {
 		var written int64
@@ -271,7 +271,7 @@ func (a *Action) Solved(key *paperv1.Answer, took time.Duration) {
 	if a == nil {
 		return
 	}
-	call := &v1.DebugCall{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, DurationMs: took.Milliseconds()}
+	call := &v1.DebugCall{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, DurationMs: took.Milliseconds()}
 	if key != nil {
 		// An answer of the contract always marshals.
 		written, _ := protojson.Marshal(key)

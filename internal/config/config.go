@@ -30,7 +30,10 @@ const (
 	VarIdleTimeout       = "API_HTTP_IDLE_TIMEOUT"
 	VarShutdownTimeout   = "API_SHUTDOWN_TIMEOUT"
 	VarRequestTimeout    = "API_REQUEST_TIMEOUT"
-	VarService           = "K_SERVICE"
+	// VarPaperRequestTimeout is the time limit of the two methods of a task
+	// from paper that ask up to three models in turn (R98).
+	VarPaperRequestTimeout = "API_PAPER_REQUEST_TIMEOUT"
+	VarService             = "K_SERVICE"
 
 	// VarMigrateDatabaseURL is the direct connection string of the database api,
 	// which migrate takes: a secret, read from the variable or from the file its
@@ -45,15 +48,16 @@ const (
 // carries — credentials of other systems, tokens, the shell's own variables —
 // is read, so a future dump of what was read can carry none of them.
 var declared = map[string]struct{}{
-	VarPort:              {},
-	VarLogLevel:          {},
-	VarReadHeaderTimeout: {},
-	VarReadTimeout:       {},
-	VarWriteTimeout:      {},
-	VarIdleTimeout:       {},
-	VarShutdownTimeout:   {},
-	VarRequestTimeout:    {},
-	VarService:           {},
+	VarPort:                {},
+	VarLogLevel:            {},
+	VarReadHeaderTimeout:   {},
+	VarReadTimeout:         {},
+	VarWriteTimeout:        {},
+	VarIdleTimeout:         {},
+	VarShutdownTimeout:     {},
+	VarRequestTimeout:      {},
+	VarPaperRequestTimeout: {},
+	VarService:             {},
 
 	VarMigrateDatabaseURL:                     {},
 	VarMigrateDatabaseURL + fileSuffix:        {},
@@ -68,10 +72,14 @@ const (
 	DefaultLogLevel          = "info"
 	DefaultReadHeaderTimeout = 5 * time.Second
 	DefaultReadTimeout       = 30 * time.Second
-	DefaultWriteTimeout      = 60 * time.Second
+	DefaultWriteTimeout      = 120 * time.Second
 	DefaultIdleTimeout       = 120 * time.Second
 	DefaultShutdownTimeout   = 9 * time.Second
 	DefaultRequestTimeout    = 30 * time.Second
+	// DefaultPaperRequestTimeout holds six calls of models one after another,
+	// the statement's three attempts and then the solution's, of up to 8 s each
+	// on the author's pages, with room to spare (R98).
+	DefaultPaperRequestTimeout = 90 * time.Second
 )
 
 // MinShutdownTimeout is the shortest way out a service may be given: the close
@@ -111,6 +119,10 @@ type Config struct {
 	// among it; a client's Connect-Timeout-Ms may shorten it (R33). It is under
 	// WriteTimeout, so that the answer of a request cut short still goes out.
 	RequestTimeout time.Duration
+	// PaperRequestTimeout is RequestTimeout of FindTasks and SubmitWork, whose
+	// calls of a task from paper ask up to three models in turn; it is under
+	// WriteTimeout too (R98).
+	PaperRequestTimeout time.Duration
 
 	// Service is the name K_SERVICE carries. Cloud Run sets it on every
 	// service and a developer's machine does not, which is what makes it the
@@ -163,6 +175,7 @@ func LoadFrom(environ []string) (*Config, error) {
 		{VarIdleTimeout, &cfg.IdleTimeout, DefaultIdleTimeout},
 		{VarShutdownTimeout, &cfg.ShutdownTimeout, DefaultShutdownTimeout},
 		{VarRequestTimeout, &cfg.RequestTimeout, DefaultRequestTimeout},
+		{VarPaperRequestTimeout, &cfg.PaperRequestTimeout, DefaultPaperRequestTimeout},
 	} {
 		if *timeout.into, err = duration(env, timeout.name, timeout.value); err != nil {
 			problems = append(problems, err)
@@ -288,14 +301,20 @@ func (c *Config) validateTimeouts() error {
 		{VarIdleTimeout, c.IdleTimeout},
 		{VarShutdownTimeout, c.ShutdownTimeout},
 		{VarRequestTimeout, c.RequestTimeout},
+		{VarPaperRequestTimeout, c.PaperRequestTimeout},
 	} {
 		if timeout.value <= 0 {
 			return fmt.Errorf("%w: %s must be a positive duration, got %v", ErrInvalid, timeout.name, timeout.value)
 		}
 	}
-	if c.RequestTimeout >= c.WriteTimeout {
-		return fmt.Errorf("%w: %s must be under %s, %v, got %v",
-			ErrInvalid, VarRequestTimeout, VarWriteTimeout, c.WriteTimeout, c.RequestTimeout)
+	for _, request := range []struct {
+		name  string
+		value time.Duration
+	}{{VarRequestTimeout, c.RequestTimeout}, {VarPaperRequestTimeout, c.PaperRequestTimeout}} {
+		if request.value >= c.WriteTimeout {
+			return fmt.Errorf("%w: %s must be under %s, %v, got %v",
+				ErrInvalid, request.name, VarWriteTimeout, c.WriteTimeout, request.value)
+		}
 	}
 	if c.ShutdownTimeout < MinShutdownTimeout {
 		return fmt.Errorf("%w: %s must be at least %v, got %v",

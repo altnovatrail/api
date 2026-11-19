@@ -461,15 +461,15 @@ func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
 	return err == nil && len(entry.Models) > 0
 }
 
-// Admitted is the first model tutor's list gives the call for an adult on
-// platform AI, what the debug mode shows of a call it leaves to the list (R97);
-// none where the list admits no model.
-func (g *Gate) Admitted(call tutor.Call) (table.Model, bool) {
+// Admitted are the models tutor's list gives the call for an adult on platform
+// AI, in the order of the attempts of its cascade, what the debug mode shows of
+// a call it leaves to the list (R97); none where the list admits no model.
+func (g *Gate) Admitted(call tutor.Call) []table.Model {
 	entry, answer, err := g.tutor.ChooseCall(call, g.route(formatv0.AgeCategoryAdult, ""))
-	if err != nil || !answer.Admitted || len(entry.Models) == 0 {
-		return table.Model{}, false
+	if err != nil || !answer.Admitted {
+		return nil
 	}
-	return entry.Models[0], true
+	return entry.Models
 }
 
 // Reading is the mode tutor reads the handwriting of a sheet and of a workbook

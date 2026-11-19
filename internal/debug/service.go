@@ -17,14 +17,14 @@ import (
 type Service struct {
 	apiv1connect.UnimplementedDebugServiceHandler
 	store    *Store
-	admitted func(tutor.Call) (admission.Model, bool)
+	admitted func(tutor.Call) []admission.Model
 	// account is the caller's account, as the checks found it.
 	account func(context.Context) (string, error)
 }
 
-// NewService is the DebugService of s, whose admitted gives the model the
-// admission list gives a call for an adult on platform AI.
-func NewService(s *Store, admitted func(tutor.Call) (admission.Model, bool)) *Service {
+// NewService is the DebugService of s, whose admitted gives the models the
+// admission list gives a call for an adult on platform AI, in their order.
+func NewService(s *Store, admitted func(tutor.Call) []admission.Model) *Service {
 	return &Service{store: s, admitted: admitted, account: accountOf}
 }
 
@@ -45,7 +45,7 @@ func (s *Service) GetDebug(ctx context.Context, _ *v1.GetDebugRequest) (*v1.GetD
 	}
 	answer := &v1.GetDebugResponse{Models: Models(), Choice: s.store.Choice(id)}
 	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallSolving, tutor.CallPaper} {
-		if m, ok := s.admitted(call); ok {
+		for _, m := range s.admitted(call) {
 			answer.Admitted = append(answer.Admitted, &v1.DebugAdmitted{Kind: callKinds[call], Model: choiceOf(&m)})
 		}
 	}

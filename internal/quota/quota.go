@@ -142,15 +142,11 @@ const wordsReserve Micro = 18_200
 // words — the same prompt and model with no picture, so no dearer, and tutor
 // expects no tokens of it (R106 tutor) —, the essay's reading and assessment
 // half each of $0.030, tutor's price of an essay, and a page of a workbook by
-// each of its crops, as a sheet. The finding of the tasks on the photo of a
-// page, admitted with no run (R134 tutor), by its model, Opus 5.5 at $4 and $20
-// per million tokens, on the largest photo, 4 784 tokens, its text and 1 500
-// tokens written. The calls of a task from paper, admitted with no run (R135
-// tutor), at their bounds, by Haiku 5.5 at $0.10 and $0.50 per million tokens:
-// the reading of the statement and the solution each on the largest photo, its
-// text and the most tokens it may write, 4 000 and 16 000, and the reading of
-// the work, one reader, as the solution. The words after a correct answer have no value
-// here: tutor expects their tokens (R113 tutor, R76).
+// each of its crops, as a sheet. The four calls of a task from paper keep their
+// values of one model each, should tutor give no expected price: it expects the
+// tokens of each of their three attempts, and their reserve is that (R137
+// tutor, R98). The words after a correct answer have no value here: tutor
+// expects their tokens (R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:     14_000,
 	tutor.CallWords:     wordsReserve,

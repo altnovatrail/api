@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/altnovatrail/api/internal/learning"
-	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/tutorstub"
 )
 
@@ -52,7 +51,7 @@ func (w *world) beginPage(t *testing.T, l learner, profile string, n int32) []st
 func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, g := newStubWorld(t)
 	l := w.learner(t)
 	key := uuid.NewString()
 	found, err := w.findTasks(l, l.adult, photoOf(t, 300, 400), key)
@@ -82,7 +81,7 @@ func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 	if err != nil || len(failed.GetFrames()) != 0 || failed.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE {
 		t.Errorf("a square page = %v (%v), want the failure of AI", failed, err)
 	}
-	reserve := quota.Reserve(tutor.CallFinding, tutor.CallPrice{}, 1)
+	reserve := reserveOf(g, tutor.CallFinding)
 	if profile, account := w.counted(t, l.accountID, l.adult); profile.Spent != 3*reserve || profile.Reserved != 0 || account != profile {
 		t.Errorf("the counters = %+v, %+v; want three reserves of the finding spent", profile, account)
 	}
@@ -101,7 +100,7 @@ func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 func TestTheFindingRefusesWhatTheContractRefuses(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, g := newStubWorld(t)
 	l := w.learner(t)
 	big := append(photoOf(t, 30, 40), make([]byte, 4<<20)...)
 	for name, photo := range map[string][]byte{"none": nil, "no picture": []byte("a page"), "too large": big,
@@ -120,7 +119,7 @@ func TestTheFindingRefusesWhatTheContractRefuses(t *testing.T) {
 	if err != nil || refused.GetOutcome().GetCause() != v1.Cause_CAUSE_KEY_REFUSED || len(refused.GetFrames()) != 0 {
 		t.Errorf("a refused own key = %v (%v), want the key refused", refused, err)
 	}
-	if spent, _ := w.counted(t, l.accountID, l.adult); spent.Spent != quota.Reserve(tutor.CallFinding, tutor.CallPrice{}, 1) {
+	if spent, _ := w.counted(t, l.accountID, l.adult); spent.Spent != reserveOf(g, tutor.CallFinding) {
 		t.Errorf("the profile spent %+v, want the one call on platform AI, and none of the own key", spent)
 	}
 

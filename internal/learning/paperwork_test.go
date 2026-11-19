@@ -7,10 +7,12 @@ import (
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
+	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/tutorstub"
@@ -28,6 +30,13 @@ var (
 	wordStatement    = [2]int{300, 400}
 	noKeyStatement   = [2]int{300, 300}
 )
+
+// reserveOf is what a call of a task from paper reserves on platform AI for an
+// adult: the expected price of every attempt of its cascade, by tutor through
+// the gate (R137 tutor).
+func reserveOf(g *admission.Gate, c tutor.Call) quota.Micro {
+	return quota.Reserve(c, g.Price(c, tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}), 1)
+}
 
 // paperKey is the key the attempt keeps, or nil when it keeps none.
 func (w *world) paperKey(t *testing.T, attempt string) *paperv1.Key {
@@ -65,7 +74,7 @@ func slotOf(t *testing.T, res *v1.SubmitWorkResponse) *v1.AnswerSlotVerdict {
 func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, g := newStubWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
 	wrong, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
@@ -80,7 +89,7 @@ func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 	if k.GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER || k.GetAnswer().GetNumber().GetValue() != "85" {
 		t.Errorf("the key kept = %v, want the solver's 85", k)
 	}
-	reading, stating := quota.Reserve(tutor.CallPaper, tutor.CallPrice{}, 1), quota.Reserve(tutor.CallStatement, tutor.CallPrice{}, 1)
+	reading, stating := reserveOf(g, tutor.CallPaper), reserveOf(g, tutor.CallStatement)
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != reading+stating || profile.Reserved != 0 {
 		t.Errorf("the counter = %+v, want the reading and the statement spent, the solution given back", profile)
 	}
@@ -117,7 +126,7 @@ func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 func TestATaskFromPaperIsCheckedByAIsKey(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, g := newStubWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
 	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
@@ -131,8 +140,7 @@ func TestATaskFromPaperIsCheckedByAIsKey(t *testing.T) {
 	if k := w.paperKey(t, a); k.GetProvenance() != paperv1.Provenance_PROVENANCE_AI || k.GetAnswer().GetNumber().GetValue() != "85" {
 		t.Errorf("the key kept = %v, want AI's 85", k)
 	}
-	all := quota.Reserve(tutor.CallPaper, tutor.CallPrice{}, 1) + quota.Reserve(tutor.CallStatement, tutor.CallPrice{}, 1) +
-		quota.Reserve(tutor.CallSolving, tutor.CallPrice{}, 1)
+	all := reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement) + reserveOf(g, tutor.CallSolving)
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
 		t.Errorf("the counter = %+v, want the three calls spent, %d", profile, all)
 	}
@@ -143,7 +151,7 @@ func TestATaskFromPaperIsCheckedByAIsKey(t *testing.T) {
 func TestATaskFromPaperWithNoKeyIsNotChecked(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, g := newStubWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
 	calls := 0
@@ -165,8 +173,7 @@ func TestATaskFromPaperWithNoKeyIsNotChecked(t *testing.T) {
 	if k := w.paperKey(t, a); k == nil || k.GetAnswer() != nil {
 		t.Errorf("the key kept = %v, want one with no answer", k)
 	}
-	all := quota.Reserve(tutor.CallPaper, tutor.CallPrice{}, 1) + quota.Reserve(tutor.CallStatement, tutor.CallPrice{}, 1) +
-		quota.Reserve(tutor.CallSolving, tutor.CallPrice{}, 1)
+	all := reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement) + reserveOf(g, tutor.CallSolving)
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
 		t.Errorf("the counter = %+v, want the first Check's calls alone, %d", profile, all)
 	}

@@ -23,7 +23,7 @@ func TestSweepFinishesAMarkAndSaysEachStep(t *testing.T) {
 	}
 	defer conn.Close(context.Background())
 	if _, err := conn.Exec(t.Context(), `INSERT INTO accounts (auth_uid, deleting_at)
-		VALUES ('uid-synthetic', now() - interval '1 minute')`); err != nil {
+		VALUES ('uid-synthetic', now() - interval '2 minutes')`); err != nil {
 		t.Fatal(err)
 	}
 

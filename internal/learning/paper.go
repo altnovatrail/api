@@ -75,7 +75,7 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 	profileID := req.GetProfileId()
 	key := rpc.Key{
 		Method:   apiv1connect.PaperServiceFindTasksProcedure,
-		GoingFor: s.goingFor,
+		GoingFor: s.paperGoingFor,
 		Repeat: func(_ context.Context, _ pgx.Tx, record store.KeyRecord) (proto.Message, error) {
 			answer := &v1.FindTasksResponse{}
 			if err := proto.Unmarshal(record.Response, answer); err != nil {

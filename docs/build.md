@@ -28,10 +28,11 @@ The binary reads its configuration from the environment, and only these variable
 | `API_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `API_HTTP_READ_HEADER_TIMEOUT` | `5s` | how long a client may take to send its headers |
 | `API_HTTP_READ_TIMEOUT` | `30s` | how long a client may take to send its whole request |
-| `API_HTTP_WRITE_TIMEOUT` | `60s` | how long the server may take to answer |
+| `API_HTTP_WRITE_TIMEOUT` | `120s` | how long the server may take to answer |
 | `API_HTTP_IDLE_TIMEOUT` | `120s` | how long an idle connection is kept |
 | `API_SHUTDOWN_TIMEOUT` | `9s` | the whole way out after a stop is asked for; under `10s` when deployed |
 | `API_REQUEST_TIMEOUT` | `30s` | the longest a request may run, under `API_HTTP_WRITE_TIMEOUT`; a submission that AI reads ends its reading 3 s before it, and a record of its key going older than it is of a request that fell; `sweep` leaves a mark or a tuple younger than that, so a job gets the value its service has |
+| `API_PAPER_REQUEST_TIMEOUT` | `90s` | the same of `FindTasks` and `SubmitWork`, whose calls of a task from paper ask up to three models in turn, under `API_HTTP_WRITE_TIMEOUT` too; `sweep` waits the longer of the two (R98) |
 | `API_DATABASE_URL` | — | the pooler's connection string of the database `api`, with `sslmode=verify-full`; required by `serve`, `invite`, `tariff`, `reopen`, `countries`, `sweep` and `after` |
 | `API_OPENFGA_DATABASE_URL` | — | the pooler's connection string of `openfga`, the store of the rights; required by `serve` and `sweep` |
 | `API_FIREBASE_PROJECT_ID` | — | the Firebase project whose ID tokens are accepted and whose users `sweep` lists; required by `serve` and `sweep` |

@@ -573,7 +573,7 @@ func TestTheRunForAppGoesOnTheStubOrOnTheModels(t *testing.T) {
 		t.Errorf("the facts of the stub = %q (%v), want a child's", written, err)
 	}
 	stdout, _, err = bash(t, append(devFile, "API_DEV_APP_AI=1", "API_TUTOR_STUB=1"), show)
-	if err != nil || stdout != "on the models, with the dev file's key and facts||/dev/key|/dev/facts.yaml\n" {
+	if err != nil || stdout != "on the models, with the dev file's key and facts, in the debug mode||/dev/key|/dev/facts.yaml\n" {
 		t.Errorf("the models: %q (%v)", stdout, err)
 	}
 }

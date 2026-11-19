@@ -18,14 +18,20 @@ func TestTheService(t *testing.T) {
 	t.Parallel()
 
 	opus := admission.Model{Provider: anthropic, ID: "claude-opus-5-5", Effort: "medium"}
-	s := NewService(New(), func(c tutor.Call) (admission.Model, bool) { return opus, c == tutor.CallFinding })
+	haiku := admission.Model{Provider: anthropic, ID: "claude-haiku-5-5", Effort: "high"}
+	s := NewService(New(), func(c tutor.Call) []admission.Model {
+		if c == tutor.CallFinding {
+			return []admission.Model{haiku, opus}
+		}
+		return nil
+	})
 	s.account = func(context.Context) (string, error) { return "a", nil }
 	ctx := t.Context()
 
 	got, err := s.GetDebug(ctx, &v1.GetDebugRequest{})
-	if err != nil || len(got.GetModels()) != 4 || got.GetChoice().GetFirst() != nil || len(got.GetAdmitted()) != 1 ||
-		got.GetAdmitted()[0].GetKind() != v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING || got.GetAdmitted()[0].GetModel().GetModel() != "claude-opus-5-5" ||
-		!got.GetAdmitted()[0].GetModel().GetThinking() {
+	if err != nil || len(got.GetModels()) != 4 || got.GetChoice().GetFirst() != nil || len(got.GetAdmitted()) != 2 ||
+		got.GetAdmitted()[0].GetKind() != v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING || got.GetAdmitted()[0].GetModel().GetModel() != "claude-haiku-5-5" ||
+		got.GetAdmitted()[1].GetModel().GetModel() != "claude-opus-5-5" || !got.GetAdmitted()[1].GetModel().GetThinking() {
 		t.Fatalf("GetDebug = %v, %v", got, err)
 	}
 	set, err := s.SetDebugModels(ctx, &v1.SetDebugModelsRequest{Choice: &v1.DebugChoice{First: &v1.DebugModelChoice{Model: "claude-haiku-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_LOW}}})

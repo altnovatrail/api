@@ -81,7 +81,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	profileID := req.GetProfileId()
 	key := rpc.Key{
 		Method:   apiv1connect.AttemptServiceSubmitWorkProcedure,
-		GoingFor: s.goingFor,
+		GoingFor: s.paperGoingFor,
 		Repeat: func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error) {
 			written, err := store.SubmissionAnswer(ctx, tx, profileID, record.SubmissionID)
 			if err != nil {

@@ -86,10 +86,13 @@ type Service struct {
 	price func(call tutor.Call, route tutor.Route) tutor.CallPrice
 	// goingFor is the longest a request may run, past which the record of its
 	// key going is of a request that fell (R17, R33).
-	goingFor  time.Duration
-	db        rpc.DB
-	now       func() time.Time
-	moduleKit string
+	goingFor time.Duration
+	// paperGoingFor is goingFor of FindTasks and SubmitWork, which run for the
+	// time limit of paper (R98).
+	paperGoingFor time.Duration
+	db            rpc.DB
+	now           func() time.Time
+	moduleKit     string
 	// model is the learner model, which a close owes the evidence of the
 	// attempt (R49).
 	model *model.Model
@@ -108,6 +111,12 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // WithRequestTimeout is the longest a request may run, as the server bounds it
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
+
+// WithPaperRequestTimeout is the longest FindTasks and SubmitWork may run, as
+// the server bounds them (R98).
+func WithPaperRequestTimeout(d time.Duration) Option {
+	return func(s *Service) { s.paperGoingFor = d }
+}
 
 // OffDeployment says api runs off a deployment, as serve does on the dev
 // projects: a tariff of the dev projects alone has its caps there alone
@@ -203,7 +212,8 @@ func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, err
 	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
 		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
 		finder: gateTutor{gate}, paper: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
-		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
+		engine: version.Engine(), goingFor: config.DefaultRequestTimeout,
+		paperGoingFor: config.DefaultPaperRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}

@@ -240,10 +240,11 @@ func TestASubmissionUnderItsKeyIsReadOnce(t *testing.T) {
 		t.Errorf("the repeat = %v, %v after %d readings; want the answer recorded after one", again, err, rs.count())
 	}
 
-	// A request that fell left its record going a minute ago.
+	// A request that fell left its record going two minutes ago, past the time
+	// limit of SubmitWork.
 	fell := &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt, IdempotencyKey: uuid.NewString(), Work: sheet(crop(t))}
 	w.exec(t, `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, created_at)
-		VALUES ($1, $2, '/novatrail.api.v1.AttemptService/SubmitWork', $3, 'going', now() - interval '1 minute')`,
+		VALUES ($1, $2, '/novatrail.api.v1.AttemptService/SubmitWork', $3, 'going', now() - interval '2 minutes')`,
 		l.accountID, fell.GetIdempotencyKey(), idem.Fingerprint(fell, false))
 	rs.give(answered(read("7"), read("7")))
 	res, err := w.attempts.SubmitWork(l.ctx, fell)

@@ -102,14 +102,15 @@ func TestAnAction(t *testing.T) {
 	if !a.Pair() || r.Debug == nil || *r.Debug.First != sonnet || r.Debug.Second.ID != "claude-haiku-5-5" {
 		t.Fatalf("the route = %+v", r.Debug)
 	}
-	r.Debug.Record(tutor.DebugCall{Call: tutor.CallPaper, Reader: 1, Model: sonnet, Answer: "{}",
+	r.Debug.Record(tutor.DebugCall{Call: tutor.CallPaper, Reader: 1, Attempt: 1, Model: sonnet, Answer: "{}",
 		Usage: &tutor.Usage{Model: "claude-sonnet-5-5-20261101", InputTokens: 7, CacheWrites: []provider.CacheWrite{{Tokens: 3}, {Tokens: 4}},
 			OutputTokens: 5, USD: 0.0000011, Latency: 1500 * time.Millisecond, Retries: 1}})
-	for _, err := range []error{&provider.LimitError{}, fmt.Errorf("x: %w", provider.ErrKeyRefused)} {
-		r.Debug.Record(tutor.DebugCall{Call: tutor.CallStatement, Model: sonnet, Err: err})
+	// The attempts of a cascade keep their places.
+	for i, err := range []error{&provider.LimitError{}, fmt.Errorf("x: %w", provider.ErrKeyRefused)} {
+		r.Debug.Record(tutor.DebugCall{Call: tutor.CallStatement, Attempt: i + 1, Model: sonnet, Err: err})
 	}
 	// A call that broke off before the provider named its model.
-	r.Debug.Record(tutor.DebugCall{Call: tutor.CallStatement, Model: sonnet, Err: errors.New("down"), Usage: &tutor.Usage{OutputTokens: 2}})
+	r.Debug.Record(tutor.DebugCall{Call: tutor.CallStatement, Attempt: 3, Model: sonnet, Err: errors.New("down"), Usage: &tutor.Usage{OutputTokens: 2}})
 	a.Solved(&paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "85"}}}, time.Millisecond)
 	a.Differ(true)
 	a.End()
@@ -121,12 +122,12 @@ func TestAnAction(t *testing.T) {
 	}
 	want := &v1.DebugAction{Kind: v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, AttemptId: "attempt", At: taken[0].GetAt(), ReadersDiffer: true,
 		Calls: []*v1.DebugCall{
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING, Reader: 1, Model: "claude-sonnet-5-5-20261101", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH,
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING, Reader: 1, Attempt: 1, Model: "claude-sonnet-5-5-20261101", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH,
 				Answer: "{}", InputTokens: 7, CacheWriteTokens: 7, OutputTokens: 5, DurationMs: 1500, Retries: 1, CostMicroUsd: 2},
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_LIMIT_REACHED},
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_KEY_REFUSED},
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, OutputTokens: 2, Failure: v1.Cause_CAUSE_AI_FAILURE},
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Answer: `{"number":{"value":"85"}}`, DurationMs: 1},
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 1, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_LIMIT_REACHED},
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 2, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_KEY_REFUSED},
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 3, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, OutputTokens: 2, Failure: v1.Cause_CAUSE_AI_FAILURE},
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, Answer: `{"number":{"value":"85"}}`, DurationMs: 1},
 		}}
 	if taken[0].GetAt().AsTime().Unix() != 100 || !proto.Equal(taken[0], want) {
 		t.Errorf("the action =\n%v\nwant\n%v", taken[0], want)

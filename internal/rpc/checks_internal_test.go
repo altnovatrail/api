@@ -9,6 +9,7 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 
 	"github.com/altnovatrail/api/internal/authn"
 	"github.com/altnovatrail/api/internal/store"
@@ -72,20 +73,46 @@ func TestACallWithNoCallInfoIsUnauthenticated(t *testing.T) {
 	}
 }
 
-// No time limit given is the default one, not none and not one already out.
-func TestNoTimeLimitIsTheDefault(t *testing.T) {
-	t.Parallel()
-
+// timeLeft is the time a request of the procedure has under limited by the
+// limits given.
+func timeLeft(t *testing.T, timeout, paper time.Duration, procedure string) time.Duration {
+	t.Helper()
 	var left time.Duration
-	_ = limited(0)(func(ctx context.Context, _ connect.Spec, _ connect.ServerStream) error {
+	_ = limited(timeout, paper)(func(ctx context.Context, _ connect.Spec, _ connect.ServerStream) error {
 		deadline, ok := ctx.Deadline()
 		if ok {
 			left = time.Until(deadline)
 		}
 		return nil
-	})(t.Context(), connect.Spec{}, &stream{})
-	if left < 29*time.Second || left > 30*time.Second {
+	})(t.Context(), connect.Spec{Procedure: procedure}, &stream{})
+	return left
+}
+
+// No time limit given is the default one, not none and not one already out:
+// 30 s, and 90 s for the two methods of a task from paper (R98).
+func TestNoTimeLimitIsTheDefault(t *testing.T) {
+	t.Parallel()
+
+	if left := timeLeft(t, 0, 0, ""); left < 29*time.Second || left > 30*time.Second {
 		t.Errorf("the time left under no limit given = %v, want the default 30s", left)
+	}
+	for _, p := range []string{apiv1connect.PaperServiceFindTasksProcedure, apiv1connect.AttemptServiceSubmitWorkProcedure} {
+		if left := timeLeft(t, 0, 0, p); left < 89*time.Second || left > 90*time.Second {
+			t.Errorf("the time left of %s under no limit given = %v, want the default 90s", p, left)
+		}
+	}
+}
+
+// The methods of a task from paper run for the limit of paper, and every other
+// for the limit of a request.
+func TestPaperMethodsRunForTheirLimit(t *testing.T) {
+	t.Parallel()
+
+	if left := timeLeft(t, 5*time.Second, 50*time.Second, apiv1connect.PaperServiceFindTasksProcedure); left < 49*time.Second || left > 50*time.Second {
+		t.Errorf("FindTasks has %v, want 50s", left)
+	}
+	if left := timeLeft(t, 5*time.Second, 50*time.Second, apiv1connect.PaperServiceBeginPaperAttemptsProcedure); left > 5*time.Second {
+		t.Errorf("BeginPaperAttempts has %v, want 5s", left)
 	}
 }
 
