@@ -111,7 +111,8 @@ func TestAnAction(t *testing.T) {
 	}
 	// A call that broke off before the provider named its model.
 	r.Debug.Record(tutor.DebugCall{Call: tutor.CallStatement, Attempt: 3, Model: sonnet, Err: errors.New("down"), Usage: &tutor.Usage{OutputTokens: 2}})
-	a.Solved(&paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "85"}}}, time.Millisecond)
+	a.Solved(&paperv1.Key{Tasks: []*paperv1.TaskKey{{Statement: "37 + 48 =", Provenance: paperv1.Provenance_PROVENANCE_SOLVER,
+		Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "85"}}}}}}, time.Millisecond)
 	a.Differ(true)
 	a.End()
 	s.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_FIND_TASKS, "", time.Now()).End()
@@ -127,7 +128,7 @@ func TestAnAction(t *testing.T) {
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 1, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_LIMIT_REACHED},
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 2, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_KEY_REFUSED},
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 3, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, OutputTokens: 2, Failure: v1.Cause_CAUSE_AI_FAILURE},
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, Answer: `{"number":{"value":"85"}}`, DurationMs: 1},
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, Answer: `{"tasks":[{"statement":"37 + 48 =","provenance":"PROVENANCE_SOLVER","answer":{"number":{"value":"85"}}}]}`, DurationMs: 1},
 		}}
 	if taken[0].GetAt().AsTime().Unix() != 100 || !proto.Equal(taken[0], want) {
 		t.Errorf("the action =\n%v\nwant\n%v", taken[0], want)

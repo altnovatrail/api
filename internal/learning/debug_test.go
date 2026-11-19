@@ -42,7 +42,7 @@ func (d *debugStub) recorded(r tutor.Route, c tutor.Call, reader int, answer str
 
 func (d *debugStub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
 	read := d.Stub.ReadStatement(ctx, p, own)
-	d.recorded(p.Route, tutor.CallStatement, 0, `{"formula": "`+read.Formula+`"}`)
+	d.recorded(p.Route, tutor.CallStatement, 0, `{"tasks": []}`)
 	return read
 }
 

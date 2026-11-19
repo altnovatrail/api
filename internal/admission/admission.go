@@ -407,18 +407,18 @@ func (g *Gate) FindTasks(ctx context.Context, f tutor.TaskFinding) tutor.TasksFo
 	return g.tutor.FindTasks(ctx, f)
 }
 
-// ReadStatement reads the statement of a task from paper into a formula by
-// tutor's model of the statement: the formula, empty when the statement is
-// none, or the outcome of a call that gave none (R162 spec).
+// ReadStatement reads the statement of a task from paper into its tasks by
+// tutor's model of the statement: each with its statement and formula, empty
+// when it is none, or the outcome of a call that gave none (R162 spec).
 func (g *Gate) ReadStatement(ctx context.Context, p tutor.PaperTask) tutor.StatementRead {
 	return g.tutor.ReadStatement(ctx, p)
 }
 
-// SolveTask solves a task from paper by tutor's model of the solution: its one
-// answer, none when it has no one answer, or the outcome of a call that gave
-// none (R162 spec).
-func (g *Gate) SolveTask(ctx context.Context, p tutor.PaperTask) tutor.TaskSolved {
-	return g.tutor.SolveTask(ctx, p)
+// SolveTask solves the tasks of a crop from paper it names by tutor's model of
+// the solution: the answer of each, none when it has no one answer, or the
+// outcome of a call that gave none (R162 spec).
+func (g *Gate) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve) tutor.TasksSolved {
+	return g.tutor.SolveTask(ctx, p, tasks)
 }
 
 // ReadPaper reads the work written on a task from paper as ReadSheet reads a

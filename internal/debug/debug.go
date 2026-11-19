@@ -265,15 +265,16 @@ var callKinds = map[tutor.Call]v1.DebugCallKind{
 	tutor.CallPaper:     v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
 }
 
-// Solved records the call of module-kit's solver on the formula the statement
-// read into: the key it gave, none when it gave none.
-func (a *Action) Solved(key *paperv1.Answer, took time.Duration) {
+// Solved records the call of module-kit's solver on the formulas the
+// statement's tasks read into: the key of the crop as it gave it, each task
+// with its statement and the solver's answer, none where it gave none.
+func (a *Action) Solved(key *paperv1.Key, took time.Duration) {
 	if a == nil {
 		return
 	}
 	call := &v1.DebugCall{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, DurationMs: took.Milliseconds()}
 	if key != nil {
-		// An answer of the contract always marshals.
+		// A key of the contract always marshals.
 		written, _ := protojson.Marshal(key)
 		call.Answer = string(written)
 	}

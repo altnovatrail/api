@@ -897,10 +897,12 @@ func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
 }
 
 // A task from paper by shapes (R66): the statement wider than tall reads into
-// the formula the solver takes, and any other none; a square statement has no
-// one answer, any other the stub's number; the work reads the key more than
-// twice as wide as tall, a wrong value wider but not twice, illegible square or
-// taller, by each reader. Each
+// one task of the formula the solver takes, at least twice as tall into three,
+// and any other into one of none; a square statement has no one answer, any
+// other the stub's number for each task asked; the work of one task reads the
+// key more than twice as wide as tall, a wrong value wider but not twice,
+// illegible square or taller, and of several the key in each, with its band of
+// the crop. Each
 // call spends its expected price, and what is no picture fails before it.
 func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
 	t.Parallel()
@@ -909,38 +911,50 @@ func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
 	task := func(width, height int) tutor.PaperTask {
 		return tutor.PaperTask{Route: adult, Statement: photo(t, width, height)}
 	}
-	if r := s.ReadStatement(t.Context(), task(400, 300), ""); r.Outcome.Kind != tutor.Answered || r.Formula != "37+48" || r.Outcome.Usage[0].USD != 0.002 {
+	if r := s.ReadStatement(t.Context(), task(400, 300), ""); r.Outcome.Kind != tutor.Answered || len(r.Tasks) != 1 || r.Tasks[0].Formula != "37+48" || r.Outcome.Usage[0].USD != 0.002 {
 		t.Errorf("a wide statement: %+v, want 37+48", r)
 	}
-	if r := s.ReadStatement(t.Context(), task(300, 400), ""); r.Outcome.Kind != tutor.Answered || r.Formula != "" {
-		t.Errorf("a tall statement: %+v, want no formula", r)
+	if r := s.ReadStatement(t.Context(), task(150, 400), ""); r.Outcome.Kind != tutor.Answered || len(r.Tasks) != 3 || r.Tasks[2].Formula != "50+36" {
+		t.Errorf("twice as tall: %+v, want three tasks", r)
+	}
+	if r := s.ReadStatement(t.Context(), task(300, 400), ""); r.Outcome.Kind != tutor.Answered || len(r.Tasks) != 1 || r.Tasks[0].Formula != "" || r.Tasks[0].Statement == "" {
+		t.Errorf("a tall statement: %+v, want one task of no formula", r)
 	}
 	if r := s.ReadStatement(t.Context(), tutor.PaperTask{Route: adult, Statement: []byte("no")}, ""); r.Outcome.Kind != tutor.Failed || len(r.Outcome.Usage) != 0 {
 		t.Errorf("no picture: %+v, want a failure before the call", r)
 	}
-	if r := s.SolveTask(t.Context(), task(300, 400), ""); r.Outcome.Kind != tutor.Answered || r.Answer.GetNumber().GetValue() != "85" {
-		t.Errorf("a tall statement solved: %+v, want 85", r)
+	asked := []tutor.TaskToSolve{{Number: 1, Statement: "a"}, {Number: 3, Statement: "c"}}
+	if r := s.SolveTask(t.Context(), task(300, 400), asked, ""); r.Outcome.Kind != tutor.Answered || len(r.Answers) != 2 || r.Answers[3].GetNumber().GetValue() != "85" {
+		t.Errorf("a tall statement solved: %+v, want 85 for each", r)
 	}
-	if r := s.SolveTask(t.Context(), task(300, 300), ""); r.Outcome.Kind != tutor.Answered || r.Answer != nil {
+	if r := s.SolveTask(t.Context(), task(300, 300), asked, ""); r.Outcome.Kind != tutor.Answered || r.Answers[1] != nil {
 		t.Errorf("a square statement solved: %+v, want no answer", r)
 	}
-	if r := s.SolveTask(t.Context(), task(300, 400), "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused || r.Answer != nil {
+	if r := s.SolveTask(t.Context(), task(300, 400), asked, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused || len(r.Answers) != 0 {
 		t.Errorf("a refused key: %+v", r)
 	}
 	for _, c := range []struct {
 		width, height int
 		value         string
 	}{{90, 30, "85"}, {40, 30, "851"}, {30, 30, ""}, {30, 40, ""}} {
-		r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, c.width, c.height)}, "")
+		r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, c.width, c.height), Tasks: []string{"37 + 48 ="}}, "")
 		if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 1 || r.Observations[0].GetAnswerSlots()[0].GetValue() != c.value ||
 			(c.value == "") != (r.Observations[0].GetAnswerSlots()[0].GetUnreadable() == observationv1.Unreadable_UNREADABLE_ILLEGIBLE) {
 			t.Errorf("a work of %dx%d: %+v, want %q by one reader", c.width, c.height, r, c.value)
 		}
 	}
-	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: photo(t, 40, 30)}, ""); r.Outcome.Kind != tutor.Failed {
+	r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 30, 90), Tasks: []string{"a", "b", "c"}}, "")
+	if slots := r.Observations[0].GetAnswerSlots(); r.Outcome.Kind != tutor.Answered || len(slots) != 3 || slots[2].GetAnswerSlot().GetItem() != 3 ||
+		slots[2].GetValue() != "85" || slots[1].GetCropBox().GetYmin() != 333 || slots[1].GetCropBox().GetYmax() != 666 {
+		t.Errorf("a work of three tasks: %+v, want 85 in each, in its band", r)
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30)}, ""); r.Outcome.Kind != tutor.Failed {
+		t.Errorf("no task: %+v, want a failure", r)
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: photo(t, 40, 30), Tasks: []string{"a"}}, ""); r.Outcome.Kind != tutor.Failed {
 		t.Errorf("a JPEG of the work: %+v, want a failure", r)
 	}
-	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30)}, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused {
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30), Tasks: []string{"a"}}, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused {
 		t.Errorf("a refused key: %+v", r)
 	}
 }

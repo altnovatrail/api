@@ -29,6 +29,7 @@ var (
 	formulaStatement = [2]int{400, 300}
 	wordStatement    = [2]int{300, 400}
 	noKeyStatement   = [2]int{300, 300}
+	severalStatement = [2]int{150, 400}
 )
 
 // reserveOf is what a call of a task from paper reserves on platform AI for an
@@ -53,6 +54,14 @@ func (w *world) paperKey(t *testing.T, attempt string) *paperv1.Key {
 		t.Fatal(err)
 	}
 	return k
+}
+
+// firstTask is the first task of a key, or nil.
+func firstTask(k *paperv1.Key) *paperv1.TaskKey {
+	if len(k.GetTasks()) == 0 {
+		return nil
+	}
+	return k.GetTasks()[0]
 }
 
 // slotOf is the verdict of the one answer slot of a task from paper.
@@ -86,7 +95,7 @@ func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 		t.Errorf("a wrong value = %v, want not_yet, 851 read and one wrong answer", wrong)
 	}
 	k := w.paperKey(t, a)
-	if k.GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER || k.GetAnswer().GetNumber().GetValue() != "85" {
+	if firstTask(k).GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER || firstTask(k).GetAnswer().GetNumber().GetValue() != "85" {
 		t.Errorf("the key kept = %v, want the solver's 85", k)
 	}
 	reading, stating := reserveOf(g, tutor.CallPaper), reserveOf(g, tutor.CallStatement)
@@ -137,7 +146,7 @@ func TestATaskFromPaperIsCheckedByAIsKey(t *testing.T) {
 	if s := slotOf(t, res); s.GetVerdict() != "unreadable" || res.GetWrongAnswers() != 0 || res.GetOutcome() != nil {
 		t.Errorf("an illegible work = %v, want unreadable and no wrong answer", res)
 	}
-	if k := w.paperKey(t, a); k.GetProvenance() != paperv1.Provenance_PROVENANCE_AI || k.GetAnswer().GetNumber().GetValue() != "85" {
+	if k := w.paperKey(t, a); firstTask(k).GetProvenance() != paperv1.Provenance_PROVENANCE_AI || firstTask(k).GetAnswer().GetNumber().GetValue() != "85" {
 		t.Errorf("the key kept = %v, want AI's 85", k)
 	}
 	all := reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement) + reserveOf(g, tutor.CallSolving)
@@ -170,12 +179,58 @@ func TestATaskFromPaperWithNoKeyIsNotChecked(t *testing.T) {
 			t.Errorf("the log has %d calls of the stub after the second Check, %d after the first; want none more", n, calls)
 		}
 	}
-	if k := w.paperKey(t, a); k == nil || k.GetAnswer() != nil {
+	if k := w.paperKey(t, a); k == nil || firstTask(k).GetAnswer() != nil {
 		t.Errorf("the key kept = %v, want one with no answer", k)
 	}
 	all := reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement) + reserveOf(g, tutor.CallSolving)
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
 		t.Errorf("the counter = %+v, want the first Check's calls alone, %d", profile, all)
+	}
+}
+
+// A crop of several tasks is checked task by task (R162 spec): the statement
+// reads into three, each keyed by the solver, so no solution is asked and its
+// reserve goes back; the work is read given their statements, and each task's
+// item gets its verdict, its value and the box where it was read. One wrong
+// task makes the Check a wrong answer, and the attempt stays open; a later
+// Check reads the work alone, by the key kept with its statements.
+func TestATaskFromPaperOfSeveralTasksIsCheckedTaskByTask(t *testing.T) {
+	t.Parallel()
+
+	w, g := newStubWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	calls := 0
+	for i := range 2 {
+		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+			Work: paperWork(t, severalStatement, pngOf(t, 30, 90))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		items := res.GetItems()
+		if len(items) != 3 || res.GetOutcome() != nil || res.GetSolved() != nil || res.GetWrongAnswers() != int32(i+1) {
+			t.Fatalf("Check %d = %v, want three items, two right", i+1, res)
+		}
+		for n, want := range []string{"correct", "correct", "not_yet"} {
+			s := items[n].GetAnswerSlots()[0]
+			if items[n].GetVerdict() != want || s.GetAnswerSlot().GetItem() != int32(n+1) || s.GetValue() != "85" || s.GetCropBox() == nil {
+				t.Errorf("Check %d, task %d = %v, want %s, read 85, with its box", i+1, n+1, items[n], want)
+			}
+		}
+		if n := strings.Count(w.log.String(), `"model":"stub"`); i == 0 {
+			calls = n
+		} else if n != calls+1 {
+			t.Errorf("the log has %d calls of the stub after the second Check, %d after the first; want the reading alone", n, calls)
+		}
+	}
+	k := w.paperKey(t, a)
+	if len(k.GetTasks()) != 3 || k.GetTasks()[2].GetStatement() != "50 + 36 =" || k.GetTasks()[2].GetAnswer().GetNumber().GetValue() != "86" ||
+		k.GetTasks()[0].GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER {
+		t.Errorf("the key kept = %v, want the solver's three, with their statements", k)
+	}
+	spent := 2*reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement)
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != spent {
+		t.Errorf("the counter = %+v, want two readings and the statement, %d", profile, spent)
 	}
 }
 

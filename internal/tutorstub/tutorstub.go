@@ -19,7 +19,8 @@
 // photo of a page by its shape as well: taller than wide five tasks, one under
 // another, wider than tall none, and square a failure of AI. A task from paper
 // it checks by shapes too: the statement wider than tall reads into a formula
-// the solver takes, taller than wide is none and a solution of AI gives the
+// the solver takes, at least twice as tall as wide is several tasks, which have
+// no key, otherwise taller than wide is none and a solution of AI gives the
 // same answer, and square has no one answer, so the task has no key; the work
 // it reads by the shape of its crop, which takes in the tracing paper: more
 // than twice as wide as tall right, wider but not twice wrong, else illegible.
@@ -765,9 +766,20 @@ const (
 	stubKey     = "85"
 )
 
+// severalTasks are the tasks the stub reads on a crop of several: three sums,
+// whose formulas the solver takes, the last of a key other than stubKey, so
+// that the stub's reading of the work, stubKey in each, gets two of three.
+var severalTasks = []tutor.StatementTask{
+	{Statement: "37 + 48 =", Formula: "37+48"},
+	{Statement: "40 + 45 =", Formula: "40+45"},
+	{Statement: "50 + 36 =", Formula: "50+36"},
+}
+
 // ReadStatement reads the statement of a task from paper by the shape of its
-// crop (R66): wider than tall, the formula stubFormula, which the solver
-// takes; taller than wide or square, none, so that a solution of AI is asked.
+// crop (R66): wider than tall, one task of the formula stubFormula, which the
+// solver takes; at least twice as tall as wide, the three tasks severalTasks;
+// otherwise taller than wide or square, one task of no formula, so that a
+// solution of AI is asked.
 // Of tutor's checks before its call the stub keeps the crop's form: one that is
 // no JPEG or PNG fails with no usage. Past it an own key of an ending of the
 // stub's, own being its value, is refused by it.
@@ -777,20 +789,27 @@ func (s *Stub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string)
 		return tutor.StatementRead{Outcome: o}
 	}
 	read := tutor.StatementRead{Outcome: o}
-	if cfg.Width > cfg.Height {
-		read.Formula = stubFormula
+	switch {
+	case cfg.Width > cfg.Height:
+		read.Tasks = []tutor.StatementTask{{Statement: "37 + 48 =", Formula: stubFormula}}
+	case cfg.Height >= 2*cfg.Width:
+		read.Tasks = slices.Clone(severalTasks)
+	default:
+		read.Tasks = []tutor.StatementTask{{Statement: "Ann has 37 stamps and gets 48 more. How many has she?"}}
 	}
 	return read
 }
 
-// SolveTask solves a task from paper by the shape of its crop, as
-// ReadStatement reads it: square, no one answer, which leaves the task no key;
-// otherwise the number stubKey.
-func (s *Stub) SolveTask(ctx context.Context, p tutor.PaperTask, own string) tutor.TaskSolved {
+// SolveTask solves the tasks of a crop from paper it is asked by the shape of
+// the crop, as ReadStatement reads it: square, no one answer, which leaves
+// each task no key; otherwise the number stubKey for each.
+func (s *Stub) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, own string) tutor.TasksSolved {
 	cfg, o, ok := s.statement(ctx, tutor.CallSolving, p, own)
-	solved := tutor.TaskSolved{Outcome: o}
-	if ok && cfg.Width != cfg.Height {
-		solved.Answer = &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: stubKey}}}
+	solved := tutor.TasksSolved{Outcome: o, Answers: map[int]*paperv1.Answer{}}
+	for _, t := range tasks {
+		if ok && cfg.Width != cfg.Height {
+			solved.Answers[t.Number] = &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: stubKey}}}
+		}
 	}
 	return solved
 }
@@ -813,15 +832,31 @@ func (s *Stub) statement(ctx context.Context, call tutor.Call, p tutor.PaperTask
 // takes in the tracing paper, a line of print as a rule: more than twice as
 // wide as tall — the task with a short answer — the stub's key, stubKey; wider
 // than tall but not twice — a stroke that reaches below the task — a wrong
-// value; square or taller, illegible. One reader reads it in any mode, as
-// tutor's one model, in the place 1,1 of the task's one answer slot.
+// value; square or taller, illegible. Of several tasks it reads stubKey in
+// each, in a band of the crop of its own, one under another. One reader reads
+// it in any mode, as tutor's one model, the task n in the place n, 1.
 func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead {
 	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
 	if err != nil {
 		return failed(err)
 	}
+	if len(r.Tasks) == 0 {
+		return failed(errors.New("tutorstub: the reading of paper has no task"))
+	}
 	if o, refused := refusal(ctx, own); refused {
 		return tutor.SheetRead{Outcome: o}
+	}
+	done := tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, 1)}
+	if n := len(r.Tasks); n > 1 {
+		obs := &observationv1.Observation{}
+		for i := range n {
+			obs.AnswerSlots = append(obs.AnswerSlots, &observationv1.AnswerSlotObservation{
+				AnswerSlot: &observationv1.AnswerSlotPlace{Item: int32(i + 1), Slot: 1},
+				Read:       &observationv1.AnswerSlotObservation_Value{Value: stubKey},
+				CropBox:    &observationv1.CropBox{Ymin: int32(i * wholeCrop / n), Ymax: int32((i + 1) * wholeCrop / n), Xmax: wholeCrop},
+			})
+		}
+		return tutor.SheetRead{Observations: []*observationv1.Observation{obs}, Outcome: done}
 	}
 	answer := &observationv1.AnswerSlotObservation{AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}}
 	switch {
@@ -837,6 +872,6 @@ func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) 
 	}
 	return tutor.SheetRead{
 		Observations: []*observationv1.Observation{{AnswerSlots: []*observationv1.AnswerSlotObservation{answer}}},
-		Outcome:      tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, 1)},
+		Outcome:      done,
 	}
 }

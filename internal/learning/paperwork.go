@@ -24,12 +24,12 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// paperChecker reads the statement of a task from paper into a formula, solves
-// it, and reads the work on it, as tutor does; own is as sheetReader has it
-// (R162 spec).
+// paperChecker reads the statement of a task from paper into its tasks, solves
+// those no formula keys, and reads the work on them, as tutor does; own is as
+// sheetReader has it (R162 spec).
 type paperChecker interface {
 	ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead
-	SolveTask(ctx context.Context, p tutor.PaperTask, own string) tutor.TaskSolved
+	SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, own string) tutor.TasksSolved
 	ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead
 }
 
@@ -37,16 +37,19 @@ func (g gateTutor) ReadStatement(ctx context.Context, p tutor.PaperTask, _ strin
 	return g.Gate.ReadStatement(ctx, p)
 }
 
-func (g gateTutor) SolveTask(ctx context.Context, p tutor.PaperTask, _ string) tutor.TaskSolved {
-	return g.Gate.SolveTask(ctx, p)
+func (g gateTutor) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, _ string) tutor.TasksSolved {
+	return g.Gate.SolveTask(ctx, p, tasks)
 }
 
 func (g gateTutor) ReadPaper(ctx context.Context, r tutor.PaperReading, _ string) tutor.SheetRead {
 	return g.Gate.ReadPaper(ctx, r)
 }
 
-// paperPlace is the place of the one answer slot of a task from paper.
-var paperPlace = &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}
+// taskPlace is the place of the answer slot of the task n of a crop from paper,
+// from 1: the slot 1 of the item n.
+func taskPlace(n int) *observationv1.AnswerSlotPlace {
+	return &observationv1.AnswerSlotPlace{Item: int32(n), Slot: 1}
+}
 
 // paperSending is a submission of a task from paper between the parts of its
 // request: the attempt, the route, the work — the task's crop and the crop of
@@ -107,18 +110,19 @@ func (s *Service) holdPaper(ctx context.Context, tx pgx.Tx, profileID, attemptID
 // key, in three parts (rpc.Across), as a task of a module that AI reads: the
 // checks of the attempt and the work, the reserve and the key's record going;
 // the calls, in none; and the attempt held again with the verdict, in a second
-// (R162 spec). The first submission derives the key from the task's crop while
-// the work is read beside it: the statement read into a formula, whose answer
-// the solver of module-kit computes, or, when the statement is no formula or
-// the solver does not take it, one solution of AI, whose answer is the key
-// once it holds to the rules of one (paper.Key). The attempt keeps the key until
-// it closes. A key with no answer — the solution gave none a program can
-// compare — leaves the slot unchecked with CAUSE_NO_KEY, now and on every later
-// submission, which calls no AI. Calls that derive no key are an outcome, the
-// slot unchecked, and the next submission derives it again. The work is read as
-// a sheet is, its values brought to the key, joined and judged by module-kit;
-// a correct answer closes the attempt "correct" with an empty solved, no next
-// and no evidence. Taps are none: the task has no slot bound choice.
+// (R162 spec). The first submission derives the key from the task's crop: the
+// statement read into its tasks, one or each of several framed together, and
+// the key of each, the solver's on its formula, or, for the tasks with no
+// formula the solver takes, one solution of AI of them all, whose answer of a
+// task is its key once it holds to the rules of one (paper.Key); the work is
+// read beside the solution, given the tasks' statements. The attempt keeps the
+// key, with the statements, until it closes. A task with no answer is
+// unchecked, and with none in any task every submission gets CAUSE_NO_KEY and
+// calls no AI. Calls that derive no key are an outcome, the slots unchecked,
+// and the next submission derives it again. The work is read as a sheet is,
+// each value brought to its task's key, joined and judged by module-kit; every
+// task with a key correct closes the attempt "correct" with an empty solved, no
+// next and no evidence. Taps are none: the task has no slot bound choice.
 func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequest, category formatv0.AgeCategory, key rpc.Key) (*v1.SubmitWorkResponse, error) {
 	s := a.s
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
@@ -154,11 +158,9 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 			if out.key, err = keptKey(row); err != nil {
 				return paperSending{}, target, err
 			}
-			if out.key != nil {
-				if out.key.GetAnswer() == nil {
-					// No key to judge by: no call goes, and nothing is reserved.
-					return out, target, nil
-				}
+			if out.key != nil && !keyed(out.key) {
+				// No key to judge by: no call goes, and nothing is reserved.
+				return out, target, nil
 			}
 			out.derive = out.key == nil
 			if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err != nil {
@@ -176,13 +178,12 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			// A key kept is the attempt's, the one a Check that went meanwhile derived too.
-			k, err := keptKey(row)
+			saved, err := keptKey(row)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			if k == nil && out.derived != nil {
-				k = out.derived
+			k, keep := judgedKey(saved, out)
+			if keep {
 				// A key of the contract always marshals.
 				kept, _ := proto.Marshal(k)
 				if err := store.SetPaperKey(ctx, tx, profileID, row.ID, kept); err != nil {
@@ -240,12 +241,13 @@ func (s *Service) reservePaper(ctx context.Context, tx pgx.Tx, profileID string,
 }
 
 // checkPaper makes the calls of out until finishReserve before the request's
-// deadline: the reading of the work, and beside it, when the key is derived,
-// the chain of the key. A reserve the quota refused, or a key kept with no
+// deadline: the reading of the work, given the statements of the tasks, which
+// a key derived now has only once the statement is read, and then the reading
+// goes beside the solution. A reserve the quota refused, or a key kept with no
 // answer, calls nothing. The crops go no further than the calls.
 func (s *Service) checkPaper(ctx context.Context, out paperSending, own string) (done paperSending) {
 	defer func() { done.statement, done.crop = nil, nil }()
-	if out.reading.refused != nil || out.key != nil && out.key.GetAnswer() == nil {
+	if out.reading.refused != nil || out.key != nil && !keyed(out.key) {
 		return out
 	}
 	ctx, cancel := finishing(ctx)
@@ -262,82 +264,158 @@ func (s *Service) checkPaper(ctx context.Context, out paperSending, own string) 
 		s.afterCall(ctx, r, o)
 	}
 	var read tutor.SheetRead
-	var derived *paperv1.Key
-	var noKey *v1.Outcome
 	var wg sync.WaitGroup
-	wg.Go(func() {
-		start := time.Now()
-		read = s.paper.ReadPaper(ctx, tutor.PaperReading{Route: out.route, Crop: out.crop}, own)
-		settled(out.reading, read.Outcome, time.Since(start))
-	})
+	reading := false
+	readWork := func(tasks []string) {
+		reading = true
+		wg.Go(func() {
+			start := time.Now()
+			read = s.paper.ReadPaper(ctx, tutor.PaperReading{Route: out.route, Crop: out.crop, Tasks: tasks}, own)
+			settled(out.reading, read.Outcome, time.Since(start))
+		})
+	}
 	if out.derive {
-		wg.Go(func() { derived, noKey = s.deriveKey(ctx, out, own, settled) })
+		out.derived, out.noKey = s.deriveKey(ctx, out, own, settled, readWork)
+	} else {
+		readWork(statementsOf(out.key))
 	}
 	wg.Wait()
-	out.read, out.derived, out.noKey = read, derived, noKey
+	if !reading {
+		settled(out.reading, tutor.Outcome{Kind: tutor.NotAdmitted}, 0)
+	}
+	out.read = read
 	return out
 }
 
-// deriveKey is the key of a task from paper from its crop: the solver's on the
-// formula the statement reads into, or else that of one solution of AI (R162
-// spec). A reading of the statement that failed or was not admitted goes on to
-// the solution, which may serve; a limit or an own key refused stops the chain.
-// No key is the outcome of the call that gave none, which the next submission
-// asks again. settled notes and settles a call, and with no time gives a
-// reserve back as release does.
-func (s *Service) deriveKey(ctx context.Context, out paperSending, own string, settled func(reserve, tutor.Outcome, time.Duration)) (*paperv1.Key, *v1.Outcome) {
+// keyed is whether some task of a key has an answer to judge by.
+func keyed(k *paperv1.Key) bool {
+	for _, t := range k.GetTasks() {
+		if t.GetAnswer() != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// statementsOf are the statements of a key's tasks, in order, as the reading of
+// the work is given them.
+func statementsOf(k *paperv1.Key) []string {
+	out := make([]string, len(k.GetTasks()))
+	for i, t := range k.GetTasks() {
+		out[i] = t.GetStatement()
+	}
+	return out
+}
+
+// deriveKey is the key of a task from paper from its crop (R162 spec): the
+// statement read into its tasks, and the key of each, the solver's on its
+// formula or else that of one solution of AI of all the tasks no formula keys.
+// read starts the reading of the work once the statements are known, beside
+// the solution. A reading of the statement that gave no tasks — a failure, a
+// limit, no admission — stops the chain, and its outcome is the key's: the next
+// submission asks again. A crop on which the statement found no task gets a key
+// of none, CAUSE_NO_KEY. settled notes and settles a call, and with no time
+// gives a reserve back as release does.
+func (s *Service) deriveKey(ctx context.Context, out paperSending, own string, settled func(reserve, tutor.Outcome, time.Duration), read func([]string)) (*paperv1.Key, *v1.Outcome) {
 	task := tutor.PaperTask{Route: out.route, Statement: out.statement}
 	unused := tutor.Outcome{Kind: tutor.NotAdmitted}
 	start := time.Now()
 	st := s.paper.ReadStatement(ctx, task, own)
 	settled(out.stating, st.Outcome, time.Since(start))
-	switch st.Outcome.Kind {
-	case tutor.Answered:
-		if st.Formula != "" {
-			start := time.Now()
-			n, _ := paper.Solve(st.Formula)
-			if n == nil {
-				out.debug.Solved(nil, time.Since(start))
-			} else {
-				k := paper.Key(n, nil)
-				out.debug.Solved(k.GetAnswer(), time.Since(start))
-				settled(out.solving, unused, 0)
-				return k, nil
-			}
-		}
-	case tutor.LimitReached, tutor.KeyRefused:
+	if st.Outcome.Kind != tutor.Answered {
 		settled(out.solving, unused, 0)
 		return nil, outcomeOf(st.Outcome, out.route.AI)
 	}
+	k := &paperv1.Key{}
+	if len(st.Tasks) == 0 {
+		settled(out.solving, unused, 0)
+		return k, nil
+	}
+	statements := make([]string, len(st.Tasks))
+	for i, t := range st.Tasks {
+		statements[i] = t.Statement
+	}
+	read(statements)
+	var unsolved []tutor.TaskToSolve
 	start = time.Now()
-	so := s.paper.SolveTask(ctx, task, own)
+	for i, t := range st.Tasks {
+		tk := &paperv1.TaskKey{Statement: t.Statement}
+		if t.Formula != "" {
+			if n, _ := paper.Solve(t.Formula); n != nil {
+				tk = paper.Key(n, nil)
+				tk.Statement = t.Statement
+			}
+		}
+		if tk.GetAnswer() == nil {
+			unsolved = append(unsolved, tutor.TaskToSolve{Number: i + 1, Statement: t.Statement})
+		}
+		k.Tasks = append(k.Tasks, tk)
+	}
+	if len(unsolved) < len(st.Tasks) {
+		out.debug.Solved(k, time.Since(start))
+	}
+	if len(unsolved) == 0 {
+		settled(out.solving, unused, 0)
+		return k, nil
+	}
+	start = time.Now()
+	so := s.paper.SolveTask(ctx, task, unsolved, own)
 	settled(out.solving, so.Outcome, time.Since(start))
 	if so.Outcome.Kind != tutor.Answered {
 		return nil, outcomeOf(so.Outcome, out.route.AI)
 	}
-	return paper.Key(nil, so.Answer), nil
+	for _, t := range unsolved {
+		tk := paper.Key(nil, so.Answers[t.Number])
+		tk.Statement = t.Statement
+		k.Tasks[t.Number-1] = tk
+	}
+	return k, nil
 }
 
-// keptKey is the key the attempt keeps, or none.
+// keptKey is the key the attempt keeps, or none. A key of a shape this build
+// knows not reads as no task and fields unknown: it is none, derived again, not
+// a key of no task, which every submission would take for CAUSE_NO_KEY.
 func keptKey(row store.Attempt) (*paperv1.Key, error) {
 	if row.PaperKey == nil {
 		return nil, nil
 	}
 	k := &paperv1.Key{}
-	return k, proto.Unmarshal(row.PaperKey, k)
+	if err := proto.Unmarshal(row.PaperKey, k); err != nil {
+		return nil, err
+	}
+	if len(k.GetTasks()) == 0 && len(k.ProtoReflect().GetUnknown()) > 0 {
+		return nil, nil
+	}
+	return k, nil
+}
+
+// judgedKey is the key a submission is judged by, given the one the attempt
+// keeps now, and whether to keep it: a submission that derived a key read the
+// work against its statements, and is judged by it alone, kept unless a Check
+// that went meanwhile kept its own, which may list other tasks. Any other is
+// judged by the key kept, none when the derivation gave none.
+func judgedKey(kept *paperv1.Key, out paperSending) (*paperv1.Key, bool) {
+	if !out.derive {
+		return kept, false
+	}
+	return out.derived, kept == nil && out.derived != nil
 }
 
 // paperVerdict is the verdict of a submission of a task from paper by its key,
-// in the contract's words, and the observation the submission keeps: the
-// readings brought to the key and joined, or the one reader's, which module-kit
-// judges against the task's one item (paper.Items). With no key, or one with no
-// answer, the slot is unchecked with the outcome of why: the quota, the calls
-// that derived none, or CAUSE_NO_KEY. The value the learner reads is the one a
-// reader wrote, before it was brought to the key.
+// in the contract's words, and the observation the submission keeps: an item
+// for each task of the key, the task n the item n, each judged by module-kit
+// against its own key (paper.Items) on the readings of its slot brought to it
+// and joined, or the one reader's; a task with no key is unchecked. With no key,
+// or none in any task, every slot is unchecked with the outcome of why: the
+// quota, the calls that derived none, or CAUSE_NO_KEY. The value the learner
+// reads is the one a reader wrote, before it was brought to the key, with the
+// box where the reader saw it.
 func (s *Service) paperVerdict(ctx context.Context, row store.Attempt, k *paperv1.Key, out paperSending) (*v1.SubmitWorkResponse, *observationv1.Observation, error) {
 	answer := &v1.SubmitWorkResponse{WrongAnswers: int32(row.WrongAnswers)}
 	unchecked := func(o *v1.Outcome) (*v1.SubmitWorkResponse, *observationv1.Observation, error) {
-		answer.Items = []*v1.ItemVerdict{{Verdict: string(verdict.Unchecked), AnswerSlots: []*v1.AnswerSlotVerdict{{AnswerSlot: paperPlace, Verdict: string(verdict.Unchecked)}}}}
+		for n := range max(1, len(k.GetTasks())) {
+			answer.Items = append(answer.Items, &v1.ItemVerdict{Verdict: string(verdict.Unchecked), AnswerSlots: []*v1.AnswerSlotVerdict{{AnswerSlot: taskPlace(n + 1), Verdict: string(verdict.Unchecked)}}})
+		}
 		answer.Outcome = o
 		return answer, nil, nil
 	}
@@ -346,31 +424,86 @@ func (s *Service) paperVerdict(ctx context.Context, row store.Attempt, k *paperv
 		return unchecked(out.reading.refused)
 	case k == nil:
 		return unchecked(out.noKey)
-	case k.GetAnswer() == nil:
+	case !keyed(k):
 		return unchecked(&v1.Outcome{Cause: v1.Cause_CAUSE_NO_KEY})
 	}
-	items := paper.Items(k.GetAnswer())
-	joined, outcome := s.joinedPaper(items, k.GetAnswer(), out.read, out.route.AI, out.debug)
-	verdicts, err := observation.Verdicts(ctx, items, joined, nil)
-	if err != nil {
-		return nil, nil, err
+	if act := out.debug; act.Pair() && len(out.read.Observations) == 2 {
+		act.Differ(readDiffer(out.read.Observations[0], out.read.Observations[1]))
 	}
-	shown := joined
-	if joined != nil {
-		shown = proto.Clone(joined).(*observationv1.Observation)
-		if v, ok := shown.GetAnswerSlots()[0].GetRead().(*observationv1.AnswerSlotObservation_Value); ok {
-			v.Value = writtenAs(k.GetAnswer(), v.Value, out.read.Observations)
+	kept := &observationv1.Observation{}
+	solved := true
+	for i, t := range k.GetTasks() {
+		place := taskPlace(i + 1)
+		read := tutor.SheetRead{Outcome: out.read.Outcome}
+		for _, o := range out.read.Observations {
+			read.Observations = append(read.Observations, slotOf(o, place))
 		}
+		if t.GetAnswer() == nil {
+			answer.Items = append(answer.Items, &v1.ItemVerdict{Verdict: string(verdict.Unchecked), AnswerSlots: []*v1.AnswerSlotVerdict{{AnswerSlot: place, Verdict: string(verdict.Unchecked)}}})
+			continue
+		}
+		items := paper.Items(t.GetAnswer())
+		joined, outcome := s.joinedPaper(items, t.GetAnswer(), read, out.route.AI, out.debug)
+		verdicts, err := observation.Verdicts(ctx, items, joined, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		shown := joined
+		if joined != nil {
+			shown = proto.Clone(joined).(*observationv1.Observation)
+			if v, ok := shown.GetAnswerSlots()[0].GetRead().(*observationv1.AnswerSlotObservation_Value); ok {
+				v.Value = writtenAs(t.GetAnswer(), v.Value, read.Observations)
+			}
+			slot := proto.Clone(joined.GetAnswerSlots()[0]).(*observationv1.AnswerSlotObservation)
+			slot.AnswerSlot = place
+			kept.AnswerSlots = append(kept.AnswerSlots, slot)
+		}
+		one, wrong, correct := itemVerdicts(verdicts, nil, shown)
+		slot := one[0].GetAnswerSlots()[0]
+		slot.AnswerSlot = place
+		if slot.Value != nil {
+			slot.CropBox = boxOf(read.Observations)
+		}
+		answer.Items = append(answer.Items, one[0])
+		if outcome != nil {
+			answer.Outcome = outcome
+		}
+		if wrong {
+			answer.WrongAnswers = int32(row.WrongAnswers) + 1
+		}
+		solved = solved && correct
 	}
-	itemsOut, wrong, correct := itemVerdicts(verdicts, nil, shown)
-	answer.Items, answer.Outcome = itemsOut, outcome
-	if wrong {
-		answer.WrongAnswers++
-	}
-	if correct {
+	if solved {
 		answer.Solved = &v1.SolvedTask{}
 	}
-	return answer, joined, nil
+	if len(kept.GetAnswerSlots()) == 0 {
+		kept = nil
+	}
+	return answer, kept, nil
+}
+
+// slotOf is the observation of the slot at place of a reader's observation,
+// put at the place 1, 1 of a task's one item, or one with no slot when the
+// reader gave none there.
+func slotOf(o *observationv1.Observation, place *observationv1.AnswerSlotPlace) *observationv1.Observation {
+	for _, slot := range o.GetAnswerSlots() {
+		if proto.Equal(slot.GetAnswerSlot(), place) {
+			one := proto.Clone(slot).(*observationv1.AnswerSlotObservation)
+			one.AnswerSlot = taskPlace(1)
+			return &observationv1.Observation{AnswerSlots: []*observationv1.AnswerSlotObservation{one}}
+		}
+	}
+	return &observationv1.Observation{}
+}
+
+// boxOf is where the first reader that gave the slot a box saw it, or none.
+func boxOf(read []*observationv1.Observation) *observationv1.CropBox {
+	for _, o := range read {
+		if b := o.GetAnswerSlots(); len(b) > 0 && b[0].GetCropBox() != nil {
+			return b[0].GetCropBox()
+		}
+	}
+	return nil
 }
 
 // joinedPaper is the observation of a reading of the work on a task from
@@ -381,9 +514,6 @@ func (s *Service) joinedPaper(items []formatv0.Item, key *paperv1.Answer, r tuto
 	brought := tutor.SheetRead{Outcome: r.Outcome, Observations: make([]*observationv1.Observation, len(r.Observations))}
 	for i, o := range r.Observations {
 		brought.Observations[i] = paper.Brought(key, o)
-	}
-	if act.Pair() && len(brought.Observations) == 2 {
-		act.Differ(readDiffer(brought.Observations[0], brought.Observations[1]))
 	}
 	return s.joinOf(items, brought, route, !act.Pair())
 }
@@ -437,6 +567,9 @@ func (s *Service) debugged(ctx context.Context, kind v1.DebugActionKind, attempt
 // reader's first, or value itself when none is.
 func writtenAs(key *paperv1.Answer, value string, read []*observationv1.Observation) string {
 	for _, o := range read {
+		if len(o.GetAnswerSlots()) == 0 {
+			continue
+		}
 		if v, ok := o.GetAnswerSlots()[0].GetRead().(*observationv1.AnswerSlotObservation_Value); ok && paper.BroughtValue(key, v.Value) == value {
 			return v.Value
 		}
