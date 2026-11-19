@@ -180,6 +180,46 @@ func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
 	}
 }
 
+// The debug mode of a local run is API_DEBUG_MODELS=1, and empty is unset
+// (R97). Deployed, as a service or as a job, it is refused by the variable the
+// platform set; so is it beside the stub, which calls no model, and with any
+// value but 1.
+func TestTheDebugModeIsALocalRunsAlone(t *testing.T) {
+	t.Parallel()
+
+	for environ, want := range map[string]bool{
+		"API_DEBUG_MODELS=1 API_ANTHROPIC_KEY=k": true,
+		"API_DEBUG_MODELS=":                      false,
+	} {
+		got, err := config.AdmissionFrom(strings.Fields(environ))
+		if err != nil || got.Debug != want {
+			t.Errorf("AdmissionFrom(%s) = %+v, %v; want the debug mode %v", environ, got, err, want)
+		}
+	}
+	for name, tc := range map[string]struct {
+		environ []string
+		names   []string
+	}{
+		"as a service":    {[]string{"API_DEBUG_MODELS=1", "K_SERVICE=api"}, []string{"API_DEBUG_MODELS", "K_SERVICE"}},
+		"as a job":        {[]string{"API_DEBUG_MODELS=1", "CLOUD_RUN_JOB=check"}, []string{"API_DEBUG_MODELS", "CLOUD_RUN_JOB"}},
+		"beside the stub": {[]string{"API_DEBUG_MODELS=1", "API_TUTOR_STUB=1"}, []string{"API_DEBUG_MODELS", "API_TUTOR_STUB"}},
+		"another value":   {[]string{"API_DEBUG_MODELS=true"}, []string{"API_DEBUG_MODELS"}},
+		"without the key": {[]string{"API_DEBUG_MODELS=1"}, []string{"API_DEBUG_MODELS", "API_ANTHROPIC_KEY"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := config.AdmissionFrom(tc.environ)
+			if !errors.Is(err, config.ErrInvalid) {
+				t.Fatalf("AdmissionFrom error = %v, want %v", err, config.ErrInvalid)
+			}
+			for _, variable := range tc.names {
+				if !strings.Contains(err.Error(), variable) {
+					t.Errorf("error %q does not name %s", err, variable)
+				}
+			}
+		})
+	}
+}
+
 // The mode of reading is pair unset or empty, and single where it is named, at
 // either stage, deployed too (R88): a value tutor does not code is refused by
 // its variable.

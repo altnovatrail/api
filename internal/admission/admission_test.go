@@ -898,3 +898,25 @@ func TestTheModeSingleReadsByOneReader(t *testing.T) {
 		t.Errorf("Load in an unknown mode = %v, want a refusal of the configuration", err)
 	}
 }
+
+// The debug mode reaches tutor through the gate, which reports it, and the
+// gate gives the model the list admits for each call of a task from paper for
+// an adult on platform AI, none at the stage full (R97).
+func TestTheGateOfTheDebugMode(t *testing.T) {
+	t.Parallel()
+
+	cfg := keyed(t, file(t, adultFacts), "author")
+	cfg.Debug = true
+	g, r, err := admission.Load(cfg)
+	if err != nil || !r.Debug {
+		t.Fatalf("Load = %+v, %v; want the debug mode reported", r, err)
+	}
+	finding, ok := g.Admitted(tutor.CallFinding)
+	statement, ok2 := g.Admitted(tutor.CallStatement)
+	if !ok || !ok2 || finding.ID != "claude-opus-5-5" || statement.ID != "claude-haiku-5-5" {
+		t.Errorf("Admitted = %+v %v, %+v %v; want Opus and Haiku", finding, ok, statement, ok2)
+	}
+	if _, ok := load(t, keyed(t, file(t, adultFacts), "full")).Admitted(tutor.CallFinding); ok {
+		t.Error("the stage full admitted the finding")
+	}
+}

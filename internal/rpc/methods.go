@@ -117,4 +117,7 @@ var methods = map[string]rule{
 	// A task from paper (R10).
 	apiv1connect.PaperServiceFindTasksProcedure:          toLearn,
 	apiv1connect.PaperServiceBeginPaperAttemptsProcedure: toLearn,
+	apiv1connect.DebugServiceGetDebugProcedure:           ofAccount,
+	apiv1connect.DebugServiceSetDebugModelsProcedure:     ofAccount,
+	apiv1connect.DebugServiceTakeDebugCallsProcedure:     ofAccount,
 }

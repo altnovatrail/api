@@ -108,14 +108,21 @@ load() {
 # stubbed puts the run on the stub of tutor (R66): no key of platform AI from the dev file reaches
 # the process, and every call of AI is the stub's, which costs nothing. `just dev` runs so.
 stubbed() {
-    unset API_ANTHROPIC_KEY API_ANTHROPIC_KEY_FILE
+    unset API_ANTHROPIC_KEY API_ANTHROPIC_KEY_FILE API_DEBUG_MODELS
     export API_TUTOR_STUB=1
 }
 
 # modelled puts the run on the models, with the dev file's key: `just dev-ai`, for a task that checks
 # the words of a model under the cap its text names (R66; R146 spec).
 modelled() {
-    unset API_TUTOR_STUB
+    unset API_TUTOR_STUB API_DEBUG_MODELS
+}
+
+# debugged opens the debug mode of a local run on the models: app chooses the models of a task from
+# paper and shows what each call returned and cost (R97). `just dev-ai` and `just dev-app` with
+# API_DEV_APP_AI=1 run so; `just dev-check` does not.
+debugged() {
+    export API_DEBUG_MODELS=1
 }
 
 # b64url is base64url with no padding, as a JWT writes its parts.
@@ -875,7 +882,8 @@ app_done() {
 app_mode() {
     if [[ ${API_DEV_APP_AI:-} == 1 ]]; then
         modelled
-        app_on="on the models, with the dev file's key and facts"
+        debugged
+        app_on="on the models, with the dev file's key and facts, in the debug mode"
         return
     fi
     stubbed
@@ -960,6 +968,7 @@ run)
 run-ai)
     shift
     modelled
+    debugged
     build
     exec "$binary" "$@"
     ;;

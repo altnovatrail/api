@@ -85,8 +85,11 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 			return answer, nil
 		},
 	}
-	route := routeOf(category, req.GetOwnKey())
-	admitted := s.admits.Reads(tutor.CallFinding, category, req.GetOwnKey().GetProvider())
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_FIND_TASKS, "")
+	defer act.End()
+	route := act.Route(routeOf(category, req.GetOwnKey()))
+	// A first model of the debug mode takes the call past the list, as tutor does (R97).
+	admitted := act.Chosen() || s.admits.Reads(tutor.CallFinding, category, req.GetOwnKey().GetProvider())
 	answer, err := rpc.Across(ctx, s.db, key, req, rpc.Phases[finding, *v1.FindTasksResponse]{
 		Prepare: func(tx pgx.Tx, _ string) (finding, store.KeyTarget, error) {
 			target := store.KeyTarget{ProfileID: profileID}
@@ -189,7 +192,7 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.PaperServiceBeginPaperAttemptsProcedure}, req,
 		func(tx pgx.Tx, _ string) (*v1.BeginPaperAttemptsResponse, store.KeyTarget, error) {
 			now := s.clock()
-			if !s.admits.Reads(tutor.CallSheet, category, ownKey) {
+			if !s.debugChosen(ctx) && !s.admits.Reads(tutor.CallSheet, category, ownKey) {
 				return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 			}
 			if ownKey == "" {

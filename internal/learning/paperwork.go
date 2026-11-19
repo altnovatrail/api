@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -66,6 +67,8 @@ type paperSending struct {
 	read                      tutor.SheetRead
 	derived                   *paperv1.Key
 	noKey                     *v1.Outcome
+	// debug is the action of the debug mode, nil without it (R97).
+	debug *debug.Action
 }
 
 // paperAttempt says whether the profile's attempt is of a task from paper,
@@ -118,6 +121,8 @@ func (s *Service) holdPaper(ctx context.Context, tx pgx.Tx, profileID, attemptID
 // and no evidence. Taps are none: the task has no slot bound choice.
 func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequest, category formatv0.AgeCategory, key rpc.Key) (*v1.SubmitWorkResponse, error) {
 	s := a.s
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
+	defer act.End()
 	profileID := req.GetProfileId()
 	work := req.GetWork().GetPaper()
 	// A repeat gives the answer kept: a task from paper has no next.
@@ -145,7 +150,7 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
 				return paperSending{}, target, connect.NewError(connect.CodeDeadlineExceeded, "too little time to read the work")
 			}
-			out := paperSending{attemptID: row.ID, route: routeOf(category, req.GetOwnKey()), statement: work.GetStatement(), crop: work.GetCrop()}
+			out := paperSending{attemptID: row.ID, route: act.Route(routeOf(category, req.GetOwnKey())), statement: work.GetStatement(), crop: work.GetCrop(), debug: act}
 			if out.key, err = keptKey(row); err != nil {
 				return paperSending{}, target, err
 			}
@@ -289,9 +294,15 @@ func (s *Service) deriveKey(ctx context.Context, out paperSending, own string, s
 	switch st.Outcome.Kind {
 	case tutor.Answered:
 		if st.Formula != "" {
-			if n, _ := paper.Solve(st.Formula); n != nil {
+			start := time.Now()
+			n, _ := paper.Solve(st.Formula)
+			if n == nil {
+				out.debug.Solved(nil, time.Since(start))
+			} else {
+				k := paper.Key(n, nil)
+				out.debug.Solved(k.GetAnswer(), time.Since(start))
 				settled(out.solving, unused, 0)
-				return paper.Key(n, nil), nil
+				return k, nil
 			}
 		}
 	case tutor.LimitReached, tutor.KeyRefused:
@@ -339,7 +350,7 @@ func (s *Service) paperVerdict(ctx context.Context, row store.Attempt, k *paperv
 		return unchecked(&v1.Outcome{Cause: v1.Cause_CAUSE_NO_KEY})
 	}
 	items := paper.Items(k.GetAnswer())
-	joined, outcome := s.joinedPaper(items, k.GetAnswer(), out.read, out.route.AI)
+	joined, outcome := s.joinedPaper(items, k.GetAnswer(), out.read, out.route.AI, out.debug)
 	verdicts, err := observation.Verdicts(ctx, items, joined, nil)
 	if err != nil {
 		return nil, nil, err
@@ -363,15 +374,63 @@ func (s *Service) paperVerdict(ctx context.Context, row store.Attempt, k *paperv
 }
 
 // joinedPaper is the observation of a reading of the work on a task from
-// paper, by its one reader in any mode of reading (R96), its value brought to
-// the key first, so that x = 4 is 4; or none, with the outcome that left the
-// slot unchecked.
-func (s *Service) joinedPaper(items []formatv0.Item, key *paperv1.Answer, r tutor.SheetRead, route admissionv0.AiRoute) (*observationv1.Observation, *v1.Outcome) {
+// paper, by its one reader in any mode of reading (R96), or by the pair of the
+// debug mode's two readers (R97), each value brought to the key first, so that
+// x = 4 is 4; or none, with the outcome that left the slot unchecked.
+func (s *Service) joinedPaper(items []formatv0.Item, key *paperv1.Answer, r tutor.SheetRead, route admissionv0.AiRoute, act *debug.Action) (*observationv1.Observation, *v1.Outcome) {
 	brought := tutor.SheetRead{Outcome: r.Outcome, Observations: make([]*observationv1.Observation, len(r.Observations))}
 	for i, o := range r.Observations {
 		brought.Observations[i] = paper.Brought(key, o)
 	}
-	return s.joinOf(items, brought, route, true)
+	if act.Pair() && len(brought.Observations) == 2 {
+		act.Differ(readDiffer(brought.Observations[0], brought.Observations[1]))
+	}
+	return s.joinOf(items, brought, route, !act.Pair())
+}
+
+// readDiffer is whether two readers read some answer slot differently: its
+// value or why it is unreadable, as the join of R68 tells them apart; where
+// each saw the slot does not count.
+func readDiffer(a, b *observationv1.Observation) bool {
+	read := func(o *observationv1.Observation) map[[2]int32]string {
+		m := map[[2]int32]string{}
+		for _, slot := range o.GetAnswerSlots() {
+			place := [2]int32{slot.GetAnswerSlot().GetItem(), slot.GetAnswerSlot().GetSlot()}
+			if _, ok := slot.GetRead().(*observationv1.AnswerSlotObservation_Value); ok {
+				m[place] = "value:" + slot.GetValue()
+			} else {
+				m[place] = "unreadable:" + slot.GetUnreadable().String()
+			}
+		}
+		return m
+	}
+	ra, rb := read(a), read(b)
+	if len(ra) != len(rb) {
+		return true
+	}
+	for place, v := range ra {
+		if rb[place] != v {
+			return true
+		}
+	}
+	return false
+}
+
+// debugChosen is whether the caller's account has a first model of the debug
+// mode, which takes a call past the admission list (R97).
+func (s *Service) debugChosen(ctx context.Context) bool {
+	caller, _ := rpc.CallerFrom(ctx)
+	return s.debug.Chosen(caller.AccountID)
+}
+
+// debugged is the action of the debug mode for a request of the caller's
+// account, nil without the mode (R97).
+func (s *Service) debugged(ctx context.Context, kind v1.DebugActionKind, attemptID string) *debug.Action {
+	if s.debug == nil {
+		return nil
+	}
+	caller, _ := rpc.CallerFrom(ctx)
+	return s.debug.Begin(caller.AccountID, kind, attemptID, s.clock())
 }
 
 // writtenAs is the value a reader wrote that is brought to value, the first

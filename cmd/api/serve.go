@@ -20,6 +20,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/export"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/legal"
@@ -110,6 +111,13 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		options = append(options, learning.WithTutor(tutorstub.New(gate)))
 		accounts = append(accounts, account.WithoutKeyCheckLimit())
 	}
+	// The debug mode of a local run chooses the models of a task from paper and
+	// keeps what each call returned, in this process alone (R97).
+	var debugs *debug.Store
+	if declared.Debug {
+		debugs = debug.New()
+		options = append(options, learning.WithDebug(debugs))
+	}
 	// The tariff of dev-check has its caps off a deployment alone: deployed, an
 	// account that got it all the same opens no spending of the platform's (R55).
 	if !cfg.Deployed() {
@@ -132,6 +140,9 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		return startupFailed(ctx, log, err, fields...)
 	}
 	handlers.Legal = legal.NewService(texts)
+	if debugs != nil {
+		handlers.Debug = debug.NewService(debugs, gate.Admitted)
+	}
 	// Closed in the part of the way out kept for it: a request the drain cut short
 	// may still hold a connection, and the pool's Close waits for it, past the
 	// platform's grace if nothing bounded it.
@@ -181,6 +192,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldPlatformKeys, declared.PlatformKeys,
 		logging.FieldTutorStub, declared.Stub,
 		logging.FieldReadingMode, declared.Reading,
+		logging.FieldDebugModels, declared.Debug,
 	)
 
 	if err := srv.Run(ctx); err != nil {

@@ -92,6 +92,8 @@ type Report struct {
 	Stub bool
 	// Reading is the mode of reading handwriting, pair or single (R88).
 	Reading string
+	// Debug says whether the debug mode of a local run is open (R97).
+	Debug bool
 }
 
 // stubKey stands for the platform's key of Anthropic in the dev mode's stub,
@@ -195,13 +197,13 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		return nil, Report{}, err
 	}
 	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung),
-		Reading: g.reading, Keys: keys, Adapters: adapters}); err != nil {
+		Reading: g.reading, Keys: keys, Adapters: adapters, Debug: cfg.Debug}); err != nil {
 		// What tutor.New refuses is what cfg declares: a stage, a mode of
 		// reading, or a key of a provider api gives no adapter of.
 		return nil, Report{}, fmt.Errorf("%w: %w", config.ErrInvalid, err)
 	}
 	return g, Report{TableVersion: t.Version(), FactsFile: cfg.FactsFile != "", Rung: cfg.Rung, RungSet: cfg.RungSet,
-		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading())}, nil
+		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading()), Debug: cfg.Debug}, nil
 }
 
 // tableProviders are the providers of the table that tutor reads,
@@ -457,6 +459,17 @@ func (g *Gate) Price(call tutor.Call, route tutor.Route) tutor.CallPrice {
 func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
 	entry, _, err := g.tutor.ChooseCall(call, route)
 	return err == nil && len(entry.Models) > 0
+}
+
+// Admitted is the first model tutor's list gives the call for an adult on
+// platform AI, what the debug mode shows of a call it leaves to the list (R97);
+// none where the list admits no model.
+func (g *Gate) Admitted(call tutor.Call) (table.Model, bool) {
+	entry, answer, err := g.tutor.ChooseCall(call, g.route(formatv0.AgeCategoryAdult, ""))
+	if err != nil || !answer.Admitted || len(entry.Models) == 0 {
+		return table.Model{}, false
+	}
+	return entry.Models[0], true
 }
 
 // Reading is the mode tutor reads the handwriting of a sheet and of a workbook

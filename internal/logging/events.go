@@ -136,6 +136,9 @@ const (
 	// FieldTutorStub says whether tutor's calls go to the stub of the dev mode,
 	// which calls no provider (R66).
 	FieldTutorStub = "tutor_stub"
+	// FieldDebugModels says whether the debug mode of a local run is open
+	// (R97).
+	FieldDebugModels = "debug_models"
 	// FieldReadingMode is the mode tutor reads handwriting by, pair or single
 	// (R88).
 	FieldReadingMode = "reading_mode"
@@ -248,7 +251,7 @@ const (
 // events is every event and the fields it may carry.
 var events = map[string][]string{
 	EventStartup: {FieldVersion, FieldCommit, FieldDate, FieldPort, FieldDeployed, FieldModulesRelease, FieldPackages,
-		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldLegalDir, FieldConsentForms},
+		FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldDebugModels, FieldLegalDir, FieldConsentForms},
 	EventStopping: {},
 	EventStopped:  {FieldCutShort},
 	EventShutdown: {FieldStarted},
@@ -260,7 +263,7 @@ var events = map[string][]string{
 	EventSwept:        {FieldStep, FieldDone, FieldFailed, FieldFinished},
 	EventPackagesLaid: {FieldModulesRelease, FieldPackages, FieldFiles},
 	EventPackageFile:  {FieldStatus, FieldDurationMS, FieldErrorKind},
-	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldLegalDir, FieldConsentForms},
+	EventAdmission:    {FieldAdmissionTable, FieldFactsFile, FieldRung, FieldRungSet, FieldPlatformKeys, FieldTutorStub, FieldReadingMode, FieldDebugModels, FieldLegalDir, FieldConsentForms},
 	EventAIUsage: {FieldMethod, FieldProvider, FieldModel, FieldInputTokens, FieldCacheWriteTokens, FieldCacheReadTokens,
 		FieldOutputTokens, FieldThinkingTokens, FieldAIOutcome, FieldDurationMS, FieldCostMicroUSD, FieldBilled, FieldModelMS, FieldRetries, FieldFirstTokenMS},
 	EventQuotaExhausted:   {FieldMethod, FieldQuotaCap},
@@ -315,6 +318,7 @@ var fields = map[string]rule{
 	FieldRungSet:          {kind: slog.KindBool},
 	FieldPlatformKeys:     {kind: slog.KindInt64},
 	FieldTutorStub:        {kind: slog.KindBool},
+	FieldDebugModels:      {kind: slog.KindBool},
 	FieldReadingMode:      {kind: slog.KindString, values: ReadingModes},
 	FieldLegalDir:         {kind: slog.KindBool},
 	FieldConsentForms:     {kind: slog.KindString, values: FormsStores},

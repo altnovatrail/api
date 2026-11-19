@@ -29,6 +29,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
@@ -94,6 +95,8 @@ type Service struct {
 	model *model.Model
 	// engine is the version of engine, which every choice keeps (R50).
 	engine string
+	// debug is the debug mode of a local run, nil without it (R97).
+	debug *debug.Store
 }
 
 // Option sets what a Service runs on: for the tests, and the dev mode's stub.
@@ -110,6 +113,10 @@ func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.go
 // projects: a tariff of the dev projects alone has its caps there alone
 // (quota.CapsOf).
 func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
+
+// WithDebug is the debug mode of a local run, whose choice of models serves the
+// calls of a task from paper and whose store keeps what each returned (R97).
+func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } }
 
 // WithTutor is what reads the sheets, the workbook pages and the essays,
 // assesses the essays by their rubrics, words the tutor's words, those after a
