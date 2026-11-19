@@ -932,9 +932,9 @@ func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
 		value         string
 	}{{90, 30, "85"}, {40, 30, "851"}, {30, 30, ""}, {30, 40, ""}} {
 		r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, c.width, c.height)}, "")
-		if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 2 || r.Observations[0].GetAnswerSlots()[0].GetValue() != c.value ||
+		if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 1 || r.Observations[0].GetAnswerSlots()[0].GetValue() != c.value ||
 			(c.value == "") != (r.Observations[0].GetAnswerSlots()[0].GetUnreadable() == observationv1.Unreadable_UNREADABLE_ILLEGIBLE) {
-			t.Errorf("a work of %dx%d: %+v, want %q by two readers", c.width, c.height, r, c.value)
+			t.Errorf("a work of %dx%d: %+v, want %q by one reader", c.width, c.height, r, c.value)
 		}
 	}
 	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: photo(t, 40, 30)}, ""); r.Outcome.Kind != tutor.Failed {

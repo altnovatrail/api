@@ -363,15 +363,15 @@ func (s *Service) paperVerdict(ctx context.Context, row store.Attempt, k *paperv
 }
 
 // joinedPaper is the observation of a reading of the work on a task from
-// paper, as joinOf has it for a sheet, each reader's values brought to the key
-// first, so that x = 4 and 4 are one value; or none, with the outcome that left
-// the slot unchecked.
+// paper, by its one reader in any mode of reading (R96), its value brought to
+// the key first, so that x = 4 is 4; or none, with the outcome that left the
+// slot unchecked.
 func (s *Service) joinedPaper(items []formatv0.Item, key *paperv1.Answer, r tutor.SheetRead, route admissionv0.AiRoute) (*observationv1.Observation, *v1.Outcome) {
 	brought := tutor.SheetRead{Outcome: r.Outcome, Observations: make([]*observationv1.Observation, len(r.Observations))}
 	for i, o := range r.Observations {
 		brought.Observations[i] = paper.Brought(key, o)
 	}
-	return s.joinOf(items, brought, route)
+	return s.joinOf(items, brought, route, true)
 }
 
 // writtenAs is the value a reader wrote that is brought to value, the first

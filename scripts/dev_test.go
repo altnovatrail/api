@@ -555,3 +555,25 @@ app_child && printf '|%s' "$child"`
 		t.Errorf("app_child made a profile with the consent not confirmed: %q", calls)
 	}
 }
+
+// The run for app is on the stub of tutor with the facts of a child, and with API_DEV_APP_AI=1 on
+// the models with the dev file's key and facts, which it leaves as they are (R67).
+func TestTheRunForAppGoesOnTheStubOrOnTheModels(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	facts := filepath.Join(dir, "facts.yaml")
+	show := `app_mode "` + facts + `"; echo "$app_on|${API_TUTOR_STUB:-}|${API_ANTHROPIC_KEY_FILE:-}|$API_ADMISSION_FACTS_FILE"`
+	devFile := []string{"API_ANTHROPIC_KEY_FILE=/dev/key", "API_ADMISSION_FACTS_FILE=/dev/facts.yaml"}
+	stdout, _, err := bash(t, devFile, show)
+	if err != nil || stdout != "on the stub of tutor|1||"+facts+"\n" {
+		t.Errorf("the stub: %q (%v)", stdout, err)
+	}
+	if written, err := os.ReadFile(facts); err != nil || !strings.Contains(string(written), "under_13") {
+		t.Errorf("the facts of the stub = %q (%v), want a child's", written, err)
+	}
+	stdout, _, err = bash(t, append(devFile, "API_DEV_APP_AI=1", "API_TUTOR_STUB=1"), show)
+	if err != nil || stdout != "on the models, with the dev file's key and facts||/dev/key|/dev/facts.yaml\n" {
+		t.Errorf("the models: %q (%v)", stdout, err)
+	}
+}

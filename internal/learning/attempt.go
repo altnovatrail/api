@@ -406,17 +406,18 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	if out.reserve.refused != nil {
 		return nil, out.reserve.refused
 	}
-	return s.joinOf(task.Items, out.read, out.route.AI)
+	return s.joinOf(task.Items, out.read, out.route.AI, s.reading == tutor.ReadingSingle)
 }
 
-// joinOf is the observation of the reading r of items in the mode of reading
-// of s, as joined has it, or none with the outcome of why, on the route.
-func (s *Service) joinOf(items []formatv0.Item, r tutor.SheetRead, route admissionv0.AiRoute) (*observationv1.Observation, *v1.Outcome) {
+// joinOf is the observation of the reading r of items, by one reader when single
+// and else by the pair, as joined has it, or none with the outcome of why, on
+// the route.
+func (s *Service) joinOf(items []formatv0.Item, r tutor.SheetRead, route admissionv0.AiRoute, single bool) (*observationv1.Observation, *v1.Outcome) {
 	if r.Outcome.Kind != tutor.Answered {
 		return nil, outcomeOf(r.Outcome, route)
 	}
 	failure := &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
-	if s.reading == tutor.ReadingSingle {
+	if single {
 		if len(r.Observations) != 1 || observation.Validate(items, r.Observations[0]) != nil {
 			return nil, failure
 		}

@@ -148,8 +148,8 @@ const wordsReserve Micro = 18_200
 // tokens written. The calls of a task from paper, admitted with no run (R135
 // tutor), at their bounds, by Haiku 5.5 at $0.10 and $0.50 per million tokens:
 // the reading of the statement and the solution each on the largest photo, its
-// text and the most tokens it may write, 4 000 and 16 000; the reading of the
-// work as a sheet's, by the pair. The words after a correct answer have no value
+// text and the most tokens it may write, 4 000 and 16 000, and the reading of
+// the work, one reader, as the solution. The words after a correct answer have no value
 // here: tutor expects their tokens (R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:     14_000,
@@ -161,7 +161,7 @@ var reserves = map[tutor.Call]Micro{
 	tutor.CallFinding:   52_000,
 	tutor.CallStatement: 2_600,
 	tutor.CallSolving:   8_600,
-	tutor.CallPaper:     14_000,
+	tutor.CallPaper:     8_600,
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected

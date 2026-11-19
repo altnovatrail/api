@@ -813,8 +813,8 @@ func (s *Stub) statement(ctx context.Context, call tutor.Call, p tutor.PaperTask
 // takes in the tracing paper, a line of print as a rule: more than twice as
 // wide as tall — the task with a short answer — the stub's key, stubKey; wider
 // than tall but not twice — a stroke that reaches below the task — a wrong
-// value; square or taller, illegible. Each reader of the gate's mode reads the
-// same, in the place 1,1 of the task's one answer slot.
+// value; square or taller, illegible. One reader reads it in any mode, as
+// tutor's one model, in the place 1,1 of the task's one answer slot.
 func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead {
 	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
 	if err != nil {
@@ -835,11 +835,8 @@ func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) 
 	if answer.GetValue() != "" {
 		answer.CropBox = &observationv1.CropBox{Ymax: wholeCrop, Xmax: wholeCrop}
 	}
-	n := s.readers()
-	read := tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, n)}}
-	for range n {
-		read.Observations = append(read.Observations, &observationv1.Observation{
-			AnswerSlots: []*observationv1.AnswerSlotObservation{answer}})
+	return tutor.SheetRead{
+		Observations: []*observationv1.Observation{{AnswerSlots: []*observationv1.AnswerSlotObservation{answer}}},
+		Outcome:      tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, 1)},
 	}
-	return read
 }
