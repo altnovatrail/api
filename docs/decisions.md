@@ -4,7 +4,7 @@
 >
 > **Rule:** do not re-propose what was rejected without new facts. If a decision has to change, ask the author and rewrite its entry in its place, and every entry the change touches: an entry is its text in force — what was decided, why, what was rejected and where it is described —, git keeps the old text, and the commit says why. An entry that still has dated amendments, or is marked "Superseded", keeps them until a task touches it, and that task rewrites it whole, its amendments folded in (R160 spec).
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec); a move to a newer tag of `spec` is a commit of its own, with no entry of the log (R160 spec); the entries of earlier moves, R01…R95, stay until a task touches them. How it comes to differ from the template — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R99.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0 (R21 spec); a move to a newer tag of `spec` is a commit of its own, with no entry of the log (R160 spec); the entries of earlier moves, R01…R95, stay until a task touches them. How it comes to differ from the template — tools in the devcontainer, rules in RUN.md — is recorded here as a decision, as R46 canvas-api recorded the differences from its model. Next number — R100.
 >
 > Here entries are cited as `R03`, in other repositories as `R03 api`. Decisions of `spec` are cited as "R18 spec", MathTrail's decisions as "R37 canvas-api", and in a list as "canvas-api: R37, R38". Each log has its own numbers.
 >
@@ -3665,3 +3665,15 @@ This is how the author walked the path of the first app on 2026-11-12.
 — *Rejected:* a reserve of the worst case at the bounds of the three models, about $1.5 for a Check that derives its key, three times the cap of a profile's day; a reserve of each attempt apart, which could take the first attempt and refuse the next; 60 s for the two, too short for a slow third attempt after two that failed; 90 s for every method, which would hold a stuck request three times as long.
 
 — *Consequence:* `internal/config/config.go`, `internal/rpc/rpc.go`, `internal/learning/learning.go`, `paper.go`, `attempt.go`, `internal/admission/admission.go`, `internal/debug/debug.go`, `service.go`, `internal/quota/quota.go` — its comment, `cmd/api/serve.go`, `cmd/api/sweep.go` and their tests; [build.md](build.md), the table of the configuration; [architecture.md](architecture.md), sections 3.6, 3.9 and 3.10.
+
+**R99. `FindTasks` takes the learner's request about the page (R165 spec): the contract's bounds are checked before any call, the request and the frames on the page go to `tutor.TaskFinding` and no further than the call, and the stub answers a request with the left column of the page.** Task T236 of epic E11, 2026-11-19, by the author's decisions of its planning.
+- **The check.** `requestTaken` in `internal/learning/paper.go`, after the photo's: the request valid UTF-8 of at most 200 code points, no control character and not blank; `found` and `drawn` only with it, at most 20 and 40, each box a rectangle in thousandths of the photo, `0 ≤ min < max ≤ 1000`. A breach is `invalid_argument` with no `Refusal`, naming the field, as for the photo.
+- **The call.** The request and the boxes go to `tutor.TaskFinding` as they came; `tutor` turns them into its prompt and drops a frame found over one drawn (R138 tutor). The quota, its reserve and the deadline are the finding's (R98), and the record of the key holds the outcome alone, as before.
+- **The data.** The request lives in the memory of the request alone: `find` clears it with the photo once the call is done, and neither the log nor the record of the key nor the debug mode holds it (R09; privacy 6 spec).
+- **The stub.** With a request, a photo not square has twelve frames one under another in the left quarter, less any that covers a frame drawn by `tutor.CoversDrawn`, so that `app` walks the path without a model (R66).
+
+— *Why:* the author's decisions of 2026-11-19 in the planning of T236. The bounds are the contract's, and a server that checks them before the reserve spends nothing on a request it would refuse; the request is the learner's words and may carry a name, so it goes no further than the photo does.
+
+— *Rejected:* keeping the request in the record of the key, so that a repeat could show it — a repeat is "repeated" without frames, and the words would outlive the call; a request with no frames, which would leave the model to guess what the learner already drew; a stub that reads the request's words, which would test the stub instead of the path.
+
+— *Consequence:* `internal/learning/paper.go`, `internal/tutorstub/tutorstub.go` and their tests; [architecture.md](architecture.md), sections 3.9 and 3.11.

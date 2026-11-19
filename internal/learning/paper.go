@@ -6,11 +6,16 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"slices"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
+	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
@@ -21,10 +26,13 @@ import (
 )
 
 // The bounds of a page from paper, the contract's (R162 spec): the photo, a JPEG
-// or a PNG, and how many attempts it begins.
+// or a PNG, and how many attempts it begins; and of the learner's request about
+// it, in code points, and of the frames that go with it (R165 spec).
 const (
 	maxPhoto      = 4 << 20
 	maxPaperTasks = 20
+	maxRequest    = 200
+	maxDrawn      = 40
 )
 
 // PaperService is the requests of a task from the learner's paper (R10; R162
@@ -59,7 +67,9 @@ type finding struct {
 // either is a refusal, and the family day the request wrote stays. A call that
 // gives no frames is an outcome, and the learner frames the tasks by hand. The
 // photo goes no further than the call, and the record of the key holds the
-// outcome alone: a repeat gets an answer "repeated" without frames.
+// outcome alone: a repeat gets an answer "repeated" without frames. With the
+// learner's request the call gets it and the frames on the page, which go no
+// further either (R99).
 func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) (*v1.FindTasksResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -71,6 +81,9 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 	}
 	if !photoTaken(req.GetPhoto()) {
 		return nil, rpc.Malformed("photo")
+	}
+	if field := requestTaken(req); field != "" {
+		return nil, rpc.Malformed(field)
 	}
 	profileID := req.GetProfileId()
 	key := rpc.Key{
@@ -103,7 +116,7 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 			if err != nil {
 				return finding{}, target, err
 			}
-			f := finding{request: tutor.TaskFinding{Route: route, Photo: req.GetPhoto()}}
+			f := finding{request: tutor.TaskFinding{Route: route, Photo: req.GetPhoto(), Request: req.GetRequest(), Found: boxesOf(req.GetFound()), Drawn: boxesOf(req.GetDrawn())}}
 			if f.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallFinding, 1, day); err == nil && f.reserve.refused != nil {
 				err = refusal(ctx, f.reserve.refused)
 			}
@@ -135,16 +148,51 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 
 // find calls the finding of f until finishReserve before the request's
 // deadline, and settles its reserve; own is the value of the request's own key,
-// for the stub. The photo goes no further than the call.
+// for the stub. The photo and the learner's request go no further than the call.
 func (s *Service) find(ctx context.Context, f finding, own string) finding {
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	start := time.Now()
 	f.found = s.finder.FindTasks(ctx, f.request, own)
-	f.request.Photo = nil
+	f.request.Photo, f.request.Request = nil, ""
 	noteCall(ctx, f.found.Outcome, time.Since(start))
 	s.afterCall(ctx, f.reserve, f.found.Outcome)
 	return f
+}
+
+// requestTaken is the field of the learner's request about the page that the
+// contract refuses, or "" when it takes them (R165 spec): the request, at most
+// maxRequest code points of UTF-8, no control character, not blank; the frames
+// only with it, at most 20 found and maxDrawn drawn, each a rectangle in
+// thousandths of the photo.
+func requestTaken(req *v1.FindTasksRequest) string {
+	text := req.GetRequest()
+	switch {
+	case !utf8.ValidString(text) || utf8.RuneCountInString(text) > maxRequest || strings.ContainsFunc(text, unicode.IsControl),
+		text != "" && strings.TrimSpace(text) == "":
+		return "request"
+	case len(req.GetFound()) > maxPaperTasks || (text == "" && len(req.GetFound()) > 0) || slices.ContainsFunc(req.GetFound(), offPhoto):
+		return "found"
+	case len(req.GetDrawn()) > maxDrawn || (text == "" && len(req.GetDrawn()) > 0) || slices.ContainsFunc(req.GetDrawn(), offPhoto):
+		return "drawn"
+	}
+	return ""
+}
+
+// offPhoto says whether a frame is no rectangle in the photo, in thousandths.
+func offPhoto(f *v1.TaskFrame) bool {
+	b := f.GetBox()
+	return b == nil || b.GetXmin() < 0 || b.GetXmin() >= b.GetXmax() || b.GetXmax() > 1000 ||
+		b.GetYmin() < 0 || b.GetYmin() >= b.GetYmax() || b.GetYmax() > 1000
+}
+
+// boxesOf are the boxes of frames.
+func boxesOf(frames []*v1.TaskFrame) []*observationv1.CropBox {
+	boxes := make([]*observationv1.CropBox, len(frames))
+	for i, f := range frames {
+		boxes[i] = f.GetBox()
+	}
+	return boxes
 }
 
 // photoTaken says whether photo is a JPEG or a PNG of at most maxPhoto, by its

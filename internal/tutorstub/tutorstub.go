@@ -645,16 +645,22 @@ func (s *Stub) usage(call tutor.Call, route tutor.Route, models int) []tutor.Usa
 	return usage
 }
 
-// pageTasks is how many tasks the stub finds on a page taller than wide.
-const pageTasks = 5
+// pageTasks is how many tasks the stub finds on a page taller than wide, and
+// columnTasks how many it finds by the learner's request, in the left column.
+const (
+	pageTasks   = 5
+	columnTasks = 12
+)
 
 // FindTasks finds the tasks on the photo of f by its shape (R66): taller than
 // wide, pageTasks of them, one under another across the page, in its order;
 // wider than tall, none, which the learner frames by hand; square, a failure of
-// AI, which spends as a call that went. Of tutor's checks before its call the
-// stub keeps the photo's form: one that is no JPEG or PNG fails with no usage.
-// Past it an own key of an ending of the stub's, own being its value, is refused
-// by it. The call spends the expected price of CallFinding, tutor's; with none,
+// AI, which spends as a call that went. With the learner's request a photo not
+// square has columnTasks of them, one under another in the left quarter, less
+// those that cover a frame the learner drew, by tutor's own check (R99). Of
+// tutor's checks before its call the stub keeps the photo's form: one that is no
+// JPEG or PNG fails with no usage. Past it an own key of an ending of the stub's,
+// own being its value, is refused by it. The call spends the expected price of CallFinding, tutor's; with none,
 // nothing priced, so the quota keeps its reserve by the value of the kind as
 // spent (R12).
 func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) tutor.TasksFound {
@@ -670,6 +676,15 @@ func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) t
 	switch {
 	case cfg.Width == cfg.Height:
 		found.Outcome = tutor.Outcome{Kind: tutor.Failed, Usage: usage, Err: errors.New("tutorstub: a square photo fails the finding")}
+	case f.Request != "":
+		const step, height = (wholeCrop - 40) / columnTasks, (wholeCrop-40)/columnTasks - 10
+		for i := range int32(columnTasks) {
+			top := 20 + i*step
+			box := &observationv1.CropBox{Ymin: top, Xmin: 20, Ymax: top + height, Xmax: wholeCrop/4 - 10}
+			if !tutor.CoversDrawn(box, f.Drawn) {
+				found.Frames = append(found.Frames, box)
+			}
+		}
 	case cfg.Height > cfg.Width:
 		// A fifth of the page each, less a margin, from 20 to 980 thousandths.
 		const step, height = (wholeCrop - 40) / pageTasks, (wholeCrop-40)/pageTasks - 20

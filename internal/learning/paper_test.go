@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	"github.com/altnovatrail/tutor"
 	"github.com/google/uuid"
 
@@ -91,6 +92,70 @@ func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 	// The key of the finding is the finding's alone.
 	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: key, Tasks: 1})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_ALREADY_USED)
+}
+
+// The learner's request finds the page anew (R99; R165 spec): the stub gives
+// twelve frames in the left column, none of them over a frame drawn; the
+// request goes neither to the record of the key nor to the log.
+func TestARequestFindsThePageAnew(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	key := uuid.NewString()
+	request := "only the first column, each task apart"
+	drawn := &v1.TaskFrame{Box: &observationv1.CropBox{Ymin: 20, Xmin: 20, Ymax: 90, Xmax: 240}}
+	found, err := w.paper.FindTasks(l.ctx, &v1.FindTasksRequest{ProfileId: l.adult, IdempotencyKey: key, Photo: photoOf(t, 300, 400), Request: request,
+		Found: []*v1.TaskFrame{{Box: &observationv1.CropBox{Ymin: 0, Xmin: 0, Ymax: 1000, Xmax: 1000}}}, Drawn: []*v1.TaskFrame{drawn}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found.GetFrames()) != 11 || found.GetFrames()[0].GetBox().GetYmin() == 20 {
+		t.Errorf("a request = %v, want eleven frames, none over the one drawn", found.GetFrames())
+	}
+	var kept []byte
+	if err := w.pool.QueryRow(t.Context(), `SELECT response FROM idempotency_keys WHERE key = $1`, key).Scan(&kept); err != nil || len(kept) != 0 {
+		t.Errorf("the record of the key holds %x (%v), want nothing", kept, err)
+	}
+	if strings.Contains(w.log.String(), "column") {
+		t.Errorf("the log = %s, want no request", w.log.String())
+	}
+}
+
+// What the contract refuses of a request: more than 200 code points, a control
+// character, a blank one, frames without it, more than 20 found or 40 drawn,
+// and a frame that is no rectangle in the photo.
+func TestTheFindingRefusesAMalformedRequest(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	l := w.learner(t)
+	frame := func(ymin, xmin, ymax, xmax int32) *v1.TaskFrame {
+		return &v1.TaskFrame{Box: &observationv1.CropBox{Ymin: ymin, Xmin: xmin, Ymax: ymax, Xmax: xmax}}
+	}
+	frames := func(n int) []*v1.TaskFrame { return slices.Repeat([]*v1.TaskFrame{frame(0, 0, 10, 10)}, n) }
+	for name, req := range map[string]*v1.FindTasksRequest{
+		"too long":          {Request: strings.Repeat("я", 201)},
+		"a control":         {Request: "first\ncolumn"},
+		"blank":             {Request: "   "},
+		"found, no request": {Found: frames(1)},
+		"drawn, no request": {Drawn: frames(1)},
+		"21 found":          {Request: "each apart", Found: frames(21)},
+		"41 drawn":          {Request: "each apart", Drawn: frames(41)},
+		"no box":            {Request: "each apart", Found: []*v1.TaskFrame{{}}},
+		"empty box":         {Request: "each apart", Drawn: []*v1.TaskFrame{frame(10, 10, 10, 20)}},
+		"past the photo":    {Request: "each apart", Drawn: []*v1.TaskFrame{frame(0, 0, 1001, 20)}},
+	} {
+		req.ProfileId, req.IdempotencyKey, req.Photo = l.adult, uuid.NewString(), photoOf(t, 30, 40)
+		if _, err := w.paper.FindTasks(l.ctx, req); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("%s: %v, want invalid_argument", name, err)
+		}
+	}
+	ok := &v1.FindTasksRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Photo: photoOf(t, 30, 40), Request: strings.Repeat("я", 200),
+		Found: frames(20), Drawn: frames(40)}
+	if _, err := w.paper.FindTasks(l.ctx, ok); err != nil {
+		t.Errorf("a request at its bounds: %v", err)
+	}
 }
 
 // What the finding refuses: a photo that is no JPEG or PNG, or larger than 4

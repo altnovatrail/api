@@ -440,6 +440,29 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	}
 }
 
+// With the learner's request the stub finds twelve tasks one under another in
+// the left quarter, whatever the shape, and none that covers a frame drawn.
+func TestTheStubFindsTheLeftColumnByARequest(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{})
+	ask := tutor.TaskFinding{Route: adult, Photo: photo(t, 400, 300), Request: "only the first column, each task apart"}
+	found := s.FindTasks(t.Context(), ask, "")
+	if found.Outcome.Kind != tutor.Answered || len(found.Frames) != 12 {
+		t.Fatalf("a request: %+v, want twelve frames", found)
+	}
+	for i, f := range found.Frames {
+		if f.GetXmax() > 250 || f.GetYmin() >= f.GetYmax() || i > 0 && f.GetYmin() < found.Frames[i-1].GetYmax() {
+			t.Errorf("frame %d is %v, want one under another in the left quarter", i+1, f)
+		}
+	}
+	third := found.Frames[2]
+	ask.Drawn = []*observationv1.CropBox{{Ymin: third.Ymin + 2, Xmin: third.Xmin, Ymax: third.Ymax, Xmax: third.Xmax - 5}}
+	if again := s.FindTasks(t.Context(), ask, ""); len(again.Frames) != 11 || slices.ContainsFunc(again.Frames, func(f *observationv1.CropBox) bool { return f.Ymin == third.Ymin }) {
+		t.Errorf("a request with a frame drawn: %v, want the eleven others", again.Frames)
+	}
+}
+
 // photo is a grey JPEG of width by height, as the camera of app takes it.
 func photo(t *testing.T, width, height int) []byte {
 	t.Helper()
