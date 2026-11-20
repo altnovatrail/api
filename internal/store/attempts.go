@@ -201,17 +201,19 @@ func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt
 }
 
 // BeginPaperAttempts closes "left", at at, in tx, the profile's open attempts
-// of tasks from paper, those of an earlier page, and begins n attempts of tasks
-// from paper, one of each, their IDs in order (R10). An attempt of paper gives
-// no evidence, so the close settles none.
-func BeginPaperAttempts(ctx context.Context, tx pgx.Tx, profileID string, n int, at time.Time) ([]string, error) {
+// of tasks from paper of another page than pageID, and begins n attempts of
+// tasks from paper on it, one of each, their IDs in order (R10, R101). An
+// attempt of paper gives no evidence, so the close settles none.
+func BeginPaperAttempts(ctx context.Context, tx pgx.Tx, profileID, pageID string, n int, at time.Time) ([]string, error) {
 	if _, err := tx.Exec(ctx, `UPDATE attempts SET close_reason = 'left', closed_at = $2
-		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'paper'`, profileID, at); err != nil {
+		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'paper' AND paper_page IS DISTINCT FROM $3`,
+		profileID, at, pageID); err != nil {
 		return nil, fmt.Errorf("store: close the attempts of the page before: %w", err)
 	}
 	// One statement, so that the order of the IDs is the order of the tasks.
-	rows, err := tx.Query(ctx, `INSERT INTO attempts (profile_id, kind, started_at, last_action_at)
-		SELECT $1, 'paper', $2, $2 FROM generate_series(1, $3) AS t(n) ORDER BY t.n RETURNING id`, profileID, at, n)
+	rows, err := tx.Query(ctx, `INSERT INTO attempts (profile_id, kind, paper_page, started_at, last_action_at)
+		SELECT $1, 'paper', $4, $2, $2 FROM generate_series(1, $3) AS t(n) ORDER BY t.n RETURNING id`,
+		profileID, at, n, pageID)
 	if err != nil {
 		return nil, fmt.Errorf("store: begin the attempts of the page: %w", err)
 	}

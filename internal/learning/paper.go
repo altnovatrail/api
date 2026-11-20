@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -215,9 +216,14 @@ func photoTaken(photo []byte) bool {
 	return err == nil && cfg.Width > 0 && cfg.Height > 0
 }
 
+// pageID is the ID app gives a page, which names its file of the export: one
+// part of a path (the contracts' text, section 15).
+var pageID = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$`)
+
 // BeginPaperAttempts begins the attempts of the tasks picked on a page, under
 // its idempotency key, one for each, their IDs in the order of the tasks. It
-// closes the profile's open attempts of an earlier page "left", and leaves its
+// closes the profile's open attempts of another page "left", those of the page
+// named staying for a Start again after "Add" (R101), and leaves its
 // open attempt of a module as it is (R10). A task from paper is read as
 // handwriting, so the attempts begin when the gate admits the reading of a
 // sheet on the route of ownKey, and on platform AI only with room for a typical
@@ -231,6 +237,9 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 	}
 	if n := req.GetTasks(); n < 1 || n > maxPaperTasks {
 		return nil, rpc.Malformed("tasks")
+	}
+	if !pageID.MatchString(req.GetPageId()) {
+		return nil, rpc.Malformed("page_id")
 	}
 	ownKey := req.GetOwnKeyProvider()
 	if err := ownKeyFits(ctx, category, ownKey != ""); err != nil {
@@ -252,7 +261,7 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 					return nil, store.KeyTarget{}, closedRefusal(ctx, closed)
 				}
 			}
-			ids, err := store.BeginPaperAttempts(ctx, tx, profileID, int(req.GetTasks()), now)
+			ids, err := store.BeginPaperAttempts(ctx, tx, profileID, req.GetPageId(), int(req.GetTasks()), now)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}

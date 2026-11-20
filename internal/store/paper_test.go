@@ -65,12 +65,12 @@ func TestThePageBeginsItsAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	begin := func(n int) []string {
+	begin := func(page string, n int) []string {
 		t.Helper()
 		var ids []string
 		err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 			var err error
-			ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, n, time.Now())
+			ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, page, n, time.Now())
 			return err
 		})
 		if err != nil || len(ids) != n {
@@ -78,12 +78,20 @@ func TestThePageBeginsItsAttempts(t *testing.T) {
 		}
 		return ids
 	}
-	begin(3)
-	second := begin(2)
+	begin("page-1", 2)
+	// "Add" on the same page: a Start again closes none of its tasks.
+	begin("page-1", 1)
+	second := begin("page-2", 2)
 	var left, open int
 	if err := e.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE close_reason = 'left'), count(*) FILTER (WHERE closed_at IS NULL)
 		FROM attempts WHERE kind = 'paper' AND profile_id = $1`, e.profileID).Scan(&left, &open); err != nil || left != 3 || open != 2 {
 		t.Errorf("the pages: %d left, %d open (%v), want 3 and 2", left, open, err)
+	}
+	// The close clears the page, as it clears the rest of what the attempt held.
+	var pages int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM attempts WHERE kind = 'paper' AND profile_id = $1 AND paper_page IS NOT NULL`,
+		e.profileID).Scan(&pages); err != nil || pages != 2 {
+		t.Errorf("attempts with a page = %d (%v), want the two open", pages, err)
 	}
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		a, found, err := store.HoldOpenAttempt(ctx, tx, e.profileID)
@@ -116,7 +124,7 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 	}
 	var ids []string
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
-		if ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, 1, time.Now()); err != nil {
+		if ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, "page-1", 1, time.Now()); err != nil {
 			return err
 		}
 		if err := store.SetPaperKey(ctx, tx, e.profileID, module, []byte{1}); err == nil {
@@ -174,7 +182,7 @@ func TestTheCloseOfAPaperAttemptLeavesItsRowAlone(t *testing.T) {
 	}
 	var ids []string
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) (err error) {
-		ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, 1, time.Now())
+		ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, "page-1", 1, time.Now())
 		return err
 	})
 	if err != nil {

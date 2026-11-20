@@ -37,7 +37,7 @@ func (w *world) findTasks(l learner, profile string, photo []byte, key string) (
 // beginPage begins n attempts of tasks from paper on the profile.
 func (w *world) beginPage(t *testing.T, l learner, profile string, n int32) []string {
 	t.Helper()
-	res, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: profile, IdempotencyKey: uuid.NewString(), Tasks: n})
+	res, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: profile, IdempotencyKey: uuid.NewString(), Tasks: n})
 	if err != nil {
 		t.Fatalf("BeginPaperAttempts %d: %v", n, err)
 	}
@@ -90,7 +90,7 @@ func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 		t.Errorf("the log = %s, want three calls of the stub and the failure", log)
 	}
 	// The key of the finding is the finding's alone.
-	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: key, Tasks: 1})
+	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: key, Tasks: 1})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_ALREADY_USED)
 }
 
@@ -217,11 +217,11 @@ func TestThePagesAttemptsGoBesideTheModulesAttempt(t *testing.T) {
 	l := w.learner(t)
 	moduleAttempt := w.begin(t, l, l.adult, "apples").GetAttemptId()
 	key := uuid.NewString()
-	first, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: key, Tasks: 3})
+	first, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: key, Tasks: 3, PageId: "page-1"})
 	if err != nil || len(first.GetAttemptIds()) != 3 {
 		t.Fatalf("a page of three = %v (%v)", first, err)
 	}
-	if again, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: key, Tasks: 3}); err != nil ||
+	if again, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: key, Tasks: 3, PageId: "page-1"}); err != nil ||
 		!slices.Equal(again.GetAttemptIds(), first.GetAttemptIds()) {
 		t.Errorf("the repeat = %v (%v), want the same attempts", again, err)
 	}
@@ -266,13 +266,29 @@ func TestThePagesAttemptsGoBesideTheModulesAttempt(t *testing.T) {
 	if n := w.beginPage(t, l, l.child, 1); len(n) != 1 || w.closeOf(t, second[0]) != "" {
 		t.Errorf("a page of another profile = %v, and closed %q of this one's", n, w.closeOf(t, second[0]))
 	}
+	for _, page := range []string{"", ".", "..", "a/b", strings.Repeat("p", 201)} {
+		_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: page, ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("a page named %q: %v, want invalid_argument", page, err)
+		}
+	}
+	// "Add": a Start again on the same page closes none of its tasks.
+	page := uuid.NewString()
+	before, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: page, ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: page, ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 1}); err != nil ||
+		w.closeOf(t, before.GetAttemptIds()[0]) != "" {
+		t.Errorf("a Start again on the page = %v, and closed %q of it", err, w.closeOf(t, before.GetAttemptIds()[0]))
+	}
 	for _, n := range []int32{0, 21, -1} {
-		_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: n})
+		_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: n})
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Errorf("a page of %d: %v, want invalid_argument", n, err)
 		}
 	}
-	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(), Tasks: 1, OwnKeyProvider: "anthropic"})
+	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.child, IdempotencyKey: uuid.NewString(), Tasks: 1, OwnKeyProvider: "anthropic"})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
 }
 
@@ -285,18 +301,18 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 	w, _ := newStubWorld(t)
 	l := w.learner(t)
 	day := w.spend(t, l.accountID, 1_500_000)
-	_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 2})
+	_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 2})
 	if r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_QUOTA); !r.GetNextFamilyDay().AsTime().Equal(day.End) {
 		t.Errorf("the quota's refusal = %v, want the next day", r)
 	}
-	if res, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 2,
+	if res, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 2,
 		OwnKeyProvider: "anthropic"}); err != nil || len(res.GetAttemptIds()) != 2 {
 		t.Errorf("a page on the own key = %v (%v), want two attempts", res, err)
 	}
 
 	closed := newWorld(t)
 	m := closed.learner(t)
-	_, err = closed.paper.BeginPaperAttempts(m.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: m.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
+	_, err = closed.paper.BeginPaperAttempts(m.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: m.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 }
 

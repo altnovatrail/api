@@ -222,7 +222,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	// second begun alone; the third closed, which leaves nothing to export.
 	var page []string
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) (err error) {
-		page, err = store.BeginPaperAttempts(ctx, tx, profile, 3, time.Now())
+		page, err = store.BeginPaperAttempts(ctx, tx, profile, "page-1", 3, time.Now())
 		if err != nil {
 			return err
 		}
