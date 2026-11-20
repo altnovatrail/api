@@ -80,7 +80,7 @@ func slotOf(t *testing.T, res *v1.SubmitWorkResponse) *v1.AnswerSlotVerdict {
 // by the key kept; the right one closes the attempt "correct" with an empty
 // solved and no next, the key and the submissions erased with the close. A
 // repeat under the key gives the task solved alone, with no call and no verdict
-// of a task, which the close erased (privacy 4.1 spec).
+// of a task, which the close erased (R101).
 func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 	t.Parallel()
 

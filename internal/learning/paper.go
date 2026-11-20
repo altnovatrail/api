@@ -217,18 +217,20 @@ func photoTaken(photo []byte) bool {
 }
 
 // pageID is the ID app gives a page, which names its file of the export: one
-// part of a path (the contracts' text, section 15).
+// part of a path (R162 spec).
 var pageID = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$`)
 
 // BeginPaperAttempts begins the attempts of the tasks picked on a page, under
 // its idempotency key, one for each, their IDs in the order of the tasks. It
 // closes the profile's open attempts of another page "left", those of the page
 // named staying for a Start again after "Add" (R101), and leaves its
-// open attempt of a module as it is (R10). A task from paper is read as
-// handwriting, so the attempts begin when the gate admits the reading of a
-// sheet on the route of ownKey, and on platform AI only with room for a typical
-// task of handwriting left of the family day, while the limit of its provider
-// leaves platform AI open, as BeginAttempt begins a task of a module (R11, R59).
+// open attempt of a module as it is (R10). The attempts begin when the gate
+// admits, on the route of ownKey, the calls without which no Check gives a
+// verdict — the reading of the statement and that of the work; the solution
+// serves only the tasks no formula keys (R96) —, and on platform AI only with
+// room for a typical task of handwriting left of the family day, while the
+// limit of its provider leaves platform AI open, as BeginAttempt begins a task
+// of a module (R11, R59).
 func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPaperAttemptsRequest) (*v1.BeginPaperAttemptsResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -249,7 +251,7 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.PaperServiceBeginPaperAttemptsProcedure}, req,
 		func(tx pgx.Tx, _ string) (*v1.BeginPaperAttemptsResponse, store.KeyTarget, error) {
 			now := s.clock()
-			if !s.debugChosen(ctx) && !s.admits.Reads(tutor.CallSheet, category, ownKey) {
+			if !s.debugChosen(ctx) && !(s.admits.Reads(tutor.CallStatement, category, ownKey) && s.admits.Reads(tutor.CallPaper, category, ownKey)) {
 				return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 			}
 			if ownKey == "" {

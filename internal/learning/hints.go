@@ -379,7 +379,8 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 	}
 	route := routeOf(category, req.GetOwnKey())
 	var admitted bool
-	if s.paperAttempt(ctx, profileID, attemptID) {
+	task, paper, known := s.attemptOf(ctx, profileID, attemptID)
+	if paper {
 		// The words of a task from paper go to the debug mode's log (R97).
 		act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
 		defer act.End()
@@ -388,7 +389,6 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 	} else {
 		// The words take the work of a sheet alone: a workbook page asks them as a
 		// task a tap checks, with no work (R81).
-		task, known := s.attemptTask(ctx, profileID, attemptID)
 		admitted = s.teller.Words(known && sheetRead(task), category, req.GetOwnKey().GetProvider())
 	}
 	prepare := func(tx pgx.Tx) (telling, error) {

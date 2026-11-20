@@ -420,7 +420,7 @@ func exportReports(ctx context.Context, tx pgx.Tx, profileID string, out *export
 // exportAttempts is the profile's attempts of modules, without the seed, each with its
 // rungs and submissions, and the rows its package turns into what it tells; and
 // its open attempts of tasks from paper, those of one page: api keeps nothing
-// of one once it ends (privacy 4.1 spec).
+// of one once it ends (R101).
 func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT id, package_digest, module_id, module_version, module_format_version,
 			module_kit_version, task_id, instance, choice_id, lesson_run_id, segment, previous_attempt_id, started_at,

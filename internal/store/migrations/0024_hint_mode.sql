@@ -1,7 +1,7 @@
 -- The hint mode of a profile, "Show where" or "Questions only", which the learner and an adult set
 -- (R162 spec): with "Show where", a task from paper gets the wavy line under the place of the
 -- first mistake with the words of a rung. A new profile and every profile there is have "Show
--- where" (concepts 10 spec). And the opening question of a task from paper, the tutor's words
+-- where" (R100). And the opening question of a task from paper, the tutor's words
 -- before its first wrong answer, kept as the words of the rung 0 of its attempt, the model's alone,
 -- and gone with its close as a rung's words are (R82 spec), on which an adult may report a problem.
 -- contract: the release before this one writes rungs 1 to 3 alone, reads no rung 0, writes no

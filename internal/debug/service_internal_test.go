@@ -60,3 +60,27 @@ func TestTheService(t *testing.T) {
 		}
 	}
 }
+
+// A read of an account with no choice and no action keeps no entry of it; a
+// choice and an action kept do.
+func TestAReadKeepsNoAccount(t *testing.T) {
+	t.Parallel()
+
+	s := New()
+	if s.Chosen("a") || s.Choice("a").GetFirst() != nil || len(s.Take("a")) != 0 {
+		t.Error("an account with no choice reads as one with a choice or actions")
+	}
+	s.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, "", time.Now()).End()
+	if len(s.accounts) != 0 {
+		t.Errorf("the store holds %d accounts after reads and an action with no call, want none", len(s.accounts))
+	}
+	a := s.Begin("b", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, "", time.Now())
+	a.Solved(nil, 0)
+	a.End()
+	if _, err := s.SetChoice("c", &v1.DebugChoice{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.accounts) != 2 {
+		t.Errorf("the store holds %d accounts, want the action's and the choice's", len(s.accounts))
+	}
+}

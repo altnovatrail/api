@@ -64,11 +64,12 @@ func (s *Service) paperAdmitted(ctx context.Context, withWork bool, category for
 }
 
 // holdAny is the profile's open attempt held in tx, of a module as hold holds it
-// or of a task from paper as holdPaper does, with its row alone.
+// or of a task from paper as holdPaper does, with its row alone, which hold
+// has held already.
 func (s *Service) holdAny(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (held, error) {
 	h, err := s.hold(ctx, tx, profileID, attemptID, now)
 	if errors.Is(err, store.ErrPaper) {
-		row, err := s.holdPaper(ctx, tx, profileID, attemptID, now)
+		row, err := s.paperOpen(ctx, tx, profileID, h.row, now)
 		return held{row: row}, err
 	}
 	return h, err

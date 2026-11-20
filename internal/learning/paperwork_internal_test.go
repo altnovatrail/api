@@ -43,7 +43,8 @@ func TestTheKeptKeyOfAnotherShapeIsDerivedAgain(t *testing.T) {
 // A submission that derived a key is judged by it, against whose statements
 // its work was read, and keeps it only while the attempt keeps none: a Check
 // that went meanwhile and kept its own leaves it the attempt's. One that
-// derived none is judged by none, and one that took the kept key by that.
+// derived none is judged by a key kept meanwhile when its work was read on as
+// many tasks, else by none; and one that took the kept key by that.
 func TestASubmissionIsJudgedByTheKeyItsWorkWasReadAgainst(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +59,10 @@ func TestASubmissionIsJudgedByTheKeyItsWorkWasReadAgainst(t *testing.T) {
 	}{
 		{"derived, none kept", nil, paperSending{derive: true, derived: two}, two, true},
 		{"derived, another kept meanwhile", three, paperSending{derive: true, derived: two}, two, false},
-		{"derived none", three, paperSending{derive: true}, nil, false},
+		{"derived none, none kept", nil, paperSending{derive: true, readTasks: 3}, nil, false},
+		{"derived none, another kept meanwhile", three, paperSending{derive: true, readTasks: 3}, three, false},
+		{"derived none, read on other tasks", three, paperSending{derive: true, readTasks: 2}, nil, false},
+		{"derived none, read on none", three, paperSending{derive: true}, nil, false},
 		{"kept", three, paperSending{key: three}, three, false},
 	} {
 		k, keep := judgedKey(c.kept, c.out)

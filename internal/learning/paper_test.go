@@ -14,6 +14,7 @@ import (
 	"github.com/altnovatrail/tutor"
 	"github.com/google/uuid"
 
+	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/tutorstub"
 )
@@ -294,7 +295,7 @@ func TestThePagesAttemptsGoBesideTheModulesAttempt(t *testing.T) {
 
 // A page begins as a task of handwriting does: with room for a typical task
 // left of the family day on platform AI, and on an own key without it; a world
-// that admits no reading of handwriting refuses it.
+// that admits no reading of a task from paper refuses it.
 func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 	t.Parallel()
 
@@ -314,6 +315,29 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 	m := closed.learner(t)
 	_, err = closed.paper.BeginPaperAttempts(m.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: m.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+
+	// The admission is that of the calls without which a Check gives no verdict:
+	// the statement and the work read; the reading of a sheet admits none (R96).
+	for name, tc := range map[string]struct {
+		admitted []tutor.Call
+		begins   bool
+	}{
+		"the statement and the work": {[]tutor.Call{tutor.CallStatement, tutor.CallPaper}, true},
+		"the work alone":             {[]tutor.Call{tutor.CallPaper, tutor.CallSolving}, false},
+		"the statement alone":        {[]tutor.Call{tutor.CallStatement, tutor.CallSolving}, false},
+		"the reading of a sheet":     {[]tutor.Call{tutor.CallSheet}, false},
+	} {
+		w := worldOf(t, gate(t, adultFacts, config.RungAuthor), []learning.Option{
+			learning.WithAdmits(func(call tutor.Call) bool { return slices.Contains(tc.admitted, call) })})
+		l := w.learner(t)
+		_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
+		if tc.begins && err != nil {
+			t.Errorf("%s: %v, want the page begun", name, err)
+		}
+		if !tc.begins {
+			refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
+		}
+	}
 }
 
 // An attempt of a task from paper has no solution to show, no steps, no rubric,

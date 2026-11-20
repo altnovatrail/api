@@ -2,6 +2,7 @@ package learning
 
 import (
 	"context"
+	"errors"
 	"unicode/utf8"
 
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
@@ -47,7 +48,8 @@ var (
 // the text as they were written, nothing of the work beyond them, and outlives
 // the deletion of the profile and the account to its term, without their IDs.
 // Neither a consent that waits nor an age to give again refuses it. A repeat
-// under its key is the same report.
+// under its key is the same report. The reply "opening" is of a task from
+// paper alone: on an attempt of a module it is invalid_argument.
 func (a *AttemptService) ReportProblem(ctx context.Context, req *v1.ReportProblemRequest) (*v1.ReportProblemResponse, error) {
 	reply, ok := replies[req.GetReply()]
 	if !ok {
@@ -80,12 +82,13 @@ func (a *AttemptService) ReportProblem(ctx context.Context, req *v1.ReportProble
 	profileID := req.GetProfileId()
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.AttemptServiceReportProblemProcedure}, req,
 		func(tx pgx.Tx, accountID string) (*v1.ReportProblemResponse, store.KeyTarget, error) {
-			there, err := store.AttemptOfProfile(ctx, tx, profileID, req.GetAttemptId())
+			// The opening question is a task from paper's alone (R100).
+			_, _, err := store.AttemptTask(ctx, tx, profileID, req.GetAttemptId())
 			switch {
-			case err != nil:
+			case err == nil && reply == "opening":
+				return nil, store.KeyTarget{}, rpc.Malformed("reply")
+			case err != nil && !errors.Is(err, store.ErrPaper):
 				return nil, store.KeyTarget{}, err
-			case !there:
-				return nil, store.KeyTarget{}, store.ErrNotFound
 			}
 			r.CreatedAt = s.clock()
 			id, err := store.WriteReport(ctx, tx, accountID, profileID, r)

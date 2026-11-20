@@ -290,7 +290,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		t.Error("the profile's file holds the seed of an attempt")
 	}
 	// The key of a task from paper never reaches the device, and a closed attempt
-	// of paper is not kept (R05 spec; privacy 4.1 spec).
+	// of paper is not kept (R05 spec; R101).
 	if strings.Contains(text, "3 + 4") || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
 		t.Error("the profile's file holds a key of a task from paper, or its closed attempt, or key sources before a check")
 	}

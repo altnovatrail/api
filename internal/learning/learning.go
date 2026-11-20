@@ -323,7 +323,7 @@ func (s *Service) lapsed(row store.Attempt, now time.Time) string {
 // hold is the profile's open attempt, held in tx. Before anything acts on it, it
 // is checked as every request checks it: one the profile does not have is
 // store.ErrNotFound; one closed, a closedError; one of a task from paper,
-// store.ErrPaper, which holdPaper holds for its Check (R96); one on a package the
+// store.ErrPaper, with its row held, which holdAny goes on with (R96); one on a package the
 // index does not know, errPackageUnknown, with nothing written; and one that lapsed is
 // closed by this check, and the refusal "closed" keeps the close (rpc.Keep).
 func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (held, error) {
@@ -342,7 +342,7 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 		return held{}, &closedError{reason: *row.CloseReason, row: row}
 	}
 	if row.Paper {
-		return held{}, store.ErrPaper
+		return held{row: row}, store.ErrPaper
 	}
 	digest := formatv0.Digest(row.PackageDigest)
 	if s.set.Status(digest) == packages.Unknown {

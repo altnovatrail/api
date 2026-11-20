@@ -168,7 +168,7 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 }
 
 // The close of an attempt of a task from paper leaves nothing it kept while
-// open but its row (privacy 4.1 spec): its submissions go, with the idempotency
+// open but its row (R101): its submissions go, with the idempotency
 // keys that recorded them, its rungs, the opening question among them, and its
 // count of wrong answers, and a problem report on its words stays (R123 spec). An attempt of a module keeps them as before.
 func TestTheCloseOfAPaperAttemptLeavesItsRowAlone(t *testing.T) {

@@ -12,7 +12,8 @@ import (
 
 // An adult reports a problem with a reply of the tutor on an attempt, open or
 // closed, which is kept with its words and text to be reviewed in 3 days; a
-// repeat is the same report, and the deletion of the profile keeps it with no
+// repeat is the same report, an opening question is reported on a task from
+// paper alone, and the deletion of the profile keeps it with no
 // ID (R123 spec).
 func TestAProblemIsReported(t *testing.T) {
 	t.Parallel()
@@ -45,10 +46,19 @@ func TestAProblemIsReported(t *testing.T) {
 		Kind: v1.ProblemKind_PROBLEM_KIND_OTHER}); err != nil {
 		t.Errorf("a report on the words after a correct answer = %v", err)
 	}
-	if _, err := report("k-3", &v1.ReportProblemRequest{Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "Where do you begin?",
+	// The opening question is a task from paper's alone (R100).
+	var paper string
+	if err := w.pool.QueryRow(t.Context(), `INSERT INTO attempts (profile_id, kind, paper_page, started_at, last_action_at)
+		VALUES ($1, 'paper', 'page', now(), now()) RETURNING id`, l.adult).Scan(&paper); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := report("k-3", &v1.ReportProblemRequest{AttemptId: paper, Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "Where do you begin?",
 		Kind: v1.ProblemKind_PROBLEM_KIND_UNCLEAR}); err != nil {
 		t.Errorf("a report on an opening question = %v", err)
 	}
+	_, err = report("k-4", &v1.ReportProblemRequest{Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "Where do you begin?",
+		Kind: v1.ProblemKind_PROBLEM_KIND_UNCLEAR})
+	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
 	for _, bad := range []*v1.ReportProblemRequest{
 		{Reply: v1.TutorReply_TUTOR_REPLY_UNSPECIFIED, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_RUNG, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_UNSPECIFIED, Rung: 1},

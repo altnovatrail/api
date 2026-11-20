@@ -68,8 +68,11 @@ type paperSending struct {
 	// reading, stating and solving are the reserves of the three calls (R58).
 	reading, stating, solving reserve
 	read                      tutor.SheetRead
-	derived                   *paperv1.Key
-	noKey                     *v1.Outcome
+	// readTasks is how many tasks the reading of the work was given, 0 when no
+	// reading went.
+	readTasks int
+	derived   *paperv1.Key
+	noKey     *v1.Outcome
 	// debug is the action of the debug mode, nil without it (R97).
 	debug *debug.Action
 }
@@ -77,11 +80,8 @@ type paperSending struct {
 // paperAttempt says whether the profile's attempt is of a task from paper,
 // read with no lock: what an attempt is of never changes.
 func (s *Service) paperAttempt(ctx context.Context, profileID, attemptID string) bool {
-	if !store.CanonicalID(attemptID) {
-		return false
-	}
-	_, _, err := store.AttemptTask(ctx, s.db, profileID, attemptID)
-	return err == store.ErrPaper
+	_, paper, _ := s.attemptOf(ctx, profileID, attemptID)
+	return paper
 }
 
 // holdPaper is the profile's open attempt of a task from paper, held in tx and
@@ -90,15 +90,21 @@ func (s *Service) paperAttempt(ctx context.Context, profileID, attemptID string)
 // check, the refusal keeping the close (R10).
 func (s *Service) holdPaper(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (store.Attempt, error) {
 	row, err := store.HoldAttempt(ctx, tx, profileID, attemptID)
-	switch {
-	case err != nil:
+	if err != nil {
 		return store.Attempt{}, err
+	}
+	return s.paperOpen(ctx, tx, profileID, row, now)
+}
+
+// paperOpen is row, held in tx, checked as holdPaper checks it.
+func (s *Service) paperOpen(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, now time.Time) (store.Attempt, error) {
+	switch {
 	case row.CloseReason != nil:
 		return store.Attempt{}, &closedError{reason: *row.CloseReason, row: row}
 	case !row.Paper:
 		return store.Attempt{}, store.ErrNotFound
 	case now.After(row.LastActionAt.Add(store.AbandonedAfter)):
-		if err := store.CloseAttempt(ctx, tx, profileID, attemptID, closeAbandoned, now); err != nil {
+		if err := store.CloseAttempt(ctx, tx, profileID, row.ID, closeAbandoned, now); err != nil {
 			return store.Attempt{}, err
 		}
 		return store.Attempt{}, rpc.Keep(refused(ctx, &closedError{reason: closeAbandoned}))
@@ -203,7 +209,7 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 				// No evidence: an attempt of paper gives none, and no engine chooses after it. Its
 				// close keeps none of its submissions, so this one is not written, and a repeat gets
 				// the solved task alone, which the close keeps anyway, and no verdict of a task
-				// (privacy 4.1 spec; R101).
+				// (R101).
 				if err := store.CloseAttempt(ctx, tx, profileID, row.ID, closeCorrect, now); err != nil {
 					return nil, store.KeyTarget{}, err
 				}
@@ -278,6 +284,7 @@ func (s *Service) checkPaper(ctx context.Context, out paperSending, own string) 
 	reading := false
 	readWork := func(tasks []string) {
 		reading = true
+		out.readTasks = len(tasks)
 		wg.Go(func() {
 			start := time.Now()
 			read = s.paper.ReadPaper(ctx, tutor.PaperReading{Route: out.route, Crop: out.crop, Tasks: tasks}, own)
@@ -402,13 +409,20 @@ func keptKey(row store.Attempt) (*paperv1.Key, error) {
 // judgedKey is the key a submission is judged by, given the one the attempt
 // keeps now, and whether to keep it: a submission that derived a key read the
 // work against its statements, and is judged by it alone, kept unless a Check
-// that went meanwhile kept its own, which may list other tasks. Any other is
-// judged by the key kept, none when the derivation gave none.
+// that went meanwhile kept its own, which may list other tasks. One whose
+// derivation gave none is judged by the key a Check kept meanwhile, when its
+// reading went on as many tasks as that key lists; else by none. Any other is
+// judged by the key kept.
 func judgedKey(kept *paperv1.Key, out paperSending) (*paperv1.Key, bool) {
-	if !out.derive {
+	switch {
+	case !out.derive:
+		return kept, false
+	case out.derived != nil:
+		return out.derived, kept == nil
+	case kept != nil && out.readTasks > 0 && out.readTasks == len(kept.GetTasks()):
 		return kept, false
 	}
-	return out.derived, kept == nil && out.derived != nil
+	return nil, false
 }
 
 // paperVerdict is the verdict of a submission of a task from paper by its key,

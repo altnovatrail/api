@@ -114,7 +114,7 @@ func HoldProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) er
 	return nil
 }
 
-// HintModeShowWhere is the hint mode of a new profile (concepts 10 spec).
+// HintModeShowWhere is the hint mode of a new profile (R100).
 const HintModeShowWhere = "show_where"
 
 // hintModeOr is a hint mode to write, "Show where" when none is set.

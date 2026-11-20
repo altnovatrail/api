@@ -50,6 +50,7 @@ type account struct {
 // New is a Store with no choice: each call has its model of the list.
 func New() *Store { return &Store{accounts: map[string]*account{}} }
 
+// of is the account's entry, made when it has none: for a write alone.
 func (s *Store) of(accountID string) *account {
 	a, ok := s.accounts[accountID]
 	if !ok {
@@ -57,6 +58,15 @@ func (s *Store) of(accountID string) *account {
 		s.accounts[accountID] = a
 	}
 	return a
+}
+
+// seen is the account's entry, or an empty one the store does not keep: a
+// read makes no entry for an account with no choice and no action.
+func (s *Store) seen(accountID string) *account {
+	if a, ok := s.accounts[accountID]; ok {
+		return a
+	}
+	return &account{}
 }
 
 // Models are the models that can be chosen: tutor's catalog of Claude, cheapest
@@ -104,7 +114,7 @@ func effortName(e v1.DebugEffort) (string, bool) {
 func (s *Store) Choice(accountID string) *v1.DebugChoice {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	a := s.of(accountID)
+	a := s.seen(accountID)
 	return &v1.DebugChoice{First: choiceOf(a.first), Second: choiceOf(a.second)}
 }
 
@@ -116,7 +126,7 @@ func (s *Store) Chosen(accountID string) bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.of(accountID).first != nil
+	return s.seen(accountID).first != nil
 }
 
 func choiceOf(m *admission.Model) *v1.DebugModelChoice {
@@ -170,7 +180,7 @@ func modelOf(c *v1.DebugModelChoice) (*admission.Model, error) {
 func (s *Store) Take(accountID string) []*v1.DebugAction {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	a := s.of(accountID)
+	a := s.seen(accountID)
 	taken := a.actions
 	a.actions = nil
 	return taken
@@ -196,7 +206,7 @@ func (s *Store) Begin(accountID string, kind v1.DebugActionKind, attemptID strin
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	a := s.of(accountID)
+	a := s.seen(accountID)
 	return &Action{store: s, account: accountID, first: a.first, second: a.second,
 		action: &v1.DebugAction{Kind: kind, AttemptId: attemptID, At: timestamppb.New(at)}}
 }

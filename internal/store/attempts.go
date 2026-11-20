@@ -203,7 +203,10 @@ func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt
 // BeginPaperAttempts closes "left", at at, in tx, the profile's open attempts
 // of tasks from paper of another page than pageID, and begins n attempts of
 // tasks from paper on it, one of each, their IDs in order (R10, R101). An
-// attempt of paper gives no evidence, so the close settles none.
+// attempt of paper gives no evidence, so the close settles none. Its caller
+// holds the account's row FOR NO KEY UPDATE (HoldAccount), so that two
+// beginnings of one profile go one after the other and the second sees the
+// first's attempts.
 func BeginPaperAttempts(ctx context.Context, tx pgx.Tx, profileID, pageID string, n int, at time.Time) ([]string, error) {
 	if _, err := tx.Exec(ctx, `UPDATE attempts SET close_reason = 'left', closed_at = $2
 		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'paper' AND paper_page IS DISTINCT FROM $3`,
