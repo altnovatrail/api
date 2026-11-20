@@ -161,6 +161,7 @@ func nextMonth(at time.Time) time.Time {
 type Gate interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
+	PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
 	Reading() tutor.Reading
@@ -542,6 +543,59 @@ func (s *Stub) TellWords(ctx context.Context, w tutor.WordsRequest, own string) 
 	}
 	return tutor.WordsAnswer{Question: question, Outcome: tutor.Outcome{Kind: tutor.Answered,
 		Usage: s.usage(admission.WordsCall(len(w.Crop) > 0), w.Route, 1)}}
+}
+
+// PaperWords says whether the tutor's words of a task from paper are admitted,
+// as the gate says.
+func (s *Stub) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return s.gate.PaperWords(withWork, category, ownKeyProvider)
+}
+
+// TellPaperWords words a question of the stub's own in the language of w, as
+// TellWords does, for the opening question, a rung and a rung put another way
+// alike. A rung's words come with the box of the first mistake: the band of the
+// crop of the rung's task, as ReadPaper reads the tasks of a crop one under
+// another, the whole crop for one task. Of tutor's checks before its call the
+// stub keeps those of the request's form: no style, a rung with no PNG of the
+// work, or an opening question with no crop of the task fails with no usage.
+// Past them an own key of an ending of the stub's, own being its value, is
+// refused by it.
+func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer {
+	fail := func(err error) tutor.WordsAnswer {
+		return tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
+	}
+	if strings.TrimSpace(w.Style) == "" {
+		return fail(errors.New("tutorstub: the words have no style of presentation"))
+	}
+	switch w.Ask {
+	case tutor.PaperRung:
+		if _, err := png.DecodeConfig(bytes.NewReader(w.Crop)); err != nil {
+			return fail(err)
+		}
+	case tutor.PaperOpening:
+		if _, _, err := image.DecodeConfig(bytes.NewReader(w.Statement)); err != nil {
+			return fail(fmt.Errorf("tutorstub: the task's crop: %w", err))
+		}
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.WordsAnswer{Outcome: o}
+	}
+	list := questions["en"]
+	if l, ok := questions[base(w.Language)]; ok {
+		list = l
+	}
+	answer := tutor.WordsAnswer{Question: list[len(w.Asked)%len(list)], Outcome: tutor.Outcome{Kind: tutor.Answered,
+		Usage: s.usage(admission.PaperWordsCall(w.Ask == tutor.PaperRung), w.Route, 1)}}
+	for _, q := range list {
+		if !slices.Contains(w.Asked, q) {
+			answer.Question = q
+			break
+		}
+	}
+	if n := len(w.Tasks); w.Ask == tutor.PaperRung && n > 0 && w.Task >= 1 && w.Task <= n {
+		answer.Box = &observationv1.CropBox{Ymin: int32((w.Task - 1) * wholeCrop / n), Ymax: int32(w.Task * wholeCrop / n), Xmax: wholeCrop}
+	}
+	return answer
 }
 
 // questions are the stub's words, by language: one question each, without a

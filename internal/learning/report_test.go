@@ -45,11 +45,16 @@ func TestAProblemIsReported(t *testing.T) {
 		Kind: v1.ProblemKind_PROBLEM_KIND_OTHER}); err != nil {
 		t.Errorf("a report on the words after a correct answer = %v", err)
 	}
+	if _, err := report("k-3", &v1.ReportProblemRequest{Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "Where do you begin?",
+		Kind: v1.ProblemKind_PROBLEM_KIND_UNCLEAR}); err != nil {
+		t.Errorf("a report on an opening question = %v", err)
+	}
 	for _, bad := range []*v1.ReportProblemRequest{
 		{Reply: v1.TutorReply_TUTOR_REPLY_UNSPECIFIED, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_RUNG, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_UNSPECIFIED, Rung: 1},
 		{Reply: v1.TutorReply_TUTOR_REPLY_RUNG, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG, Rung: 2},
+		{Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG, Rung: 1},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Words: strings.Repeat("w", 4001), Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Words: "w", Text: strings.Repeat("t", 1001), Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},

@@ -29,6 +29,7 @@ var (
 		v1.TutorReply_TUTOR_REPLY_EXPLAINED_DIFFERENTLY: "explained_differently",
 		v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER:        "correct_answer",
 		v1.TutorReply_TUTOR_REPLY_ESSAY_FEEDBACK:        "essay_feedback",
+		v1.TutorReply_TUTOR_REPLY_OPENING:               "opening",
 	}
 	kinds = map[v1.ProblemKind]string{
 		v1.ProblemKind_PROBLEM_KIND_WRONG:       "wrong",

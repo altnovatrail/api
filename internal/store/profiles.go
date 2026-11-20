@@ -24,12 +24,12 @@ const ConsentByOwnerStatement = "owner_statement"
 
 // profileColumns are the columns of a Profile, in scanProfile's order.
 const profileColumns = `id, owner, pseudonym, avatar, age_category, country, voicing_enabled,
-	voicing_speed, default_mode, interface_language, grade, ask_before_showing, work_storage, age_stated_on`
+	voicing_speed, default_mode, interface_language, grade, ask_before_showing, hint_mode, work_storage, age_stated_on`
 
 func scanProfile(row pgx.Row) (Profile, error) {
 	var p Profile
 	err := row.Scan(&p.ID, &p.Owner, &p.Pseudonym, &p.Avatar, &p.AgeCategory, &p.Country, &p.VoicingEnabled,
-		&p.VoicingSpeed, &p.DefaultMode, &p.InterfaceLanguage, &p.Grade, &p.AskBeforeShowing, &p.WorkStorage, &p.AgeStatedOn)
+		&p.VoicingSpeed, &p.DefaultMode, &p.InterfaceLanguage, &p.Grade, &p.AskBeforeShowing, &p.HintMode, &p.WorkStorage, &p.AgeStatedOn)
 	return p, err
 }
 
@@ -43,13 +43,13 @@ func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Prof
 	p.Owner, p.AgeCategory = true, "adult"
 	created, err := scanProfile(tx.QueryRow(ctx, `INSERT INTO profiles (account_id, owner, pseudonym, avatar,
 			age_category, country, age_stated_on, voicing_enabled, voicing_speed, default_mode, interface_language,
-			grade, ask_before_showing, active_on)
-		SELECT $1, true, $2, $3, 'adult', $4, (adult_stated_at AT TIME ZONE 'UTC')::date, $5, $6, $7, $8, $9, false,
+			grade, ask_before_showing, hint_mode, active_on)
+		SELECT $1, true, $2, $3, 'adult', $4, (adult_stated_at AT TIME ZONE 'UTC')::date, $5, $6, $7, $8, $9, false, $10,
 			(now() AT TIME ZONE 'UTC')::date
 		FROM accounts WHERE id = $1
 		RETURNING `+profileColumns,
 		accountID, p.Pseudonym, p.Avatar, p.Country, p.VoicingEnabled, p.VoicingSpeed, p.DefaultMode,
-		p.InterfaceLanguage, p.Grade))
+		p.InterfaceLanguage, p.Grade, hintModeOr(p.HintMode)))
 	var pgErr *pgconn.PgError
 	switch {
 	case errors.As(err, &pgErr) && pgErr.Code == uniqueViolation && pgErr.ConstraintName == "profiles_one_owner":
@@ -114,14 +114,25 @@ func HoldProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) er
 	return nil
 }
 
+// HintModeShowWhere is the hint mode of a new profile (concepts 10 spec).
+const HintModeShowWhere = "show_where"
+
+// hintModeOr is a hint mode to write, "Show where" when none is set.
+func hintModeOr(mode string) string {
+	if mode == "" {
+		return HintModeShowWhere
+	}
+	return mode
+}
+
 // WriteProfile writes the settings of p, the profile ProfileFor held: what an
 // adult changes, and nothing the profile was created with.
 func WriteProfile(ctx context.Context, tx pgx.Tx, p Profile) error {
 	_, err := tx.Exec(ctx, `UPDATE profiles SET pseudonym = $2, avatar = $3, voicing_enabled = $4, voicing_speed = $5,
-			default_mode = $6, interface_language = $7, grade = $8, ask_before_showing = $9
+			default_mode = $6, interface_language = $7, grade = $8, ask_before_showing = $9, hint_mode = $10
 		WHERE id = $1`,
 		p.ID, p.Pseudonym, p.Avatar, p.VoicingEnabled, p.VoicingSpeed, p.DefaultMode, p.InterfaceLanguage, p.Grade,
-		p.AskBeforeShowing)
+		p.AskBeforeShowing, p.HintMode)
 	if err != nil {
 		return fmt.Errorf("store: write the profile: %w", err)
 	}

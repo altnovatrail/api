@@ -145,19 +145,23 @@ const wordsReserve Micro = 18_200
 // each of its crops, as a sheet. The four calls of a task from paper keep their
 // values of one model each, should tutor give no expected price: it expects the
 // tokens of each of their three attempts, and their reserve is that (R137
-// tutor, R98). The words after a correct answer have no value here: tutor
+// tutor, R98); so do the tutor's words of a task from paper, with the work and
+// without it, the words' value, about a call of the last model of their cascade
+// (R82 spec). The words after a correct answer have no value here: tutor
 // expects their tokens (R113 tutor, R76).
 var reserves = map[tutor.Call]Micro{
-	tutor.CallSheet:     14_000,
-	tutor.CallWords:     wordsReserve,
-	tutor.CallHint:      wordsReserve,
-	tutor.CallEssay:     15_000,
-	tutor.CallRubric:    15_000,
-	tutor.CallWorkbook:  14_000,
-	tutor.CallFinding:   52_000,
-	tutor.CallStatement: 2_600,
-	tutor.CallSolving:   8_600,
-	tutor.CallPaper:     8_600,
+	tutor.CallSheet:      14_000,
+	tutor.CallWords:      wordsReserve,
+	tutor.CallHint:       wordsReserve,
+	tutor.CallEssay:      15_000,
+	tutor.CallRubric:     15_000,
+	tutor.CallWorkbook:   14_000,
+	tutor.CallFinding:    52_000,
+	tutor.CallStatement:  2_600,
+	tutor.CallSolving:    8_600,
+	tutor.CallPaper:      8_600,
+	tutor.CallPaperWords: wordsReserve,
+	tutor.CallPaperHint:  wordsReserve,
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected

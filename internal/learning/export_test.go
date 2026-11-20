@@ -67,6 +67,21 @@ func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest, _ strin
 	return f(ctx, w)
 }
 
+// WithPaperWords is what words the tutor's words of a task from paper, in place
+// of tutor: a test's own, admitted for every learner and route.
+func WithPaperWords(tell func(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer) Option {
+	return func(s *Service) { s.paperWords = paperTellerFunc(tell) }
+}
+
+// paperTellerFunc is a function as a paperTeller that admits every request.
+type paperTellerFunc func(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer
+
+func (f paperTellerFunc) PaperWords(bool, formatv0.AgeCategory, string) bool { return true }
+
+func (f paperTellerFunc) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, _ string) tutor.WordsAnswer {
+	return f(ctx, w)
+}
+
 // Candidates is the full IDs of the tasks of pkg the engine's pool holds for a
 // learner of category on the route of ownKey — the own key of that provider, or
 // platform AI —, and how many of its lessons it gets: those this code begins.
@@ -132,4 +147,10 @@ type assessorFunc func(ctx context.Context, r tutor.RubricAssessment) tutor.Rubr
 
 func (f assessorFunc) AssessEssay(ctx context.Context, r tutor.RubricAssessment, _ string) tutor.RubricAssessed {
 	return f(ctx, r)
+}
+
+// OpeningChecked is the kept opening question the learner gets once the
+// attempt knows the tasks, in language.
+func OpeningChecked(kept, language string, tasks []tutor.PaperWordsTask) (string, bool) {
+	return openingChecked(kept, &paperTelling{tasks: tasks, language: language})
 }

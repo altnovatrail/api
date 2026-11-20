@@ -44,7 +44,9 @@ func (s *Service) GetDebug(ctx context.Context, _ *v1.GetDebugRequest) (*v1.GetD
 		return nil, err
 	}
 	answer := &v1.GetDebugResponse{Models: Models(), Choice: s.store.Choice(id)}
-	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallSolving, tutor.CallPaper} {
+	// The tutor's words of a task from paper are one kind here, and the list gives
+	// the words with the work and the hint without it one cascade.
+	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallSolving, tutor.CallPaper, tutor.CallPaperWords} {
 		for _, m := range s.admitted(call) {
 			answer.Admitted = append(answer.Admitted, &v1.DebugAdmitted{Kind: callKinds[call], Model: choiceOf(&m)})
 		}

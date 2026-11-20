@@ -68,6 +68,9 @@ type Service struct {
 	// paper reads the statement of a task from paper, solves it and reads the
 	// work on it: the gate's tutor (R162 spec).
 	paper paperChecker
+	// paperWords words the tutor's words of a task from paper: the gate's tutor
+	// (R82 spec).
+	paperWords paperTeller
 	// reading is the mode tutor reads handwriting by, the gate's, which says
 	// how many observations a reading gives (R88).
 	reading tutor.Reading
@@ -130,7 +133,7 @@ func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } 
 // WithTutor is what reads the sheets, the workbook pages and the essays,
 // assesses the essays by their rubrics, words the tutor's words, those after a
 // correct answer too, finds the tasks on the photo of a page, checks a task
-// from paper, and says which
+// from paper and words its tutor's words, and says which
 // kinds of reading are admitted, in place
 // of the gate's tutor: the dev mode's stub (R66), which calls no provider and
 // admits a workbook page, an essay and its assessment itself.
@@ -144,9 +147,11 @@ func WithTutor(t interface {
 	rubricAssessor
 	taskFinder
 	paperChecker
+	paperTeller
 }) Option {
 	return func(s *Service) {
-		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.finder, s.paper, s.stubbed = t, t, t, t, t, t, t, t, t, true
+		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.finder, s.paper, s.paperWords, s.stubbed =
+			t, t, t, t, t, t, t, t, t, t, true
 	}
 }
 
@@ -211,7 +216,7 @@ func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest,
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
 	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
 		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
-		finder: gateTutor{gate}, paper: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+		finder: gateTutor{gate}, paper: gateTutor{gate}, paperWords: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout,
 		paperGoingFor: config.DefaultPaperRequestTimeout}
 	for _, opt := range opts {

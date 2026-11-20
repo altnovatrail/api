@@ -40,6 +40,8 @@ type Profile struct {
 	InterfaceLanguage *string
 	Grade             *int16
 	AskBeforeShowing  bool
+	// HintMode is "show_where" or "questions_only" (R162 spec).
+	HintMode string
 	// WorkStorage says the storage of the learner's works on the server is on
 	// (R113 spec).
 	WorkStorage bool

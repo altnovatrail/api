@@ -161,6 +161,22 @@ func AsksBeforeShowing(ctx context.Context, db Querier, profileID string) (bool,
 	return asks, nil
 }
 
+// PaperWordsOf is what the tutor's words of a task from paper read of the
+// profile (R82 spec): the language of its interface, "" when it has none, and
+// whether its hint mode is "Show where".
+func PaperWordsOf(ctx context.Context, db Querier, profileID string) (language string, showWhere bool, err error) {
+	var tag *string
+	err = db.QueryRow(ctx, `SELECT interface_language, hint_mode = 'show_where' FROM profiles WHERE id = $1`, profileID).
+		Scan(&tag, &showWhere)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return "", false, ErrNoProfile
+	case err != nil:
+		return "", false, fmt.Errorf("store: read the settings of the words: %w", err)
+	}
+	return deref(tag), showWhere, nil
+}
+
 // GiveCorrectWords records that the tutor's words after a correct answer were
 // given on the attempt, which a correct answer closed: once (R09).
 func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID string) error {

@@ -354,6 +354,25 @@ func WordsCall(withWork bool) tutor.Call {
 	return tutor.CallHint
 }
 
+// PaperWords says whether the tutor's words of a task from paper are admitted
+// for a learner of category, on the route Reads takes: those of a rung, with the
+// work, by the call that serves the analysis of its steps and the hint, and the
+// opening question and a rung put another way by the hint alone, which tutor
+// asks the same way as Words (R82 spec).
+func (g *Gate) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return g.chooses(PaperWordsCall(withWork), g.route(category, ownKeyProvider))
+}
+
+// PaperWordsCall is tutor's kind of call of the words of a task from paper, as
+// WordsCall is of a task of a module: the gate admits, and the quota reserves,
+// by it.
+func PaperWordsCall(withWork bool) tutor.Call {
+	if withWork {
+		return tutor.CallPaperWords
+	}
+	return tutor.CallPaperHint
+}
+
 // CorrectWords says whether the tutor's words after a correct answer are
 // admitted for a learner of category, on the route Reads takes: whether
 // tutor chooses an entry for their call, CallCorrect, one kind with the work and
@@ -431,6 +450,14 @@ func (g *Gate) ReadPaper(ctx context.Context, r tutor.PaperReading) tutor.SheetR
 // the first mistake when the work went, or the outcome of a call that gave none.
 func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
 	return g.tutor.Words(ctx, w)
+}
+
+// TellPaperWords asks tutor for the words of a task from paper: its question,
+// with the box of the first mistake of a rung, or the outcome of a call that
+// gave none. api checks them for leaks and their form before they reach the
+// learner (tutor.PaperBreach).
+func (g *Gate) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer {
+	return g.tutor.PaperWords(ctx, w)
 }
 
 // TellCorrectWords asks tutor for the words after a correct answer: the praise

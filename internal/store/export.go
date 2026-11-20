@@ -172,7 +172,7 @@ func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) 
 		PresentationStyle: exportv4.ProfilePresentationStyle{Voicing: exportv4.ProfilePresentationStyleVoicing{
 			Enabled: p.VoicingEnabled, Speed: exportv4.ProfilePresentationStyleVoicingSpeed(p.VoicingSpeed)}},
 		DefaultMode: exportv4.ProfileDefaultMode(p.DefaultMode), InterfaceLanguage: p.InterfaceLanguage,
-		AskBeforeShowing: p.AskBeforeShowing, ActiveOn: dayOf(activeOn), WorkStorage: p.WorkStorage,
+		HintMode: exportv4.ProfileHintMode(p.HintMode), AskBeforeShowing: p.AskBeforeShowing, ActiveOn: dayOf(activeOn), WorkStorage: p.WorkStorage,
 		ConnectedModules: []exportv4.ConnectedModule{}, LessonRuns: []exportv4.LessonRun{}, Attempts: []exportv4.Attempt{},
 		Choices: []exportv4.Choice{}, Evidence: []exportv4.EvidenceEntry{}, Works: []exportv4.WorkInfo{},
 		StorageConsents: []exportv4.StorageConsent{}, ProblemReports: []exportv4.ProblemReport{},

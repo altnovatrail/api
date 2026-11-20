@@ -259,10 +259,12 @@ func (a *Action) cause(err error) v1.Cause {
 }
 
 var callKinds = map[tutor.Call]v1.DebugCallKind{
-	tutor.CallFinding:   v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING,
-	tutor.CallStatement: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING,
-	tutor.CallSolving:   v1.DebugCallKind_DEBUG_CALL_KIND_TASK_SOLVING,
-	tutor.CallPaper:     v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
+	tutor.CallFinding:    v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING,
+	tutor.CallStatement:  v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING,
+	tutor.CallSolving:    v1.DebugCallKind_DEBUG_CALL_KIND_TASK_SOLVING,
+	tutor.CallPaper:      v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
+	tutor.CallPaperWords: v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
+	tutor.CallPaperHint:  v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
 }
 
 // Solved records the call of module-kit's solver on the formulas the

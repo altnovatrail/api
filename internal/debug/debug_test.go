@@ -1,6 +1,8 @@
 package debug_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -130,6 +132,12 @@ func TestAnAction(t *testing.T) {
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 3, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, OutputTokens: 2, Failure: v1.Cause_CAUSE_AI_FAILURE},
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, Answer: `{"tasks":[{"statement":"37 + 48 =","provenance":"PROVENANCE_SOLVER","answer":{"number":{"value":"85"}}}]}`, DurationMs: 1},
 		}}
+	// protojson spaces its output differently from one build to another.
+	var solved bytes.Buffer
+	if err := json.Compact(&solved, []byte(taken[0].GetCalls()[4].GetAnswer())); err != nil {
+		t.Fatal(err)
+	}
+	taken[0].GetCalls()[4].Answer = solved.String()
 	if taken[0].GetAt().AsTime().Unix() != 100 || !proto.Equal(taken[0], want) {
 		t.Errorf("the action =\n%v\nwant\n%v", taken[0], want)
 	}

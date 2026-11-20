@@ -173,7 +173,7 @@ func TestAChildsProfileIsMadeByItsConfirmedConsent(t *testing.T) {
 	want := &v1.Profile{
 		ProfileId: got.GetProfileId(), Pseudonym: "Fox", AgeCategory: "under_13", Country: "US",
 		PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &on, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
-		DefaultMode:       v1.Mode_MODE_BY_STEPS, AskBeforeShowing: true,
+		DefaultMode:       v1.Mode_MODE_BY_STEPS, AskBeforeShowing: true, HintMode: v1.HintMode_HINT_MODE_SHOW_WHERE,
 		Consent: &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_PARENT, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
 	}
 	if !proto.Equal(got, want) {

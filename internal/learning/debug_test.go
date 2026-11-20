@@ -65,6 +65,38 @@ func (d *debugStub) ReadPaper(ctx context.Context, r tutor.PaperReading, own str
 	return read
 }
 
+func (d *debugStub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer {
+	told := d.Stub.TellPaperWords(ctx, w, own)
+	d.recorded(w.Route, tutor.CallPaperHint, 0, `{"hint": "?"}`)
+	return told
+}
+
+// In the debug mode the tutor's words of a task from paper go by the account's
+// first model, past the list, and the store keeps their call as an action of
+// words (R97).
+func TestTheDebugModeRecordsTheTutorsWords(t *testing.T) {
+	t.Parallel()
+
+	g := stubGate(t)
+	store := debug.New()
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(&debugStub{Stub: tutorstub.New(g), t: t}), learning.WithDebug(store)})
+	l := w.learner(t)
+	if _, err := store.SetChoice(l.accountID, &v1.DebugChoice{
+		First: &v1.DebugModelChoice{Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_LOW},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	if res, err := w.opening(t, l, l.adult, a, uuid.NewString()); err != nil || res.GetWords() == "" {
+		t.Fatalf("the opening question = %v, %v", res, err)
+	}
+	taken := store.Take(l.accountID)
+	if len(taken) != 1 || taken[0].GetKind() != v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS || taken[0].GetAttemptId() != a ||
+		len(taken[0].GetCalls()) != 1 || taken[0].GetCalls()[0].GetKind() != v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS {
+		t.Errorf("the actions = %v, want the words with their one call", taken)
+	}
+}
+
 // In the debug mode the calls of a Check of a task from paper go by the
 // account's models, and the store keeps each, the solver's among them, until
 // they are taken, with its cost (R97). A second model reads the work beside the
