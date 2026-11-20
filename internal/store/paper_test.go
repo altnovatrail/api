@@ -158,3 +158,78 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 		t.Error("a key on a closed attempt was set")
 	}
 }
+
+// The close of an attempt of a task from paper leaves nothing it kept while
+// open but its row (privacy 4.1 spec): its submissions go, with the idempotency
+// keys that recorded them, its rungs, the opening question among them, and its
+// count of wrong answers, and a problem report on its words stays (R123 spec). An attempt of a module keeps them as before.
+func TestTheCloseOfAPaperAttemptLeavesItsRowAlone(t *testing.T) {
+	t.Parallel()
+
+	e := newE3(t)
+	ctx := t.Context()
+	module, err := e.attempt(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) (err error) {
+		ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, 1, time.Now())
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paper := ids[0]
+	for _, a := range []string{module, paper} {
+		err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+			id, err := store.Submit(ctx, tx, e.profileID, a, []byte{1}, []byte{2}, true, time.Now())
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, profile_id, attempt_id, submission_id)
+				VALUES ($1, $2, 'm', 'f', 'done', $3, $4, $5)`, e.accountID, "key-"+a, e.profileID, a, id); err != nil {
+				return err
+			}
+			return store.WriteRung(ctx, tx, e.profileID, a, 1, store.Words{Source: store.SourceModel, Text: "Look again."})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.pool.Exec(ctx, `INSERT INTO attempt_rungs (profile_id, attempt_id, rung, source, words) VALUES ($1, $2, 0, 'model', 'What is asked?')`,
+		e.profileID, paper); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `INSERT INTO problem_reports (account_id, profile_id, attempt_id, reply, rung, words, kind, text, created_at)
+		VALUES ($1, $2, $3, 'rung', 1, 'Look again.', 'unclear', '', now())`, e.accountID, e.profileID, paper); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range []string{module, paper} {
+		if err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+			return store.CloseAttempt(ctx, tx, e.profileID, a, "left", time.Now())
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	kept := func(a string) (rows [4]int, wrong int) {
+		t.Helper()
+		err := e.pool.QueryRow(ctx, `SELECT
+				(SELECT count(*) FROM submissions WHERE attempt_id = $1),
+				(SELECT count(*) FROM idempotency_keys WHERE attempt_id = $1),
+				(SELECT count(*) FROM attempt_rungs WHERE attempt_id = $1),
+				(SELECT count(*) FROM problem_reports WHERE attempt_id = $1),
+				wrong_answers
+			FROM attempts WHERE id = $1`, a).Scan(&rows[0], &rows[1], &rows[2], &rows[3], &wrong)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rows, wrong
+	}
+	if rows, wrong := kept(paper); rows != [4]int{0, 0, 0, 1} || wrong != 0 {
+		t.Errorf("the closed attempt of paper keeps submissions, keys, rungs, reports %v and %d wrong answers; want [0 0 0 1] and 0", rows, wrong)
+	}
+	if rows, wrong := kept(module); rows != [4]int{1, 1, 1, 0} || wrong != 1 {
+		t.Errorf("the closed attempt of a module keeps submissions, keys, rungs, reports %v and %d wrong answers; want [1 1 1 0] and 1", rows, wrong)
+	}
+}

@@ -78,8 +78,9 @@ func slotOf(t *testing.T, res *v1.SubmitWorkResponse) *v1.AnswerSlotVerdict {
 // solver's key, and its solution is not asked, its part of the reserve given
 // back. A wrong value is a wrong answer, and a later Check reads the work alone
 // by the key kept; the right one closes the attempt "correct" with an empty
-// solved and no next, the key erased with the close. A repeat under the key
-// gives the answer kept, with no call.
+// solved and no next, the key and the submissions erased with the close. A
+// repeat under the key gives the task solved alone, with no call and no verdict
+// of a task, which the close erased (privacy 4.1 spec).
 func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 	t.Parallel()
 
@@ -115,12 +116,16 @@ func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*reading+stating {
 		t.Errorf("the counter = %+v, want a second reading alone", profile)
 	}
-	if w.closeOf(t, a) != "correct" || w.paperKey(t, a) != nil {
-		t.Errorf("the attempt closed %q, its key %v; want correct, and the key erased", w.closeOf(t, a), w.paperKey(t, a))
+	var kept int
+	if err := w.pool.QueryRow(l.ctx, `SELECT count(*) FROM submissions WHERE attempt_id = $1`, a).Scan(&kept); err != nil {
+		t.Fatal(err)
+	}
+	if w.closeOf(t, a) != "correct" || w.paperKey(t, a) != nil || kept != 0 {
+		t.Errorf("the attempt closed %q, its key %v, %d submissions kept; want correct, and none", w.closeOf(t, a), w.paperKey(t, a), kept)
 	}
 	again, err := w.attempts.SubmitWork(l.ctx, req)
-	if err != nil || !proto.Equal(again, right) {
-		t.Errorf("the repeat = %v (%v), want the answer kept", again, err)
+	if err != nil || !proto.Equal(again, &v1.SubmitWorkResponse{Solved: right.GetSolved()}) {
+		t.Errorf("the repeat = %v (%v), want the task solved alone", again, err)
 	}
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*reading+stating {
 		t.Errorf("the counter after the repeat = %+v, want no call", profile)

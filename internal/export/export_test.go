@@ -19,6 +19,7 @@ import (
 	"github.com/altnovatrail/spec"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -80,12 +81,13 @@ var choices *modulepackage.Package
 
 // The export of a profile with an attempt, its submissions, its evidence and its
 // state, an essay with the marks of its feedback by number (R15), a lesson run,
-// a choice, the storage of works, two stored works, a problem report and an
-// adult's correction of a level — named by its own ID where an attempt is —,
-// and of its account, is api.zip whose every file passes its schema of spec's
-// part export/ and keeps its rules of the layout and the .proto files
-// (R135 spec). A stored work is written newest first, named without its bytes
-// (R70, R84).
+// a choice, the storage of works, two stored works, a problem report, an
+// adult's correction of a level — named by its correction_id (R157 spec) —, the
+// open attempts of a page from paper, with where each task's key came from but
+// not the key, and a closed one, which api keeps nothing of, and of its
+// account, is api.zip whose every file passes its schema of spec's part export/
+// and keeps its rules of the layout and the .proto files (R135 spec). A stored
+// work is written newest first, named without its bytes (R70, R84).
 func TestTheExportPassesItsSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +217,36 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT correction_id FROM evidence WHERE profile_id = $1 AND attempt_id IS NULL`, profile).Scan(&correction); err != nil {
 		t.Fatal(err)
 	}
+	// A page of three tasks: the first checked once, its frame of two tasks keyed
+	// by the solver and with no answer, read with its observation and a rung; the
+	// second begun alone; the third closed, which leaves nothing to export.
+	var page []string
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) (err error) {
+		page, err = store.BeginPaperAttempts(ctx, tx, profile, 3, time.Now())
+		if err != nil {
+			return err
+		}
+		key, _ := proto.Marshal(&paperv1.Key{Tasks: []*paperv1.TaskKey{
+			{Statement: "3 + 4 = □", Provenance: paperv1.Provenance_PROVENANCE_SOLVER,
+				Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "7"}}}},
+			{Statement: "Draw a cat."},
+		}})
+		if err := store.SetPaperKey(ctx, tx, profile, page[0], key); err != nil {
+			return err
+		}
+		if _, err := store.Submit(ctx, tx, profile, page[0], answer(1, "not_yet", "8"), observation, true, time.Now()); err != nil {
+			return err
+		}
+		if err := store.WriteRung(ctx, tx, profile, page[0], 1, store.Words{Source: store.SourceModel, Text: "Count again."}); err != nil {
+			return err
+		}
+		if _, err := store.Submit(ctx, tx, profile, page[2], answer(1, "not_yet", "2"), observation, true, time.Now()); err != nil {
+			return err
+		}
+		return store.CloseAttempt(ctx, tx, profile, page[2], "left", time.Now())
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	checks := schemas(t)
 	var part, accountPart []byte
@@ -247,13 +279,20 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
 		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting","stored_at":"`, `"size_bytes":50},{"attempt_id":"` + attempt + `"`,
 		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`,
-		`"attempt_id":"` + correction + `","package_digest":"` + string(choices.Digest) + `"`, `"level_set_by_adult":true`} {
+		`{"seq":2,"correction_id":"` + correction + `","package_digest":"` + string(choices.Digest) + `"`, `"level_set_by_adult":true`,
+		`{"attempt_id":"` + page[0] + `"`, `"key_sources":["solver","none"],"wrong_answers":1,"rungs":[{"rung":1,"source":"model","words":"Count again."`,
+		`{"attempt_id":"` + page[1] + `","begun_at":"`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
 		}
 	}
 	if strings.Contains(text, `"seed"`) {
 		t.Error("the profile's file holds the seed of an attempt")
+	}
+	// The key of a task from paper never reaches the device, and a closed attempt
+	// of paper is not kept (R05 spec; privacy 4.1 spec).
+	if strings.Contains(text, "3 + 4") || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
+		t.Error("the profile's file holds a key of a task from paper, or its closed attempt, or key sources before a check")
 	}
 	// The works are named without their bytes: app reads each by GetWork (R151 spec).
 	if strings.Contains(text, `"history"`) || strings.Contains(text, `"picture"`) {

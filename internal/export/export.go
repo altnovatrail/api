@@ -21,6 +21,7 @@ import (
 
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/exportv4"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5"
@@ -147,6 +148,14 @@ func (x *Exporter) profile(ctx context.Context, tx pgx.Tx, accountID, profileID 
 		submissions = submissions || len(attempt.Submissions) > 0
 		p.Attempts = append(p.Attempts, attempt)
 	}
+	for _, a := range e.PaperAttempts {
+		attempt, err := x.paperAttempt(a, e.Observations[string(a.Attempt.AttemptID)])
+		if err != nil {
+			return exportv4.Profile{}, false, err
+		}
+		submissions = submissions || len(attempt.Submissions) > 0
+		p.PaperAttempts = append(p.PaperAttempts, attempt)
+	}
 	for i, data := range e.Evidence {
 		if p.Evidence[i].Evidence, err = x.json(x.evidence, data); err != nil {
 			return exportv4.Profile{}, false, err
@@ -216,6 +225,44 @@ func (x *Exporter) attempt(ctx context.Context, a store.ExportedAttempt, observa
 		out.Submissions[i] = s
 	}
 	return out, nil
+}
+
+// paperAttempt is the open attempt of a task from paper a, with what its
+// submissions tell and where the key of each task of its crop came from, but
+// not the key, which never reaches the device (R05 spec).
+func (x *Exporter) paperAttempt(a store.ExportedPaperAttempt, observations map[int64][]byte) (exportv4.PaperAttempt, error) {
+	out := a.Attempt
+	if a.Key != nil {
+		var k paperv1.Key
+		if err := proto.Unmarshal(a.Key, &k); err != nil {
+			return exportv4.PaperAttempt{}, fmt.Errorf("export: read the key of an attempt of paper: %w", err)
+		}
+		for _, t := range k.GetTasks() {
+			out.KeySources = append(out.KeySources, keySource(t))
+		}
+	}
+	for i, answer := range a.Answers {
+		s, err := x.submission(out.Submissions[i], answer, observations[out.Submissions[i].Number])
+		if err != nil {
+			return exportv4.PaperAttempt{}, err
+		}
+		out.Submissions[i] = s
+	}
+	return out, nil
+}
+
+// keySource is where the key of a task from paper came from: a task with no
+// answer a program can compare has none, whatever its provenance.
+func keySource(t *paperv1.TaskKey) exportv4.PaperAttemptKeySources {
+	switch {
+	case t.GetAnswer() == nil:
+		return exportv4.PaperAttemptKeySourcesNone
+	case t.GetProvenance() == paperv1.Provenance_PROVENANCE_SOLVER:
+		return exportv4.PaperAttemptKeySourcesSolver
+	case t.GetProvenance() == paperv1.Provenance_PROVENANCE_AI:
+		return exportv4.PaperAttemptKeySourcesAi
+	}
+	return exportv4.PaperAttemptKeySourcesNone
 }
 
 // submission is the submission s with what its answer and its observation

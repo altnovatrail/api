@@ -129,11 +129,16 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 	defer act.End()
 	profileID := req.GetProfileId()
 	work := req.GetWork().GetPaper()
-	// A repeat gives the answer kept: a task from paper has no next.
+	// A repeat gives the answer kept: a task from paper has no next. That of the
+	// Check that solved the attempt is the record's own, the solved task alone,
+	// since the close erased its submission (R101).
 	key.Repeat = func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error) {
-		written, err := store.SubmissionAnswer(ctx, tx, profileID, record.SubmissionID)
-		if err != nil {
-			return nil, err
+		written := record.Response
+		if record.SubmissionID != "" {
+			var err error
+			if written, err = store.SubmissionAnswer(ctx, tx, profileID, record.SubmissionID); err != nil {
+				return nil, err
+			}
 		}
 		answer := &v1.SubmitWorkResponse{}
 		return answer, proto.Unmarshal(written, answer)
@@ -195,10 +200,15 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 				return nil, store.KeyTarget{}, err
 			}
 			if answer.GetSolved() != nil {
-				// No evidence: an attempt of paper gives none, and no engine chooses after it.
+				// No evidence: an attempt of paper gives none, and no engine chooses after it. Its
+				// close keeps none of its submissions, so this one is not written, and a repeat gets
+				// the solved task alone, which the close keeps anyway, and no verdict of a task
+				// (privacy 4.1 spec; R101).
 				if err := store.CloseAttempt(ctx, tx, profileID, row.ID, closeCorrect, now); err != nil {
 					return nil, store.KeyTarget{}, err
 				}
+				again, _ := proto.Marshal(&v1.SubmitWorkResponse{Solved: answer.GetSolved()})
+				return answer, store.KeyTarget{ProfileID: profileID, AttemptID: row.ID, Response: again}, nil
 			}
 			written, _ := proto.Marshal(answer)
 			var kept []byte
