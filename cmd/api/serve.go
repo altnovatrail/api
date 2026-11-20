@@ -20,6 +20,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/catalog"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/export"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/legal"
@@ -103,12 +104,19 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// The privacy policy of the texts served says from which day the words after a
 	// correct answer go to a provider (R77). On the stub no key reaches a
 	// provider, and the checks of a key have no limit (R78).
-	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithTexts(texts)}
+	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithPaperRequestTimeout(cfg.PaperRequestTimeout), learning.WithTexts(texts)}
 	accounts := []account.Option{account.WithTexts(texts), account.WithForms(store), account.WithExport(exporter),
 		account.WithOwnKeys(gate)}
 	if declared.Stub {
 		options = append(options, learning.WithTutor(tutorstub.New(gate)))
 		accounts = append(accounts, account.WithoutKeyCheckLimit())
+	}
+	// The debug mode of a local run chooses the models of a task from paper and
+	// keeps what each call returned, in this process alone (R97).
+	var debugs *debug.Store
+	if declared.Debug {
+		debugs = debug.New()
+		options = append(options, learning.WithDebug(debugs))
 	}
 	// The tariff of dev-check has its caps off a deployment alone: deployed, an
 	// account that got it all the same opens no spending of the platform's (R55).
@@ -132,11 +140,14 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		return startupFailed(ctx, log, err, fields...)
 	}
 	handlers.Legal = legal.NewService(texts)
+	if debugs != nil {
+		handlers.Debug = debug.NewService(debugs, gate.Admitted)
+	}
 	// Closed in the part of the way out kept for it: a request the drain cut short
 	// may still hold a connection, and the pool's Close waits for it, past the
 	// platform's grace if nothing bounded it.
 	defer closeWithin(cfg.CloseTimeout(), closeDeps)
-	deps.Log, deps.RequestTimeout = log, cfg.RequestTimeout
+	deps.Log, deps.RequestTimeout, deps.PaperRequestTimeout = log, cfg.RequestTimeout, cfg.PaperRequestTimeout
 	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
 		rpc.Mount(mux, rpc.NewServer(deps, handlers))
 		mux.Handle(catalog.FilesPattern, cat.Files(log))
@@ -181,6 +192,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldPlatformKeys, declared.PlatformKeys,
 		logging.FieldTutorStub, declared.Stub,
 		logging.FieldReadingMode, declared.Reading,
+		logging.FieldDebugModels, declared.Debug,
 	)
 
 	if err := srv.Run(ctx); err != nil {
@@ -339,6 +351,7 @@ func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attemp
 		Attempt:  attempts.Attempts(p.pool, p.rights),
 		Progress: attempts.Progress(p.pool, p.rights),
 		Work:     attempts.Works(p.pool, p.rights),
+		Paper:    attempts.Paper(p.pool),
 	}
 	return rpc.Deps{Signin: p.signin, DB: p.pool, Rights: p.rights}, handlers, p.close, nil
 }

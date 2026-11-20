@@ -1,7 +1,9 @@
 package learning
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -34,9 +36,10 @@ const ladderPassed = lastRung + 1
 // the first wrong answer, and on a task with a rubric, the IDs of the task's
 // techniques and its leading question, of the instance the attempt got, when it
 // has one — which the attempt records as given, each only when the task has
-// it, and which is an action on the attempt, as a step is; after it, the words
-// of the current rung that the attempt keeps, or its fallback text, with no
-// question (R47; R108 spec). It repeats by the attempt's state.
+// it, and which is an action on the attempt, as a step is —, none on a task from
+// paper, which has GetOpeningWords; after it, the words of the current rung that
+// the attempt keeps, or its fallback text, with no question (R47; R108 spec). It
+// repeats by the attempt's state.
 func (a *AttemptService) GetHint(ctx context.Context, req *v1.GetHintRequest) (*v1.GetHintResponse, error) {
 	s := a.s
 	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
@@ -44,7 +47,15 @@ func (a *AttemptService) GetHint(ctx context.Context, req *v1.GetHintRequest) (*
 	}
 	profileID := req.GetProfileId()
 	var answer *v1.GetHintResponse
-	err := s.act(ctx, profileID, req.GetAttemptId(), func(tx pgx.Tx, h held, now time.Time) error {
+	err := s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+		h, err := s.holdAny(ctx, tx, profileID, req.GetAttemptId(), now)
+		switch {
+		case err != nil:
+			return err
+		case h.row.Paper && h.row.WrongAnswers == 0:
+			answer = &v1.GetHintResponse{Hint: &v1.GetHintResponse_Techniques{Techniques: &v1.Techniques{}}}
+			return nil
+		}
 		if h.row.WrongAnswers == 0 || rubric(h.task) {
 			question := leadingQuestion(h.task)
 			given := techniques(h.task)
@@ -74,8 +85,9 @@ func leadingQuestion(task formatv0.Task) string {
 }
 
 // rungHint is the current rung of the attempt h, which has a wrong answer, with
-// the words the attempt keeps for it or its fallback text, and whether
-// "explain differently" was asked for on it.
+// the words the attempt keeps for it or its fallback text — on a task from
+// paper, the platform's in the language of the profile's interface — and
+// whether "explain differently" was asked for on it.
 func rungHint(ctx context.Context, tx pgx.Tx, profileID string, h held) (*v1.RungHint, bool, error) {
 	rung := rungOf(h.row.WrongAnswers)
 	kept, found, err := store.RungOf(ctx, tx, profileID, h.row.ID, rung)
@@ -84,6 +96,10 @@ func rungHint(ctx context.Context, tx pgx.Tx, profileID string, h held) (*v1.Run
 	}
 	if words := kept.Current().Text; found && words != "" {
 		return &v1.RungHint{Rung: int32(rung), Words: words}, kept.Explained, nil
+	}
+	if h.row.Paper {
+		language, _, err := store.PaperWordsOf(ctx, tx, profileID)
+		return &v1.RungHint{Rung: int32(rung), Words: tutor.PaperFallback(rung, cmp.Or(language, wordsLanguage))}, found && kept.Explained, err
 	}
 	at, err := spotOf(ctx, tx, profileID, h, rung)
 	if err != nil {
@@ -118,7 +134,10 @@ type telling struct {
 	at      spot
 	read    store.Words
 	request tutor.WordsRequest
-	answer  tutor.WordsAnswer
+	// paper is the words of a task from paper in place of at and request, nil on
+	// a task of a module (R82 spec).
+	paper  *paperTelling
+	answer tutor.WordsAnswer
 	// ready is an answer with no call: the words the attempt keeps.
 	ready proto.Message
 	// called says whether the words were called, between two transactions.
@@ -131,9 +150,21 @@ type telling struct {
 
 // wordsCall is the kind of call the words of t make, by the request they will
 // send: the words with the work when the crop goes, the hint without it else
-// (R106 tutor), as tutor picks it. The quota reserves by it.
+// (R106 tutor), as tutor picks it, and so of a task from paper. The quota
+// reserves by it.
 func wordsCall(t telling) tutor.Call {
+	if p := t.paper; p != nil {
+		return admission.PaperWordsCall(p.request.Ask == tutor.PaperRung)
+	}
 	return admission.WordsCall(len(t.request.Crop) > 0)
+}
+
+// route is the route the words of t are called by.
+func (t telling) route() tutor.Route {
+	if p := t.paper; p != nil {
+		return p.request.Route
+	}
+	return t.request.Route
 }
 
 // call calls the words of t, when it has no answer ready, until finishReserve
@@ -146,8 +177,13 @@ func (s *Service) call(ctx context.Context, t telling, own string) telling {
 	ctx, cancel := finishing(ctx)
 	defer cancel()
 	start := time.Now()
-	t.answer, t.called = s.teller.TellWords(ctx, t.request, own), true
-	t.request.Crop = nil
+	if p := t.paper; p != nil {
+		t.answer, t.called = s.paperWords.TellPaperWords(ctx, p.request, own), true
+		p.request.Statement, p.request.Crop = nil, nil
+	} else {
+		t.answer, t.called = s.teller.TellWords(ctx, t.request, own), true
+		t.request.Crop = nil
+	}
 	noteCall(ctx, t.answer.Outcome, time.Since(start))
 	s.afterCall(ctx, t.reserve, t.answer.Outcome)
 	return t
@@ -186,20 +222,35 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 // check, which goes to the request's line of the log (R47).
 func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
 	if t.answer.Outcome.Kind == tutor.Answered {
-		check := turnedDown(t.h.pkg, t.h.task, t.answer.Question, words.Hint)
+		var check string
+		if p := t.paper; p != nil {
+			check = paperTurnedDown(p, t.answer)
+		} else {
+			check = turnedDown(t.h.pkg, t.h.task, t.answer.Question, words.Hint)
+		}
 		if check == "" {
 			return store.Words{Source: store.SourceModel, Text: t.answer.Question}, nil
 		}
 		rpc.NoteWordsCheck(ctx, check)
 	}
-	words := store.Words{Source: store.SourceFallback, Text: fallback(t.h.pkg, t.h.task, t.rung, t.at)}
+	words := store.Words{Source: store.SourceFallback, Text: fallbackOf(t)}
 	switch {
 	case t.reserve.refused != nil:
 		return words, t.reserve.refused
 	case t.answer.Outcome.Kind == tutor.Answered:
 		return words, nil
 	}
-	return words, outcomeOf(t.answer.Outcome, t.request.Route.AI)
+	return words, outcomeOf(t.answer.Outcome, t.route().AI)
+}
+
+// fallbackOf is the fallback text of the rung of t: on a task of a module the
+// chain of the format (fallback), on a task from paper the platform's in the
+// language of the profile's interface (tutor.PaperFallback).
+func fallbackOf(t telling) string {
+	if p := t.paper; p != nil {
+		return tutor.PaperFallback(t.rung, p.language)
+	}
+	return fallback(t.h.pkg, t.h.task, t.rung, t.at)
 }
 
 // routeOf is the route of a learner of category to AI: the own key, when the
@@ -253,7 +304,7 @@ func named(ctx context.Context, h held, wrongAnswers *int32, thirdOn bool) error
 // in tx: what a repeat gets, while the attempt is open and the wrong answer is
 // still current.
 func (s *Service) keptWords(ctx context.Context, tx pgx.Tx, profileID, attemptID string, wrongAnswers int32, thirdOn bool) (string, error) {
-	h, err := s.hold(ctx, tx, profileID, attemptID, s.clock())
+	h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
 	if refusal, ok := rpc.Kept(err); ok {
 		// The close is the next request's to write: a repeat answers from the record.
 		return "", refusal
@@ -296,8 +347,8 @@ func ownKeySent(ctx context.Context, category formatv0.AgeCategory, own *v1.OwnK
 // GetRungWords gives the words of the rung a wrong answer gave, which the
 // request names by the count of wrong answers of its submission's answer and
 // sends the work of again (R10, R47): the tutor's question, once it passed the
-// leak check and the form check, with the box of the first mistake as a mark,
-// or the rung's fallback text. The attempt keeps them until it closes. Words
+// leak check and the form check, with the box of the first mistake as a mark
+// (markOf), or the rung's fallback text. The attempt keeps them until it closes. Words
 // that do not come are no refusal: the fallback text comes with the outcome.
 // From the fourth wrong answer on no rung is new, and the words of the same
 // wrong answer asked again, or a repeat under the key, are the words the
@@ -327,13 +378,21 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		},
 	}
 	route := routeOf(category, req.GetOwnKey())
-	// The words take the work of a sheet alone: a workbook page asks them as a
-	// task a tap checks, with no work (R81).
-	task, known := s.attemptTask(ctx, profileID, attemptID)
-	withWork := known && sheetRead(task)
-	admitted := s.teller.Words(withWork, category, req.GetOwnKey().GetProvider())
+	var admitted bool
+	task, paper, known := s.attemptOf(ctx, profileID, attemptID)
+	if paper {
+		// The words of a task from paper go to the debug mode's log (R97).
+		act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
+		defer act.End()
+		route = act.Route(route)
+		admitted = s.paperAdmitted(ctx, true, category, req.GetOwnKey().GetProvider())
+	} else {
+		// The words take the work of a sheet alone: a workbook page asks them as a
+		// task a tap checks, with no work (R81).
+		admitted = s.teller.Words(known && sheetRead(task), category, req.GetOwnKey().GetProvider())
+	}
 	prepare := func(tx pgx.Tx) (telling, error) {
-		h, err := s.hold(ctx, tx, profileID, attemptID, s.clock())
+		h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
 		if err != nil {
 			return telling{}, err
 		}
@@ -382,10 +441,10 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 
 // rungAsked checks a request for the words of a rung on the attempt h, before
 // anything is called: the wrong answer it names, a rung that is new, and the
-// work, which goes when AI reads the task as a sheet, and only then, as its
-// crop: a workbook page asks as a task a tap checks, with no work (R81). The
-// rung whose words the attempt keeps already is answered with them, with no
-// call.
+// work, which goes when AI reads the task as a sheet or from paper, and only
+// then, as its crop: a workbook page asks as a task a tap checks, with no work
+// (R81). The rung whose words the attempt keeps already is answered with them,
+// with no call.
 func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetRungWordsRequest, route tutor.Route, admitted bool) (telling, error) {
 	if err := named(ctx, h, req.WrongAnswers, false); err != nil {
 		return telling{h: h}, err
@@ -394,12 +453,15 @@ func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetR
 		return telling{h: h}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	}
 	t := telling{h: h, rung: rungOf(h.row.WrongAnswers), wrong: h.row.WrongAnswers}
-	ai := sheetRead(h.task)
-	if ai != (req.GetWork() != nil) {
-		return t, rpc.Malformed("work")
-	}
 	var crop []byte
-	if ai {
+	switch ai := sheetRead(h.task); {
+	case h.row.Paper:
+		if crop = req.GetWork().GetPaper().GetCrop(); !cropTaken(crop) {
+			return t, rpc.Malformed("work")
+		}
+	case ai != (req.GetWork() != nil):
+		return t, rpc.Malformed("work")
+	case ai:
 		if crop = req.GetWork().GetSheet().GetCrop(); !cropTaken(crop) {
 			return t, rpc.Malformed("work")
 		}
@@ -412,13 +474,22 @@ func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetR
 		t.ready = keptRung(t.rung, kept)
 		return t, nil
 	}
-	if t.at, err = spotOf(ctx, tx, req.GetProfileId(), h, t.rung); err != nil {
+	if t, err = spotted(ctx, tx, req.GetProfileId(), t); err != nil || !admitted {
 		return t, err
 	}
-	if !admitted {
-		return t, nil
+	return wordsCalled(ctx, tx, req.GetProfileId(), t, route, crop)
+}
+
+// spotted is t with what its words speak of: the answer slot of its rung on a
+// task of a module, and on a task from paper the tasks of the crop with the
+// rung's (paperTold).
+func spotted(ctx context.Context, tx pgx.Tx, profileID string, t telling) (telling, error) {
+	var err error
+	if t.h.row.Paper {
+		t.paper, err = paperTold(ctx, tx, profileID, t.h, t.rung)
+	} else {
+		t.at, err = spotOf(ctx, tx, profileID, t.h, t.rung)
 	}
-	t.request, err = wordsCalled(ctx, tx, req.GetProfileId(), t, route, crop)
 	return t, err
 }
 
@@ -428,18 +499,23 @@ func keptRung(rung int, kept store.Rung) *v1.GetRungWordsResponse {
 	return &v1.GetRungWordsResponse{Rung: int32(rung), Words: kept.Current().Text, Repeated: true}
 }
 
-// wordsCalled is the call of words of t, by the route, with the crop when the
-// work goes and the tutor's questions asked so far, once the request's deadline
-// leaves time for the call and the transaction after it.
-func wordsCalled(ctx context.Context, tx pgx.Tx, profileID string, t telling, route tutor.Route, crop []byte) (tutor.WordsRequest, error) {
+// wordsCalled is t with the call of its words, by the route, with the crop when
+// the work goes and the tutor's questions asked so far, once the request's
+// deadline leaves time for the call and the transaction after it.
+func wordsCalled(ctx context.Context, tx pgx.Tx, profileID string, t telling, route tutor.Route, crop []byte) (telling, error) {
 	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
-		return tutor.WordsRequest{}, connect.NewError(connect.CodeDeadlineExceeded, "too little time to word the rung")
+		return t, connect.NewError(connect.CodeDeadlineExceeded, "too little time to word the rung")
 	}
 	asked, err := store.AskedQuestions(ctx, tx, profileID, t.h.row.ID)
 	if err != nil {
-		return tutor.WordsRequest{}, err
+		return t, err
 	}
-	return wordsAsked(t.h, route, t.rung, t.at, crop, asked)
+	if t.paper != nil {
+		t.paper.request = paperRequest(t, route, crop, asked)
+		return t, nil
+	}
+	t.request, err = wordsAsked(t.h, route, t.rung, t.at, crop, asked)
+	return t, err
 }
 
 // heldAgain is the attempt of t held again after its call of words, and the
@@ -447,7 +523,7 @@ func wordsCalled(ctx context.Context, tx pgx.Tx, profileID string, t telling, ro
 // attempt, sent another wrong answer, or had the rung worded, while the words
 // were called. The attempt's row, held, puts such requests one after the other.
 func (s *Service) heldAgain(ctx context.Context, tx pgx.Tx, profileID string, t telling) (held, store.Rung, bool, error) {
-	h, err := s.hold(ctx, tx, profileID, t.h.row.ID, s.clock())
+	h, err := s.holdAny(ctx, tx, profileID, t.h.row.ID, s.clock())
 	if err != nil {
 		return held{}, store.Rung{}, false, err
 	}
@@ -478,13 +554,27 @@ func (s *Service) rungTold(ctx context.Context, tx pgx.Tx, profileID string, t t
 			return nil, store.KeyTarget{}, err
 		}
 		answer = &v1.GetRungWordsResponse{Rung: int32(t.rung), Words: words.Text, Outcome: outcome}
-		if box := t.answer.Box; box != nil && words.Source == store.SourceModel {
-			answer.Marks = []*v1.Mark{{Kind: v1.MarkKind_MARK_KIND_FRAME, Place: &v1.Mark_CropBox{CropBox: box}}}
+		if kind := markOf(t); t.answer.Box != nil && words.Source == store.SourceModel && kind != v1.MarkKind_MARK_KIND_UNSPECIFIED {
+			answer.Marks = []*v1.Mark{{Kind: kind, Place: &v1.Mark_CropBox{CropBox: t.answer.Box}}}
 		}
 	}
 	// An answer of the contract always marshals.
 	written, _ := proto.Marshal(&v1.GetRungWordsResponse{Rung: answer.GetRung(), Outcome: answer.GetOutcome()})
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID, Response: written}, nil
+}
+
+// markOf is the kind of the mark of the box of the first mistake that the
+// model's words of t come with: the frame on a task of a module, and on a task
+// from paper the wavy line in the hint mode "Show where" and none in "Questions
+// only" (R82 spec).
+func markOf(t telling) v1.MarkKind {
+	switch p := t.paper; {
+	case p == nil:
+		return v1.MarkKind_MARK_KIND_FRAME
+	case p.showWhere:
+		return v1.MarkKind_MARK_KIND_WAVY_LINE
+	}
+	return v1.MarkKind_MARK_KIND_UNSPECIFIED
 }
 
 // ExplainDifferently words the current rung anew, without the work (R10, R47):
@@ -522,9 +612,17 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 		},
 	}
 	route := routeOf(category, req.GetOwnKey())
-	admitted := s.teller.Words(false, category, req.GetOwnKey().GetProvider())
+	var admitted bool
+	if s.paperAttempt(ctx, profileID, attemptID) {
+		act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
+		defer act.End()
+		route = act.Route(route)
+		admitted = s.paperAdmitted(ctx, false, category, req.GetOwnKey().GetProvider())
+	} else {
+		admitted = s.teller.Words(false, category, req.GetOwnKey().GetProvider())
+	}
 	prepare := func(tx pgx.Tx) (telling, error) {
-		h, err := s.hold(ctx, tx, profileID, attemptID, s.clock())
+		h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
 		if err != nil {
 			return telling{}, err
 		}
@@ -607,24 +705,23 @@ func (s *Service) otherAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.Exp
 	case found && kept.Explained:
 		return t, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ALREADY_ASKED)
 	}
-	if t.at, err = spotOf(ctx, tx, req.GetProfileId(), h, t.rung); err != nil {
+	if t, err = spotted(ctx, tx, req.GetProfileId(), t); err != nil {
 		return t, err
 	}
-	t.read = readWords(h, t, kept, found)
+	t.read = readWords(t, kept, found)
 	if !admitted {
 		return t, nil
 	}
-	t.request, err = wordsCalled(ctx, tx, req.GetProfileId(), t, route, nil)
-	return t, err
+	return wordsCalled(ctx, tx, req.GetProfileId(), t, route, nil)
 }
 
 // readWords is the words the learner reads on the rung of t: those the attempt
 // keeps, or its fallback text.
-func readWords(h held, t telling, kept store.Rung, found bool) store.Words {
+func readWords(t telling, kept store.Rung, found bool) store.Words {
 	if found && kept.Words.Text != "" {
 		return kept.Words
 	}
-	return store.Words{Source: store.SourceFallback, Text: fallback(h.pkg, h.task, t.rung, t.at)}
+	return store.Words{Source: store.SourceFallback, Text: fallbackOf(t)}
 }
 
 // otherTold writes what came of "explain differently" of t, on the attempt held
@@ -639,7 +736,7 @@ func (s *Service) otherTold(ctx context.Context, tx pgx.Tx, profileID string, t 
 	case found && kept.Explained:
 		return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ALREADY_ASKED)
 	}
-	t.read = readWords(h, t, kept, found)
+	t.read = readWords(t, kept, found)
 	other, outcome := worded(ctx, t)
 	if outcome == nil && other.Text == t.read.Text {
 		outcome = &v1.Outcome{Cause: v1.Cause_CAUSE_NO_OTHER_WORDS}
@@ -777,8 +874,11 @@ func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrect
 		return praising{}, store.ErrNotFound
 	}
 	row, err := store.HoldAttempt(ctx, tx, profileID, req.GetAttemptId())
-	if err != nil {
+	switch {
+	case err != nil:
 		return praising{}, err
+	case row.Paper:
+		return praising{}, store.ErrPaper
 	}
 	p := praising{row: row}
 	if err := praisable(ctx, tx, profileID, row); err != nil {
@@ -923,6 +1023,10 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 		func(tx pgx.Tx, _ string) (*v1.ShowSolutionResponse, store.KeyTarget, error) {
 			now := s.clock()
 			h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), now)
+			if errors.Is(err, store.ErrPaper) {
+				// The solution of a task from paper is never shown (R162 spec).
+				err = rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
+			}
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}

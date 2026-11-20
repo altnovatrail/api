@@ -108,14 +108,21 @@ load() {
 # stubbed puts the run on the stub of tutor (R66): no key of platform AI from the dev file reaches
 # the process, and every call of AI is the stub's, which costs nothing. `just dev` runs so.
 stubbed() {
-    unset API_ANTHROPIC_KEY API_ANTHROPIC_KEY_FILE
+    unset API_ANTHROPIC_KEY API_ANTHROPIC_KEY_FILE API_DEBUG_MODELS
     export API_TUTOR_STUB=1
 }
 
 # modelled puts the run on the models, with the dev file's key: `just dev-ai`, for a task that checks
 # the words of a model under the cap its text names (R66; R146 spec).
 modelled() {
-    unset API_TUTOR_STUB
+    unset API_TUTOR_STUB API_DEBUG_MODELS
+}
+
+# debugged opens the debug mode of a local run on the models: app chooses the models of a task from
+# paper and shows what each call returned and cost (R97). `just dev-ai` and `just dev-app` with
+# API_DEV_APP_AI=1 run so; `just dev-check` does not.
+debugged() {
+    export API_DEBUG_MODELS=1
 }
 
 # b64url is base64url with no padding, as a JWT writes its parts.
@@ -868,9 +875,26 @@ app_done() {
     ((failed == 0)) || exit 1
 }
 
+# app_mode puts the run for app on the stub of tutor, with the facts of a child written to $1 —
+# nothing reaches a provider on the stub —, or, with API_DEV_APP_AI=1, on the models with the dev
+# file's key and facts, for the author's check by hand of a task that checks a model, under the cap
+# its text names (R67). app_on names the mode.
+app_mode() {
+    if [[ ${API_DEV_APP_AI:-} == 1 ]]; then
+        modelled
+        debugged
+        app_on="on the models, with the dev file's key and facts, in the debug mode"
+        return
+    fi
+    stubbed
+    printf '%s' "$child_facts" > "$1"
+    export API_ADMISSION_FACTS_FILE=$1
+    app_on="on the stub of tutor"
+}
+
 # app keeps api up for the local build of app, whose container cannot run this script
-# (R67; R146 spec): the server on the stub of tutor on port 8080, on the packages of the pinned
-# release and the facts of a child, the account dev-app with its owner's profile and a synthetic
+# (R67; R146 spec): the server on the stub of tutor on port 8080, or on the models by app_mode, on
+# the packages of the pinned release and the facts of a child, the account dev-app with its owner's profile and a synthetic
 # child of 9 by a parent's consent confirmed, whose profile ID it prints, and a custom token of that
 # account laid anew every half hour in the folder of the volume both devcontainers mount, until the
 # server stops. The token is never printed.
@@ -881,8 +905,8 @@ app() {
     token_dir=${API_DEV_TOKEN_DIR:-$token_dir_default}
     who=dev-app
     token_folder "$token_dir"
-    stubbed
     work=$(mktemp -d)
+    app_mode "$work/facts.yaml"
     trap app_done EXIT
     echo "dev-app: build"
     build
@@ -890,13 +914,13 @@ app() {
     packaged
     reopened
 
-    # The server's log goes to the terminal as well, as `just dev serve` shows it. Its facts are the
-    # check's own for its server on the stub, which admit a child's reading too, so that app walks a
-    # workbook page of the synthetic child (R67): nothing reaches a provider on the stub. The scans of
+    # The server's log goes to the terminal as well, as `just dev serve` shows it. On the stub its facts
+    # are the check's own for its server on the stub, which admit a child's reading too, so that app
+    # walks a workbook page of the synthetic child (R67): nothing reaches a provider on the stub. On
+    # the models they are the dev file's (app_mode). The scans of
     # parents' forms go to a folder of this run, as the check's do, and none stays behind it.
-    echo "dev-app: serve, on the stub of tutor"
-    printf '%s' "$child_facts" > "$work/facts.yaml"
-    API_ADMISSION_FACTS_FILE="$work/facts.yaml" API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=8080 \
+    echo "dev-app: serve, $app_on"
+    API_PACKAGES_DIR="$work/packages" API_CONSENT_FORMS_DIR="$work/forms" PORT=8080 \
         "$binary" serve > "$work/serve.log" 2>&1 &
     serve_pid=$!
     tail -f --pid="$serve_pid" "$work/serve.log" &
@@ -944,6 +968,7 @@ run)
 run-ai)
     shift
     modelled
+    debugged
     build
     exec "$binary" "$@"
     ;;

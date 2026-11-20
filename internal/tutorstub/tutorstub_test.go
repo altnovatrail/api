@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"slices"
 	"strings"
@@ -41,6 +42,8 @@ func (g gate) Reads(call tutor.Call, _ formatv0.AgeCategory, _ string) bool { re
 
 func (g gate) Words(bool, formatv0.AgeCategory, string) bool { return g.admitted }
 
+func (g gate) PaperWords(bool, formatv0.AgeCategory, string) bool { return g.admitted }
+
 func (g gate) CorrectWords(formatv0.AgeCategory, string) bool { return g.admitted }
 
 func (g gate) Price(call tutor.Call, _ tutor.Route) tutor.CallPrice { return g.prices[call] }
@@ -51,10 +54,12 @@ func (g gate) Reading() tutor.Reading { return g.reading }
 // the two readers do not share evenly, the words with the work a cent, the
 // hint without it half a cent, and the words after a correct answer $0.013524.
 var priced = gate{admitted: true, prices: map[tutor.Call]tutor.CallPrice{
-	tutor.CallSheet:   {ExpectedUSD: 0.020001, Expected: true},
-	tutor.CallWords:   {ExpectedUSD: 0.01, Expected: true},
-	tutor.CallHint:    {ExpectedUSD: 0.005, Expected: true},
-	tutor.CallCorrect: {ExpectedUSD: 0.013524, Expected: true},
+	tutor.CallSheet:      {ExpectedUSD: 0.020001, Expected: true},
+	tutor.CallWords:      {ExpectedUSD: 0.01, Expected: true},
+	tutor.CallHint:       {ExpectedUSD: 0.005, Expected: true},
+	tutor.CallCorrect:    {ExpectedUSD: 0.013524, Expected: true},
+	tutor.CallPaperWords: {ExpectedUSD: 0.02, Expected: true},
+	tutor.CallPaperHint:  {ExpectedUSD: 0.015, Expected: true},
 }}
 
 var adult = tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
@@ -241,6 +246,49 @@ func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 	}
 }
 
+// The words of a task from paper are the stub's own questions too: a rung's
+// with the box of the band of its task, as ReadPaper reads the tasks of a crop,
+// the opening question and a rung put another way with none, each spending the
+// expected price of its kind of call. A request tutor refuses before its call
+// fails with no usage.
+func TestTheStubWordsATaskFromPaper(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(priced)
+	tasks := []tutor.PaperWordsTask{{Statement: "37 + 48 ="}, {Statement: "40 + 45 ="}, {Statement: "50 + 36 ="}}
+	rung := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperRung, Crop: crop(t, 40, 90),
+		Tasks: tasks, Task: 2, Rung: 1, Language: "ru", Style: "a child"}, "")
+	if b := rung.Box; rung.Outcome.Kind != tutor.Answered || len(words.Hint(rung.Question, "ru", "")) > 0 ||
+		b.GetYmin() != 333 || b.GetYmax() != 666 || b.GetXmin() != 0 || b.GetXmax() != 1000 {
+		t.Errorf("the rung's words = %+v, want a Russian question with the band of the second task", rung)
+	}
+	if u := rung.Outcome.Usage; len(u) != 1 || u[0].USD != 0.02 {
+		t.Errorf("the rung's words spent %+v, want the expected 0.02", u)
+	}
+	opening := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperOpening, Statement: photo(t, 40, 30),
+		Language: "en", Style: "an adult", Asked: []string{rung.Question}}, "")
+	if u := opening.Outcome.Usage; opening.Outcome.Kind != tutor.Answered || opening.Box != nil || len(u) != 1 || u[0].USD != 0.015 {
+		t.Errorf("the opening question = %+v, want a question with no box at the expected 0.015", opening)
+	}
+	again := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 1, Rung: 2,
+		Language: "ru", Style: "a child", Asked: []string{rung.Question}}, "")
+	if again.Outcome.Kind != tutor.Answered || again.Question == rung.Question || again.Box != nil {
+		t.Errorf("the rung put another way = %+v, want another question with no box", again)
+	}
+	for name, w := range map[string]tutor.PaperWordsRequest{
+		"no style":           {Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 1, Rung: 1, Language: "en"},
+		"a rung with no PNG": {Route: adult, Ask: tutor.PaperRung, Crop: []byte("no picture"), Tasks: tasks, Task: 1, Rung: 1, Language: "en", Style: "s"},
+		"no crop of a task":  {Route: adult, Ask: tutor.PaperOpening, Language: "en", Style: "s"},
+	} {
+		if got := s.TellPaperWords(t.Context(), w, ""); got.Outcome.Kind != tutor.Failed || len(got.Outcome.Usage) != 0 {
+			t.Errorf("%s: %+v, want a failure before the call", name, got)
+		}
+	}
+	if !s.PaperWords(true, formatv0.AgeCategoryAdult, "") || tutorstub.New(gate{}).PaperWords(false, formatv0.AgeCategoryAdult, "") {
+		t.Error("PaperWords is not the gate's admission")
+	}
+}
+
 // A request whose context ended while the stub looked for a value fails, with
 // no usage to bill, as a reading cut short does.
 func TestTheStubFailsAReadingCutShort(t *testing.T) {
@@ -356,6 +404,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	praised := tutor.CorrectRequest{Route: own, Task: &open.Task{}, Language: "en", Style: "an adult"}
 	sheetOfEssay := tutor.EssayReading{Route: own, Task: &open.Task{}, Crop: crop(t, 40, 10)}
 	assessed := assessment(own, "en", 2)
+	photographed := tutor.TaskFinding{Route: own, Photo: photo(t, 30, 40)}
+	opening := tutor.PaperWordsRequest{Route: own, Ask: tutor.PaperOpening, Statement: photo(t, 40, 30), Language: "en", Style: "an adult"}
 	before := time.Now().UTC()
 	for ending, want := range map[string]struct {
 		kind    tutor.Kind
@@ -377,6 +427,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 			"TellCorrectWords": s.TellCorrectWords(t.Context(), praised, key).Outcome,
 			"ReadEssay":        s.ReadEssay(t.Context(), sheetOfEssay, essay(), key).Outcome,
 			"AssessEssay":      s.AssessEssay(t.Context(), assessed, key).Outcome,
+			"FindTasks":        s.FindTasks(t.Context(), photographed, key).Outcome,
+			"TellPaperWords":   s.TellPaperWords(t.Context(), opening, key).Outcome,
 		} {
 			if o.Kind != want.kind || o.Limit != want.limit || len(o.Usage) != 0 || o.Err == nil || strings.Contains(o.Err.Error(), key) {
 				t.Errorf("%s on %q = %+v, want %v, limit %q, no usage, and an error with no key", call, ending, o, want.kind, want.limit)
@@ -406,6 +458,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		"TellCorrectWords": s.TellCorrectWords(ctx, praised, "sk-ant-synthetic"+tutorstub.KeyLimit).Outcome,
 		"ReadEssay":        s.ReadEssay(ctx, sheetOfEssay, essay(), "sk-ant-synthetic"+tutorstub.KeyLimitBalance).Outcome,
 		"AssessEssay":      s.AssessEssay(ctx, assessed, "sk-ant-synthetic"+tutorstub.KeyLimitPayment).Outcome,
+		"FindTasks":        s.FindTasks(ctx, photographed, "sk-ant-synthetic"+tutorstub.KeyRefused).Outcome,
 	} {
 		if o.Kind != tutor.Failed || !errors.Is(o.Err, context.Canceled) {
 			t.Errorf("%s cut short on an ending of the stub's = %+v, want a failure, as a call cut short", call, o)
@@ -430,6 +483,70 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		if a := s.AssessEssay(t.Context(), assessed, key); a.Outcome.Kind != tutor.Answered || a.Feedback == "" {
 			t.Errorf("AssessEssay on %q = %+v, want marks and feedback", key, a)
 		}
+		if f := s.FindTasks(t.Context(), photographed, key); f.Outcome.Kind != tutor.Answered || len(f.Frames) == 0 {
+			t.Errorf("FindTasks on %q = %+v, want frames", key, f)
+		}
+	}
+}
+
+// With the learner's request the stub finds twelve tasks one under another in
+// the left quarter, whatever the shape, and none that covers a frame drawn.
+func TestTheStubFindsTheLeftColumnByARequest(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{})
+	ask := tutor.TaskFinding{Route: adult, Photo: photo(t, 400, 300), Request: "only the first column, each task apart"}
+	found := s.FindTasks(t.Context(), ask, "")
+	if found.Outcome.Kind != tutor.Answered || len(found.Frames) != 12 {
+		t.Fatalf("a request: %+v, want twelve frames", found)
+	}
+	for i, f := range found.Frames {
+		if f.GetXmax() > 250 || f.GetYmin() >= f.GetYmax() || i > 0 && f.GetYmin() < found.Frames[i-1].GetYmax() {
+			t.Errorf("frame %d is %v, want one under another in the left quarter", i+1, f)
+		}
+	}
+	third := found.Frames[2]
+	ask.Drawn = []*observationv1.CropBox{{Ymin: third.Ymin + 2, Xmin: third.Xmin, Ymax: third.Ymax, Xmax: third.Xmax - 5}}
+	if again := s.FindTasks(t.Context(), ask, ""); len(again.Frames) != 11 || slices.ContainsFunc(again.Frames, func(f *observationv1.CropBox) bool { return f.Ymin == third.Ymin }) {
+		t.Errorf("a request with a frame drawn: %v, want the eleven others", again.Frames)
+	}
+}
+
+// photo is a grey JPEG of width by height, as the camera of app takes it.
+func photo(t *testing.T, width, height int) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	if err := jpeg.Encode(&b, image.NewGray(image.Rect(0, 0, width, height)), nil); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// The shape of the photo says what the stub finds (R66): taller than wide, five
+// tasks one under another, in the order of the page; wider than tall, none;
+// square, a failure of AI that spent. A PNG is a photo too, and what is no
+// picture fails before the call, with no usage.
+func TestTheStubFindsTheTasksByTheShapeOfThePhoto(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallFinding: {ExpectedUSD: 0.04, Expected: true}}})
+	found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: photo(t, 300, 400)}, "")
+	if found.Outcome.Kind != tutor.Answered || len(found.Frames) != 5 || len(found.Outcome.Usage) != 1 || found.Outcome.Usage[0].USD != 0.04 {
+		t.Fatalf("a portrait photo: %+v", found)
+	}
+	for i, f := range found.Frames {
+		if f.GetYmin() >= f.GetYmax() || f.GetXmin() >= f.GetXmax() || f.GetYmax() > 1000 || i > 0 && f.GetYmin() < found.Frames[i-1].GetYmax() {
+			t.Errorf("frame %d is %v, want a box below the one before it, within the page", i+1, f)
+		}
+	}
+	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: crop(t, 400, 300)}, ""); found.Outcome.Kind != tutor.Answered || len(found.Frames) != 0 {
+		t.Errorf("a landscape PNG: %+v, want no task", found)
+	}
+	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: photo(t, 300, 300)}, ""); found.Outcome.Kind != tutor.Failed || len(found.Outcome.Usage) != 1 {
+		t.Errorf("a square photo: %+v, want a failure that spent", found)
+	}
+	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: []byte("a photo")}, "sk-ant-synthetic"+tutorstub.KeyRefused); found.Outcome.Kind != tutor.Failed || len(found.Outcome.Usage) != 0 {
+		t.Errorf("no picture: %+v, want a failure before the call", found)
 	}
 }
 
@@ -848,5 +965,68 @@ func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
 	}
 	if err := observation.Validate(book.Items, read.Observations[0]); err != nil {
 		t.Errorf("module-kit does not take the one reading of the page: %v", err)
+	}
+}
+
+// A task from paper by shapes (R66): the statement wider than tall reads into
+// one task of the formula the solver takes, at least twice as tall into three,
+// and any other into one of none; a square statement has no one answer, any
+// other the stub's number for each task asked; the work of one task reads the
+// key more than twice as wide as tall, a wrong value wider but not twice,
+// illegible square or taller, and of several the key in each, with its band of
+// the crop. Each
+// call spends its expected price, and what is no picture fails before it.
+func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallStatement: {ExpectedUSD: 0.002, Expected: true}}})
+	task := func(width, height int) tutor.PaperTask {
+		return tutor.PaperTask{Route: adult, Statement: photo(t, width, height)}
+	}
+	if r := s.ReadStatement(t.Context(), task(400, 300), ""); r.Outcome.Kind != tutor.Answered || len(r.Tasks) != 1 || r.Tasks[0].Formula != "37+48" || r.Outcome.Usage[0].USD != 0.002 {
+		t.Errorf("a wide statement: %+v, want 37+48", r)
+	}
+	if r := s.ReadStatement(t.Context(), task(150, 400), ""); r.Outcome.Kind != tutor.Answered || len(r.Tasks) != 3 || r.Tasks[2].Formula != "50+36" {
+		t.Errorf("twice as tall: %+v, want three tasks", r)
+	}
+	if r := s.ReadStatement(t.Context(), task(300, 400), ""); r.Outcome.Kind != tutor.Answered || len(r.Tasks) != 1 || r.Tasks[0].Formula != "" || r.Tasks[0].Statement == "" {
+		t.Errorf("a tall statement: %+v, want one task of no formula", r)
+	}
+	if r := s.ReadStatement(t.Context(), tutor.PaperTask{Route: adult, Statement: []byte("no")}, ""); r.Outcome.Kind != tutor.Failed || len(r.Outcome.Usage) != 0 {
+		t.Errorf("no picture: %+v, want a failure before the call", r)
+	}
+	asked := []tutor.TaskToSolve{{Number: 1, Statement: "a"}, {Number: 3, Statement: "c"}}
+	if r := s.SolveTask(t.Context(), task(300, 400), asked, ""); r.Outcome.Kind != tutor.Answered || len(r.Answers) != 2 || r.Answers[3].GetNumber().GetValue() != "85" {
+		t.Errorf("a tall statement solved: %+v, want 85 for each", r)
+	}
+	if r := s.SolveTask(t.Context(), task(300, 300), asked, ""); r.Outcome.Kind != tutor.Answered || r.Answers[1] != nil {
+		t.Errorf("a square statement solved: %+v, want no answer", r)
+	}
+	if r := s.SolveTask(t.Context(), task(300, 400), asked, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused || len(r.Answers) != 0 {
+		t.Errorf("a refused key: %+v", r)
+	}
+	for _, c := range []struct {
+		width, height int
+		value         string
+	}{{90, 30, "85"}, {40, 30, "851"}, {30, 30, ""}, {30, 40, ""}} {
+		r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, c.width, c.height), Tasks: []string{"37 + 48 ="}}, "")
+		if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 1 || r.Observations[0].GetAnswerSlots()[0].GetValue() != c.value ||
+			(c.value == "") != (r.Observations[0].GetAnswerSlots()[0].GetUnreadable() == observationv1.Unreadable_UNREADABLE_ILLEGIBLE) {
+			t.Errorf("a work of %dx%d: %+v, want %q by one reader", c.width, c.height, r, c.value)
+		}
+	}
+	r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 30, 90), Tasks: []string{"a", "b", "c"}}, "")
+	if slots := r.Observations[0].GetAnswerSlots(); r.Outcome.Kind != tutor.Answered || len(slots) != 3 || slots[2].GetAnswerSlot().GetItem() != 3 ||
+		slots[2].GetValue() != "85" || slots[1].GetCropBox().GetYmin() != 333 || slots[1].GetCropBox().GetYmax() != 666 {
+		t.Errorf("a work of three tasks: %+v, want 85 in each, in its band", r)
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30)}, ""); r.Outcome.Kind != tutor.Failed {
+		t.Errorf("no task: %+v, want a failure", r)
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: photo(t, 40, 30), Tasks: []string{"a"}}, ""); r.Outcome.Kind != tutor.Failed {
+		t.Errorf("a JPEG of the work: %+v, want a failure", r)
+	}
+	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30), Tasks: []string{"a"}}, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused {
+		t.Errorf("a refused key: %+v", r)
 	}
 }

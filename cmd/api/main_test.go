@@ -139,7 +139,7 @@ func TestServeStartsServesAndStops(t *testing.T) {
 		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
 			port = fmt.Sprint(lines[0]["port"])
 			// With nothing declared for admission: no facts, the stage full, unnamed.
-			if lines[0]["admission_table"] != "0.4" || lines[0]["facts_file"] != false || lines[0]["rung"] != "full" ||
+			if lines[0]["admission_table"] != "0.5" || lines[0]["facts_file"] != false || lines[0]["rung"] != "full" ||
 				lines[0]["rung_set"] != false || lines[0]["platform_keys"] != float64(0) {
 				t.Errorf("the startup line %v does not say that nothing was declared for admission", lines[0])
 			}
@@ -213,6 +213,51 @@ func TestServeStartsServesAndStops(t *testing.T) {
 	}
 	if last := lines[len(lines)-1]; last["started"] != true {
 		t.Errorf("shutdown = %v, want started true", last)
+	}
+}
+
+// serve starts with the debug mode of a local run opened, beside the
+// platform's key it needs, and serves DebugService under the checks of every
+// method: with no token, unauthenticated (R97).
+func TestServeStartsWithTheDebugMode(t *testing.T) {
+	t.Parallel()
+
+	ctx, stop := context.WithCancel(t.Context())
+	var stdout, stderr syncBuffer
+	exited := make(chan int, 1)
+	environ := serveEnviron(t, "PORT=0", "API_DEBUG_MODELS=1", "API_ANTHROPIC_KEY=sk-test")
+	go func() { exited <- run(ctx, []string{"serve"}, environ, &stdout, &stderr) }()
+	deadline := time.Now().Add(30 * time.Second)
+	port := ""
+	for port == "" {
+		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
+			port = fmt.Sprint(lines[0]["port"])
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the service wrote no startup line: %s %s", stdout.String(), stderr.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	var answer *http.Response
+	var err error
+	for {
+		answer, err = http.Post("http://127.0.0.1:"+port+"/novatrail.api.v1.DebugService/GetDebug", "application/proto", http.NoBody)
+		if err == nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = answer.Body.Close()
+	if answer.StatusCode != http.StatusUnauthorized {
+		t.Errorf("GetDebug with no token = %d, want 401", answer.StatusCode)
+	}
+	stop()
+	if code := <-exited; code != exitOK {
+		t.Errorf("exit code = %d, want 0; stderr %q", code, stderr.String())
 	}
 }
 

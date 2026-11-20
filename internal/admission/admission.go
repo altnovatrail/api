@@ -92,6 +92,8 @@ type Report struct {
 	Stub bool
 	// Reading is the mode of reading handwriting, pair or single (R88).
 	Reading string
+	// Debug says whether the debug mode of a local run is open (R97).
+	Debug bool
 }
 
 // stubKey stands for the platform's key of Anthropic in the dev mode's stub,
@@ -195,13 +197,13 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		return nil, Report{}, err
 	}
 	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung),
-		Reading: g.reading, Keys: keys, Adapters: adapters}); err != nil {
+		Reading: g.reading, Keys: keys, Adapters: adapters, Debug: cfg.Debug}); err != nil {
 		// What tutor.New refuses is what cfg declares: a stage, a mode of
 		// reading, or a key of a provider api gives no adapter of.
 		return nil, Report{}, fmt.Errorf("%w: %w", config.ErrInvalid, err)
 	}
 	return g, Report{TableVersion: t.Version(), FactsFile: cfg.FactsFile != "", Rung: cfg.Rung, RungSet: cfg.RungSet,
-		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading())}, nil
+		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading()), Debug: cfg.Debug}, nil
 }
 
 // tableProviders are the providers of the table that tutor reads,
@@ -319,8 +321,9 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 
 // Reads says whether the reading of handwriting by the call of the kind — of a
 // sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
-// essay, CallEssay, or its assessment, CallRubric, is admitted for a
-// learner of category: by platform AI, or, when ownKeyProvider names one, by
+// essay, CallEssay, or its assessment, CallRubric, or the finding of the tasks
+// on the photo of a page, CallFinding (R162 spec), is admitted for a learner of
+// category: by platform AI, or, when ownKeyProvider names one, by
 // the own key of that provider alone. It is admitted when tutor chooses, for
 // the call, an entry all of whose models the table admits at the deployment's
 // stage or above. On platform AI only the providers the platform holds a key
@@ -349,6 +352,25 @@ func WordsCall(withWork bool) tutor.Call {
 		return tutor.CallWords
 	}
 	return tutor.CallHint
+}
+
+// PaperWords says whether the tutor's words of a task from paper are admitted
+// for a learner of category, on the route Reads takes: those of a rung, with the
+// work, by the call that serves the analysis of its steps and the hint, and the
+// opening question and a rung put another way by the hint alone, which tutor
+// asks the same way as Words (R82 spec).
+func (g *Gate) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return g.chooses(PaperWordsCall(withWork), g.route(category, ownKeyProvider))
+}
+
+// PaperWordsCall is tutor's kind of call of the words of a task from paper, as
+// WordsCall is of a task of a module: the gate admits, and the quota reserves,
+// by it.
+func PaperWordsCall(withWork bool) tutor.Call {
+	if withWork {
+		return tutor.CallPaperWords
+	}
+	return tutor.CallPaperHint
 }
 
 // CorrectWords says whether the tutor's words after a correct answer are
@@ -398,10 +420,44 @@ func (g *Gate) AssessEssay(ctx context.Context, r tutor.RubricAssessment) tutor.
 	return g.tutor.AssessEssay(ctx, r)
 }
 
+// FindTasks finds the tasks on the photo of a page by tutor's model of the
+// finding: their frames, or the outcome of a call that gave none (R162 spec).
+func (g *Gate) FindTasks(ctx context.Context, f tutor.TaskFinding) tutor.TasksFound {
+	return g.tutor.FindTasks(ctx, f)
+}
+
+// ReadStatement reads the statement of a task from paper into its tasks by
+// tutor's model of the statement: each with its statement and formula, empty
+// when it is none, or the outcome of a call that gave none (R162 spec).
+func (g *Gate) ReadStatement(ctx context.Context, p tutor.PaperTask) tutor.StatementRead {
+	return g.tutor.ReadStatement(ctx, p)
+}
+
+// SolveTask solves the tasks of a crop from paper it names by tutor's model of
+// the solution: the answer of each, none when it has no one answer, or the
+// outcome of a call that gave none (R162 spec).
+func (g *Gate) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve) tutor.TasksSolved {
+	return g.tutor.SolveTask(ctx, p, tasks)
+}
+
+// ReadPaper reads the work written on a task from paper as ReadSheet reads a
+// sheet, by the pair or one reader (R162 spec).
+func (g *Gate) ReadPaper(ctx context.Context, r tutor.PaperReading) tutor.SheetRead {
+	return g.tutor.ReadPaper(ctx, r)
+}
+
 // TellWords asks tutor for the words of a rung: its question, with the box of
 // the first mistake when the work went, or the outcome of a call that gave none.
 func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer {
 	return g.tutor.Words(ctx, w)
+}
+
+// TellPaperWords asks tutor for the words of a task from paper: its question,
+// with the box of the first mistake of a rung, or the outcome of a call that
+// gave none. api checks them for leaks and their form before they reach the
+// learner (tutor.PaperBreach).
+func (g *Gate) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer {
+	return g.tutor.PaperWords(ctx, w)
 }
 
 // TellCorrectWords asks tutor for the words after a correct answer: the praise
@@ -430,6 +486,17 @@ func (g *Gate) Price(call tutor.Call, route tutor.Route) tutor.CallPrice {
 func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
 	entry, _, err := g.tutor.ChooseCall(call, route)
 	return err == nil && len(entry.Models) > 0
+}
+
+// Admitted are the models tutor's list gives the call for an adult on platform
+// AI, in the order of the attempts of its cascade, what the debug mode shows of
+// a call it leaves to the list (R97); none where the list admits no model.
+func (g *Gate) Admitted(call tutor.Call) []table.Model {
+	entry, answer, err := g.tutor.ChooseCall(call, g.route(formatv0.AgeCategoryAdult, ""))
+	if err != nil || !answer.Admitted {
+		return nil
+	}
+	return entry.Models
 }
 
 // Reading is the mode tutor reads the handwriting of a sheet and of a workbook

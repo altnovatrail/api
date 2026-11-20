@@ -25,7 +25,8 @@ const (
 
 // newProfile is a profile of the category and country with the defaults of the
 // contract: the mode "by steps"; the voicing on at under_13 and off at the
-// others, at normal speed; on a child's profile "ask before showing" on.
+// others, at normal speed; on a child's profile "ask before showing" on; the
+// hint mode "Show where".
 func newProfile(category, country string) store.Profile {
 	return store.Profile{
 		AgeCategory:      category,
@@ -34,6 +35,7 @@ func newProfile(category, country string) store.Profile {
 		VoicingSpeed:     "normal",
 		DefaultMode:      "by_steps",
 		AskBeforeShowing: category != "adult",
+		HintMode:         store.HintModeShowWhere,
 	}
 }
 
@@ -64,6 +66,15 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 	}
 	if err := applyVoicing(p, s.GetVoicing()); err != nil {
 		return err
+	}
+	switch s.GetHintMode() {
+	case v1.HintMode_HINT_MODE_UNSPECIFIED:
+	case v1.HintMode_HINT_MODE_QUESTIONS_ONLY:
+		p.HintMode = "questions_only"
+	case v1.HintMode_HINT_MODE_SHOW_WHERE:
+		p.HintMode = store.HintModeShowWhere
+	default:
+		return rpc.Malformed("hint_mode")
 	}
 	switch s.GetDefaultMode() {
 	case v1.Mode_MODE_UNSPECIFIED:

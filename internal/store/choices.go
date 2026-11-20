@@ -178,7 +178,7 @@ type Solution struct {
 // to its device.
 func SolutionsSent(ctx context.Context, db Lister, profileID string) ([]Solution, error) {
 	rows, err := db.Query(ctx, `SELECT module_id, task_id, max(closed_at) FROM attempts
-		WHERE profile_id = $1 AND close_reason IN ('correct', 'solution_shown')
+		WHERE profile_id = $1 AND kind = 'module' AND close_reason IN ('correct', 'solution_shown')
 		GROUP BY module_id, task_id ORDER BY module_id, task_id`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the solutions sent: %w", err)
@@ -207,7 +207,7 @@ type ClosedAttempt struct {
 	Evidence      []byte
 }
 
-// ClosedAttempts is the profile's closed attempts, the last closed first.
+// ClosedAttempts is the profile's closed attempts of modules, the last closed first.
 func ClosedAttempts(ctx context.Context, db Lister, profileID string) ([]ClosedAttempt, error) {
 	rows, err := db.Query(ctx, `SELECT a.id, a.package_digest, a.module_id, a.task_id, a.close_reason, a.closed_at,
 			r.lesson_id, c.reason_code, e.evidence
@@ -215,7 +215,7 @@ func ClosedAttempts(ctx context.Context, db Lister, profileID string) ([]ClosedA
 		LEFT JOIN lesson_runs r ON r.profile_id = a.profile_id AND r.id = a.lesson_run_id
 		LEFT JOIN engine_choices c ON c.profile_id = a.profile_id AND c.id = coalesce(a.choice_id, r.choice_id)
 		LEFT JOIN evidence e ON e.profile_id = a.profile_id AND e.attempt_id = a.id
-		WHERE a.profile_id = $1 AND a.closed_at IS NOT NULL ORDER BY a.closed_at DESC, a.id DESC`, profileID)
+		WHERE a.profile_id = $1 AND a.kind = 'module' AND a.closed_at IS NOT NULL ORDER BY a.closed_at DESC, a.id DESC`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the closed attempts: %w", err)
 	}

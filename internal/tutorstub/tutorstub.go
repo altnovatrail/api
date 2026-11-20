@@ -1,7 +1,8 @@
 // Package tutorstub is the stub of tutor in api's dev mode (R66; R146 spec): it
 // stands behind the ports through which api calls tutor — the readings of a
-// sheet, a workbook page and an essay, the assessment of an essay and the
-// tutor's words — so that a run of the path on the dev projects calls no
+// sheet, a workbook page and an essay, the assessment of an essay, the tutor's
+// words, the finding of the tasks on the photo of a page and the check of a
+// task from paper — so that a run of the path on the dev projects calls no
 // provider and costs nothing. Admission and the prices stay tutor's own, on the
 // real table, by the gate the dev mode builds with the stub's adapter
 // (admission.StubAdapters); only the calls are the stub's.
@@ -14,7 +15,16 @@
 // with it, which the stub alone is given: tutor sees the open view (R67 spec).
 // It reads an essay by the shape of the sheet's crop too — wider than tall a
 // text of its own, taller than wide a blank sheet, square illegible —, and
-// assesses the text every criterion met but the last. Its words — a rung's
+// assesses the text every criterion met but the last. It finds the tasks on the
+// photo of a page by its shape as well: taller than wide five tasks, one under
+// another, wider than tall none, and square a failure of AI. A task from paper
+// it checks by shapes too: the statement wider than tall reads into a formula
+// the solver takes, at least twice as tall as wide is several tasks, which have
+// no key, otherwise taller than wide is none and a solution of AI gives the
+// same answer, and square has no one answer, so the task has no key; the work
+// it reads by the shape of its crop, which takes in the tracing paper: more
+// than twice as wide as tall right, wider but not twice wrong, else illegible.
+// Its words — a rung's
 // questions, the praise after a correct answer and the feedback on an essay —
 // are its own, which pass the leak check and the form check. Each call spends
 // what tutor expects a call of its kind to cost on its route, so that the quota
@@ -35,6 +45,8 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	// The JPEG of the photo of a page, which image.DecodeConfig reads.
+	_ "image/jpeg"
 	"image/png"
 	"slices"
 	"strconv"
@@ -43,6 +55,7 @@ import (
 
 	"github.com/altnovatrail/module-kit/verdict"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	tutorprovider "github.com/altnovatrail/tutor/provider"
@@ -148,6 +161,7 @@ func nextMonth(at time.Time) time.Time {
 type Gate interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
+	PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
 	Reading() tutor.Reading
@@ -531,6 +545,59 @@ func (s *Stub) TellWords(ctx context.Context, w tutor.WordsRequest, own string) 
 		Usage: s.usage(admission.WordsCall(len(w.Crop) > 0), w.Route, 1)}}
 }
 
+// PaperWords says whether the tutor's words of a task from paper are admitted,
+// as the gate says.
+func (s *Stub) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return s.gate.PaperWords(withWork, category, ownKeyProvider)
+}
+
+// TellPaperWords words a question of the stub's own in the language of w, as
+// TellWords does, for the opening question, a rung and a rung put another way
+// alike. A rung's words come with the box of the first mistake: the band of the
+// crop of the rung's task, as ReadPaper reads the tasks of a crop one under
+// another, the whole crop for one task. Of tutor's checks before its call the
+// stub keeps those of the request's form: no style, a rung with no PNG of the
+// work, or an opening question with no crop of the task fails with no usage.
+// Past them an own key of an ending of the stub's, own being its value, is
+// refused by it.
+func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer {
+	fail := func(err error) tutor.WordsAnswer {
+		return tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
+	}
+	if strings.TrimSpace(w.Style) == "" {
+		return fail(errors.New("tutorstub: the words have no style of presentation"))
+	}
+	switch w.Ask {
+	case tutor.PaperRung:
+		if _, err := png.DecodeConfig(bytes.NewReader(w.Crop)); err != nil {
+			return fail(err)
+		}
+	case tutor.PaperOpening:
+		if _, _, err := image.DecodeConfig(bytes.NewReader(w.Statement)); err != nil {
+			return fail(fmt.Errorf("tutorstub: the task's crop: %w", err))
+		}
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.WordsAnswer{Outcome: o}
+	}
+	list := questions["en"]
+	if l, ok := questions[base(w.Language)]; ok {
+		list = l
+	}
+	answer := tutor.WordsAnswer{Question: list[len(w.Asked)%len(list)], Outcome: tutor.Outcome{Kind: tutor.Answered,
+		Usage: s.usage(admission.PaperWordsCall(w.Ask == tutor.PaperRung), w.Route, 1)}}
+	for _, q := range list {
+		if !slices.Contains(w.Asked, q) {
+			answer.Question = q
+			break
+		}
+	}
+	if n := len(w.Tasks); w.Ask == tutor.PaperRung && n > 0 && w.Task >= 1 && w.Task <= n {
+		answer.Box = &observationv1.CropBox{Ymin: int32((w.Task - 1) * wholeCrop / n), Ymax: int32(w.Task * wholeCrop / n), Xmax: wholeCrop}
+	}
+	return answer
+}
+
 // questions are the stub's words, by language: one question each, without a
 // number, as the form check and the leak check take them.
 var questions = map[string][]string{
@@ -632,6 +699,57 @@ func (s *Stub) usage(call tutor.Call, route tutor.Route, models int) []tutor.Usa
 	return usage
 }
 
+// pageTasks is how many tasks the stub finds on a page taller than wide, and
+// columnTasks how many it finds by the learner's request, in the left column.
+const (
+	pageTasks   = 5
+	columnTasks = 12
+)
+
+// FindTasks finds the tasks on the photo of f by its shape (R66): taller than
+// wide, pageTasks of them, one under another across the page, in its order;
+// wider than tall, none, which the learner frames by hand; square, a failure of
+// AI, which spends as a call that went. With the learner's request a photo not
+// square has columnTasks of them, one under another in the left quarter, less
+// those that cover a frame the learner drew, by tutor's own check (R99). Of
+// tutor's checks before its call the stub keeps the photo's form: one that is no
+// JPEG or PNG fails with no usage. Past it an own key of an ending of the stub's,
+// own being its value, is refused by it. The call spends the expected price of CallFinding, tutor's; with none,
+// nothing priced, so the quota keeps its reserve by the value of the kind as
+// spent (R12).
+func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) tutor.TasksFound {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(f.Photo))
+	if err != nil {
+		return tutor.TasksFound{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: fmt.Errorf("tutorstub: the photo: %w", err)}}
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.TasksFound{Outcome: o}
+	}
+	usage := s.usage(tutor.CallFinding, f.Route, 1)
+	found := tutor.TasksFound{Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: usage}}
+	switch {
+	case cfg.Width == cfg.Height:
+		found.Outcome = tutor.Outcome{Kind: tutor.Failed, Usage: usage, Err: errors.New("tutorstub: a square photo fails the finding")}
+	case f.Request != "":
+		const step, height = (wholeCrop - 40) / columnTasks, (wholeCrop-40)/columnTasks - 10
+		for i := range int32(columnTasks) {
+			top := 20 + i*step
+			box := &observationv1.CropBox{Ymin: top, Xmin: 20, Ymax: top + height, Xmax: wholeCrop/4 - 10}
+			if !tutor.CoversDrawn(box, f.Drawn) {
+				found.Frames = append(found.Frames, box)
+			}
+		}
+	case cfg.Height > cfg.Width:
+		// A fifth of the page each, less a margin, from 20 to 980 thousandths.
+		const step, height = (wholeCrop - 40) / pageTasks, (wholeCrop-40)/pageTasks - 20
+		for i := range int32(pageTasks) {
+			top := 20 + i*step
+			found.Frames = append(found.Frames, &observationv1.CropBox{Ymin: top, Xmin: 50, Ymax: top + height, Xmax: wholeCrop - 50})
+		}
+	}
+	return found
+}
+
 // failed is a reading that gave no observation.
 func failed(err error) tutor.SheetRead {
 	return tutor.SheetRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
@@ -707,4 +825,122 @@ func (s *Stub) readers() int {
 		return 1
 	}
 	return 2
+}
+
+// stubFormula is the formula the stub reads of a statement wider than tall, and
+// stubKey the one answer it gives a task from paper: the solver's of the
+// formula, so that both ways to the key give the same.
+const (
+	stubFormula = "37+48"
+	stubKey     = "85"
+)
+
+// severalTasks are the tasks the stub reads on a crop of several: three sums,
+// whose formulas the solver takes, the last of a key other than stubKey, so
+// that the stub's reading of the work, stubKey in each, gets two of three.
+var severalTasks = []tutor.StatementTask{
+	{Statement: "37 + 48 =", Formula: "37+48"},
+	{Statement: "40 + 45 =", Formula: "40+45"},
+	{Statement: "50 + 36 =", Formula: "50+36"},
+}
+
+// ReadStatement reads the statement of a task from paper by the shape of its
+// crop (R66): wider than tall, one task of the formula stubFormula, which the
+// solver takes; at least twice as tall as wide, the three tasks severalTasks;
+// otherwise taller than wide or square, one task of no formula, so that a
+// solution of AI is asked.
+// Of tutor's checks before its call the stub keeps the crop's form: one that is
+// no JPEG or PNG fails with no usage. Past it an own key of an ending of the
+// stub's, own being its value, is refused by it.
+func (s *Stub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
+	cfg, o, ok := s.statement(ctx, tutor.CallStatement, p, own)
+	if !ok {
+		return tutor.StatementRead{Outcome: o}
+	}
+	read := tutor.StatementRead{Outcome: o}
+	switch {
+	case cfg.Width > cfg.Height:
+		read.Tasks = []tutor.StatementTask{{Statement: "37 + 48 =", Formula: stubFormula}}
+	case cfg.Height >= 2*cfg.Width:
+		read.Tasks = slices.Clone(severalTasks)
+	default:
+		read.Tasks = []tutor.StatementTask{{Statement: "Ann has 37 stamps and gets 48 more. How many has she?"}}
+	}
+	return read
+}
+
+// SolveTask solves the tasks of a crop from paper it is asked by the shape of
+// the crop, as ReadStatement reads it: square, no one answer, which leaves
+// each task no key; otherwise the number stubKey for each.
+func (s *Stub) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, own string) tutor.TasksSolved {
+	cfg, o, ok := s.statement(ctx, tutor.CallSolving, p, own)
+	solved := tutor.TasksSolved{Outcome: o, Answers: map[int]*paperv1.Answer{}}
+	for _, t := range tasks {
+		if ok && cfg.Width != cfg.Height {
+			solved.Answers[t.Number] = &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: stubKey}}}
+		}
+	}
+	return solved
+}
+
+// statement is the size of the crop of p and the outcome of the call of its
+// kind, which spends the call's expected price: false for a crop that is no
+// JPEG or PNG, which fails, or an own key the stub refuses.
+func (s *Stub) statement(ctx context.Context, call tutor.Call, p tutor.PaperTask, own string) (image.Config, tutor.Outcome, bool) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(p.Statement))
+	if err != nil {
+		return cfg, tutor.Outcome{Kind: tutor.Failed, Err: fmt.Errorf("tutorstub: the statement: %w", err)}, false
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return cfg, o, false
+	}
+	return cfg, tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(call, p.Route, 1)}, true
+}
+
+// ReadPaper reads the work on a task from paper by the shape of its crop, which
+// takes in the tracing paper, a line of print as a rule: more than twice as
+// wide as tall — the task with a short answer — the stub's key, stubKey; wider
+// than tall but not twice — a stroke that reaches below the task — a wrong
+// value; square or taller, illegible. Of several tasks it reads stubKey in
+// each, in a band of the crop of its own, one under another. One reader reads
+// it in any mode, as tutor's one model, the task n in the place n, 1.
+func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead {
+	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
+	if err != nil {
+		return failed(err)
+	}
+	if len(r.Tasks) == 0 {
+		return failed(errors.New("tutorstub: the reading of paper has no task"))
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.SheetRead{Outcome: o}
+	}
+	done := tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, 1)}
+	if n := len(r.Tasks); n > 1 {
+		obs := &observationv1.Observation{}
+		for i := range n {
+			obs.AnswerSlots = append(obs.AnswerSlots, &observationv1.AnswerSlotObservation{
+				AnswerSlot: &observationv1.AnswerSlotPlace{Item: int32(i + 1), Slot: 1},
+				Read:       &observationv1.AnswerSlotObservation_Value{Value: stubKey},
+				CropBox:    &observationv1.CropBox{Ymin: int32(i * wholeCrop / n), Ymax: int32((i + 1) * wholeCrop / n), Xmax: wholeCrop},
+			})
+		}
+		return tutor.SheetRead{Observations: []*observationv1.Observation{obs}, Outcome: done}
+	}
+	answer := &observationv1.AnswerSlotObservation{AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}}
+	switch {
+	case cfg.Width > 2*cfg.Height:
+		answer.Read = &observationv1.AnswerSlotObservation_Value{Value: stubKey}
+	case cfg.Width > cfg.Height:
+		answer.Read = &observationv1.AnswerSlotObservation_Value{Value: stubKey + "1"}
+	default:
+		answer.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}
+	}
+	if answer.GetValue() != "" {
+		answer.CropBox = &observationv1.CropBox{Ymax: wholeCrop, Xmax: wholeCrop}
+	}
+	return tutor.SheetRead{
+		Observations: []*observationv1.Observation{{AnswerSlots: []*observationv1.AnswerSlotObservation{answer}}},
+		Outcome:      done,
+	}
 }

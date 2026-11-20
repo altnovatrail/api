@@ -161,6 +161,22 @@ func AsksBeforeShowing(ctx context.Context, db Querier, profileID string) (bool,
 	return asks, nil
 }
 
+// PaperWordsOf is what the tutor's words of a task from paper read of the
+// profile (R82 spec): the language of its interface, "" when it has none, and
+// whether its hint mode is "Show where".
+func PaperWordsOf(ctx context.Context, db Querier, profileID string) (language string, showWhere bool, err error) {
+	var tag *string
+	err = db.QueryRow(ctx, `SELECT interface_language, hint_mode = 'show_where' FROM profiles WHERE id = $1`, profileID).
+		Scan(&tag, &showWhere)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return "", false, ErrNoProfile
+	case err != nil:
+		return "", false, fmt.Errorf("store: read the settings of the words: %w", err)
+	}
+	return deref(tag), showWhere, nil
+}
+
 // GiveCorrectWords records that the tutor's words after a correct answer were
 // given on the attempt, which a correct answer closed: once (R09).
 func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID string) error {
@@ -171,13 +187,14 @@ func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID strin
 	return nil
 }
 
-// LastAttempt says whether the attempt is the last the profile began: the
-// words after a correct answer are given while the profile has begun no other
-// (R09).
+// LastAttempt says whether the attempt is the last the profile began of its
+// kind: the words after a correct answer are given while the profile has begun
+// no other (R09), and an attempt of a module and the attempts of a page go
+// beside each other (R10).
 func LastAttempt(ctx context.Context, db Querier, profileID, attemptID string) (bool, error) {
 	var last bool
 	err := db.QueryRow(ctx, `SELECT NOT EXISTS (SELECT 1 FROM attempts b, attempts a
-		WHERE a.profile_id = $1 AND a.id = $2 AND b.profile_id = $1 AND b.started_at > a.started_at)`,
+		WHERE a.profile_id = $1 AND a.id = $2 AND b.profile_id = $1 AND b.kind = a.kind AND b.started_at > a.started_at)`,
 		profileID, attemptID).Scan(&last)
 	if err != nil {
 		return false, fmt.Errorf("store: read the profile's last attempt: %w", err)

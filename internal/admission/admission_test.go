@@ -149,14 +149,14 @@ func TestTheReportSaysWhatWasDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.4", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.5", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
 		t.Errorf("Report = %+v, want %+v", r, want)
 	}
 	_, r, err = admission.Load(config.Admission{Rung: config.RungFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.4", Rung: "full", Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.5", Rung: "full", Reading: "pair"}); r != want {
 		t.Errorf("Report of nothing declared = %+v, want %+v", r, want)
 	}
 }
@@ -300,6 +300,72 @@ func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 		Category: admissionv0.AgeCategoryAdult}})
 	if told.Outcome.Kind != tutor.Failed || len(told.Outcome.Usage) != 0 {
 		t.Errorf("TellWords with no task = %v, want a failure with no call", told.Outcome.Kind)
+	}
+}
+
+// The tutor's words of a task from paper are admitted as those of a task of a
+// module (R82 spec): a rung's, with the work, by CallPaperWords, and the
+// opening question and a rung put another way by CallPaperHint, each exactly
+// when tutor chooses an entry for its kind of call.
+func TestTheGateAdmitsPaperWordsWhereTutorChooses(t *testing.T) {
+	t.Parallel()
+
+	facts := keyed(t, file(t, adultFacts), config.RungAuthor)
+	unkeyed := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungAuthor}
+	for name, tc := range map[string]struct {
+		cfg      config.Admission
+		category formatv0.AgeCategory
+		provider string
+	}{
+		"facts for an adult":            {facts, formatv0.AgeCategoryAdult, ""},
+		"facts for an adult, a child":   {facts, formatv0.AgeCategoryUnder13, ""},
+		"facts, no key of the platform": {unkeyed, formatv0.AgeCategoryAdult, ""},
+		"an own key of Anthropic":       {unkeyed, formatv0.AgeCategoryAdult, "anthropic"},
+		"an own key of OpenAI":          {unkeyed, formatv0.AgeCategoryAdult, "openai"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := load(t, tc.cfg)
+			route := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(tc.category)}
+			if tc.provider != "" {
+				route.AI, route.Own = admissionv0.AiRouteOwnKey, tutor.NewOwnKey(admissionv0.Provider(tc.provider), "own key")
+			}
+			for withWork, call := range map[bool]tutor.Call{false: tutor.CallPaperHint, true: tutor.CallPaperWords} {
+				if got := admission.PaperWordsCall(withWork); got != call {
+					t.Errorf("PaperWordsCall(%v) = %s, want %s", withWork, got, call)
+				}
+				got := g.PaperWords(withWork, tc.category, tc.provider)
+				entry, _, err := admission.TutorOf(g).ChooseCall(call, route)
+				if chosen := err == nil && len(entry.Models) > 0; got != chosen {
+					t.Errorf("PaperWords(%v) = %v, but ChooseCall(%s) chose an entry: %v", withWork, got, call, chosen)
+				}
+			}
+		})
+	}
+	if !load(t, facts).PaperWords(false, formatv0.AgeCategoryAdult, "") {
+		t.Error("the opening question is not admitted for an adult by the platform's key at the author's stage")
+	}
+}
+
+// The gate finds the tasks on a page, reads the statement of a task from
+// paper, solves it, reads the work on it and words its tutor's words by tutor,
+// which calls no model where no facts admit the call, for a reading with no
+// task, or for words with no style.
+func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
+	t.Parallel()
+
+	g := load(t, keyed(t, "", config.RungAuthor))
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
+	page := tutor.PaperTask{Route: adult, Statement: []byte("a page")}
+	for name, o := range map[string]tutor.Outcome{
+		"FindTasks":      g.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: []byte("a page")}).Outcome,
+		"ReadStatement":  g.ReadStatement(t.Context(), page).Outcome,
+		"SolveTask":      g.SolveTask(t.Context(), page, []tutor.TaskToSolve{{Number: 1, Statement: "37 + 48 ="}}).Outcome,
+		"ReadPaper":      g.ReadPaper(t.Context(), tutor.PaperReading{Route: adult}).Outcome,
+		"TellPaperWords": g.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperOpening}).Outcome,
+	} {
+		if o.Kind == tutor.Answered || len(o.Usage) != 0 {
+			t.Errorf("%s = %v, want no answer and no call", name, o.Kind)
+		}
 	}
 }
 
@@ -517,9 +583,10 @@ func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
 	}
 }
 
-// The check of a key asks Opus 5.5 and Haiku 5.5, each once: the words after a
-// correct answer are on Opus 5.5, as the words, so they add no model to check
-// (R73, R76).
+// The check of a key asks Opus 5.5, Haiku 5.5 and Sonnet 5.5, each once: the
+// words after a correct answer are on Opus 5.5, as the words, so they add no
+// model to check (R73, R76), and Sonnet is an attempt of the cascade of a task
+// from paper (R137 tutor).
 func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 	t.Parallel()
 
@@ -554,7 +621,7 @@ func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 		t.Fatalf("CheckKey = %v, %v, want accepted", got, err)
 	}
 	slices.Sort(dialed)
-	if want := []string{"claude-haiku-5-5", "claude-opus-5-5"}; !slices.Equal(dialed, want) {
+	if want := []string{"claude-haiku-5-5", "claude-opus-5-5", "claude-sonnet-5-5"}; !slices.Equal(dialed, want) {
 		t.Errorf("the check dialled %v, want %v", dialed, want)
 	}
 }
@@ -896,5 +963,32 @@ func TestTheModeSingleReadsByOneReader(t *testing.T) {
 	}
 	if _, _, err := admission.Load(config.Admission{Rung: config.RungFull, Reading: "both"}); !errors.Is(err, config.ErrInvalid) {
 		t.Errorf("Load in an unknown mode = %v, want a refusal of the configuration", err)
+	}
+}
+
+// The debug mode reaches tutor through the gate, which reports it, and the
+// gate gives the models the list admits for each call of a task from paper for
+// an adult on platform AI, the attempts of its cascade in their order, none at
+// the stage full (R97).
+func TestTheGateOfTheDebugMode(t *testing.T) {
+	t.Parallel()
+
+	cfg := keyed(t, file(t, adultFacts), "author")
+	cfg.Debug = true
+	g, r, err := admission.Load(cfg)
+	if err != nil || !r.Debug {
+		t.Fatalf("Load = %+v, %v; want the debug mode reported", r, err)
+	}
+	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallSolving, tutor.CallPaper} {
+		var got []string
+		for _, m := range g.Admitted(call) {
+			got = append(got, m.Name())
+		}
+		if strings.Join(got, ", ") != "claude-haiku-5-5 high, claude-sonnet-5-5 medium, claude-opus-5-5 medium" {
+			t.Errorf("Admitted(%s) = %v; want the cascade of Haiku, Sonnet and Opus", call, got)
+		}
+	}
+	if m := load(t, keyed(t, file(t, adultFacts), "full")).Admitted(tutor.CallFinding); len(m) != 0 {
+		t.Error("the stage full admitted the finding")
 	}
 }

@@ -3,8 +3,9 @@
 // the options tapped and on what tutor read, the submission of an essay and its
 // feedback by the rubric (R82), the techniques a solving step gives, "Done",
 // the hint ladder with the tutor's words and their fallback texts, the showing
-// of the solution, and lesson runs with their segments (R48). It answers the
-// methods of LearningService and AttemptService, and keeps the stored works of
+// of the solution, lesson runs with their segments (R48), and the tasks from the
+// learner's paper, found on the photo of a page (R10). It answers the methods of
+// LearningService, AttemptService and PaperService, and keeps the stored works of
 // WorkService too (R70), whose kind is the attempt's task's.
 //
 // Every request is a learning request on a profile, whose right the checks hold
@@ -28,6 +29,7 @@ import (
 
 	"github.com/altnovatrail/api/internal/admission"
 	"github.com/altnovatrail/api/internal/config"
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/model"
 	"github.com/altnovatrail/api/internal/packages"
@@ -41,6 +43,7 @@ var (
 	_ apiv1connect.LearningServiceHandler = (*LearningService)(nil)
 	_ apiv1connect.AttemptServiceHandler  = (*AttemptService)(nil)
 	_ apiv1connect.WorkServiceHandler     = (*WorkService)(nil)
+	_ apiv1connect.PaperServiceHandler    = (*PaperService)(nil)
 )
 
 // Service runs the attempts of the profiles on the packages the image holds.
@@ -59,6 +62,15 @@ type Service struct {
 	// by the criteria: the gate's tutor (R82).
 	essay    essayReader
 	assessor rubricAssessor
+	// finder finds the tasks on the photo of a page from paper: the gate's tutor
+	// (R162 spec).
+	finder taskFinder
+	// paper reads the statement of a task from paper, solves it and reads the
+	// work on it: the gate's tutor (R162 spec).
+	paper paperChecker
+	// paperWords words the tutor's words of a task from paper: the gate's tutor
+	// (R82 spec).
+	paperWords paperTeller
 	// reading is the mode tutor reads handwriting by, the gate's, which says
 	// how many observations a reading gives (R88).
 	reading tutor.Reading
@@ -77,15 +89,20 @@ type Service struct {
 	price func(call tutor.Call, route tutor.Route) tutor.CallPrice
 	// goingFor is the longest a request may run, past which the record of its
 	// key going is of a request that fell (R17, R33).
-	goingFor  time.Duration
-	db        rpc.DB
-	now       func() time.Time
-	moduleKit string
+	goingFor time.Duration
+	// paperGoingFor is goingFor of FindTasks and SubmitWork, which run for the
+	// time limit of paper (R98).
+	paperGoingFor time.Duration
+	db            rpc.DB
+	now           func() time.Time
+	moduleKit     string
 	// model is the learner model, which a close owes the evidence of the
 	// attempt (R49).
 	model *model.Model
 	// engine is the version of engine, which every choice keeps (R50).
 	engine string
+	// debug is the debug mode of a local run, nil without it (R97).
+	debug *debug.Store
 }
 
 // Option sets what a Service runs on: for the tests, and the dev mode's stub.
@@ -98,14 +115,26 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
+// WithPaperRequestTimeout is the longest FindTasks and SubmitWork may run, as
+// the server bounds them (R98).
+func WithPaperRequestTimeout(d time.Duration) Option {
+	return func(s *Service) { s.paperGoingFor = d }
+}
+
 // OffDeployment says api runs off a deployment, as serve does on the dev
 // projects: a tariff of the dev projects alone has its caps there alone
 // (quota.CapsOf).
 func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
 
+// WithDebug is the debug mode of a local run, whose choice of models serves the
+// calls of a task from paper and whose store keeps what each returned (R97).
+func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } }
+
 // WithTutor is what reads the sheets, the workbook pages and the essays,
-// assesses the essays by their rubrics and words the tutor's words, those after
-// a correct answer too, and says which kinds of reading are admitted, in place
+// assesses the essays by their rubrics, words the tutor's words, those after a
+// correct answer too, finds the tasks on the photo of a page, checks a task
+// from paper and words its tutor's words, and says which
+// kinds of reading are admitted, in place
 // of the gate's tutor: the dev mode's stub (R66), which calls no provider and
 // admits a workbook page, an essay and its assessment itself.
 func WithTutor(t interface {
@@ -116,9 +145,13 @@ func WithTutor(t interface {
 	workbookReader
 	essayReader
 	rubricAssessor
+	taskFinder
+	paperChecker
+	paperTeller
 }) Option {
 	return func(s *Service) {
-		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.stubbed = t, t, t, t, t, t, t, true
+		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.finder, s.paper, s.paperWords, s.stubbed =
+			t, t, t, t, t, t, t, t, t, t, true
 	}
 }
 
@@ -162,6 +195,10 @@ func (g gateTutor) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ 
 	return g.Gate.ReadWorkbook(ctx, r)
 }
 
+func (g gateTutor) FindTasks(ctx context.Context, f tutor.TaskFinding, _ string) tutor.TasksFound {
+	return g.Gate.FindTasks(ctx, f)
+}
+
 func (g gateTutor) TellWords(ctx context.Context, w tutor.WordsRequest, _ string) tutor.WordsAnswer {
 	return g.Gate.TellWords(ctx, w)
 }
@@ -179,8 +216,9 @@ func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest,
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
 	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
 		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
-		texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
-		engine: version.Engine(), goingFor: config.DefaultRequestTimeout}
+		finder: gateTutor{gate}, paper: gateTutor{gate}, paperWords: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
+		engine: version.Engine(), goingFor: config.DefaultRequestTimeout,
+		paperGoingFor: config.DefaultPaperRequestTimeout}
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -284,8 +322,9 @@ func (s *Service) lapsed(row store.Attempt, now time.Time) string {
 
 // hold is the profile's open attempt, held in tx. Before anything acts on it, it
 // is checked as every request checks it: one the profile does not have is
-// store.ErrNotFound; one closed, a closedError; one on a package the index does
-// not know, errPackageUnknown, with nothing written; and one that lapsed is
+// store.ErrNotFound; one closed, a closedError; one of a task from paper,
+// store.ErrPaper, with its row held, which holdAny goes on with (R96); one on a package the
+// index does not know, errPackageUnknown, with nothing written; and one that lapsed is
 // closed by this check, and the refusal "closed" keeps the close (rpc.Keep).
 func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (held, error) {
 	if !store.CanonicalID(attemptID) {
@@ -301,6 +340,9 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 	}
 	if row.CloseReason != nil {
 		return held{}, &closedError{reason: *row.CloseReason, row: row}
+	}
+	if row.Paper {
+		return held{row: row}, store.ErrPaper
 	}
 	digest := formatv0.Digest(row.PackageDigest)
 	if s.set.Status(digest) == packages.Unknown {
@@ -395,8 +437,9 @@ var closeReasons = map[string]v1.CloseReason{
 
 // refused answers what a request met: a refusal of the contract as it is, the
 // attempt, the run or the choice not found, the run ended with its end, the
-// attempt closed with its reason, the package unknown, the profile or the
-// account gone meanwhile, or a failure.
+// attempt closed with its reason, the package unknown, a request an attempt of a
+// task from paper does not take, the profile or the account gone meanwhile, or a
+// failure.
 func refused(ctx context.Context, err error) error {
 	var refusal *connect.Error
 	var closed *closedError
@@ -416,6 +459,10 @@ func refused(ctx context.Context, err error) error {
 		return rpc.Refuse(ctx, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
 	case errors.Is(err, errPackageUnknown):
 		return rpc.Refuse(ctx, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
+	case errors.Is(err, store.ErrPaper):
+		// A task from paper has no steps, no rubric, no open view and no stored work
+		// (R162 spec).
+		return connect.NewError(connect.CodeInvalidArgument, "an attempt of a task from paper")
 	case errors.Is(err, store.ErrChoiceBegun):
 		return rpc.Refuse(ctx, connect.CodeAlreadyExists, v1.Cause_CAUSE_ALREADY_EXISTS)
 	case errors.Is(err, store.ErrNoProfile):

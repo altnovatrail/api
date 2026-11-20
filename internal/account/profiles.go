@@ -16,6 +16,10 @@ import (
 // transaction and answered after it.
 var errCountry = errors.New("account: the country is not accepted")
 
+// errAdultSets is a setting of a child's profile that an adult sets on the
+// profile's page alone.
+var errAdultSets = errors.New("account: an adult sets this of a child's profile")
+
 // CreateOwnerProfile creates the owner's profile, of the category adult by the
 // owner's statement, with its consent, and its tuple before the COMMIT (R04,
 // R36). A profile of the owner there already comes before the country, so that
@@ -54,7 +58,7 @@ func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerPro
 // UpdateProfile changes the settings sent, and leaves the others. The checks
 // have held the right can_manage.
 func (s *Service) UpdateProfile(ctx context.Context, req *v1.UpdateProfileRequest) (*v1.UpdateProfileResponse, error) {
-	p, err := s.change(ctx, req.GetProfileId(), req.GetSettings())
+	p, err := s.change(ctx, req.GetProfileId(), req.GetSettings(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,22 +68,48 @@ func (s *Service) UpdateProfile(ctx context.Context, req *v1.UpdateProfileReques
 // SetVoicing sets the voicing alone, from the screen of a task: the checks have
 // held the right can_learn, which the learner has as well as the adult.
 func (s *Service) SetVoicing(ctx context.Context, req *v1.SetVoicingRequest) (*v1.SetVoicingResponse, error) {
-	p, err := s.change(ctx, req.GetProfileId(), &v1.ProfileSettings{Voicing: req.GetVoicing()})
+	p, err := s.change(ctx, req.GetProfileId(), &v1.ProfileSettings{Voicing: req.GetVoicing()}, nil)
 	if err != nil {
 		return nil, err
 	}
 	return &v1.SetVoicingResponse{Profile: s.profile(p)}, nil
 }
 
+// SetHintMode sets the hint mode alone, from the profile's menu: the checks have
+// held the right can_learn. A mode not named is invalid_argument, as the
+// contract has it, where UpdateProfile leaves the mode as it is; a child's
+// profile is CAUSE_ADULT_NEEDED, whose mode an adult sets with UpdateProfile
+// (R100).
+func (s *Service) SetHintMode(ctx context.Context, req *v1.SetHintModeRequest) (*v1.SetHintModeResponse, error) {
+	if req.GetHintMode() == v1.HintMode_HINT_MODE_UNSPECIFIED {
+		return nil, rpc.Malformed("hint_mode")
+	}
+	p, err := s.change(ctx, req.GetProfileId(), &v1.ProfileSettings{HintMode: req.GetHintMode()}, func(p store.Profile) error {
+		if p.AgeCategory != "adult" {
+			return errAdultSets
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &v1.SetHintModeResponse{Profile: s.profile(p)}, nil
+}
+
 // change applies settings to the account's profile, held FOR UPDATE under the
-// account.
-func (s *Service) change(ctx context.Context, profileID string, settings *v1.ProfileSettings) (store.Profile, error) {
+// account, once allowed, when given, takes the profile.
+func (s *Service) change(ctx context.Context, profileID string, settings *v1.ProfileSettings, allowed func(store.Profile) error) (store.Profile, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	var p store.Profile
 	err := store.WriteUnderAccount(ctx, s.db, caller.AccountID, func(tx pgx.Tx) error {
 		var err error
 		if p, err = store.ProfileFor(ctx, tx, caller.AccountID, profileID); err != nil {
 			return err
+		}
+		if allowed != nil {
+			if err := allowed(p); err != nil {
+				return err
+			}
 		}
 		if err := apply(&p, settings, false); err != nil {
 			return err
@@ -127,6 +157,8 @@ func refusedProfile(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &refusal):
 		return err
+	case errors.Is(err, errAdultSets):
+		return rpc.Refuse(ctx, connect.CodePermissionDenied, v1.Cause_CAUSE_ADULT_NEEDED)
 	case errors.Is(err, errCountry):
 		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_COUNTRY_NOT_ACCEPTED)
 	case errors.Is(err, store.ErrProfileExists):

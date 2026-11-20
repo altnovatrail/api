@@ -59,6 +59,7 @@ var methods = map[string]rule{
 	apiv1connect.AccountServiceCreateChildProfileProcedure:  ofAccount,
 	apiv1connect.AccountServiceUpdateProfileProcedure:       toManage,
 	apiv1connect.AccountServiceSetVoicingProcedure:          toLearn,
+	apiv1connect.AccountServiceSetHintModeProcedure:         toLearn,
 	apiv1connect.AccountServiceDeleteProfileProcedure:       deleting,
 	apiv1connect.AccountServiceDeleteAccountProcedure:       freshly,
 	apiv1connect.AccountServiceExportProfileProcedure:       toLearn,
@@ -80,6 +81,7 @@ var methods = map[string]rule{
 	apiv1connect.AttemptServiceGetCorrectAnswerWordsProcedure: toLearn,
 	apiv1connect.AttemptServiceExplainDifferentlyProcedure:    toLearn,
 	apiv1connect.AttemptServiceGetHintProcedure:               toLearn,
+	apiv1connect.AttemptServiceGetOpeningWordsProcedure:       toLearn,
 	apiv1connect.AttemptServiceBeginStepProcedure:             toLearn,
 	apiv1connect.AttemptServiceShowSolutionProcedure:          toLearn,
 	apiv1connect.AttemptServiceReportProblemProcedure:         toLearn,
@@ -113,4 +115,11 @@ var methods = map[string]rule{
 	apiv1connect.WorkServiceListWorksProcedure:  toLearn,
 	apiv1connect.WorkServiceGetWorkProcedure:    toLearn,
 	apiv1connect.WorkServiceDeleteWorkProcedure: toLearn,
+
+	// A task from paper (R10).
+	apiv1connect.PaperServiceFindTasksProcedure:          toLearn,
+	apiv1connect.PaperServiceBeginPaperAttemptsProcedure: toLearn,
+	apiv1connect.DebugServiceGetDebugProcedure:           ofAccount,
+	apiv1connect.DebugServiceSetDebugModelsProcedure:     ofAccount,
+	apiv1connect.DebugServiceTakeDebugCallsProcedure:     ofAccount,
 }

@@ -42,6 +42,12 @@ const (
 	// observation is the reading (R88). Unset or empty, it is "pair"; it holds
 	// at either stage.
 	VarReadingMode = "API_READING_MODE"
+	// VarDebugModels, set to 1, opens the debug mode of a local run with models:
+	// the developer chooses the models of the calls of a task from paper, past
+	// the admission list, and sees what each returned and cost (R97; R163
+	// spec). It is refused deployed, beside the stub, which calls no model, and
+	// without the key of Anthropic, whose models alone the mode offers.
+	VarDebugModels = "API_DEBUG_MODELS"
 )
 
 // The stages of admission, as tutor codes them.
@@ -61,6 +67,7 @@ func init() {
 	declared[VarAdmissionRung] = struct{}{}
 	declared[VarTutorStub] = struct{}{}
 	declared[VarReadingMode] = struct{}{}
+	declared[VarDebugModels] = struct{}{}
 	for _, name := range []string{VarAnthropicKey, VarOpenAIKey} {
 		declared[name] = struct{}{}
 		declared[name+fileSuffix] = struct{}{}
@@ -84,6 +91,8 @@ type Admission struct {
 	// Reading is the mode of reading handwriting, ReadingPair or ReadingSingle
 	// (R88).
 	Reading string
+	// Debug says whether the debug mode of a local run is open (R97).
+	Debug bool
 }
 
 // AdmissionFrom reads what the deployment declares for admission from a set of
@@ -98,7 +107,8 @@ type Admission struct {
 // sign-in service: deployed — K_SERVICE set, as serve runs on Cloud Run, or
 // CLOUD_RUN_JOB, as api check runs before the migrations — it is refused, and
 // so it is beside a platform key, which nothing would call — with the stub no
-// key of a provider is in the process (R66).
+// key of a provider is in the process (R66). The debug mode is refused the same
+// way, deployed and beside the stub (R97).
 func AdmissionFrom(environ []string) (Admission, error) {
 	env := read(environ)
 	deployedBy := env.deployedBy()
@@ -148,6 +158,22 @@ func AdmissionFrom(environ []string) (Admission, error) {
 		case inline || fromFile:
 			problems = append(problems, fmt.Errorf("%w: %s must not be set beside %s: the stub calls no provider, so unset the key",
 				ErrInvalid, VarTutorStub, VarAnthropicKey))
+		}
+	}
+	if debug, set := env[VarDebugModels]; set {
+		cfg.Debug = true
+		switch {
+		case debug != "1":
+			problems = append(problems, fmt.Errorf("%w: %s must be 1 or unset, got %q", ErrInvalid, VarDebugModels, debug))
+		case deployedBy != "":
+			problems = append(problems, fmt.Errorf("%w: %s must not be set when %s is set: the debug mode is a local run's alone",
+				ErrInvalid, VarDebugModels, deployedBy))
+		case cfg.Stub:
+			problems = append(problems, fmt.Errorf("%w: %s must not be set beside %s: the stub calls no model",
+				ErrInvalid, VarDebugModels, VarTutorStub))
+		case cfg.Keys.Anthropic.Reveal() == "":
+			problems = append(problems, fmt.Errorf("%w: %s must not be set without %s: the debug mode offers the models of Claude",
+				ErrInvalid, VarDebugModels, VarAnthropicKey))
 		}
 	}
 	for _, name := range []string{VarOpenAIKey, VarOpenAIKey + fileSuffix} {

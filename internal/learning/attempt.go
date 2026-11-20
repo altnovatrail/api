@@ -81,7 +81,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	profileID := req.GetProfileId()
 	key := rpc.Key{
 		Method:   apiv1connect.AttemptServiceSubmitWorkProcedure,
-		GoingFor: s.goingFor,
+		GoingFor: s.paperGoingFor,
 		Repeat: func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error) {
 			written, err := store.SubmissionAnswer(ctx, tx, profileID, record.SubmissionID)
 			if err != nil {
@@ -109,7 +109,12 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 		return h, out, err
 	}
 	var answer *v1.SubmitWorkResponse
-	if s.readsAI(ctx, profileID, req.GetAttemptId()) {
+	// An attempt this cannot tell of — none, or on a package the index does not
+	// know — goes the way of a task tapped, whose checks refuse it.
+	task, paper, known := s.attemptOf(ctx, profileID, req.GetAttemptId())
+	if paper {
+		answer, err = a.submitPaper(ctx, req, category, key)
+	} else if known && !byTap(task) {
 		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[sending, *v1.SubmitWorkResponse]{
 			Prepare: func(tx pgx.Tx, _ string) (sending, store.KeyTarget, error) {
 				h, out, err := prepare(tx)
@@ -151,32 +156,28 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	return answer, nil
 }
 
-// readsAI says whether AI reads a slot of the task of the profile's attempt,
-// read with no lock: what an attempt is of never changes. An attempt this
-// cannot tell of — none, or on a package the index does not know — goes the
-// way of a task tapped, whose checks refuse it.
-func (s *Service) readsAI(ctx context.Context, profileID, attemptID string) bool {
-	task, ok := s.attemptTask(ctx, profileID, attemptID)
-	return ok && !byTap(task)
-}
-
-// attemptTask is the task of the profile's attempt, read with no lock, as the
-// package holds it — a template, when the attempt got an instance of one, of the
-// same canvas and answer slots —; false for an attempt this cannot tell of.
-func (s *Service) attemptTask(ctx context.Context, profileID, attemptID string) (formatv0.Task, bool) {
+// attemptOf is what the profile's attempt is of, read with no lock, since
+// that never changes: paper for a task from paper, or else the task as the
+// package holds it — a template, when the attempt got an instance of one, of
+// the same canvas and answer slots — and whether this can tell, false for none
+// or one on a package the index does not know.
+func (s *Service) attemptOf(ctx context.Context, profileID, attemptID string) (task formatv0.Task, paper, known bool) {
 	if !store.CanonicalID(attemptID) {
-		return formatv0.Task{}, false
+		return formatv0.Task{}, false, false
 	}
 	digest, taskID, err := store.AttemptTask(ctx, s.db, profileID, attemptID)
-	if err != nil {
-		return formatv0.Task{}, false
+	switch {
+	case errors.Is(err, store.ErrPaper):
+		return formatv0.Task{}, true, false
+	case err != nil:
+		return formatv0.Task{}, false, false
 	}
 	pkg, ok := s.set.Packages[formatv0.Digest(digest)]
 	if !ok {
-		return formatv0.Task{}, false
+		return formatv0.Task{}, false, false
 	}
-	task, ok := pkg.View.Tasks[formatv0.TaskID(taskID)]
-	return task, ok
+	task, known = pkg.View.Tasks[formatv0.TaskID(taskID)]
+	return task, false, known
 }
 
 // record writes the submission out on the profile's attempt h — its verdict,
@@ -404,13 +405,19 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	if out.reserve.refused != nil {
 		return nil, out.reserve.refused
 	}
-	r := out.read
+	return s.joinOf(task.Items, out.read, out.route.AI, s.reading == tutor.ReadingSingle)
+}
+
+// joinOf is the observation of the reading r of items, by one reader when single
+// and else by the pair, as joined has it, or none with the outcome of why, on
+// the route.
+func (s *Service) joinOf(items []formatv0.Item, r tutor.SheetRead, route admissionv0.AiRoute, single bool) (*observationv1.Observation, *v1.Outcome) {
 	if r.Outcome.Kind != tutor.Answered {
-		return nil, outcomeOf(r.Outcome, out.route.AI)
+		return nil, outcomeOf(r.Outcome, route)
 	}
 	failure := &v1.Outcome{Cause: v1.Cause_CAUSE_AI_FAILURE}
-	if s.reading == tutor.ReadingSingle {
-		if len(r.Observations) != 1 || observation.Validate(task.Items, r.Observations[0]) != nil {
+	if single {
+		if len(r.Observations) != 1 || observation.Validate(items, r.Observations[0]) != nil {
 			return nil, failure
 		}
 		return r.Observations[0], nil
@@ -418,7 +425,7 @@ func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observ
 	if len(r.Observations) != 2 {
 		return nil, failure
 	}
-	joined, err := observation.Join(task.Items, r.Observations[0], r.Observations[1])
+	joined, err := observation.Join(items, r.Observations[0], r.Observations[1])
 	if err != nil {
 		// An observation that is not valid is as a failure of AI.
 		return nil, failure

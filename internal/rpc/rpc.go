@@ -34,6 +34,9 @@ type Deps struct {
 	Log *slog.Logger
 	// RequestTimeout is the longest a request may run (R33).
 	RequestTimeout time.Duration
+	// PaperRequestTimeout is the longest a request of paperMethods may run
+	// (R98).
+	PaperRequestTimeout time.Duration
 }
 
 // Handlers are the methods of the contract that api serves. A service left
@@ -47,6 +50,9 @@ type Handlers struct {
 	Progress apiv1connect.ProgressServiceHandler
 	Legal    apiv1connect.LegalServiceHandler
 	Work     apiv1connect.WorkServiceHandler
+	Paper    apiv1connect.PaperServiceHandler
+	// Debug is the debug mode of a local run, set only with its flag (R97).
+	Debug apiv1connect.DebugServiceHandler
 }
 
 // NewServer is the server of the contract, with every method registered and
@@ -55,7 +61,7 @@ type Handlers struct {
 func NewServer(d Deps, h Handlers) *connect.Server {
 	gone := deletion.New(d.DB, d.Rights, d.Signin)
 	c := &checks{signin: d.Signin, db: d.DB, rights: d.Rights, userGone: gone.Account, now: time.Now}
-	server := connect.NewServer(logged(d.Log), limited(d.RequestTimeout), c.intercept)
+	server := connect.NewServer(logged(d.Log), limited(d.RequestTimeout, d.PaperRequestTimeout), c.intercept)
 	register(server, h)
 	return server
 }
@@ -69,6 +75,8 @@ func register(server *connect.Server, h Handlers) {
 	apiv1connect.RegisterProgressServiceHandler(server, or[apiv1connect.ProgressServiceHandler](h.Progress, apiv1connect.UnimplementedProgressServiceHandler{}))
 	apiv1connect.RegisterLegalServiceHandler(server, or[apiv1connect.LegalServiceHandler](h.Legal, apiv1connect.UnimplementedLegalServiceHandler{}))
 	apiv1connect.RegisterWorkServiceHandler(server, or[apiv1connect.WorkServiceHandler](h.Work, apiv1connect.UnimplementedWorkServiceHandler{}))
+	apiv1connect.RegisterPaperServiceHandler(server, or[apiv1connect.PaperServiceHandler](h.Paper, apiv1connect.UnimplementedPaperServiceHandler{}))
+	apiv1connect.RegisterDebugServiceHandler(server, or[apiv1connect.DebugServiceHandler](h.Debug, apiv1connect.UnimplementedDebugServiceHandler{}))
 }
 
 // or is the handler set, or the one that answers unimplemented.
@@ -99,16 +107,32 @@ func Mount(mux *http.ServeMux, server *connect.Server) {
 // base64, a third larger, and is no way to send one.
 const MaxMessage = 11 << 20
 
-// limited cuts a request short at its time limit; a shorter Connect-Timeout-Ms
-// of the client's still holds (R33). No limit given is the default one, never
-// none, and never one that has run out before the request began.
-func limited(timeout time.Duration) connect.ServerInterceptor {
+// paperMethods are the methods whose calls of a task from paper ask up to three
+// models in turn, and so run for the time limit of paper: the finding of the
+// tasks, and the submission of a work, a task of a module's among them (R98).
+var paperMethods = map[string]bool{
+	apiv1connect.PaperServiceFindTasksProcedure:    true,
+	apiv1connect.AttemptServiceSubmitWorkProcedure: true,
+}
+
+// limited cuts a request short at its time limit, that of paper for
+// paperMethods; a shorter Connect-Timeout-Ms of the client's still holds (R33).
+// No limit given is the default one, never none, and never one that has run
+// out before the request began.
+func limited(timeout, paper time.Duration) connect.ServerInterceptor {
 	if timeout <= 0 {
 		timeout = config.DefaultRequestTimeout
 	}
+	if paper <= 0 {
+		paper = config.DefaultPaperRequestTimeout
+	}
 	return func(next connect.ServerFunc) connect.ServerFunc {
 		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
-			ctx, cancel := context.WithTimeout(ctx, timeout)
+			limit := timeout
+			if paperMethods[spec.Procedure] {
+				limit = paper
+			}
+			ctx, cancel := context.WithTimeout(ctx, limit)
 			defer cancel()
 			return next(ctx, spec, stream)
 		}

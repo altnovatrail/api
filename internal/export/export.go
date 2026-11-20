@@ -21,7 +21,8 @@ import (
 
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
-	"github.com/altnovatrail/spec/types/exportv3"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
+	"github.com/altnovatrail/spec/types/exportv4"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -110,7 +111,7 @@ func (x *Exporter) Profile(ctx context.Context, tx pgx.Tx, accountID, profileID 
 	if err != nil {
 		return nil, err
 	}
-	return x.zip(nil, []exportv3.Profile{p}, submissions)
+	return x.zip(nil, []exportv4.Profile{p}, submissions)
 }
 
 // Account is api.zip of the export of the account and every profile of it.
@@ -119,7 +120,7 @@ func (x *Exporter) Account(ctx context.Context, tx pgx.Tx, accountID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	var profiles []exportv3.Profile
+	var profiles []exportv4.Profile
 	submissions := false
 	for _, id := range a.ProfileIds {
 		p, sent, err := x.profile(ctx, tx, accountID, string(id))
@@ -132,35 +133,43 @@ func (x *Exporter) Account(ctx context.Context, tx pgx.Tx, accountID string) ([]
 }
 
 // profile is the file of the profile, and whether it has a submission.
-func (x *Exporter) profile(ctx context.Context, tx pgx.Tx, accountID, profileID string) (exportv3.Profile, bool, error) {
+func (x *Exporter) profile(ctx context.Context, tx pgx.Tx, accountID, profileID string) (exportv4.Profile, bool, error) {
 	e, err := store.ExportProfile(ctx, tx, accountID, profileID)
 	if err != nil {
-		return exportv3.Profile{}, false, err
+		return exportv4.Profile{}, false, err
 	}
 	p := e.Profile
 	submissions := false
 	for _, a := range e.Attempts {
 		attempt, err := x.attempt(ctx, a, e.Observations[string(a.AttemptID)])
 		if err != nil {
-			return exportv3.Profile{}, false, err
+			return exportv4.Profile{}, false, err
 		}
 		submissions = submissions || len(attempt.Submissions) > 0
 		p.Attempts = append(p.Attempts, attempt)
 	}
+	for _, a := range e.PaperAttempts {
+		attempt, err := x.paperAttempt(a, e.Observations[string(a.Attempt.AttemptID)])
+		if err != nil {
+			return exportv4.Profile{}, false, err
+		}
+		submissions = submissions || len(attempt.Submissions) > 0
+		p.PaperAttempts = append(p.PaperAttempts, attempt)
+	}
 	for i, data := range e.Evidence {
 		if p.Evidence[i].Evidence, err = x.json(x.evidence, data); err != nil {
-			return exportv3.Profile{}, false, err
+			return exportv4.Profile{}, false, err
 		}
 	}
 	state := e.State
 	if state == nil {
 		// A profile with no state yet has the empty one, the fold of no evidence.
 		if state, err = learnermodel.EncodeState(learnermodel.State{Kind: learnermodel.StateKind}); err != nil {
-			return exportv3.Profile{}, false, fmt.Errorf("export: the empty state: %w", err)
+			return exportv4.Profile{}, false, fmt.Errorf("export: the empty state: %w", err)
 		}
 	}
 	if p.State.State, err = x.json(x.state, state); err != nil {
-		return exportv3.Profile{}, false, err
+		return exportv4.Profile{}, false, err
 	}
 	p.State.Modules = x.modules(p.Evidence)
 	return p, submissions, nil
@@ -168,7 +177,7 @@ func (x *Exporter) profile(ctx context.Context, tx pgx.Tx, accountID, profileID 
 
 // modules is each module of the log with the version whose graph the state
 // was computed by: the current version of the image, or none (R08).
-func (x *Exporter) modules(journal []exportv3.EvidenceEntry) []exportv3.StateEntryModule {
+func (x *Exporter) modules(journal []exportv4.EvidenceEntry) []exportv4.StateEntryModule {
 	var ids []string
 	for _, e := range journal {
 		if !slices.Contains(ids, e.ModuleID) {
@@ -176,9 +185,9 @@ func (x *Exporter) modules(journal []exportv3.EvidenceEntry) []exportv3.StateEnt
 		}
 	}
 	slices.Sort(ids)
-	modules := []exportv3.StateEntryModule{}
+	modules := []exportv4.StateEntryModule{}
 	for _, id := range ids {
-		m := exportv3.StateEntryModule{ModuleID: id}
+		m := exportv4.StateEntryModule{ModuleID: id}
 		if pkg, ok := x.set.Current(formatv0.ModuleID(id)); ok {
 			version := string(pkg.Inventory.Version)
 			m.ModuleVersion = &version
@@ -189,11 +198,11 @@ func (x *Exporter) modules(journal []exportv3.EvidenceEntry) []exportv3.StateEnt
 }
 
 // attempt is the attempt a, with what its submissions and its package tell.
-func (x *Exporter) attempt(ctx context.Context, a store.ExportedAttempt, observations map[int64][]byte) (exportv3.Attempt, error) {
+func (x *Exporter) attempt(ctx context.Context, a store.ExportedAttempt, observations map[int64][]byte) (exportv4.Attempt, error) {
 	out := a.Attempt
 	told, err := x.model.Tell(ctx, a.Owed)
 	if err != nil {
-		return exportv3.Attempt{}, err
+		return exportv4.Attempt{}, err
 	}
 	out.Traps = told.Traps
 	if a.Owed.StepTechniques {
@@ -211,45 +220,83 @@ func (x *Exporter) attempt(ctx context.Context, a store.ExportedAttempt, observa
 	for i, answer := range a.Owed.Answers {
 		s, err := x.submission(out.Submissions[i], answer, observations[out.Submissions[i].Number])
 		if err != nil {
-			return exportv3.Attempt{}, err
+			return exportv4.Attempt{}, err
 		}
 		out.Submissions[i] = s
 	}
 	return out, nil
 }
 
+// paperAttempt is the open attempt of a task from paper a, with what its
+// submissions tell and where the key of each task of its crop came from, but
+// not the key, which never reaches the device (R05 spec).
+func (x *Exporter) paperAttempt(a store.ExportedPaperAttempt, observations map[int64][]byte) (exportv4.PaperAttempt, error) {
+	out := a.Attempt
+	if a.Key != nil {
+		var k paperv1.Key
+		if err := proto.Unmarshal(a.Key, &k); err != nil {
+			return exportv4.PaperAttempt{}, fmt.Errorf("export: read the key of an attempt of paper: %w", err)
+		}
+		for _, t := range k.GetTasks() {
+			out.KeySources = append(out.KeySources, keySource(t))
+		}
+	}
+	for i, answer := range a.Answers {
+		s, err := x.submission(out.Submissions[i], answer, observations[out.Submissions[i].Number])
+		if err != nil {
+			return exportv4.PaperAttempt{}, err
+		}
+		out.Submissions[i] = s
+	}
+	return out, nil
+}
+
+// keySource is where the key of a task from paper came from: a task with no
+// answer a program can compare has none, whatever its provenance.
+func keySource(t *paperv1.TaskKey) exportv4.PaperAttemptKeySources {
+	switch {
+	case t.GetAnswer() == nil:
+		return exportv4.PaperAttemptKeySourcesNone
+	case t.GetProvenance() == paperv1.Provenance_PROVENANCE_SOLVER:
+		return exportv4.PaperAttemptKeySourcesSolver
+	case t.GetProvenance() == paperv1.Provenance_PROVENANCE_AI:
+		return exportv4.PaperAttemptKeySourcesAi
+	}
+	return exportv4.PaperAttemptKeySourcesNone
+}
+
 // submission is the submission s with what its answer and its observation
 // hold: the verdict of each item and answer slot, what was read, the cause of
 // its outcome, and the taps, which the answer of a submission of taps alone
 // holds as its values.
-func (x *Exporter) submission(s exportv3.Submission, answer, observation []byte) (exportv3.Submission, error) {
+func (x *Exporter) submission(s exportv4.Submission, answer, observation []byte) (exportv4.Submission, error) {
 	var res v1.SubmitWorkResponse
 	if err := proto.Unmarshal(answer, &res); err != nil {
-		return exportv3.Submission{}, fmt.Errorf("export: read a submission: %w", err)
+		return exportv4.Submission{}, fmt.Errorf("export: read a submission: %w", err)
 	}
-	s.Items, s.TappedChoices, s.WrongAnswers = []exportv3.SubmissionItem{}, []exportv3.SubmissionTappedChoice{}, int64(res.GetWrongAnswers())
+	s.Items, s.TappedChoices, s.WrongAnswers = []exportv4.SubmissionItem{}, []exportv4.SubmissionTappedChoice{}, int64(res.GetWrongAnswers())
 	if res.GetOutcome() != nil && res.GetOutcome().GetCause() != v1.Cause_CAUSE_UNSPECIFIED {
-		s.Outcome = &exportv3.SubmissionOutcome{Cause: res.GetOutcome().GetCause().String()}
+		s.Outcome = &exportv4.SubmissionOutcome{Cause: res.GetOutcome().GetCause().String()}
 	}
 	for _, item := range res.GetItems() {
-		out := exportv3.SubmissionItem{Verdict: exportv3.SubmissionItemVerdict(item.GetVerdict()),
-			AnswerSlots: []exportv3.SubmissionItemAnswerSlot{}}
+		out := exportv4.SubmissionItem{Verdict: exportv4.SubmissionItemVerdict(item.GetVerdict()),
+			AnswerSlots: []exportv4.SubmissionItemAnswerSlot{}}
 		for _, slot := range item.GetAnswerSlots() {
 			place, err := protoJSON.Marshal(slot.GetAnswerSlot())
 			if err != nil {
-				return exportv3.Submission{}, fmt.Errorf("export: write an answer slot: %w", err)
+				return exportv4.Submission{}, fmt.Errorf("export: write an answer slot: %w", err)
 			}
-			at := exportv3.SubmissionItemAnswerSlot{AnswerSlot: place,
-				Verdict: exportv3.SubmissionItemAnswerSlotVerdict(slot.GetVerdict())}
+			at := exportv4.SubmissionItemAnswerSlot{AnswerSlot: place,
+				Verdict: exportv4.SubmissionItemAnswerSlotVerdict(slot.GetVerdict())}
 			if r := slot.GetReason(); r != "" {
-				reason := exportv3.SubmissionItemAnswerSlotReason(r)
+				reason := exportv4.SubmissionItemAnswerSlotReason(r)
 				at.Reason = &reason
 			}
 			if slot.Value != nil {
 				value := slot.GetValue()
 				at.Value = &value
 				if observation == nil {
-					s.TappedChoices = append(s.TappedChoices, exportv3.SubmissionTappedChoice{AnswerSlot: place, Value: value})
+					s.TappedChoices = append(s.TappedChoices, exportv4.SubmissionTappedChoice{AnswerSlot: place, Value: value})
 				}
 			}
 			out.AnswerSlots = append(out.AnswerSlots, at)
@@ -259,11 +306,11 @@ func (x *Exporter) submission(s exportv3.Submission, answer, observation []byte)
 	if observation != nil {
 		var o observationv1.Observation
 		if err := proto.Unmarshal(observation, &o); err != nil {
-			return exportv3.Submission{}, fmt.Errorf("export: read an observation: %w", err)
+			return exportv4.Submission{}, fmt.Errorf("export: read an observation: %w", err)
 		}
 		data, err := protoJSON.Marshal(&o)
 		if err != nil {
-			return exportv3.Submission{}, fmt.Errorf("export: write an observation: %w", err)
+			return exportv4.Submission{}, fmt.Errorf("export: write an observation: %w", err)
 		}
 		raw := json.RawMessage(data)
 		s.Observation = &raw
@@ -275,19 +322,19 @@ func (x *Exporter) submission(s exportv3.Submission, answer, observation []byte)
 // what an item that gave none got, by its last reason.
 var (
 	verdicts = map[learnermodel.Verdict]string{learnermodel.VerdictCorrect: "correct", learnermodel.VerdictNotYet: "not_yet"}
-	reasons  = map[learnermodel.UnverdictedReason]exportv3.AttemptItemUnverdictedReasons{
-		learnermodel.UnverdictedUnreadableBlank: exportv3.AttemptItemUnverdictedReasonsUnreadableBlank,
-		learnermodel.UnverdictedUnreadableOther: exportv3.AttemptItemUnverdictedReasonsUnreadableOther,
-		learnermodel.UnverdictedUnchecked:       exportv3.AttemptItemUnverdictedReasonsUnchecked,
+	reasons  = map[learnermodel.UnverdictedReason]exportv4.AttemptItemUnverdictedReasons{
+		learnermodel.UnverdictedUnreadableBlank: exportv4.AttemptItemUnverdictedReasonsUnreadableBlank,
+		learnermodel.UnverdictedUnreadableOther: exportv4.AttemptItemUnverdictedReasonsUnreadableOther,
+		learnermodel.UnverdictedUnchecked:       exportv4.AttemptItemUnverdictedReasonsUnchecked,
 	}
 )
 
 // attemptItem is what came of an item, as the export writes it: an item with
 // no verdict of correct or not yet has its last reason's — unreadable, or
 // unchecked, which an item never submitted is too.
-func attemptItem(item learnermodel.ItemAnswer) exportv3.AttemptItem {
-	out := exportv3.AttemptItem{Place: int64(item.Place), Submitted: item.Submitted,
-		UnverdictedReasons:             []exportv3.AttemptItemUnverdictedReasons{},
+func attemptItem(item learnermodel.ItemAnswer) exportv4.AttemptItem {
+	out := exportv4.AttemptItem{Place: int64(item.Place), Submitted: item.Submitted,
+		UnverdictedReasons:             []exportv4.AttemptItemUnverdictedReasons{},
 		WrongAnswersBeforeFirstVerdict: int64(item.WrongBeforeFirst), WrongAnswersBeforeFirstCorrect: int64(item.WrongBeforeFirstCorrect)}
 	none := "unchecked"
 	for _, r := range item.Unverdicted {
@@ -298,12 +345,12 @@ func attemptItem(item learnermodel.ItemAnswer) exportv3.AttemptItem {
 			none = "unchecked"
 		}
 	}
-	out.FirstVerdict, out.FinalVerdict = exportv3.AttemptItemFirstVerdict(none), exportv3.AttemptItemFinalVerdict(none)
+	out.FirstVerdict, out.FinalVerdict = exportv4.AttemptItemFirstVerdict(none), exportv4.AttemptItemFinalVerdict(none)
 	if item.HasFirstVerdict {
-		out.FirstVerdict = exportv3.AttemptItemFirstVerdict(verdicts[item.FirstVerdict])
+		out.FirstVerdict = exportv4.AttemptItemFirstVerdict(verdicts[item.FirstVerdict])
 	}
 	if item.HasFinalVerdict {
-		out.FinalVerdict = exportv3.AttemptItemFinalVerdict(verdicts[item.FinalVerdict])
+		out.FinalVerdict = exportv4.AttemptItemFinalVerdict(verdicts[item.FinalVerdict])
 	}
 	return out
 }
@@ -326,7 +373,7 @@ func (x *Exporter) json(t protoreflect.MessageType, data []byte) (json.RawMessag
 // state, and the observation's when a submission is there. Its entries are
 // deflated, in the order of their names, at the same time, so that one export
 // is the same bytes.
-func (x *Exporter) zip(account *exportv3.Account, profiles []exportv3.Profile, submissions bool) ([]byte, error) {
+func (x *Exporter) zip(account *exportv4.Account, profiles []exportv4.Profile, submissions bool) ([]byte, error) {
 	entries := map[string][]byte{}
 	if account != nil {
 		data, err := json.Marshal(account)

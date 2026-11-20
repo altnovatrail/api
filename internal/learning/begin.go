@@ -114,8 +114,11 @@ func (s *Service) started(ctx context.Context, tx pgx.Tx, req *v1.BeginAttemptRe
 		}
 		// An earlier attempt of a segment too: the new one goes outside the lesson.
 		earlier, err := store.HoldAttempt(ctx, tx, profileID, id)
-		if err != nil {
+		switch {
+		case err != nil:
 			return begun{}, err
+		case earlier.Paper:
+			return begun{}, store.ErrPaper
 		}
 		return begun{module: formatv0.ModuleID(earlier.ModuleID), task: formatv0.TaskID(earlier.TaskID), previousID: &id}, nil
 	default:

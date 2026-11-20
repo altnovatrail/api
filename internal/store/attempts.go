@@ -26,6 +26,9 @@ var (
 	// ErrChoiceBegun is an engine's choice of a task that has begun an attempt
 	// already.
 	ErrChoiceBegun = errors.New("store: the choice has begun an attempt already")
+	// ErrPaper is an attempt of a task from paper, which has no package and no
+	// task of a module (R10).
+	ErrPaper = errors.New("store: the attempt is of a task from paper")
 )
 
 // Choice is what an engine's choice names, as far as the beginning of an
@@ -54,9 +57,12 @@ func ChoiceOf(ctx context.Context, db Querier, profileID, choiceID string) (Choi
 	return c, nil
 }
 
-// Attempt is an attempt's row, as the requests on it read it.
+// Attempt is an attempt's row, as the requests on it read it. One of a task
+// from paper has Paper, and the fields of a module, its package, its task and
+// its seed empty.
 type Attempt struct {
 	ID             string
+	Paper          bool
 	PackageDigest  string
 	ModuleID       string
 	ModuleVersion  string
@@ -80,21 +86,26 @@ type Attempt struct {
 	// CorrectWordsGiven says whether the tutor's words after a correct answer
 	// were given on it (R09).
 	CorrectWordsGiven bool
+	// PaperKey is the key of an attempt of a task from paper, the message Key of
+	// novatrail.paper.v1, while the attempt is open: nil before the first
+	// submission derived it (R162 spec).
+	PaperKey []byte
 }
 
 // attemptColumns are the columns of an Attempt, in scanAttempt's order.
-const attemptColumns = `id, package_digest, module_id, module_version, module_format_version,
-	module_kit_version, task_id, seed, instance, choice_id, lesson_run_id, segment, previous_attempt_id,
+const attemptColumns = `id, kind = 'paper', coalesce(package_digest, ''), coalesce(module_id, ''),
+	coalesce(module_version, ''), coalesce(module_format_version, ''), coalesce(module_kit_version, ''),
+	coalesce(task_id, ''), coalesce(seed, 0), instance, choice_id, lesson_run_id, segment, previous_attempt_id,
 	last_action_at, close_reason, wrong_answers, step_techniques_at IS NOT NULL,
-	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given`
+	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given, paper_key`
 
 func scanAttempt(row pgx.Row) (Attempt, error) {
 	var a Attempt
 	var seed int64
-	err := row.Scan(&a.ID, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.FormatVersion, &a.ModuleKit,
+	err := row.Scan(&a.ID, &a.Paper, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.FormatVersion, &a.ModuleKit,
 		&a.TaskID, &seed, &a.Instance, &a.ChoiceID, &a.LessonRunID, &a.Segment, &a.PreviousID, &a.LastActionAt,
 		&a.CloseReason, &a.WrongAnswers, &a.StepTechniques, &a.RequestedTechniques, &a.LeadingQuestion,
-		&a.CorrectWordsGiven)
+		&a.CorrectWordsGiven, &a.PaperKey)
 	// The seed is module-kit's uint64, kept as the bits of a bigint.
 	a.Seed = uint64(seed)
 	return a, err
@@ -117,17 +128,20 @@ func HoldAttempt(ctx context.Context, tx pgx.Tx, profileID, attemptID string) (A
 
 // AttemptTask is the package and the task of the profile's attempt, read with
 // no lock: what an attempt is of never changes, so a request may choose its way
-// by it before it holds the attempt.
+// by it before it holds the attempt. One of a task from paper is ErrPaper.
 func AttemptTask(ctx context.Context, db Querier, profileID, attemptID string) (digest, taskID string, err error) {
+	var d, t *string
 	err = db.QueryRow(ctx, `SELECT package_digest, task_id FROM attempts WHERE profile_id = $1 AND id = $2`,
-		profileID, attemptID).Scan(&digest, &taskID)
+		profileID, attemptID).Scan(&d, &t)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return "", "", ErrNotFound
 	case err != nil:
 		return "", "", fmt.Errorf("store: read the attempt's task: %w", err)
+	case d == nil:
+		return "", "", ErrPaper
 	}
-	return digest, taskID, nil
+	return *d, *t, nil
 }
 
 // NewAttempt is what an attempt begins with: its package, the versions its
@@ -150,11 +164,12 @@ type NewAttempt struct {
 	Segment     *int
 }
 
-// HoldOpenAttempt is the profile's open attempt, its row held FOR UPDATE in tx,
-// and whether it has one.
+// HoldOpenAttempt is the profile's open attempt of a task of a module, its row
+// held FOR UPDATE in tx, and whether it has one: the open attempts of a page
+// from paper stay beside it (R10).
 func HoldOpenAttempt(ctx context.Context, tx pgx.Tx, profileID string) (Attempt, bool, error) {
 	a, err := scanAttempt(tx.QueryRow(ctx, `SELECT `+attemptColumns+` FROM attempts
-		WHERE profile_id = $1 AND closed_at IS NULL FOR UPDATE`, profileID))
+		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'module' FOR UPDATE`, profileID))
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return Attempt{}, false, nil
@@ -165,7 +180,7 @@ func HoldOpenAttempt(ctx context.Context, tx pgx.Tx, profileID string) (Attempt,
 }
 
 // BeginAttempt begins a at at, in tx, once the profile's open attempt is closed:
-// the profile has one open attempt (R10). A choice that has begun an attempt
+// the profile has one open attempt of a module (R10). A choice that has begun an attempt
 // already is ErrChoiceBegun.
 func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt, at time.Time) (string, error) {
 	var id string
@@ -185,6 +200,33 @@ func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt
 	return id, nil
 }
 
+// BeginPaperAttempts closes "left", at at, in tx, the profile's open attempts
+// of tasks from paper of another page than pageID, and begins n attempts of
+// tasks from paper on it, one of each, their IDs in order (R10, R101). An
+// attempt of paper gives no evidence, so the close settles none. Its caller
+// holds the account's row FOR NO KEY UPDATE (HoldAccount), so that two
+// beginnings of one profile go one after the other and the second sees the
+// first's attempts.
+func BeginPaperAttempts(ctx context.Context, tx pgx.Tx, profileID, pageID string, n int, at time.Time) ([]string, error) {
+	if _, err := tx.Exec(ctx, `UPDATE attempts SET close_reason = 'left', closed_at = $2
+		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'paper' AND paper_page IS DISTINCT FROM $3`,
+		profileID, at, pageID); err != nil {
+		return nil, fmt.Errorf("store: close the attempts of the page before: %w", err)
+	}
+	// One statement, so that the order of the IDs is the order of the tasks.
+	rows, err := tx.Query(ctx, `INSERT INTO attempts (profile_id, kind, paper_page, started_at, last_action_at)
+		SELECT $1, 'paper', $4, $2, $2 FROM generate_series(1, $3) AS t(n) ORDER BY t.n RETURNING id`,
+		profileID, at, n, pageID)
+	if err != nil {
+		return nil, fmt.Errorf("store: begin the attempts of the page: %w", err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("store: begin the attempts of the page: %w", err)
+	}
+	return ids, nil
+}
+
 // ChoiceBegun says whether the engine's choice has begun an attempt.
 func ChoiceBegun(ctx context.Context, db Querier, profileID, choiceID string) (bool, error) {
 	var begun bool
@@ -194,6 +236,21 @@ func ChoiceBegun(ctx context.Context, db Querier, profileID, choiceID string) (b
 		return false, fmt.Errorf("store: read the choice's attempt: %w", err)
 	}
 	return begun, nil
+}
+
+// SetPaperKey keeps the key of the profile's open attempt of a task from paper,
+// the message Key of novatrail.paper.v1, until the attempt closes (R162 spec).
+// An attempt that is not of paper, or closed, keeps none.
+func SetPaperKey(ctx context.Context, tx pgx.Tx, profileID, attemptID string, key []byte) error {
+	tag, err := tx.Exec(ctx, `UPDATE attempts SET paper_key = $3
+		WHERE profile_id = $1 AND id = $2 AND kind = 'paper' AND closed_at IS NULL`, profileID, attemptID, key)
+	if err != nil {
+		return fmt.Errorf("store: keep the key of the attempt: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return errors.New("store: no open attempt of paper to keep the key of")
+	}
+	return nil
 }
 
 // CloseAttempt closes the open attempt with reason at at; one closed already
@@ -354,11 +411,11 @@ type OpenAttempt struct {
 	Segment     *int
 }
 
-// openAttempts is the open attempt of each of the account's profiles that has
-// one, by the profile's ID.
+// openAttempts is the open attempt of a module of each of the account's
+// profiles that has one, by the profile's ID.
 func openAttempts(ctx context.Context, tx pgx.Tx, accountID string) (map[string]OpenAttempt, error) {
 	rows, err := tx.Query(ctx, `SELECT a.profile_id, a.id, a.lesson_run_id, a.segment FROM attempts a
-		JOIN profiles p ON p.id = a.profile_id WHERE p.account_id = $1 AND a.closed_at IS NULL`, accountID)
+		JOIN profiles p ON p.id = a.profile_id WHERE p.account_id = $1 AND a.closed_at IS NULL AND a.kind = 'module'`, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the open attempts: %w", err)
 	}

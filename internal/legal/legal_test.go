@@ -181,9 +181,9 @@ func TestThePolicyOfTheTagByTheDay(t *testing.T) {
 		{"2026-11-26T12:00:00Z", 2, 3, "2026-11-27", time.Hour, "public, max-age=3600", true, false},
 		{"2026-11-26T23:30:00Z", 2, 3, "2026-11-27", 30 * time.Minute, "public, max-age=1800", true, false},
 		{"2026-11-26T23:59:59.5Z", 2, 3, "2026-11-27", 500 * time.Millisecond, "public, max-age=0", true, false},
-		{"2026-11-27T00:00:00Z", 3, 4, "2026-11-28", time.Hour, "public, max-age=3600", false, true},
-		{"2026-11-27T23:30:00Z", 3, 4, "2026-11-28", 30 * time.Minute, "public, max-age=1800", false, true},
-		{"2026-11-28T00:00:00Z", 4, 0, "", time.Hour, "public, max-age=3600", false, false},
+		{"2026-11-27T00:00:00Z", 3, 5, "2026-11-28", time.Hour, "public, max-age=3600", false, true},
+		{"2026-11-27T23:30:00Z", 3, 5, "2026-11-28", 30 * time.Minute, "public, max-age=1800", false, true},
+		{"2026-11-28T00:00:00Z", 5, 0, "", time.Hour, "public, max-age=3600", false, false},
 		{"2026-11-27T01:00:00+02:00", 2, 3, "2026-11-27", time.Hour, "public, max-age=3600", true, false},
 	} {
 		now := at(t, tc.moment)

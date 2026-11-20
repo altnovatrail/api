@@ -47,6 +47,7 @@ func TestTheOwnersProfileIsAnAdultsWithItsConsentAndTuple(t *testing.T) {
 		ProfileId: got.GetProfileId(), Owner: true, Pseudonym: "Owl", AgeCategory: "adult", Country: "US",
 		PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &off, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
 		DefaultMode:       v1.Mode_MODE_BY_STEPS,
+		HintMode:          v1.HintMode_HINT_MODE_SHOW_WHERE,
 		Consent:           &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_OWNER, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
 	}
 	if !proto.Equal(got, want) {
@@ -200,6 +201,56 @@ func TestTheVoicingAloneIsSetFromATask(t *testing.T) {
 	want.PresentationStyle.Voicing.Enabled = ptr(true)
 	if !proto.Equal(res.GetProfile(), want) {
 		t.Errorf("SetVoicing = %v\nwant %v", res.GetProfile(), want)
+	}
+}
+
+func TestTheHintModeAloneIsSetFromTheMenu(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	w.allow(t, "US")
+	ctx := w.owner(t, "uid-owner")
+	before := w.ownerProfile(t, ctx)
+	res, err := w.client.SetHintMode(ctx, &v1.SetHintModeRequest{ProfileId: before.GetProfileId(),
+		HintMode: v1.HintMode_HINT_MODE_QUESTIONS_ONLY})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := proto.Clone(before).(*v1.Profile)
+	want.HintMode = v1.HintMode_HINT_MODE_QUESTIONS_ONLY
+	if !proto.Equal(res.GetProfile(), want) {
+		t.Errorf("SetHintMode = %v\nwant %v", res.GetProfile(), want)
+	}
+	// UpdateProfile leaves a mode not named as it is, and sets one named.
+	got, err := w.client.UpdateProfile(ctx, &v1.UpdateProfileRequest{ProfileId: before.GetProfileId(),
+		Settings: &v1.ProfileSettings{Avatar: ptr("fox")}})
+	if err != nil || got.GetProfile().GetHintMode() != v1.HintMode_HINT_MODE_QUESTIONS_ONLY {
+		t.Errorf("UpdateProfile without a mode = %v, %v; want questions only kept", got, err)
+	}
+	got, err = w.client.UpdateProfile(ctx, &v1.UpdateProfileRequest{ProfileId: before.GetProfileId(),
+		Settings: &v1.ProfileSettings{HintMode: v1.HintMode_HINT_MODE_SHOW_WHERE}})
+	if err != nil || got.GetProfile().GetHintMode() != v1.HintMode_HINT_MODE_SHOW_WHERE {
+		t.Errorf("UpdateProfile to show where = %v, %v", got, err)
+	}
+	_, err = w.client.SetHintMode(ctx, &v1.SetHintModeRequest{ProfileId: before.GetProfileId()})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("SetHintMode of no mode = %v; want invalid_argument", err)
+	}
+	_, err = w.client.UpdateProfile(ctx, &v1.UpdateProfileRequest{ProfileId: before.GetProfileId(),
+		Settings: &v1.ProfileSettings{HintMode: v1.HintMode(9)}})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("UpdateProfile of an unknown mode = %v; want invalid_argument", err)
+	}
+	// A child's mode is an adult's, on the profile's page.
+	child := w.childOf(t, ctx, "key-hints", 10)
+	_, err = w.client.SetHintMode(ctx, &v1.SetHintModeRequest{ProfileId: child, HintMode: v1.HintMode_HINT_MODE_QUESTIONS_ONLY})
+	if connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("SetHintMode of a child's profile = %v; want permission_denied", err)
+	}
+	got, err = w.client.UpdateProfile(ctx, &v1.UpdateProfileRequest{ProfileId: child,
+		Settings: &v1.ProfileSettings{HintMode: v1.HintMode_HINT_MODE_QUESTIONS_ONLY}})
+	if err != nil || got.GetProfile().GetHintMode() != v1.HintMode_HINT_MODE_QUESTIONS_ONLY {
+		t.Errorf("UpdateProfile of a child's mode = %v, %v", got, err)
 	}
 }
 

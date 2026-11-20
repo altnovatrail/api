@@ -198,6 +198,7 @@ func (s *Service) profile(p store.Profile) *v1.Profile {
 		InterfaceLanguage: p.InterfaceLanguage,
 		AskBeforeShowing:  p.AskBeforeShowing,
 		WorkStorage:       p.WorkStorage,
+		HintMode:          hintModes[p.HintMode],
 	}
 	if p.Grade != nil {
 		grade := int32(*p.Grade)
@@ -232,6 +233,10 @@ var (
 	voicingSpeeds = map[string]v1.VoicingSpeed{
 		"normal": v1.VoicingSpeed_VOICING_SPEED_NORMAL,
 		"slow":   v1.VoicingSpeed_VOICING_SPEED_SLOW,
+	}
+	hintModes = map[string]v1.HintMode{
+		"questions_only": v1.HintMode_HINT_MODE_QUESTIONS_ONLY,
+		"show_where":     v1.HintMode_HINT_MODE_SHOW_WHERE,
 	}
 	modes = map[string]v1.Mode{
 		"by_steps": v1.Mode_MODE_BY_STEPS,

@@ -234,6 +234,10 @@ func TestTheLaddersStatementsFail(t *testing.T) {
 			_, err := store.LastAttempt(ctx, tx, e.profileID, id)
 			return err
 		},
+		"SELECT interface_language, hint_mode": func(tx pgx.Tx) error {
+			_, _, err := store.PaperWordsOf(ctx, tx, e.profileID)
+			return err
+		},
 	} {
 		tx, err := (&flaky{Pool: e.pool, failOn: failOn}).Begin(ctx)
 		if err != nil {
@@ -243,5 +247,28 @@ func TestTheLaddersStatementsFail(t *testing.T) {
 			t.Errorf("on %q: %v, want the failure", failOn, err)
 		}
 		_ = tx.Rollback(ctx)
+	}
+}
+
+// The words of a task from paper read the profile's language of its interface,
+// none until it has one, and whether its hint mode is "Show where", a new
+// profile's; a profile that is not there is ErrNoProfile (R82 spec).
+func TestTheWordsOfPaperReadTheProfilesSettings(t *testing.T) {
+	t.Parallel()
+
+	e := newE3(t)
+	ctx := t.Context()
+	if language, showWhere, err := store.PaperWordsOf(ctx, e.pool, e.profileID); err != nil || language != "" || !showWhere {
+		t.Errorf("a new profile's settings = %q, %v, %v; want no language and Show where", language, showWhere, err)
+	}
+	if _, err := e.pool.Exec(ctx, `UPDATE profiles SET interface_language = 'ru-RU', hint_mode = 'questions_only' WHERE id = $1`,
+		e.profileID); err != nil {
+		t.Fatal(err)
+	}
+	if language, showWhere, err := store.PaperWordsOf(ctx, e.pool, e.profileID); err != nil || language != "ru-RU" || showWhere {
+		t.Errorf("the settings = %q, %v, %v; want ru-RU and Questions only", language, showWhere, err)
+	}
+	if _, _, err := store.PaperWordsOf(ctx, e.pool, "00000000-0000-0000-0000-000000000000"); !errors.Is(err, store.ErrNoProfile) {
+		t.Errorf("the settings of no profile = %v, want ErrNoProfile", err)
 	}
 }
