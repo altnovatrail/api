@@ -105,6 +105,21 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 	t.Parallel()
 
 	r := newRich(t)
+	// An open attempt of a task from paper, with its key, a submission with its
+	// observation, and a rung.
+	var paper string
+	if err := r.pool.QueryRow(t.Context(), `INSERT INTO attempts (profile_id, kind, paper_page, paper_key, wrong_answers)
+		VALUES ($1, 'paper', 'page-1', '\x07', 1) RETURNING id`, r.profile).Scan(&paper); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(t.Context(), `INSERT INTO submissions (profile_id, attempt_id, number, answer, observation) VALUES ($1, $2, 1, '\x08', '\x09')`,
+		r.profile, paper); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(t.Context(), `INSERT INTO attempt_rungs (profile_id, attempt_id, rung, source) VALUES ($1, $2, 1, 'model')`,
+		r.profile, paper); err != nil {
+		t.Fatal(err)
+	}
 	var e store.ExportedProfile
 	var a exportv4.Account
 	err := pgx.BeginFunc(t.Context(), r.pool, func(tx pgx.Tx) error {
@@ -140,6 +155,15 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		!at.LeadingQuestionGiven || len(at.Rungs) != 1 || !at.Rungs[0].ExplainedDifferently || len(at.Submissions) != 2 ||
 		len(at.Owed.Answers) != 2 || !at.Owed.StepTechniques || !at.Owed.RequestedTechniques || at.Owed.CloseReason != "solution_shown" {
 		t.Errorf("the attempt = %+v", at)
+	}
+	if len(e.PaperAttempts) != 1 {
+		t.Fatalf("attempts of paper = %+v", e.PaperAttempts)
+	}
+	pa := e.PaperAttempts[0]
+	if pa.Attempt.AttemptID != exportv4.ID(paper) || string(pa.Key) != "\x07" || pa.Attempt.WrongAnswers != 1 ||
+		pa.Attempt.BegunAt == "" || len(pa.Attempt.Rungs) != 1 || len(pa.Attempt.Submissions) != 1 || len(pa.Answers) != 1 ||
+		string(pa.Answers[0]) != "\x08" || len(e.Observations[paper]) != 1 {
+		t.Errorf("the attempt of paper = %+v, its observations %v", pa, e.Observations[paper])
 	}
 	if len(p.Works) != 1 || p.Works[0].AttemptID != exportv4.FileID(r.attempt) || p.Works[0].Kind != exportv4.WorkKindHandwriting ||
 		p.Works[0].StoredAt == "" || p.Works[0].SizeBytes != 3 {
@@ -188,8 +212,8 @@ func TestAFailedStatementOfTheExportIsAFailure(t *testing.T) {
 	r := newRich(t)
 	for _, failOn := range []string{"FROM accounts WHERE id", "SELECT id FROM profiles WHERE account_id", "FROM consents c",
 		"FROM account_texts", "SELECT active_on", "FROM connected_modules", "FROM lesson_runs WHERE", "FROM engine_choices WHERE",
-		"FROM work_storage_consents", "FROM problem_reports", "FROM attempts WHERE", "FROM attempt_rungs", "FROM submissions",
-		"FROM evidence", "FROM skill_states", "FROM works WHERE"} {
+		"FROM work_storage_consents", "FROM problem_reports", "FROM attempts WHERE", "kind = 'paper' AND closed_at IS NULL ORDER BY",
+		"FROM attempt_rungs", "FROM submissions", "FROM evidence", "FROM skill_states", "FROM works WHERE"} {
 		err := pgx.BeginFunc(t.Context(), &flaky{Pool: r.pool, failOn: failOn}, func(tx pgx.Tx) error {
 			if _, err := store.ExportProfile(t.Context(), tx, r.account, r.profile); err != nil {
 				return err

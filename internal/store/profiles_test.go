@@ -85,6 +85,23 @@ func TestTheOwnersProfileIsOneWithItsConsent(t *testing.T) {
 	if !errors.Is(err, store.ErrNoAccount) {
 		t.Errorf("a profile of no account = %v, want ErrNoAccount", err)
 	}
+
+	// The hint mode is "Show where" unless the profile is made with another (R100).
+	if created.HintMode != store.HintModeShowWhere {
+		t.Errorf("the hint mode of a profile made with none = %q, want show_where", created.HintMode)
+	}
+	other := account(t, pool)
+	if _, err := pool.Exec(ctx, `UPDATE accounts SET adult_stated_at = now() WHERE id = $1`, other); err != nil {
+		t.Fatal(err)
+	}
+	p.HintMode = "questions_only"
+	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		created, err = store.CreateOwnerProfile(ctx, tx, other, p)
+		return err
+	})
+	if err != nil || created.HintMode != "questions_only" {
+		t.Errorf("a profile made with Questions only = %q, %v; want it kept", created.HintMode, err)
+	}
 }
 
 func TestAProfileIsChangedOnlyByItsAccount(t *testing.T) {

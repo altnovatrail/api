@@ -2,6 +2,7 @@ package learning_test
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/altnovatrail/tutor"
 	"github.com/google/uuid"
 
+	"github.com/altnovatrail/api/internal/config"
 	"github.com/altnovatrail/api/internal/learning"
 	"github.com/altnovatrail/api/internal/tutorstub"
 )
@@ -91,7 +93,9 @@ func TestATaskFromPaperGetsTheTutorsWords(t *testing.T) {
 }
 
 // A task from paper with no wrong answer has no rung, a task of a module no
-// opening question, and the opening question takes the task's crop.
+// opening question, and the opening question takes the task's crop, a profile
+// of the caller's and an own key with its value; after a wrong answer the
+// words of a rung take the crop of paper.
 func TestTheOpeningQuestionRefusesWhatTheContractRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -108,8 +112,216 @@ func TestTheOpeningQuestionRefusesWhatTheContractRefuses(t *testing.T) {
 	if _, err := w.opening(t, l, l.adult, m, uuid.NewString()); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Errorf("the opening question on a task of a module: %v, want invalid_argument", err)
 	}
+	_, err = w.attempts.GetOpeningWords(l.ctx, &v1.GetOpeningWordsRequest{ProfileId: uuid.NewString(), AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Statement: photoOf(t, formulaStatement[0], formulaStatement[1])})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
+	_, err = w.attempts.GetOpeningWords(l.ctx, &v1.GetOpeningWordsRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Statement: photoOf(t, formulaStatement[0], formulaStatement[1]), OwnKey: &v1.OwnKey{Provider: "anthropic"}})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("the opening question on an own key with no value: %v, want invalid_argument", err)
+	}
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 0 || profile.Reserved != 0 {
 		t.Errorf("the counter = %+v, want nothing spent", profile)
+	}
+	if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))}); err != nil {
+		t.Fatal(err)
+	}
+	wrong := int32(1)
+	_, err = w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+		WrongAnswers: &wrong, Work: sheet(pngOf(t, 40, 30))})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("the words of a rung of paper with the work of a sheet: %v, want invalid_argument", err)
+	}
+}
+
+// Where the deployment admits no words of a task from paper, the opening
+// question is the platform's fallback text in the language of the profile's
+// interface, with the outcome "not admitted", no call and nothing spent; the
+// attempt keeps none, and a repeat under the key gets the fallback text again.
+// A repeat on an attempt that lapsed is refused "closed", the close left to the
+// next request, which writes it; and once it is closed a repeat is refused too.
+func TestTheOpeningQuestionNotAdmittedIsTheFallbackText(t *testing.T) {
+	t.Parallel()
+
+	// The reading is admitted, so that the page begins; at the stage full no words are.
+	w := worldOf(t, gate(t, adultFacts, config.RungFull), []learning.Option{learning.WithAdmits(func(tutor.Call) bool { return true })})
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	w.exec(t, `UPDATE profiles SET interface_language = 'ru-RU' WHERE id = $1`, l.adult)
+	key := uuid.NewString()
+	for i, k := range []string{key, key, uuid.NewString()} {
+		res, err := w.opening(t, l, l.adult, a, k)
+		if err != nil || res.GetWords() != tutor.PaperFallback(0, "ru-RU") || res.GetRepeated() || res.GetOutcome().GetCause() != v1.Cause_CAUSE_NOT_ADMITTED {
+			t.Errorf("request %d = %v, %v; want the fallback text in Russian, not admitted", i+1, res, err)
+		}
+	}
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 0 || profile.Reserved != 0 {
+		t.Errorf("the counter = %+v, want nothing spent", profile)
+	}
+
+	w.exec(t, `UPDATE attempts SET last_action_at = last_action_at - interval '8 days' WHERE id = $1`, a)
+	_, err := w.opening(t, l, l.adult, a, key)
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
+	_, err = w.opening(t, l, l.adult, a, uuid.NewString())
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
+	if w.closeOf(t, a) != "abandoned" {
+		t.Errorf("the attempt closed %q, want abandoned", w.closeOf(t, a))
+	}
+	_, err = w.opening(t, l, l.adult, a, key)
+	if r := refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED); r.GetCloseReason() != v1.CloseReason_CLOSE_REASON_ABANDONED {
+		t.Errorf("the repeat on the closed attempt = %v, want closed abandoned", r)
+	}
+}
+
+// The model's opening question that is empty, breaks the form of a hint or
+// does not come is the fallback text, which the attempt does not keep: the
+// next request calls again. The checks go to the request's line of the log.
+func TestTheOpeningQuestionTurnedDownIsTheFallbackText(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var next tutor.WordsAnswer
+	tell := func(context.Context, tutor.PaperWordsRequest) tutor.WordsAnswer {
+		mu.Lock()
+		defer mu.Unlock()
+		return next
+	}
+	g := stubGate(t)
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g)), learning.WithPaperWords(tell)})
+	l := w.learner(t)
+	for _, tc := range []struct {
+		name  string
+		got   tutor.WordsAnswer
+		cause v1.Cause
+		check string
+	}{
+		{"no words", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Answered}}, v1.Cause_CAUSE_UNSPECIFIED, "empty"},
+		{"no question", tutor.WordsAnswer{Question: "Look at the numbers.", Outcome: tutor.Outcome{Kind: tutor.Answered}}, v1.Cause_CAUSE_UNSPECIFIED, "form"},
+		{"AI failed", tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed}}, v1.Cause_CAUSE_AI_FAILURE, ""},
+	} {
+		mu.Lock()
+		next = tc.got
+		mu.Unlock()
+		a := w.beginPage(t, l, l.adult, 1)[0]
+		before := len(w.log.String())
+		res, err := w.opening(t, l, l.adult, a, uuid.NewString())
+		if err != nil || res.GetWords() != tutor.PaperFallback(0, "en") || res.GetOutcome().GetCause() != tc.cause || res.GetRepeated() {
+			t.Errorf("%s = %v, %v; want the fallback text with %v", tc.name, res, err, tc.cause)
+		}
+		if line := w.log.String()[before:]; tc.check != "" && !strings.Contains(line, `"words_check":"`+tc.check+`"`) ||
+			tc.check == "" && strings.Contains(line, "words_check") {
+			t.Errorf("%s: the request's line = %s, want the check %q", tc.name, line, tc.check)
+		}
+		mu.Lock()
+		next = tutor.WordsAnswer{Question: "What do you add first?", Outcome: tutor.Outcome{Kind: tutor.Answered}}
+		mu.Unlock()
+		if again, err := w.opening(t, l, l.adult, a, uuid.NewString()); err != nil || again.GetWords() != "What do you add first?" || again.GetRepeated() {
+			t.Errorf("%s: the next request = %v, %v; want the model's words, called again", tc.name, again, err)
+		}
+	}
+}
+
+// Words another request kept while the model worded the opening question are
+// the attempt's: the request gets them, repeated, and keeps none of its own.
+// An attempt that closed meanwhile refuses it "closed", and keeps no words.
+func TestTheOpeningQuestionKeptMeanwhileIsTheAttempts(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var during func()
+	calls := 0
+	tell := func(context.Context, tutor.PaperWordsRequest) tutor.WordsAnswer {
+		mu.Lock()
+		d := during
+		during = nil
+		calls++
+		n := calls
+		mu.Unlock()
+		if d != nil {
+			d()
+		}
+		q := "What do you add first?"
+		if n%2 == 0 {
+			q = "Which sum do you see?"
+		}
+		return tutor.WordsAnswer{Question: q, Outcome: tutor.Outcome{Kind: tutor.Answered}}
+	}
+	g := stubGate(t)
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g)), learning.WithPaperWords(tell)})
+	l := w.learner(t)
+	page := w.beginPage(t, l, l.adult, 2)
+	statement := photoOf(t, formulaStatement[0], formulaStatement[1])
+	var meanwhile string
+	mu.Lock()
+	during = func() {
+		res, err := w.attempts.GetOpeningWords(l.ctx, &v1.GetOpeningWordsRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
+			Statement: statement})
+		if err != nil {
+			t.Errorf("the request meanwhile: %v", err)
+		}
+		meanwhile = res.GetWords()
+	}
+	mu.Unlock()
+	res, err := w.opening(t, l, l.adult, page[0], uuid.NewString())
+	if err != nil || meanwhile != "Which sum do you see?" || res.GetWords() != meanwhile || !res.GetRepeated() || res.GetOutcome() != nil {
+		t.Errorf("the opening question = %v, %v; want the words kept meanwhile, %q, repeated", res, err, meanwhile)
+	}
+
+	mu.Lock()
+	during = func() {
+		if _, err := w.pool.Exec(context.Background(), `UPDATE attempts SET close_reason = 'left', closed_at = now() WHERE id = $1`, page[1]); err != nil {
+			t.Errorf("the close meanwhile: %v", err)
+		}
+	}
+	mu.Unlock()
+	_, err = w.opening(t, l, l.adult, page[1], uuid.NewString())
+	if r := refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED); r.GetCloseReason() != v1.CloseReason_CLOSE_REASON_LEFT {
+		t.Errorf("the refusal = %v, want closed left", r)
+	}
+	var rungs int
+	if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM attempt_rungs WHERE attempt_id = $1`, page[1]).Scan(&rungs); err != nil || rungs != 0 {
+		t.Errorf("the closed attempt keeps %d rungs (%v), want none", rungs, err)
+	}
+}
+
+// The words of a rung of a task from paper read the values of the submission
+// that gave the rung, not of one before it; until they are asked for, "Hint"
+// gives the platform's fallback text of the rung in the language of the
+// profile's interface.
+func TestTheWordsOfARungReadTheSubmissionThatGaveIt(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var asked []tutor.PaperWordsRequest
+	tell := func(_ context.Context, r tutor.PaperWordsRequest) tutor.WordsAnswer {
+		mu.Lock()
+		defer mu.Unlock()
+		asked = append(asked, r)
+		return tutor.WordsAnswer{Question: "Which step would you check first?", Outcome: tutor.Outcome{Kind: tutor.Answered}}
+	}
+	g := stubGate(t)
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g)), learning.WithPaperWords(tell)})
+	l := w.learner(t)
+	w.exec(t, `UPDATE profiles SET interface_language = 'ru-RU' WHERE id = $1`, l.adult)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	// A square crop is illegible, no wrong answer; one wider than tall is a wrong value.
+	for _, crop := range [][2]int{{30, 30}, {40, 30}} {
+		if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+			Work: paperWork(t, formulaStatement, pngOf(t, crop[0], crop[1]))}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if h := w.hint(t, l, l.adult, a); h.GetRung().GetWords() != tutor.PaperFallback(1, "ru-RU") || h.GetRung().GetRung() != 1 {
+		t.Errorf("Hint before the words = %v, want the fallback text of rung 1 in Russian", h)
+	}
+	if _, err := w.paperRungWords(t, l, l.adult, a, 1); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(asked) != 1 || asked[0].Ask != tutor.PaperRung || len(asked[0].Tasks) != 1 || asked[0].Tasks[0].Read != "851" || asked[0].Task != 1 {
+		t.Errorf("the calls = %+v, want one of rung 1 with the value 851 of the wrong answer", asked)
 	}
 }
 

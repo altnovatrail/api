@@ -3,6 +3,8 @@ package learning
 import (
 	"testing"
 
+	"github.com/altnovatrail/module-kit/paper"
+	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
@@ -69,5 +71,51 @@ func TestASubmissionIsJudgedByTheKeyItsWorkWasReadAgainst(t *testing.T) {
 		if k != c.want || keep != c.keep {
 			t.Errorf("%s: judged by %v, kept %v", c.name, k, keep)
 		}
+	}
+}
+
+// Two readers differ by the value of a slot or why it is unreadable, and by a
+// slot one of them gave and the other did not; where each saw a slot does not
+// count.
+func TestTwoReadersDifferByWhatTheyRead(t *testing.T) {
+	t.Parallel()
+
+	place := &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}
+	unreadable := func(why observationv1.Unreadable, box *observationv1.CropBox) *observationv1.Observation {
+		return &observationv1.Observation{AnswerSlots: []*observationv1.AnswerSlotObservation{{AnswerSlot: place,
+			Read: &observationv1.AnswerSlotObservation_Unreadable{Unreadable: why}, CropBox: box}}}
+	}
+	illegible := unreadable(observationv1.Unreadable_UNREADABLE_ILLEGIBLE, nil)
+	for name, tc := range map[string]struct {
+		b      *observationv1.Observation
+		differ bool
+	}{
+		"the same reason, seen elsewhere": {unreadable(observationv1.Unreadable_UNREADABLE_ILLEGIBLE, &observationv1.CropBox{Ymax: 10, Xmax: 10}), false},
+		"another reason":                  {unreadable(observationv1.Unreadable_UNREADABLE_BLANK, nil), true},
+		"no slot":                         {&observationv1.Observation{}, true},
+	} {
+		if got := readDiffer(illegible, tc.b); got != tc.differ {
+			t.Errorf("%s: readDiffer = %v, want %v", name, got, tc.differ)
+		}
+	}
+}
+
+// The value the learner reads is the one a reader wrote that is brought to the
+// value judged, the first such, past a reader that gave no slot; with none, it
+// is the value judged.
+func TestTheValueShownIsTheOneWritten(t *testing.T) {
+	t.Parallel()
+
+	key := &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "85", Unknown: "x"}}}
+	judged := paper.BroughtValue(key, "x = 85")
+	read := func(value string) *observationv1.Observation {
+		return &observationv1.Observation{AnswerSlots: []*observationv1.AnswerSlotObservation{{AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1},
+			Read: &observationv1.AnswerSlotObservation_Value{Value: value}}}}
+	}
+	if got := writtenAs(key, judged, []*observationv1.Observation{{}, read("x = 85")}); got != "x = 85" {
+		t.Errorf("the value shown = %q, want the second reader's x = 85", got)
+	}
+	if got := writtenAs(key, judged, []*observationv1.Observation{read("86")}); got != judged {
+		t.Errorf("the value shown with none brought to it = %q, want %q", got, judged)
 	}
 }

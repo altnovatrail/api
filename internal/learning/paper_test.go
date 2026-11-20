@@ -341,8 +341,8 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 }
 
 // An attempt of a task from paper has no solution to show, no steps, no rubric,
-// no open view and no stored work (R162 spec); nor is it begun again as a task
-// of a module.
+// no open view, no words after a correct answer and no stored work (R162
+// spec); nor is it begun again as a task of a module.
 func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 	t.Parallel()
 
@@ -368,6 +368,11 @@ func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 		"SubmitEssay": func() error {
 			_, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
 				Crop: pngOf(t, 40, 10)})
+			return err
+		},
+		"GetCorrectAnswerWords": func() error {
+			_, err := w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: a,
+				IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, 40, 10))})
 			return err
 		},
 		"PutWork": func() error {

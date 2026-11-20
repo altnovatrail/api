@@ -216,6 +216,51 @@ func TestServeStartsServesAndStops(t *testing.T) {
 	}
 }
 
+// serve starts with the debug mode of a local run opened, beside the
+// platform's key it needs, and serves DebugService under the checks of every
+// method: with no token, unauthenticated (R97).
+func TestServeStartsWithTheDebugMode(t *testing.T) {
+	t.Parallel()
+
+	ctx, stop := context.WithCancel(t.Context())
+	var stdout, stderr syncBuffer
+	exited := make(chan int, 1)
+	environ := serveEnviron(t, "PORT=0", "API_DEBUG_MODELS=1", "API_ANTHROPIC_KEY=sk-test")
+	go func() { exited <- run(ctx, []string{"serve"}, environ, &stdout, &stderr) }()
+	deadline := time.Now().Add(30 * time.Second)
+	port := ""
+	for port == "" {
+		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
+			port = fmt.Sprint(lines[0]["port"])
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the service wrote no startup line: %s %s", stdout.String(), stderr.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	var answer *http.Response
+	var err error
+	for {
+		answer, err = http.Post("http://127.0.0.1:"+port+"/novatrail.api.v1.DebugService/GetDebug", "application/proto", http.NoBody)
+		if err == nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = answer.Body.Close()
+	if answer.StatusCode != http.StatusUnauthorized {
+		t.Errorf("GetDebug with no token = %d, want 401", answer.StatusCode)
+	}
+	stop()
+	if code := <-exited; code != exitOK {
+		t.Errorf("exit code = %d, want 0; stderr %q", code, stderr.String())
+	}
+}
+
 // A taken port is a failed start, logged once, by its kind.
 func TestATakenPortIsAFailedStartLoggedOnce(t *testing.T) {
 	t.Parallel()

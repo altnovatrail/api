@@ -279,6 +279,17 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			_, err := store.BeginAttempt(t.Context(), tx, profile, store.NewAttempt{}, time.Now())
 			return err
 		}},
+		{"paper_page IS DISTINCT FROM", func(tx pgx.Tx) error {
+			_, err := store.BeginPaperAttempts(t.Context(), tx, profile, "page-1", 1, time.Now())
+			return err
+		}},
+		{"generate_series", func(tx pgx.Tx) error {
+			_, err := store.BeginPaperAttempts(t.Context(), tx, profile, "page-1", 1, time.Now())
+			return err
+		}},
+		{"SET paper_key", func(tx pgx.Tx) error {
+			return store.SetPaperKey(t.Context(), tx, profile, none, []byte{})
+		}},
 		{"choice_id = $2", func(tx pgx.Tx) error {
 			_, err := store.ChoiceBegun(t.Context(), tx, profile, none)
 			return err

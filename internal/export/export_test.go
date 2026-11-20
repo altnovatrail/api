@@ -217,9 +217,10 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT correction_id FROM evidence WHERE profile_id = $1 AND attempt_id IS NULL`, profile).Scan(&correction); err != nil {
 		t.Fatal(err)
 	}
-	// A page of three tasks: the first checked once, its frame of two tasks keyed
-	// by the solver and with no answer, read with its observation and a rung; the
-	// second begun alone; the third closed, which leaves nothing to export.
+	// A page of three tasks: the first checked once, its frame of four tasks keyed
+	// by the solver, with no answer, by AI, and by a provenance this build knows
+	// not, read with its observation and a rung; the second begun alone; the third
+	// closed, which leaves nothing to export.
 	var page []string
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) (err error) {
 		page, err = store.BeginPaperAttempts(ctx, tx, profile, "page-1", 3, time.Now())
@@ -230,6 +231,9 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 			{Statement: "3 + 4 = □", Provenance: paperv1.Provenance_PROVENANCE_SOLVER,
 				Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "7"}}}},
 			{Statement: "Draw a cat."},
+			{Statement: "Ann has 3 stamps and gets 4 more. How many has she?", Provenance: paperv1.Provenance_PROVENANCE_AI,
+				Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "7"}}}},
+			{Statement: "5 + 2 = □", Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "7"}}}},
 		}})
 		if err := store.SetPaperKey(ctx, tx, profile, page[0], key); err != nil {
 			return err
@@ -280,7 +284,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting","stored_at":"`, `"size_bytes":50},{"attempt_id":"` + attempt + `"`,
 		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`,
 		`{"seq":2,"correction_id":"` + correction + `","package_digest":"` + string(choices.Digest) + `"`, `"level_set_by_adult":true`,
-		`{"attempt_id":"` + page[0] + `"`, `"key_sources":["solver","none"],"wrong_answers":1,"rungs":[{"rung":1,"source":"model","words":"Count again."`,
+		`{"attempt_id":"` + page[0] + `"`, `"key_sources":["solver","none","ai","none"],"wrong_answers":1,"rungs":[{"rung":1,"source":"model","words":"Count again."`,
 		`{"attempt_id":"` + page[1] + `","begun_at":"`} {
 		if !strings.Contains(text, has) {
 			t.Errorf("the profile's file holds no %s:\n%s", has, text)
@@ -394,6 +398,9 @@ func TestARecordThatIsNoMessageFailsTheExport(t *testing.T) {
 		"state":       `UPDATE skill_states SET state = '\xff' WHERE profile_id = $1 AND $2 <> ''`,
 		"answer":      `INSERT INTO submissions (profile_id, attempt_id, number, answer) SELECT $1, id, 1, '\xff' FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
 		"observation": `INSERT INTO submissions (profile_id, attempt_id, number, answer, observation) SELECT $1, id, 1, '', '\xff' FROM attempts WHERE profile_id = $1 AND $2 <> ''`,
+		"paper key":   `INSERT INTO attempts (profile_id, kind, paper_key) SELECT $1, 'paper', '\xff' WHERE $2 <> ''`,
+		"paper answer": `WITH a AS (INSERT INTO attempts (profile_id, kind) SELECT $1, 'paper' WHERE $2 <> '' RETURNING id)
+			INSERT INTO submissions (profile_id, attempt_id, number, answer) SELECT $1, id, 1, '\xff' FROM a`,
 	} {
 		var account, profile string
 		if err := pool.QueryRow(ctx, `INSERT INTO accounts (auth_uid, last_request_on, adult_stated_at, tariff)

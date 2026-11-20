@@ -303,6 +303,72 @@ func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	}
 }
 
+// The tutor's words of a task from paper are admitted as those of a task of a
+// module (R82 spec): a rung's, with the work, by CallPaperWords, and the
+// opening question and a rung put another way by CallPaperHint, each exactly
+// when tutor chooses an entry for its kind of call.
+func TestTheGateAdmitsPaperWordsWhereTutorChooses(t *testing.T) {
+	t.Parallel()
+
+	facts := keyed(t, file(t, adultFacts), config.RungAuthor)
+	unkeyed := config.Admission{FactsFile: file(t, adultFacts), Rung: config.RungAuthor}
+	for name, tc := range map[string]struct {
+		cfg      config.Admission
+		category formatv0.AgeCategory
+		provider string
+	}{
+		"facts for an adult":            {facts, formatv0.AgeCategoryAdult, ""},
+		"facts for an adult, a child":   {facts, formatv0.AgeCategoryUnder13, ""},
+		"facts, no key of the platform": {unkeyed, formatv0.AgeCategoryAdult, ""},
+		"an own key of Anthropic":       {unkeyed, formatv0.AgeCategoryAdult, "anthropic"},
+		"an own key of OpenAI":          {unkeyed, formatv0.AgeCategoryAdult, "openai"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := load(t, tc.cfg)
+			route := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(tc.category)}
+			if tc.provider != "" {
+				route.AI, route.Own = admissionv0.AiRouteOwnKey, tutor.NewOwnKey(admissionv0.Provider(tc.provider), "own key")
+			}
+			for withWork, call := range map[bool]tutor.Call{false: tutor.CallPaperHint, true: tutor.CallPaperWords} {
+				if got := admission.PaperWordsCall(withWork); got != call {
+					t.Errorf("PaperWordsCall(%v) = %s, want %s", withWork, got, call)
+				}
+				got := g.PaperWords(withWork, tc.category, tc.provider)
+				entry, _, err := admission.TutorOf(g).ChooseCall(call, route)
+				if chosen := err == nil && len(entry.Models) > 0; got != chosen {
+					t.Errorf("PaperWords(%v) = %v, but ChooseCall(%s) chose an entry: %v", withWork, got, call, chosen)
+				}
+			}
+		})
+	}
+	if !load(t, facts).PaperWords(false, formatv0.AgeCategoryAdult, "") {
+		t.Error("the opening question is not admitted for an adult by the platform's key at the author's stage")
+	}
+}
+
+// The gate finds the tasks on a page, reads the statement of a task from
+// paper, solves it, reads the work on it and words its tutor's words by tutor,
+// which calls no model where no facts admit the call, for a reading with no
+// task, or for words with no style.
+func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
+	t.Parallel()
+
+	g := load(t, keyed(t, "", config.RungAuthor))
+	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
+	page := tutor.PaperTask{Route: adult, Statement: []byte("a page")}
+	for name, o := range map[string]tutor.Outcome{
+		"FindTasks":      g.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: []byte("a page")}).Outcome,
+		"ReadStatement":  g.ReadStatement(t.Context(), page).Outcome,
+		"SolveTask":      g.SolveTask(t.Context(), page, []tutor.TaskToSolve{{Number: 1, Statement: "37 + 48 ="}}).Outcome,
+		"ReadPaper":      g.ReadPaper(t.Context(), tutor.PaperReading{Route: adult}).Outcome,
+		"TellPaperWords": g.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperOpening}).Outcome,
+	} {
+		if o.Kind == tutor.Answered || len(o.Usage) != 0 {
+			t.Errorf("%s = %v, want no answer and no call", name, o.Kind)
+		}
+	}
+}
+
 // The words after a correct answer are admitted exactly where tutor chooses an
 // entry for their kind of call, CallCorrect (R112, R113 tutor; R76): at the
 // stage author for an adult, by the platform's key of Anthropic or an own key
