@@ -11,12 +11,14 @@
         "context": "."
     },
     "remoteUser": "vscode",
-    // Closing the window leaves the container running: the orchestrator's executor runs in it by
-    // docker exec, with no window (R156 spec, its 2026-11-16 amendment; sources 9.4 spec). docker stop ends it.
+    // Closing the window leaves the container running, and docker stop ends it: the orchestrator's
+    // executor runs in it by docker exec, with no window (R156 spec).
     "shutdownAction": "none",
-    // Runs on the host before the container starts: gives it a network whose MTU is the
-    // host's own, so a tunnel on the host does not silently truncate large downloads here.
-    "initializeCommand": "bash .devcontainer/host-network.sh",
+    // Runs on the host before the container starts, in this folder: gives it a network whose MTU
+    // is the host's own, so a tunnel on the host does not silently truncate large downloads here,
+    // and makes the folder of the epics beside the clones, which the mount below needs: Docker
+    // refuses a bind whose source is missing.
+    "initializeCommand": "bash .devcontainer/host-network.sh && mkdir -p ../.epics",
     "runArgs": [
         "--network=novatrail-api",
         // The container's name in its network, the repository's: a container that joins the
@@ -43,6 +45,10 @@
         // finished: extensions are installed only when the container is created. With it the
         // next rebuild finds them in place and installs only what is missing.
         "source=novatrail-vscode-extensions-${devcontainerId},target=/home/vscode/.vscode-server/extensions,type=volume",
+        // The clones of the tasks across repositories, .epics/<epic>/<repo> beside the host's clones:
+        // every NovaTrail container mounts this one folder of the host, at one path, and nothing
+        // else beside the clones (R166 spec).
+        "source=${localWorkspaceFolder}/../.epics,target=/workspaces/.epics,type=bind",
         // api's own: the configuration of the dev projects — a service account's key and the
         // connection strings — outside the repository and any git working tree, kept across
         // rebuilds; just dev reads it (R39). The author puts the files in it.

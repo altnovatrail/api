@@ -1,5 +1,4 @@
 {
-  "entry": 12,
   "entries": {
     "R02": 13,
     "R03": 14,
@@ -23,6 +22,5 @@
     "architecture 3.2": 31,
     "architecture 3.3": 26,
     "architecture 3.6": 28
-  },
-  "comments": true
+  }
 }
