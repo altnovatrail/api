@@ -1,20 +1,16 @@
 # Development container for NovaTrail's api.
 # Exact versions only: the base image is pinned by digest, every tool below by an ARG default.
 # Anything a builder understands: no heredocs, no RUN --mount, no TARGETARCH — architecture is
-# detected at RUN time via dpkg instead. A host that has Docker can build this, and that is the
-# whole requirement.
+# detected at RUN time via dpkg instead, so any host that has Docker can build this.
 #
-# Three stages. `toolchain-core` holds Node, just, Go and buf: what a release needs — its version
-# and its files — and every check that runs no browser, and a release builds it alone (R31 spec).
-# `toolchain` is the core with what the repository's tests need on top — in a copy, what its kind
-# adds at the end of the stage, such as the browsers of the kind typescript —, and is the stage
-# the automated checks run inside. `devcontainer` adds what a person needs on top of that, and
-# devcontainer.json names it as its target. spec's own file ends with a fourth, `orchestrator`,
-# the devcontainer with the Docker CLI (R156 spec), which `just new-repo` leaves out of a copy: in a
-# copy `devcontainer` is the last stage, the one a build with no target gives, and in spec every
-# build names its stage. A builder that builds every stage before its target builds `orchestrator`
-# for the ordinary configuration too, and the stage builds there as well, without the file only
-# its own configuration writes.
+# `toolchain-core` holds Node, just, Go and buf: what a release needs — its version and its files —
+# and every check that runs no browser, and a release builds it alone (R31 spec). `toolchain` adds what
+# the repository's tests need — in a copy, its kind's lines at the end of the stage — and is the
+# stage the automated checks run inside. `devcontainer` adds what a person needs, and
+# devcontainer.json names it as its target. spec's own file ends with `orchestrator`, the
+# devcontainer with the Docker CLI and the Dev Containers CLI, which `just new-repo` leaves out of
+# a copy (R156 spec, R158 spec): in a copy `devcontainer` is the last stage, the one a build with no target
+# gives, and in spec every build names its stage.
 
 # -- toolchain-core: releases the repository, checks it without a browser -----
 
@@ -22,28 +18,22 @@ FROM mcr.microsoft.com/devcontainers/base:3.0.13-noble@sha256:48be4adec1c1ecbe03
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-# Node.js LTS: the checks of spec's justfile — of the documents, of the licenses, of the files of
-# a release and, in spec, of the schemas — are npm packages, and a repository's TypeScript runs
+# Node.js LTS: the checks of spec's justfile are npm packages, and a repository's TypeScript runs
 # on it too.
 ARG NODE_VERSION=24.21.0
 ARG JUST_VERSION=1.58.0
-# Go: a repository's Go code is built, vetted and tested with it, and CodeQL reads that code from
-# a build with it, in /usr/local/go, where the shared CodeQL workflow of .github looks for Go in
-# this stage. In spec that code is its Go module, which code of the platform takes from a
-# release, and the Go tools in tools/, and spec's checks build the module's zip as the Go module
-# proxy will (R64 spec). Go comes with this file into the copy of every NovaTrail repository, whatever
-# its kind, and stays unused in one without Go code (R64 spec).
+# Go, in /usr/local/go, where the shared CodeQL workflow of .github looks for it: a repository's
+# Go code is built, vetted, tested and read by CodeQL with it. In spec that code is its Go module
+# and the Go tools in tools/, and the checks build the module's zip as the Go module proxy will.
+# Every copy gets Go whatever its kind, unused where there is no Go code (R64 spec).
 ARG GO_VERSION=1.27.4
-# buf: the API contracts are protobuf files that buf formats, lints, compares with the previous
-# release and generates code from, and spec's checks run it on its contracts/ (R83 spec). It comes
-# with this file into the copy of every NovaTrail repository, as Go does, and stays unused in one
-# without contracts: the other repositories take the generated code from a release of spec.
+# buf formats, lints, compares with the previous release and generates code from the protobuf
+# API contracts, spec's contracts/ (R83 spec). Every copy gets it as it gets Go, unused where there are
+# no contracts: the other repositories take the generated code from a release of spec.
 ARG BUF_VERSION=1.75.0
-# The sha256 of every archive, per architecture, as its publisher lists it: SHASUMS256.txt of
-# the Node release, SHA256SUMS of the just release, the sha256 go.dev/dl lists for Go,
-# sha256.txt of the buf release, whose binary comes as it is, with no archive. A sum written here
-# keeps a download from being swapped once it has been read (R34 spec), and is raised together with
-# its version.
+# Each archive's sha256 per architecture, as its publisher lists it: SHASUMS256.txt of the Node
+# release, SHA256SUMS of just's, go.dev/dl for Go, sha256.txt of buf's, whose binary comes bare. A
+# sum written here keeps a download from being swapped, and is raised with its version (R34 spec).
 ARG NODE_SHA256_AMD64=6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff
 ARG NODE_SHA256_ARM64=724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5
 ARG JUST_SHA256_AMD64=4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d
@@ -53,10 +43,10 @@ ARG GO_SHA256_ARM64=3392582988a273a87ab5043ee1b2c9c17a2c3c00580bf9326c47a2e0aaae
 ARG BUF_SHA256_AMD64=fad1e38d6909bbb583a4da81d8c02a01046e2cd663bde7e337dd24277393764b
 ARG BUF_SHA256_ARM64=00eb190aa82df17f393e05b04889cc60a0b13b3259d336e21a87d5f23ab4fd26
 
-# Every archive comes through one helper, so that every download is retried the same way and
-# checked against its sum before anything unpacks it. --retry-all-errors is the point of it: a
-# transfer that dies partway is not something a plain --retry repeats, and that is exactly the
-# failure a small tunnel MTU produces. An archive that still comes short fails its sum.
+# One helper fetches every archive, so each is retried the same way and checked against its sum
+# before anything unpacks it. --retry-all-errors is the point: a plain --retry does not repeat a
+# transfer that dies partway, the failure a small tunnel MTU produces. An archive still short fails
+# its sum.
 RUN arch="$(dpkg --print-architecture)"; \
     case "$arch" in \
         amd64) node_arch=x64; gnu_arch=x86_64; \
@@ -158,8 +148,8 @@ ARG JUST_LSP_VERSION=0.10.0
 # Claude Code CLI. The VS Code extension in devcontainer.json must have the same version.
 ARG CLAUDE_CODE_VERSION=2.1.280
 # The sums, as above: gh_<version>_checksums.txt of the gh release, SHA256SUMS of just-lsp's.
-# The helper below is the toolchain-core stage's, written again rather than left in that image as
-# a script: the toolchain images are the ones the checks run in, and nothing there needs it.
+# The helper below repeats toolchain-core's rather than leaving it in that image as a script: the
+# checks run in the toolchain images, and nothing there needs it.
 ARG GH_SHA256_AMD64=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
 ARG GH_SHA256_ARM64=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f
 ARG JUST_LSP_SHA256_AMD64=3c35e10e76db6cc1931495bb3abdaef02576eaeb406c217420f4fd37e1ebe22c
@@ -197,22 +187,21 @@ RUN arch="$(dpkg --print-architecture)"; \
 
 # gopls is the language server that the Go extension in devcontainer.json starts. It is built
 # with the Go that toolchain-core installs, and only here: the checks do not need it. This step and
-# gopls/ beside this file are the go kind's of spec's repo-template, and a move to a tag of spec
-# brings them with the rest of the devcontainer (R102 spec).
+# gopls/ beside this file are the go kind's, and come with the rest of spec's devcontainer on a
+# move to a tag of spec (R102 spec).
 ARG GOPLS_VERSION=0.24.0
 
-# gopls is built from its lock file, gopls/ in this folder. Its go.mod names gopls as a tool at an
-# exact version, and its go.sum holds the hash of every module the build takes. -mod=readonly
-# builds from that lock and nothing else: a module missing from go.sum, or with another hash, stops
-# the build, as a wrong sum stops an archive (R34 spec). The built gopls must name GOPLS_VERSION
-# exactly, so the lock and the ARG cannot drift apart. CI never builds this stage, and before a
-# rebuild only a check that reads both holds them to each other: spec's tests hold the go kind's
-# pair in repo-template, and new-repo-check a new repository's copy once, when the copy is made;
-# after that, a copy is held only by its repository's own check, if it has one. Everything the step
-# writes stays in one folder that the same layer removes: go clean takes the module cache, whose
-# files the go command makes read-only, and the build cache, and XDG_CONFIG_HOME keeps the
-# telemetry counters of go and gopls there as well. The checks build the toolchain stage alone,
-# with no context, and never reach this COPY.
+# gopls is built from its lock file, gopls/ in this folder: go.mod names gopls as a tool at an
+# exact version, go.sum holds the hash of every module the build takes, and -mod=readonly builds
+# from that lock alone, so a module missing from go.sum, or with another hash, stops the build, as
+# a wrong sum stops an archive (R34 spec). The built gopls must name GOPLS_VERSION exactly, so the lock
+# and the ARG cannot drift apart. CI never builds this stage: before a rebuild only a check that
+# reads both holds them together — spec's tests the go kind's pair in repo-template, new-repo-check
+# a new repository's copy once, when it is made, and after that its repository's own check, if
+# any. Everything the step writes stays in one folder the same layer removes: go clean takes the
+# module cache, whose files the go command makes read-only, and the build cache, and
+# XDG_CONFIG_HOME keeps the telemetry counters of go and gopls there too. The checks build the
+# toolchain stage alone, with no context, and never reach this COPY.
 COPY gopls/go.mod gopls/go.sum /tmp/gopls-build/src/
 RUN echo "gopls ${GOPLS_VERSION}"; \
     build=/tmp/gopls-build; \
@@ -224,16 +213,13 @@ RUN echo "gopls ${GOPLS_VERSION}"; \
     cd /; \
     rm -rf "$build"
 
-# Claude Code comes from the registry at an exact version, rather than from an installer
-# script run off the network: what arrives is the package that version names, and npm checks
-# the archive against the hash the registry publishes for it. No package's install script runs.
-# The one step the package needs — install.cjs, which puts the native binary from its platform
-# package in place of the stub it ships with — is run by name, after the install. Without it
-# `claude` is that stub, a shell script that says the native binary is not installed and exits
-# 1; the package's Node wrapper is a fallback a person starts by hand. install.cjs exits 0 even
-# when the platform's binary is missing, and leaves the stub in place: claude --version stops
-# the build on it. npm's download cache under root's home is cleared in the same layer, since
-# the container runs as vscode.
+# Claude Code comes from the registry at an exact version, not from an installer script off the
+# network: npm checks the archive against the hash the registry publishes, and no install script
+# runs. The one step the package needs, install.cjs, which puts the native binary of its platform
+# package in place of the stub it ships, runs by name afterwards; without it `claude` is a stub
+# that says the binary is not installed and exits 1 (the Node wrapper is a fallback started by
+# hand). install.cjs exits 0 even when the binary is missing, so claude --version stops the build
+# on the stub. npm's cache under root's home goes in the same layer: the container runs as vscode.
 RUN echo "claude code ${CLAUDE_CODE_VERSION}" \
     && npm install -g --ignore-scripts "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && node "$(npm root -g)/@anthropic-ai/claude-code/install.cjs" \
