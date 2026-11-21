@@ -12,27 +12,31 @@ import (
 	"github.com/altnovatrail/api/internal/rpc"
 )
 
-// Service is the DebugService of a Store: api registers it only with the debug
-// flag, and without it each method answers unimplemented (R97).
+// Service is the DebugService of a Store: api registers it on a run with a
+// Store, and without one each method answers unimplemented (R97).
 type Service struct {
 	apiv1connect.UnimplementedDebugServiceHandler
 	store    *Store
 	admitted func(tutor.Call) []admission.Model
-	// account is the caller's account, as the checks found it.
-	account func(context.Context) (string, error)
+	// caller is who the request is from, as the checks found it.
+	caller func(context.Context) (rpc.Caller, bool)
 }
 
 // NewService is the DebugService of s, whose admitted gives the models the
 // admission list gives a call for an adult on platform AI, in their order.
 func NewService(s *Store, admitted func(tutor.Call) []admission.Model) *Service {
-	return &Service{store: s, admitted: admitted, account: accountOf}
+	return &Service{store: s, admitted: admitted, caller: rpc.CallerFrom}
 }
 
-// accountOf is the account of the caller, whom the checks let through with one.
-func accountOf(ctx context.Context) (string, error) {
-	caller, ok := rpc.CallerFrom(ctx)
-	if !ok || caller.AccountID == "" {
+// account is the account of the caller, whom the checks let through with one:
+// without the right of the mode it is permission_denied with no Refusal (R97).
+func (s *Service) account(ctx context.Context) (string, error) {
+	caller, ok := s.caller(ctx)
+	switch {
+	case !ok || caller.AccountID == "":
 		return "", connect.NewError(connect.CodeInternal, "debug: no account of the caller")
+	case !s.store.Open(caller):
+		return "", connect.NewError(connect.CodePermissionDenied, "debug: the account has no right of the debug mode")
 	}
 	return caller.AccountID, nil
 }

@@ -82,7 +82,7 @@ func logAdmission(log *slog.Logger, r admission.Report, a config.Agreements) {
 		logging.FieldPlatformKeys, r.PlatformKeys,
 		logging.FieldTutorStub, r.Stub,
 		logging.FieldReadingMode, r.Reading,
-		logging.FieldDebugModels, r.Debug,
+		logging.FieldDebugModels, r.DebugEvery,
 		logging.FieldLegalDir, a.LegalDir != "",
 		logging.FieldConsentForms, a.Forms(),
 	)

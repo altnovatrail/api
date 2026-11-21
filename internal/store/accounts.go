@@ -25,6 +25,8 @@ type Account struct {
 	// LastRequestOn is the date, by UTC, of the account's last request; zero if
 	// none was written yet.
 	LastRequestOn time.Time
+	// DebugModels says the account has the right of the debug mode (R97).
+	DebugModels bool
 }
 
 // TouchedOn says whether the date of the last request is already the date of
@@ -35,8 +37,8 @@ func (a Account) TouchedOn(now time.Time) bool { return TodayByUTC(a.LastRequest
 func AccountByUID(ctx context.Context, db Querier, uid string) (Account, error) {
 	var account Account
 	var deleting, lastRequest *time.Time
-	err := db.QueryRow(ctx, `SELECT id, deleting_at, last_request_on FROM accounts WHERE auth_uid = $1`, uid).
-		Scan(&account.ID, &deleting, &lastRequest)
+	err := db.QueryRow(ctx, `SELECT id, deleting_at, last_request_on, debug_models FROM accounts WHERE auth_uid = $1`, uid).
+		Scan(&account.ID, &deleting, &lastRequest, &account.DebugModels)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return Account{}, ErrNoAccount
@@ -48,6 +50,20 @@ func AccountByUID(ctx context.Context, db Querier, uid string) (Account, error) 
 		account.LastRequestOn = *lastRequest
 	}
 	return account, nil
+}
+
+// SetDebugModels gives the account of the sign-in service's UID the right of
+// the debug mode, or takes it (R97). An account marked "deleting", whose fields
+// are cleared (R21), is none — ErrNoAccount, as is a UID with no account.
+func SetDebugModels(ctx context.Context, db Querier, uid string, right bool) error {
+	tag, err := db.Exec(ctx, `UPDATE accounts SET debug_models = $2 WHERE auth_uid = $1 AND deleting_at IS NULL`, uid, right)
+	switch {
+	case err != nil:
+		return fmt.Errorf("store: set the right of the debug mode: %w", err)
+	case tag.RowsAffected() == 0:
+		return ErrNoAccount
+	}
+	return nil
 }
 
 // TouchAccount writes today, by UTC, as the date of the account's last request,

@@ -180,11 +180,11 @@ func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
 	}
 }
 
-// The debug mode of a local run is API_DEBUG_MODELS=1, and empty is unset
-// (R97). Deployed, as a service or as a job, it is refused by the variable the
+// The flag that gives every account of a local run the debug mode is
+// API_DEBUG_MODELS=1, and empty is unset (R97). Deployed, as a service or as a job, it is refused by the variable the
 // platform set; so is it beside the stub, which calls no model, and with any
 // value but 1.
-func TestTheDebugModeIsALocalRunsAlone(t *testing.T) {
+func TestTheDebugFlagIsALocalRunsAlone(t *testing.T) {
 	t.Parallel()
 
 	for environ, want := range map[string]bool{

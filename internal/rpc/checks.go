@@ -41,6 +41,9 @@ type Caller struct {
 	// AccountID is the account of the UID; empty only on CreateAccount, for a UID
 	// with no account yet.
 	AccountID string
+	// DebugModels says the account has the right of the debug mode, as its row
+	// had it when the request came (R97).
+	DebugModels bool
 }
 
 type callerKey struct{}
@@ -104,7 +107,7 @@ func (c *checks) intercept(next connect.ServerFunc) connect.ServerFunc {
 					return Failed(ctx, err)
 				}
 			}
-			caller.AccountID = account.ID
+			caller.AccountID, caller.DebugModels = account.ID, account.DebugModels
 		}
 		ctx = context.WithValue(ctx, callerKey{}, caller)
 		if r.right == "" {

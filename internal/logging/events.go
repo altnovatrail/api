@@ -136,8 +136,8 @@ const (
 	// FieldTutorStub says whether tutor's calls go to the stub of the dev mode,
 	// which calls no provider (R66).
 	FieldTutorStub = "tutor_stub"
-	// FieldDebugModels says whether the debug mode of a local run is open
-	// (R97).
+	// FieldDebugModels says whether API_DEBUG_MODELS gives every account of a
+	// local run the right of the debug mode (R97).
 	FieldDebugModels = "debug_models"
 	// FieldReadingMode is the mode tutor reads handwriting by, pair or single
 	// (R88).
@@ -211,6 +211,7 @@ const (
 	MomentReports   = "reports"
 	MomentTariff    = "tariff"
 	MomentReopen    = "reopen"
+	MomentDebug     = "debug_access"
 )
 
 // The steps of the daily job and of the job after a rollout: the value set of
@@ -291,7 +292,7 @@ var fields = map[string]rule{
 	FieldDeployed:         {kind: slog.KindBool},
 	FieldStarted:          {kind: slog.KindBool},
 	FieldCutShort:         {kind: slog.KindBool},
-	FieldMoment:           {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen}},
+	FieldMoment:           {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen, MomentDebug}},
 	FieldErrorKind:        {kind: slog.KindLogValuer},
 	FieldPanicKind:        {kind: slog.KindLogValuer},
 	FieldApplied:          {kind: slog.KindInt64},

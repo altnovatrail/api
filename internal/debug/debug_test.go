@@ -44,7 +44,7 @@ func TestTheModels(t *testing.T) {
 func TestTheChoice(t *testing.T) {
 	t.Parallel()
 
-	s := debug.New()
+	s := debug.New(false)
 	if c := s.Choice("a"); c.GetFirst() != nil || c.GetSecond() != nil {
 		t.Fatalf("a new account's choice = %v, want none", c)
 	}
@@ -88,7 +88,7 @@ func TestAnAction(t *testing.T) {
 		}
 	}
 
-	s := debug.New()
+	s := debug.New(false)
 	if _, err := s.SetChoice("a", &v1.DebugChoice{
 		First:  &v1.DebugModelChoice{Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH},
 		Second: &v1.DebugModelChoice{Model: "claude-haiku-5-5", Thinking: true},

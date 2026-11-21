@@ -570,20 +570,21 @@ func readDiffer(a, b *observationv1.Observation) bool {
 	return false
 }
 
-// debugChosen is whether the caller's account has a first model of the debug
-// mode, which takes a call past the admission list (R97).
+// debugChosen is whether the caller's account has the right of the debug mode
+// and a first model of it, which takes a call past the admission list: a choice
+// kept from before the right was taken chooses nothing (R97).
 func (s *Service) debugChosen(ctx context.Context) bool {
 	caller, _ := rpc.CallerFrom(ctx)
-	return s.debug.Chosen(caller.AccountID)
+	return s.debug.Open(caller) && s.debug.Chosen(caller.AccountID)
 }
 
 // debugged is the action of the debug mode for a request of the caller's
-// account, nil without the mode (R97).
+// account, nil without the mode or without the account's right (R97).
 func (s *Service) debugged(ctx context.Context, kind v1.DebugActionKind, attemptID string) *debug.Action {
-	if s.debug == nil {
+	caller, _ := rpc.CallerFrom(ctx)
+	if !s.debug.Open(caller) {
 		return nil
 	}
-	caller, _ := rpc.CallerFrom(ctx)
 	return s.debug.Begin(caller.AccountID, kind, attemptID, s.clock())
 }
 

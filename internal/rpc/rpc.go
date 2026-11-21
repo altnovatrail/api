@@ -51,7 +51,8 @@ type Handlers struct {
 	Legal    apiv1connect.LegalServiceHandler
 	Work     apiv1connect.WorkServiceHandler
 	Paper    apiv1connect.PaperServiceHandler
-	// Debug is the debug mode of a local run, set only with its flag (R97).
+	// Debug is the debug mode, set on a run whose tutor has its own adapters with
+	// the key of Anthropic; unset, each method answers unimplemented (R97).
 	Debug apiv1connect.DebugServiceHandler
 }
 
