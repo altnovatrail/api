@@ -90,8 +90,8 @@ type Service struct {
 	// goingFor is the longest a request may run, past which the record of its
 	// key going is of a request that fell (R17, R33).
 	goingFor time.Duration
-	// paperGoingFor is goingFor of FindTasks and SubmitWork, which run for the
-	// time limit of paper (R98).
+	// paperGoingFor is goingFor of FindTasks, ReadStatement and SubmitWork,
+	// which run for the time limit of paper (R98).
 	paperGoingFor time.Duration
 	db            rpc.DB
 	now           func() time.Time
@@ -116,8 +116,8 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
-// WithPaperRequestTimeout is the longest FindTasks and SubmitWork may run, as
-// the server bounds them (R98).
+// WithPaperRequestTimeout is the longest FindTasks, ReadStatement and
+// SubmitWork may run, as the server bounds them (R98).
 func WithPaperRequestTimeout(d time.Duration) Option {
 	return func(s *Service) { s.paperGoingFor = d }
 }

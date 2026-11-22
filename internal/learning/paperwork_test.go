@@ -537,9 +537,10 @@ func TestAnAttemptOfPaperClosedWhileAIReadsIsClosed(t *testing.T) {
 }
 
 // A key the attempt keeps that this build cannot read fails the requests that
-// read it, a Check, the opening question and the words of a rung, as a failure
-// of the service rather than a judgement or words by another key; nothing is
-// called.
+// read it, a Check, the opening question, the words of a rung and "Recognise",
+// as a failure of the service rather than a judgement or words by another key,
+// and so does a kept reading of the statement, for the Check that derives the
+// key from it; nothing is called.
 func TestAKeptKeyThatCannotBeReadFailsTheRequest(t *testing.T) {
 	t.Parallel()
 
@@ -563,6 +564,15 @@ func TestAKeptKeyThatCannotBeReadFailsTheRequest(t *testing.T) {
 	if _, err := w.opening(t, l, l.adult, page[1], uuid.NewString()); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Errorf("the opening question = %v, want unavailable", err)
 	}
+	if _, err := w.recognise(t, l, page[1], formulaStatement, uuid.NewString()); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Errorf("Recognise = %v, want unavailable", err)
+	}
+	w.exec(t, `UPDATE attempts SET paper_key = NULL, paper_reading = '\xff' WHERE id = $1`, page[1])
+	_, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+	if connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Errorf("a Check by a reading that cannot be read = %v, want unavailable", err)
+	}
 	if n := strings.Count(w.log.String(), `"model":"stub"`); n != calls {
 		t.Errorf("the log has %d calls of the stub, %d before; want none more", n, calls)
 	}
@@ -570,8 +580,8 @@ func TestAKeptKeyThatCannotBeReadFailsTheRequest(t *testing.T) {
 
 // The requests of a task from paper that call AI refuse a deadline that leaves
 // too little time for the call and the transaction after it, before anything
-// is called or reserved: the finding, a Check, the opening question and the
-// words of a rung.
+// is called or reserved: the finding, a Check, the opening question, the
+// words of a rung and "Recognise".
 func TestTheRequestsOfPaperWithTooLittleTimeAreRefused(t *testing.T) {
 	t.Parallel()
 
@@ -601,6 +611,11 @@ func TestTheRequestsOfPaperWithTooLittleTimeAreRefused(t *testing.T) {
 		},
 		"GetOpeningWords": func() error {
 			_, err := w.attempts.GetOpeningWords(short(), &v1.GetOpeningWordsRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
+				Statement: photoOf(t, formulaStatement[0], formulaStatement[1])})
+			return err
+		},
+		"ReadStatement": func() error {
+			_, err := w.attempts.ReadStatement(short(), &v1.ReadStatementRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
 				Statement: photoOf(t, formulaStatement[0], formulaStatement[1])})
 			return err
 		},

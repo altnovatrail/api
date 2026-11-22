@@ -53,8 +53,9 @@ func taskPlace(n int) *observationv1.AnswerSlotPlace {
 
 // paperSending is a submission of a task from paper between the parts of its
 // request: the attempt, the route, the work — the task's crop and the crop of
-// what the learner wrote —, the key the attempt keeps, if any, and whether the
-// key is derived now; the reserves of the reading, the statement and the
+// what the learner wrote —, the key the attempt keeps, if any, whether the key
+// is derived now, and the reading of the statement it is derived from, when the
+// attempt keeps one; the reserves of the reading, the statement and the
 // solution; and what came of the calls: the reading, and the key derived, or
 // the outcome of the calls that derived none.
 type paperSending struct {
@@ -64,6 +65,7 @@ type paperSending struct {
 	crop      []byte
 	key       *paperv1.Key
 	derive    bool
+	stated    *paperv1.Reading
 	day       quota.Day
 	// reading, stating and solving are the reserves of the three calls (R58).
 	reading, stating, solving reserve
@@ -117,11 +119,12 @@ func (s *Service) paperOpen(ctx context.Context, tx pgx.Tx, profileID string, ro
 // checks of the attempt and the work, the reserve and the key's record going;
 // the calls, in none; and the attempt held again with the verdict, in a second
 // (R162 spec). The first submission derives the key from the task's crop: the
-// statement read into its tasks, one or each of several framed together, and
-// the key of each, the solver's on its formula, or, for the tasks with no
-// formula the solver takes, one solution of AI of them all, whose answer of a
-// task is its key once it holds to the rules of one (paper.Key); the work is
-// read beside the solution, given the tasks' statements. The attempt keeps the
+// statement read into its tasks, one or each of several framed together — or
+// the reading "Recognise" kept, with no call (R169 spec) —, and the key of
+// each, the solver's on its formula, or, for the tasks with no formula the
+// solver takes, one solution of AI of them all, whose answer of a task is its
+// key once it holds to the rules of one (paper.Key); the work is read beside
+// the solution, given the tasks' statements. The attempt keeps the
 // key, with the statements, until it closes. A task with no answer is
 // unchecked, and with none in any task every submission gets CAUSE_NO_KEY and
 // calls no AI. Calls that derive no key are an outcome, the slots unchecked,
@@ -174,10 +177,15 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 				return out, target, nil
 			}
 			out.derive = out.key == nil
+			if out.derive {
+				if out.stated, err = keptReading(row); err != nil {
+					return paperSending{}, target, err
+				}
+			}
 			if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err != nil {
 				return paperSending{}, target, err
 			}
-			out.reading, out.stating, out.solving, err = s.reservePaper(ctx, tx, profileID, out.route, out.derive, out.day)
+			out.reading, out.stating, out.solving, err = s.reservePaper(ctx, tx, profileID, out.route, out.derive && out.stated == nil, out.derive, out.day)
 			return out, target, err
 		},
 		Call: func(ctx context.Context, out paperSending) paperSending {
@@ -232,27 +240,30 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 
 // reservePaper reserves the calls of a submission of a task from paper on
 // platform AI by route, as reserveEssay reserves two (R58): the reading of the
-// work and, when the key is derived, the reading of the statement and the
-// solution, one charge which the quota holds whole or not at all, given as the
+// work, the reading of the statement when state, and the solution when solve —
+// a key derived, from a reading the attempt keeps with no statement's (R169
+// spec) —, one charge which the quota holds whole or not at all, given as the
 // part each call settles by itself. A solution the solver makes needless gives
 // its part back whole. A refusal is the reading's.
-func (s *Service) reservePaper(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, derive bool, day quota.Day) (reading, stating, solving reserve, err error) {
+func (s *Service) reservePaper(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, state, solve bool, day quota.Day) (reading, stating, solving reserve, err error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, reserve{}, reserve{}, nil
 	}
 	read := quota.Reserve(tutor.CallPaper, s.price(tutor.CallPaper, route), 1)
-	var state, solve quota.Micro
-	if derive {
-		state = quota.Reserve(tutor.CallStatement, s.price(tutor.CallStatement, route), 1)
-		solve = quota.Reserve(tutor.CallSolving, s.price(tutor.CallSolving, route), 1)
+	var stated, solved quota.Micro
+	if state {
+		stated = quota.Reserve(tutor.CallStatement, s.price(tutor.CallStatement, route), 1)
 	}
-	all, err := s.reserveOf(ctx, tx, profileID, read+state+solve, day)
+	if solve {
+		solved = quota.Reserve(tutor.CallSolving, s.price(tutor.CallSolving, route), 1)
+	}
+	all, err := s.reserveOf(ctx, tx, profileID, read+stated+solved, day)
 	if err != nil || !all.taken {
 		return all, reserve{}, reserve{}, err
 	}
 	reading, stating, solving = all, all, all
-	reading.charge.Amount, stating.charge.Amount, solving.charge.Amount = read, state, solve
-	stating.taken, solving.taken = derive, derive
+	reading.charge.Amount, stating.charge.Amount, solving.charge.Amount = read, stated, solved
+	stating.taken, solving.taken = state, solve
 	return reading, stating, solving, nil
 }
 
@@ -325,7 +336,8 @@ func statementsOf(k *paperv1.Key) []string {
 }
 
 // deriveKey is the key of a task from paper from its crop (R162 spec): the
-// statement read into its tasks, and the key of each, the solver's on its
+// statement read into its tasks — or the reading the attempt keeps, with no
+// call (R169 spec) —, and the key of each, the solver's on its
 // formula or else that of one solution of AI of all the tasks no formula keys.
 // read starts the reading of the work once the statements are known, beside
 // the solution. A reading of the statement that gave no tasks — a failure, a
@@ -336,26 +348,32 @@ func statementsOf(k *paperv1.Key) []string {
 func (s *Service) deriveKey(ctx context.Context, out paperSending, own string, settled func(reserve, tutor.Outcome, time.Duration), read func([]string)) (*paperv1.Key, *v1.Outcome) {
 	task := tutor.PaperTask{Route: out.route, Statement: out.statement}
 	unused := tutor.Outcome{Kind: tutor.NotAdmitted}
-	start := time.Now()
-	st := s.paper.ReadStatement(ctx, task, own)
-	settled(out.stating, st.Outcome, time.Since(start))
-	if st.Outcome.Kind != tutor.Answered {
-		settled(out.solving, unused, 0)
-		return nil, outcomeOf(st.Outcome, out.route.AI)
+	var tasks []tutor.StatementTask
+	if out.stated != nil {
+		tasks = readTasks(out.stated)
+	} else {
+		start := time.Now()
+		st := s.paper.ReadStatement(ctx, task, own)
+		settled(out.stating, st.Outcome, time.Since(start))
+		if st.Outcome.Kind != tutor.Answered {
+			settled(out.solving, unused, 0)
+			return nil, outcomeOf(st.Outcome, out.route.AI)
+		}
+		tasks = st.Tasks
 	}
 	k := &paperv1.Key{}
-	if len(st.Tasks) == 0 {
+	if len(tasks) == 0 {
 		settled(out.solving, unused, 0)
 		return k, nil
 	}
-	statements := make([]string, len(st.Tasks))
-	for i, t := range st.Tasks {
+	statements := make([]string, len(tasks))
+	for i, t := range tasks {
 		statements[i] = t.Statement
 	}
 	read(statements)
 	var unsolved []tutor.TaskToSolve
-	start = time.Now()
-	for i, t := range st.Tasks {
+	start := time.Now()
+	for i, t := range tasks {
 		tk := &paperv1.TaskKey{Statement: t.Statement}
 		if t.Formula != "" {
 			if n, _ := paper.Solve(t.Formula); n != nil {
@@ -368,7 +386,7 @@ func (s *Service) deriveKey(ctx context.Context, out paperSending, own string, s
 		}
 		k.Tasks = append(k.Tasks, tk)
 	}
-	if len(unsolved) < len(st.Tasks) {
+	if len(unsolved) < len(tasks) {
 		out.debug.Solved(k, time.Since(start))
 	}
 	if len(unsolved) == 0 {

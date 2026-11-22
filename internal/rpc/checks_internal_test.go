@@ -89,14 +89,15 @@ func timeLeft(t *testing.T, timeout, paper time.Duration, procedure string) time
 }
 
 // No time limit given is the default one, not none and not one already out:
-// 30 s, and 90 s for the two methods of a task from paper (R98).
+// 30 s, and 90 s for the methods of a task from paper that ask up to three
+// models in turn (R98).
 func TestNoTimeLimitIsTheDefault(t *testing.T) {
 	t.Parallel()
 
 	if left := timeLeft(t, 0, 0, ""); left < 29*time.Second || left > 30*time.Second {
 		t.Errorf("the time left under no limit given = %v, want the default 30s", left)
 	}
-	for _, p := range []string{apiv1connect.PaperServiceFindTasksProcedure, apiv1connect.AttemptServiceSubmitWorkProcedure} {
+	for _, p := range []string{apiv1connect.PaperServiceFindTasksProcedure, apiv1connect.AttemptServiceReadStatementProcedure, apiv1connect.AttemptServiceSubmitWorkProcedure} {
 		if left := timeLeft(t, 0, 0, p); left < 89*time.Second || left > 90*time.Second {
 			t.Errorf("the time left of %s under no limit given = %v, want the default 90s", p, left)
 		}

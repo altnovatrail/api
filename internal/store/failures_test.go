@@ -290,6 +290,9 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 		{"SET paper_key", func(tx pgx.Tx) error {
 			return store.SetPaperKey(t.Context(), tx, profile, none, []byte{})
 		}},
+		{"SET paper_reading", func(tx pgx.Tx) error {
+			return store.SetPaperReading(t.Context(), tx, profile, none, []byte{})
+		}},
 		{"choice_id = $2", func(tx pgx.Tx) error {
 			_, err := store.ChoiceBegun(t.Context(), tx, profile, none)
 			return err
