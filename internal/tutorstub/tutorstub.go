@@ -714,9 +714,10 @@ const (
 // those that cover a frame the learner drew, by tutor's own check (R99). Of
 // tutor's checks before its call the stub keeps the photo's form: one that is no
 // JPEG or PNG fails with no usage. Past it an own key of an ending of the stub's,
-// own being its value, is refused by it. The call spends the expected price of CallFinding, tutor's; with none,
-// nothing priced, so the quota keeps its reserve by the value of the kind as
-// spent (R12).
+// own being its value, is refused by it. The call spends the expected price of
+// CallFinding, tutor's; with none, nothing priced, so the quota keeps its
+// reserve by the value of the kind as spent (R12). It turns no photo: its turn
+// is 0, the page taken as upright.
 func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) tutor.TasksFound {
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(f.Photo))
 	if err != nil {
