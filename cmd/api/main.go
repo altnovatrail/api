@@ -1,13 +1,14 @@
 // Command api is NovaTrail's platform service, one binary with a command for
 // each thing it is run for: serve, migrate, invite, tariff, reopen, countries,
-// sweep, packages, check, after, consents, reports and version. The image it
-// runs in has no shell, so whatever an operator or its build runs — the
-// migrations as a job, an invite code from a terminal of their own (R34), a
+// sweep, packages, check, after, consents, reports, debug-access and version.
+// The image it runs in has no shell, so whatever an operator or its build runs
+// — the migrations as a job, an invite code from a terminal of their own (R34), a
 // tariff changed by it (R11) and platform AI opened again (R59), the list of
 // countries (R36), the daily job (R38), the packages of modules laid into the
 // image (R41), the check of the configuration before the migrations (R45), the
 // job after a rollout (R51), the check of the parents' forms and the reading of
-// the problem reports (R52) — is a command of this binary too (R105 spec).
+// the problem reports (R52), the right of the debug mode given and taken
+// (R97) — is a command of this binary too (R105 spec).
 package main
 
 import (
@@ -34,19 +35,20 @@ const (
 const usage = `Usage: api <command>
 
 Commands:
-  serve     serve the API until a stop is asked for
-  migrate   apply the migrations of the databases api and openfga
-  invite    make an invite code and print it, once
-  countries list, allow or remove a country learners come from
-  sweep     finish the deletions and delete what is past its term, once
-  packages  lay the packages of the pinned release of modules into a folder
-  check     check what the deployment declares for admission to AI
-  after     close what the image no longer gives, once, after a rollout
-  consents  list, confirm or reject the signed forms of parents' consents
-  reports   list or review the problem reports on the tutor's replies
-  tariff    give the account of an invite code another tariff
-  reopen    open platform AI again after the limit of its provider closed it
-  version   print the build of this binary
+  serve         serve the API until a stop is asked for
+  migrate       apply the migrations of the databases api and openfga
+  invite        make an invite code and print it, once
+  countries     list, allow or remove a country learners come from
+  sweep         finish the deletions and delete what is past its term, once
+  packages      lay the packages of the pinned release of modules into a folder
+  check         check what the deployment declares for admission to AI
+  after         close what the image no longer gives, once, after a rollout
+  consents      list, confirm or reject the signed forms of parents' consents
+  reports       list or review the problem reports on the tutor's replies
+  tariff        give the account of an invite code another tariff
+  reopen        open platform AI again after the limit of its provider closed it
+  debug-access  give or take the right of the debug mode of an account
+  version       print the build of this binary
 `
 
 // main owns the two things a process owns and a function should not: the
@@ -74,19 +76,20 @@ func signalled() (context.Context, context.CancelFunc) {
 // commands are the binary's commands, by name. Each takes the arguments after
 // its name and the process's environment and streams.
 var commands = map[string]func(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error{
-	"serve":     serve,
-	"migrate":   migrate,
-	"invite":    createInvite,
-	"countries": listCountries,
-	"check":     check,
-	"sweep":     sweepPass,
-	"packages":  layPackages,
-	"after":     afterPass,
-	"consents":  judgeConsents,
-	"reports":   reviewReports,
-	"tariff":    setTariff,
-	"reopen":    reopenPlatformAI,
-	"version":   printVersion,
+	"serve":        serve,
+	"migrate":      migrate,
+	"invite":       createInvite,
+	"countries":    listCountries,
+	"check":        check,
+	"sweep":        sweepPass,
+	"packages":     layPackages,
+	"after":        afterPass,
+	"consents":     judgeConsents,
+	"reports":      reviewReports,
+	"tariff":       setTariff,
+	"reopen":       reopenPlatformAI,
+	"debug-access": setDebugAccess,
+	"version":      printVersion,
 }
 
 // run runs the command args name and returns the code to exit with.

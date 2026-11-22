@@ -19,16 +19,27 @@ import (
 // debugStub is the stub of tutor that answers as tutor does in the debug mode:
 // it records each call by the route's record, and with a second model reads the
 // work twice, the second reader's value its own when differ is set, and only
-// where it saw the slot its own when it is not.
+// where it saw the slot its own when it is not. With none set, a call must come
+// with no debug mode, and none is recorded.
 type debugStub struct {
 	*tutorstub.Stub
 	t      *testing.T
 	mu     sync.Mutex
 	differ bool
+	none   bool
 }
 
 func (d *debugStub) recorded(r tutor.Route, c tutor.Call, reader int, answer string) {
-	if r.Debug == nil || r.Debug.First == nil {
+	d.mu.Lock()
+	none := d.none
+	d.mu.Unlock()
+	switch {
+	case none && r.Debug != nil:
+		d.t.Errorf("a call of %v had the debug mode of an account without its right", c)
+		return
+	case none:
+		return
+	case r.Debug == nil || r.Debug.First == nil:
 		d.t.Errorf("a call of %v had no models of the debug mode", c)
 		return
 	}
@@ -78,7 +89,7 @@ func TestTheDebugModeRecordsTheTutorsWords(t *testing.T) {
 	t.Parallel()
 
 	g := stubGate(t)
-	store := debug.New()
+	store := debug.New(true)
 	w := worldOf(t, g, []learning.Option{learning.WithTutor(&debugStub{Stub: tutorstub.New(g), t: t}), learning.WithDebug(store)})
 	l := w.learner(t)
 	if _, err := store.SetChoice(l.accountID, &v1.DebugChoice{
@@ -107,7 +118,7 @@ func TestTheDebugModeRecordsATaskFromPaper(t *testing.T) {
 	t.Parallel()
 
 	g := stubGate(t)
-	store := debug.New()
+	store := debug.New(true)
 	ds := &debugStub{Stub: tutorstub.New(g), t: t, differ: true}
 	w := worldOf(t, g, []learning.Option{learning.WithTutor(ds), learning.WithDebug(store)})
 	l := w.learner(t)
@@ -171,5 +182,53 @@ func TestTheDebugModeRecordsATaskFromPaper(t *testing.T) {
 	}
 	if again := store.Take(l.accountID); len(again) != 0 {
 		t.Errorf("a second take = %v, want none", again)
+	}
+}
+
+// Without the flag the debug mode is the account's by the right of its row: an
+// account without it has no action and no model of its choice, which takes no
+// call past the list, and one given it has them from its next request; one whose
+// right is taken again has neither, its choice kept or not (R97).
+func TestTheDebugModeIsAnAccountsByItsRight(t *testing.T) {
+	t.Parallel()
+
+	g := stubGate(t)
+	store := debug.New(false)
+	ds := &debugStub{Stub: tutorstub.New(g), t: t, none: true}
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(ds), learning.WithDebug(store)})
+	l := w.learner(t)
+	if _, err := store.SetChoice(l.accountID, &v1.DebugChoice{
+		First: &v1.DebugModelChoice{Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_LOW},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	words := func() {
+		t.Helper()
+		a := w.beginPage(t, l, l.adult, 1)[0]
+		if res, err := w.opening(t, l, l.adult, a, uuid.NewString()); err != nil || res.GetWords() == "" {
+			t.Fatalf("the opening question = %v, %v", res, err)
+		}
+	}
+	words()
+	if taken := store.Take(l.accountID); len(taken) != 0 {
+		t.Errorf("the actions of an account without the right = %v, want none", taken)
+	}
+
+	w.exec(t, `UPDATE accounts SET debug_models = true WHERE id = $1`, l.accountID)
+	ds.mu.Lock()
+	ds.none = false
+	ds.mu.Unlock()
+	words()
+	if taken := store.Take(l.accountID); len(taken) != 1 || taken[0].GetKind() != v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS {
+		t.Errorf("the actions of the account given the right = %v, want the words", taken)
+	}
+
+	w.exec(t, `UPDATE accounts SET debug_models = false WHERE id = $1`, l.accountID)
+	ds.mu.Lock()
+	ds.none = true
+	ds.mu.Unlock()
+	words()
+	if taken := store.Take(l.accountID); len(taken) != 0 {
+		t.Errorf("the actions of the account whose right was taken = %v, want none", taken)
 	}
 }

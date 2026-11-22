@@ -2,6 +2,7 @@ package debug
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,23 +10,27 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/tutor"
 	"github.com/altnovatrail/tutor/admission"
+
+	"github.com/altnovatrail/api/internal/rpc"
 )
 
-// The service answers each account by its own choice and calls, with the models
-// of the list for the calls it admits; a choice the models do not take is
-// invalid_argument; a caller with no account is no answer.
+// The service answers each account with the right by its own choice and calls,
+// with the models of the list for the calls it admits; a choice the models do
+// not take is invalid_argument; a caller with no account is no answer, and an
+// account without the right is permission_denied, but on a store that gives it
+// to every account (R97).
 func TestTheService(t *testing.T) {
 	t.Parallel()
 
 	opus := admission.Model{Provider: anthropic, ID: "claude-opus-5-5", Effort: "medium"}
 	haiku := admission.Model{Provider: anthropic, ID: "claude-haiku-5-5", Effort: "high"}
-	s := NewService(New(), func(c tutor.Call) []admission.Model {
+	s := NewService(New(false), func(c tutor.Call) []admission.Model {
 		if c == tutor.CallFinding {
 			return []admission.Model{haiku, opus}
 		}
 		return nil
 	})
-	s.account = func(context.Context) (string, error) { return "a", nil }
+	s.caller = func(context.Context) (rpc.Caller, bool) { return rpc.Caller{AccountID: "a", DebugModels: true}, true }
 	ctx := t.Context()
 
 	got, err := s.GetDebug(ctx, &v1.GetDebugRequest{})
@@ -49,15 +54,29 @@ func TestTheService(t *testing.T) {
 		t.Errorf("TakeDebugCalls = %v, %v; want the one action", taken, err)
 	}
 
-	alone := NewService(New(), nil)
-	for _, err := range []error{
-		func() error { _, err := alone.GetDebug(ctx, &v1.GetDebugRequest{}); return err }(),
-		func() error { _, err := alone.SetDebugModels(ctx, &v1.SetDebugModelsRequest{}); return err }(),
-		func() error { _, err := alone.TakeDebugCalls(ctx, &v1.TakeDebugCallsRequest{}); return err }(),
-	} {
+	calls := func(s *Service) []error {
+		return []error{
+			func() error { _, err := s.GetDebug(ctx, &v1.GetDebugRequest{}); return err }(),
+			func() error { _, err := s.SetDebugModels(ctx, &v1.SetDebugModelsRequest{}); return err }(),
+			func() error { _, err := s.TakeDebugCalls(ctx, &v1.TakeDebugCallsRequest{}); return err }(),
+		}
+	}
+	for _, err := range calls(NewService(New(true), nil)) {
 		if connect.CodeOf(err) != connect.CodeInternal {
 			t.Errorf("no account = %v, want internal", err)
 		}
+	}
+	s.caller = func(context.Context) (rpc.Caller, bool) { return rpc.Caller{AccountID: "b"}, true }
+	for _, err := range calls(s) {
+		var ce *connect.Error
+		if !errors.As(err, &ce) || ce.Code() != connect.CodePermissionDenied || len(ce.Details()) != 0 {
+			t.Errorf("an account without the right = %v, want permission_denied with no Refusal", err)
+		}
+	}
+	every := NewService(New(true), s.admitted)
+	every.caller = s.caller
+	if _, err := every.GetDebug(ctx, &v1.GetDebugRequest{}); err != nil {
+		t.Errorf("an account of a store that gives every account the right = %v, want an answer", err)
 	}
 }
 
@@ -66,7 +85,7 @@ func TestTheService(t *testing.T) {
 func TestAReadKeepsNoAccount(t *testing.T) {
 	t.Parallel()
 
-	s := New()
+	s := New(false)
 	if s.Chosen("a") || s.Choice("a").GetFirst() != nil || len(s.Take("a")) != 0 {
 		t.Error("an account with no choice reads as one with a choice or actions")
 	}

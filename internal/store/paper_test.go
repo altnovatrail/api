@@ -111,8 +111,9 @@ func TestThePageBeginsItsAttempts(t *testing.T) {
 	}
 }
 
-// The key of a task from paper is kept on its open attempt alone, and erased
-// as the attempt closes (R162 spec): an attempt of a module holds none.
+// The key of a task from paper and the reading of its statement are kept on
+// its open attempt alone, and erased as the attempt closes (R162 spec; R169
+// spec): an attempt of a module holds neither.
 func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 	t.Parallel()
 
@@ -130,6 +131,12 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 		if err := store.SetPaperKey(ctx, tx, e.profileID, module, []byte{1}); err == nil {
 			t.Error("a key on the module's attempt was set")
 		}
+		if err := store.SetPaperReading(ctx, tx, e.profileID, module, []byte{1}); err == nil {
+			t.Error("a reading on the module's attempt was set")
+		}
+		if err := store.SetPaperReading(ctx, tx, e.profileID, ids[0], []byte{3}); err != nil {
+			return err
+		}
 		return store.SetPaperKey(ctx, tx, e.profileID, ids[0], []byte{1, 2})
 	})
 	if err != nil {
@@ -146,11 +153,13 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 		}
 		return a
 	}
-	if a := hold(); string(a.PaperKey) != "\x01\x02" {
-		t.Errorf("the key kept = %x, want 0102", a.PaperKey)
+	if a := hold(); string(a.PaperKey) != "\x01\x02" || string(a.PaperReading) != "\x03" {
+		t.Errorf("the key kept = %x, the reading %x; want 0102 and 03", a.PaperKey, a.PaperReading)
 	}
-	if _, err := e.pool.Exec(ctx, `UPDATE attempts SET paper_key = '\x01' WHERE id = $1`, module); sqlstate(err) != "23514" {
-		t.Errorf("a key on a module's attempt = %v, want a check violation", err)
+	for _, column := range []string{"paper_key", "paper_reading"} {
+		if _, err := e.pool.Exec(ctx, `UPDATE attempts SET `+column+` = '\x01' WHERE id = $1`, module); sqlstate(err) != "23514" {
+			t.Errorf("%s on a module's attempt = %v, want a check violation", column, err)
+		}
 	}
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		return store.CloseAttempt(ctx, tx, e.profileID, ids[0], "left", time.Now())
@@ -158,12 +167,19 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a := hold(); a.PaperKey != nil {
-		t.Errorf("the key after the close = %x, want none", a.PaperKey)
+	if a := hold(); a.PaperKey != nil || a.PaperReading != nil {
+		t.Errorf("the key after the close = %x, the reading %x; want neither", a.PaperKey, a.PaperReading)
 	}
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return store.SetPaperKey(ctx, tx, e.profileID, ids[0], []byte{1}) })
 	if err == nil {
 		t.Error("a key on a closed attempt was set")
+	}
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return store.SetPaperReading(ctx, tx, e.profileID, ids[0], []byte{1}) })
+	if err == nil {
+		t.Error("a reading on a closed attempt was set")
+	}
+	if _, err := e.pool.Exec(ctx, `UPDATE attempts SET paper_reading = '\x01' WHERE id = $1`, ids[0]); sqlstate(err) != "23514" {
+		t.Errorf("a reading on a closed attempt by hand = %v, want a check violation", err)
 	}
 }
 

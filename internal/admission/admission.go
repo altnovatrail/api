@@ -92,8 +92,12 @@ type Report struct {
 	Stub bool
 	// Reading is the mode of reading handwriting, pair or single (R88).
 	Reading string
-	// Debug says whether the debug mode of a local run is open (R97).
+	// Debug says whether the run serves the debug mode to an account with its
+	// right: tutor has its own adapters, with the key of Anthropic (R97).
 	Debug bool
+	// DebugEvery says whether API_DEBUG_MODELS gives every account of the run
+	// that right, on a local run (R97).
+	DebugEvery bool
 }
 
 // stubKey stands for the platform's key of Anthropic in the dev mode's stub,
@@ -186,6 +190,9 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		keys[admissionv0.Provider(p)] = key.Reveal()
 	}
 	adapters := Adapters()
+	// The debug mode offers the models of Claude, which the stub never calls
+	// (R97).
+	debug := !cfg.Stub && cfg.Keys.Anthropic.Reveal() != ""
 	if cfg.Stub {
 		// The configuration holds no platform key beside the stub (R66).
 		adapters, keys = StubAdapters(), map[admissionv0.Provider]string{"anthropic": stubKey}
@@ -197,13 +204,14 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		return nil, Report{}, err
 	}
 	if g.tutor, err = tutor.New(tutor.Config{Table: t, Facts: facts, Least: table.Stage(cfg.Rung),
-		Reading: g.reading, Keys: keys, Adapters: adapters, Debug: cfg.Debug}); err != nil {
+		Reading: g.reading, Keys: keys, Adapters: adapters, Debug: debug}); err != nil {
 		// What tutor.New refuses is what cfg declares: a stage, a mode of
 		// reading, or a key of a provider api gives no adapter of.
 		return nil, Report{}, fmt.Errorf("%w: %w", config.ErrInvalid, err)
 	}
 	return g, Report{TableVersion: t.Version(), FactsFile: cfg.FactsFile != "", Rung: cfg.Rung, RungSet: cfg.RungSet,
-		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading()), Debug: cfg.Debug}, nil
+		PlatformKeys: len(cfg.Keys.ByProvider()), Stub: cfg.Stub, Reading: string(g.Reading()), Debug: debug,
+		DebugEvery: cfg.Debug}, nil
 }
 
 // tableProviders are the providers of the table that tutor reads,

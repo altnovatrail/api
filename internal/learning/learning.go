@@ -90,8 +90,8 @@ type Service struct {
 	// goingFor is the longest a request may run, past which the record of its
 	// key going is of a request that fell (R17, R33).
 	goingFor time.Duration
-	// paperGoingFor is goingFor of FindTasks and SubmitWork, which run for the
-	// time limit of paper (R98).
+	// paperGoingFor is goingFor of FindTasks, ReadStatement and SubmitWork,
+	// which run for the time limit of paper (R98).
 	paperGoingFor time.Duration
 	db            rpc.DB
 	now           func() time.Time
@@ -101,7 +101,8 @@ type Service struct {
 	model *model.Model
 	// engine is the version of engine, which every choice keeps (R50).
 	engine string
-	// debug is the debug mode of a local run, nil without it (R97).
+	// debug is the debug mode of the models of a task from paper, nil without it
+	// (R97).
 	debug *debug.Store
 }
 
@@ -115,8 +116,8 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 // (R33).
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
-// WithPaperRequestTimeout is the longest FindTasks and SubmitWork may run, as
-// the server bounds them (R98).
+// WithPaperRequestTimeout is the longest FindTasks, ReadStatement and
+// SubmitWork may run, as the server bounds them (R98).
 func WithPaperRequestTimeout(d time.Duration) Option {
 	return func(s *Service) { s.paperGoingFor = d }
 }
@@ -126,8 +127,9 @@ func WithPaperRequestTimeout(d time.Duration) Option {
 // (quota.CapsOf).
 func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
 
-// WithDebug is the debug mode of a local run, whose choice of models serves the
-// calls of a task from paper and whose store keeps what each returned (R97).
+// WithDebug is the debug mode, whose choice of models serves the calls of a task
+// from paper of an account with its right and whose store keeps what each
+// returned (R97).
 func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } }
 
 // WithTutor is what reads the sheets, the workbook pages and the essays,

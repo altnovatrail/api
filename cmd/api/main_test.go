@@ -216,22 +216,39 @@ func TestServeStartsServesAndStops(t *testing.T) {
 	}
 }
 
-// serve starts with the debug mode of a local run opened, beside the
-// platform's key it needs, and serves DebugService under the checks of every
-// method: with no token, unauthenticated (R97).
+// serve starts with the debug mode beside the platform's key it needs, with the
+// flag that gives it to every account of a local run or without it, as its
+// startup line says, and serves DebugService under the checks of every method:
+// with no token, unauthenticated (R97).
 func TestServeStartsWithTheDebugMode(t *testing.T) {
 	t.Parallel()
 
+	for _, every := range []bool{true, false} {
+		t.Run(fmt.Sprint("every account ", every), func(t *testing.T) {
+			t.Parallel()
+			more := []string{"PORT=0", "API_ANTHROPIC_KEY=sk-test"}
+			if every {
+				more = append(more, "API_DEBUG_MODELS=1")
+			}
+			serveWithTheDebugMode(t, serveEnviron(t, more...), every)
+		})
+	}
+}
+
+func serveWithTheDebugMode(t *testing.T, environ []string, every bool) {
+	t.Helper()
 	ctx, stop := context.WithCancel(t.Context())
 	var stdout, stderr syncBuffer
 	exited := make(chan int, 1)
-	environ := serveEnviron(t, "PORT=0", "API_DEBUG_MODELS=1", "API_ANTHROPIC_KEY=sk-test")
 	go func() { exited <- run(ctx, []string{"serve"}, environ, &stdout, &stderr) }()
 	deadline := time.Now().Add(30 * time.Second)
 	port := ""
 	for port == "" {
 		if lines := stdout.lines(t); len(lines) > 0 && lines[0]["message"] == "startup" {
 			port = fmt.Sprint(lines[0]["port"])
+			if lines[0]["debug_models"] != every {
+				t.Errorf("startup = %v, want debug_models %v", lines[0], every)
+			}
 			break
 		}
 		if time.Now().After(deadline) {

@@ -118,9 +118,9 @@ modelled() {
     unset API_TUTOR_STUB API_DEBUG_MODELS
 }
 
-# debugged opens the debug mode of a local run on the models: app chooses the models of a task from
-# paper and shows what each call returned and cost (R97). `just dev-ai` and `just dev-app` with
-# API_DEV_APP_AI=1 run so; `just dev-check` does not.
+# debugged gives every account of a local run on the models the right of the debug mode: app chooses
+# the models of a task from paper and shows what each call returned and cost (R97). `just dev-ai`
+# and `just dev-app` with API_DEV_APP_AI=1 run so; `just dev-check` does not.
 debugged() {
     export API_DEBUG_MODELS=1
 }

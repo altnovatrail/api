@@ -111,11 +111,12 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		options = append(options, learning.WithTutor(tutorstub.New(gate)))
 		accounts = append(accounts, account.WithoutKeyCheckLimit())
 	}
-	// The debug mode of a local run chooses the models of a task from paper and
-	// keeps what each call returned, in this process alone (R97).
+	// The debug mode chooses the models of a task from paper and keeps what each
+	// call returned, in this process alone, for an account with its right, or for
+	// every account of a local run with the flag (R97).
 	var debugs *debug.Store
 	if declared.Debug {
-		debugs = debug.New()
+		debugs = debug.New(declared.DebugEvery)
 		options = append(options, learning.WithDebug(debugs))
 	}
 	// The tariff of dev-check has its caps off a deployment alone: deployed, an
@@ -192,7 +193,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldPlatformKeys, declared.PlatformKeys,
 		logging.FieldTutorStub, declared.Stub,
 		logging.FieldReadingMode, declared.Reading,
-		logging.FieldDebugModels, declared.Debug,
+		logging.FieldDebugModels, declared.DebugEvery,
 	)
 
 	if err := srv.Run(ctx); err != nil {

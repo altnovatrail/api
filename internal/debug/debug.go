@@ -1,9 +1,10 @@
-// Package debug is the debug mode of a local run with models (R97; R163 spec):
-// which models serve the calls of AI of a task from paper, past the admission
-// list, and what each call returned and cost. Its choice and its calls are each
-// account's, in the memory of the process alone: nothing of them goes to the log
-// or to the database (R09 spec), and api makes a Store only with
-// API_DEBUG_MODELS, which a deployment refuses.
+// Package debug is the debug mode of the models of a task from paper (R97; R163
+// spec): which models serve its calls of AI, past the admission list, and what
+// each call returned and cost, for an account with the right of the mode. Its
+// choice and its calls are each account's, in the memory of the process alone:
+// nothing of them goes to the log or to the database (R09 spec). api makes a
+// Store on a run whose tutor has its own adapters with the key of Anthropic, on
+// a deployment too.
 package debug
 
 import (
@@ -27,6 +28,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/altnovatrail/api/internal/quota"
+	"github.com/altnovatrail/api/internal/rpc"
 )
 
 // kept is how many actions an account keeps until they are taken: a tab that
@@ -40,6 +42,9 @@ const anthropic admissionv0.Provider = "anthropic"
 type Store struct {
 	mu       sync.Mutex
 	accounts map[string]*account
+	// every gives every account the right of the mode, as API_DEBUG_MODELS of a
+	// local run does; otherwise an account has it by its row (R97).
+	every bool
 }
 
 type account struct {
@@ -47,8 +52,16 @@ type account struct {
 	actions       []*v1.DebugAction
 }
 
-// New is a Store with no choice: each call has its model of the list.
-func New() *Store { return &Store{accounts: map[string]*account{}} }
+// New is a Store with no choice: each call has its model of the list. every
+// gives every account the right of the mode (R97).
+func New(every bool) *Store { return &Store{accounts: map[string]*account{}, every: every} }
+
+// Open says whether the mode is open to the caller: an account whose row has
+// the right, or any account of a store that gives it to every one. A nil Store,
+// of a run without the mode, opens it to none (R97).
+func (s *Store) Open(c rpc.Caller) bool {
+	return s != nil && c.AccountID != "" && (s.every || c.DebugModels)
+}
 
 // of is the account's entry, made when it has none: for a write alone.
 func (s *Store) of(accountID string) *account {
@@ -187,8 +200,8 @@ func (s *Store) Take(accountID string) []*v1.DebugAction {
 }
 
 // Action is one request of a task from paper while it runs: the route it gives
-// tutor, and the calls it records. A nil Action, of a run without the mode,
-// records nothing and leaves a route as it is.
+// tutor, and the calls it records. A nil Action, of a run without the mode or
+// an account without its right, records nothing and leaves a route as it is.
 type Action struct {
 	store   *Store
 	account string

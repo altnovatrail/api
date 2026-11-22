@@ -33,7 +33,7 @@ func TestTheRowsOfAnAccountGoAndTheMinimalRecordsStay(t *testing.T) {
 		VALUES ($1, 'correct_answer', 'w', 'other', '', now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE accounts SET key_checked_at = ARRAY[now()] WHERE id = $1`, id); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE accounts SET key_checked_at = ARRAY[now()], debug_models = true WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
@@ -58,6 +58,10 @@ func TestTheRowsOfAnAccountGoAndTheMinimalRecordsStay(t *testing.T) {
 	// The checks of an own key go with the account's fields (R78).
 	if count(t, pool, "accounts WHERE cardinality(key_checked_at) > 0") != 0 {
 		t.Error("want the checks of a key gone with the account's fields")
+	}
+	// So does the right of the debug mode (R97).
+	if count(t, pool, "accounts WHERE debug_models") != 0 {
+		t.Error("want the right of the debug mode gone with the account's fields")
 	}
 	// The last step deletes the row, and a repeat finds it gone; the record stays.
 	for range 2 {

@@ -30,8 +30,8 @@ const (
 	VarIdleTimeout       = "API_HTTP_IDLE_TIMEOUT"
 	VarShutdownTimeout   = "API_SHUTDOWN_TIMEOUT"
 	VarRequestTimeout    = "API_REQUEST_TIMEOUT"
-	// VarPaperRequestTimeout is the time limit of the two methods of a task
-	// from paper that ask up to three models in turn (R98).
+	// VarPaperRequestTimeout is the time limit of the methods of a task from
+	// paper that ask up to three models in turn (R98).
 	VarPaperRequestTimeout = "API_PAPER_REQUEST_TIMEOUT"
 	VarService             = "K_SERVICE"
 
@@ -119,9 +119,9 @@ type Config struct {
 	// among it; a client's Connect-Timeout-Ms may shorten it (R33). It is under
 	// WriteTimeout, so that the answer of a request cut short still goes out.
 	RequestTimeout time.Duration
-	// PaperRequestTimeout is RequestTimeout of FindTasks and SubmitWork, whose
-	// calls of a task from paper ask up to three models in turn; it is under
-	// WriteTimeout too (R98).
+	// PaperRequestTimeout is RequestTimeout of FindTasks, ReadStatement and
+	// SubmitWork, whose calls of a task from paper ask up to three models in
+	// turn; it is under WriteTimeout too (R98).
 	PaperRequestTimeout time.Duration
 
 	// Service is the name K_SERVICE carries. Cloud Run sets it on every

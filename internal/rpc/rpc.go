@@ -51,7 +51,8 @@ type Handlers struct {
 	Legal    apiv1connect.LegalServiceHandler
 	Work     apiv1connect.WorkServiceHandler
 	Paper    apiv1connect.PaperServiceHandler
-	// Debug is the debug mode of a local run, set only with its flag (R97).
+	// Debug is the debug mode, set on a run whose tutor has its own adapters with
+	// the key of Anthropic; unset, each method answers unimplemented (R97).
 	Debug apiv1connect.DebugServiceHandler
 }
 
@@ -109,10 +110,12 @@ const MaxMessage = 11 << 20
 
 // paperMethods are the methods whose calls of a task from paper ask up to three
 // models in turn, and so run for the time limit of paper: the finding of the
-// tasks, and the submission of a work, a task of a module's among them (R98).
+// tasks, the reading of a statement, and the submission of a work, a task of a
+// module's among them (R98).
 var paperMethods = map[string]bool{
-	apiv1connect.PaperServiceFindTasksProcedure:    true,
-	apiv1connect.AttemptServiceSubmitWorkProcedure: true,
+	apiv1connect.PaperServiceFindTasksProcedure:       true,
+	apiv1connect.AttemptServiceReadStatementProcedure: true,
+	apiv1connect.AttemptServiceSubmitWorkProcedure:    true,
 }
 
 // limited cuts a request short at its time limit, that of paper for

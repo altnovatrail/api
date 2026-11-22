@@ -42,7 +42,8 @@ const (
 	// observation is the reading (R88). Unset or empty, it is "pair"; it holds
 	// at either stage.
 	VarReadingMode = "API_READING_MODE"
-	// VarDebugModels, set to 1, opens the debug mode of a local run with models:
+	// VarDebugModels, set to 1, gives every account of a local run with models
+	// the right of the debug mode, which otherwise an account has by its row:
 	// the developer chooses the models of the calls of a task from paper, past
 	// the admission list, and sees what each returned and cost (R97; R163
 	// spec). It is refused deployed, beside the stub, which calls no model, and
@@ -91,7 +92,8 @@ type Admission struct {
 	// Reading is the mode of reading handwriting, ReadingPair or ReadingSingle
 	// (R88).
 	Reading string
-	// Debug says whether the debug mode of a local run is open (R97).
+	// Debug says whether API_DEBUG_MODELS gives every account of the run the
+	// right of the debug mode (R97).
 	Debug bool
 }
 
@@ -107,7 +109,7 @@ type Admission struct {
 // sign-in service: deployed — K_SERVICE set, as serve runs on Cloud Run, or
 // CLOUD_RUN_JOB, as api check runs before the migrations — it is refused, and
 // so it is beside a platform key, which nothing would call — with the stub no
-// key of a provider is in the process (R66). The debug mode is refused the same
+// key of a provider is in the process (R66). The debug flag is refused the same
 // way, deployed and beside the stub (R97).
 func AdmissionFrom(environ []string) (Admission, error) {
 	env := read(environ)
@@ -166,7 +168,7 @@ func AdmissionFrom(environ []string) (Admission, error) {
 		case debug != "1":
 			problems = append(problems, fmt.Errorf("%w: %s must be 1 or unset, got %q", ErrInvalid, VarDebugModels, debug))
 		case deployedBy != "":
-			problems = append(problems, fmt.Errorf("%w: %s must not be set when %s is set: the debug mode is a local run's alone",
+			problems = append(problems, fmt.Errorf("%w: %s must not be set when %s is set: it gives every account the debug mode, a local run's alone",
 				ErrInvalid, VarDebugModels, deployedBy))
 		case cfg.Stub:
 			problems = append(problems, fmt.Errorf("%w: %s must not be set beside %s: the stub calls no model",
