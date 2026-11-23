@@ -166,7 +166,7 @@ func TestTheTextsOfTheTag(t *testing.T) {
 // 4 from 2026-11-28: the day before each, GetLegalTexts gives it as the next
 // version, kept no longer than until midnight UTC, and a request that names it
 // is refused, the one before it being current; from its day on it is the
-// current version (R130 spec).
+// current version.
 func TestThePolicyOfTheTagByTheDay(t *testing.T) {
 	t.Parallel()
 

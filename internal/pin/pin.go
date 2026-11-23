@@ -1,7 +1,7 @@
-// Package pin is the PIN of the section for adults (R04, R35): its form, its
-// hash and the count of wrong PINs that closes its input. The PIN is a barrier
-// of the interface, not of the server; the count is what keeps it from being
-// tried by the server, one for every device of the account.
+// Package pin is the PIN of the section for adults: its form, its hash and the
+// count of wrong PINs that closes its input. The PIN is a barrier of the
+// interface, not of the server; the count is what keeps it from being tried by
+// the server, one for every device of the account.
 package pin
 
 import (
@@ -10,9 +10,9 @@ import (
 	"github.com/altnovatrail/api/internal/argon"
 )
 
-// The count (R04, R35): no more than MaxFailures wrong PINs in any Window. The
-// count is of the wrong PINs of the last Window, and the one that brings it to
-// MaxFailures closes the input for LockFor from itself.
+// The count: no more than MaxFailures wrong PINs in any Window. The count is of
+// the wrong PINs of the last Window, and the one that brings it to MaxFailures
+// closes the input for LockFor from itself.
 const (
 	MaxFailures = 5
 	Window      = 15 * time.Minute

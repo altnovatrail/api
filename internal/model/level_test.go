@@ -37,7 +37,7 @@ func (l learner) correct(t *testing.T, m *model.Model, pkg *modulepackage.Packag
 // the state recomputed of the journal is the state appended; a module with no
 // evidence before it has its level in the band set; a correction on a version
 // withdrawn for a wrong key is folded all the same; and the levels are the last
-// correction of each module that decodes (R89).
+// correction of each module that decodes.
 func TestACorrectionIsFoldedAndCached(t *testing.T) {
 	t.Parallel()
 

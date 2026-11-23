@@ -1,34 +1,33 @@
-// Package tutorstub is the stub of tutor in api's dev mode (R66; R146 spec): it
-// stands behind the ports through which api calls tutor — the readings of a
-// sheet, a workbook page and an essay, the assessment of an essay, the tutor's
-// words, the finding of the tasks on the photo of a page and the check of a
-// task from paper — so that a run of the path on the dev projects calls no
-// provider and costs nothing. Admission and the prices stay tutor's own, on the
-// real table, by the gate the dev mode builds with the stub's adapter
-// (admission.StubAdapters); only the calls are the stub's.
+// Package tutorstub is the stub of tutor in api's dev mode: it stands behind
+// the ports through which api calls tutor — the readings of a sheet, a workbook
+// page and an essay, the assessment of an essay, the tutor's words, the finding
+// of the tasks on the photo of a page and the check of a task from paper — so
+// that a run of the path on the dev projects calls no provider and costs
+// nothing. Admission and the prices stay tutor's own, on the real table, by the
+// gate the dev mode builds with the stub's adapter (admission.StubAdapters);
+// only the calls are the stub's.
 //
 // The stub reads a sheet by the shape of its crop: wider than tall is the right
 // value, taller than wide a wrong one — the slot's first trap value, or the
 // first value its check holds not right —, and square is illegible. It reads
 // each filled box of a workbook page the same way, by the shape of the box's
 // crop. It finds the values by module-kit's verdict on the instance, the key
-// with it, which the stub alone is given: tutor sees the open view (R67 spec).
-// It reads an essay by the shape of the sheet's crop too — wider than tall a
-// text of its own, taller than wide a blank sheet, square illegible —, and
-// assesses the text every criterion met but the last. It finds the tasks on the
-// photo of a page by its shape as well: taller than wide five tasks, one under
-// another, wider than tall none, and square a failure of AI. A task from paper
-// it checks by shapes too: the statement wider than tall reads into a formula
-// the solver takes, at least twice as tall as wide is several tasks, which have
-// no key, otherwise taller than wide is none and a solution of AI gives the
-// same answer, and square has no one answer, so the task has no key; the work
-// it reads by the shape of its crop, which takes in the tracing paper: more
-// than twice as wide as tall right, wider but not twice wrong, else illegible.
-// Its words — a rung's
-// questions, the praise after a correct answer and the feedback on an essay —
-// are its own, which pass the leak check and the form check. Each call spends
-// what tutor expects a call of its kind to cost on its route, so that the quota
-// runs out as on the models.
+// with it, which the stub alone is given: tutor sees the open view. It reads an
+// essay by the shape of the sheet's crop too — wider than tall a text of its
+// own, taller than wide a blank sheet, square illegible —, and assesses the
+// text every criterion met but the last. It finds the tasks on the photo of a
+// page by its shape as well: taller than wide five tasks, one under another,
+// wider than tall none, and square a failure of AI. A task from paper it checks
+// by shapes too: the statement wider than tall reads into a formula the solver
+// takes, at least twice as tall as wide is several tasks, which have no key,
+// otherwise taller than wide is none and a solution of AI gives the same
+// answer, and square has no one answer, so the task has no key; the work it
+// reads by the shape of its crop, which takes in the tracing paper: more than
+// twice as wide as tall right, wider but not twice wrong, else illegible. Its
+// words — a rung's questions, the praise after a correct answer and the
+// feedback on an essay — are its own, which pass the leak check and the form
+// check. Each call spends what tutor expects a call of its kind to cost on its
+// route, so that the quota runs out as on the models.
 //
 // On an own key a call ends by how the key ends, as a provider would refuse it
 // (KeyRefused and the endings beside it): api hands the stub the key's value
@@ -36,7 +35,7 @@
 // its ending and keeps nothing of it.
 //
 // api takes the stub off a deployment alone: the configuration refuses it
-// there, as R32 refuses the emulator of the sign-in service.
+// there, as api refuses the emulator of the sign-in service.
 package tutorstub
 
 import (
@@ -85,8 +84,8 @@ const mostTried = 999
 const wholeCrop = 1000
 
 // The endings of a synthetic own key that a call of AI on the stub reads, past
-// the checks of the request's form, as a provider would answer it (R66): the
-// key refused, or a limit — named by none of tutor's reasons, or by one; the
+// the checks of the request's form, as a provider would answer it: the key
+// refused, or a limit — named by none of tutor's reasons, or by one; the
 // ceiling of the tier with when access returns, as tutor's adapter of Claude
 // gives it. A key that ends in none of them calls the stub as platform AI does.
 // docs/build.md names them for app; CheckOwnKey takes them all.
@@ -119,13 +118,12 @@ type limitEnding struct {
 var errRefused = errors.New("tutorstub: the stub refused the call by the ending of the own key")
 
 // refusal is what a call on the own key own comes to by its ending, as tutor
-// gives a provider's refusal: KeyRefused, or LimitReached with tutor's reason of
-// the ending and, for the tier, when access returns by the wall clock — no
-// other limit of Anthropic's says it but in its words (R66) —, with no usage,
-// since a refused call has no tokens; ok is false for a key of no such ending,
-// and on platform AI, whose own is empty. A request whose context ended fails
-// instead, as a call cut short does. Neither the outcome nor its error holds
-// the key.
+// gives a provider's refusal: KeyRefused, or LimitReached with tutor's reason
+// of the ending and, for the tier, when access returns by the wall clock — no
+// other limit of Anthropic's says it but in its words —, with no usage, since a
+// refused call has no tokens; ok is false for a key of no such ending, and on
+// platform AI, whose own is empty. A request whose context ended fails instead,
+// as a call cut short does. Neither the outcome nor its error holds the key.
 func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 	switch i := slices.IndexFunc(limits, func(l limitEnding) bool { return strings.HasSuffix(own, l.ending) }); {
 	case strings.HasSuffix(own, KeyRefused):
@@ -148,7 +146,7 @@ func refusal(ctx context.Context, own string) (o tutor.Outcome, ok bool) {
 
 // nextMonth is 00:00 UTC on the first day of the month after the one at falls
 // on, in UTC: when the ceiling of Anthropic's tier lets a key go, as tutor's
-// adapter of Claude reckons it (R66).
+// adapter of Claude reckons it.
 func nextMonth(at time.Time) time.Time {
 	at = at.UTC()
 	return time.Date(at.Year(), at.Month()+1, 1, 0, 0, 0, 0, time.UTC)
@@ -157,7 +155,7 @@ func nextMonth(at time.Time) time.Time {
 // Gate is what the stub asks of the gate of admission: whether a reading and
 // the tutor's words are admitted, what a call is expected to cost, and the mode
 // tutor reads handwriting by, which says how many readers read a sheet or a
-// workbook page (R88).
+// workbook page.
 type Gate interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
@@ -179,11 +177,11 @@ func New(gate Gate) *Stub { return &Stub{gate: gate} }
 // ReadSheet reads the crop of r by its shape, on task, the instance whose open
 // view r holds: each reader of the gate's mode reads the same, so module-kit
 // joins the pair's as they are. A value stands with the crop box of the whole
-// crop, in thousandths, and a reason with none, as an observation has them (R53
-// spec). A task with no answer slot bound anywhere, a crop that is no PNG, or a
-// request whose context ended while the stub looked for a value, fails, as
-// tutor's reading does. Past those checks an own key of an ending of the stub's
-// is refused by it, own being its value.
+// crop, in thousandths, and a reason with none, as an observation has them. A
+// task with no answer slot bound anywhere, a crop that is no PNG, or a request
+// whose context ended while the stub looked for a value, fails, as tutor's
+// reading does. Past those checks an own key of an ending of the stub's is
+// refused by it, own being its value.
 func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead {
 	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
 	if err != nil {
@@ -226,25 +224,25 @@ func (s *Stub) ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv
 
 // Reads says whether the reading by the call of the kind is admitted for a
 // learner of category, on the route of ownKeyProvider, as the gate says:
-// admission is tutor's, so the stub admits no kind of call itself (R90).
+// admission is tutor's, so the stub admits no kind of call itself.
 func (s *Stub) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return s.gate.Reads(call, category, ownKeyProvider)
 }
 
 // ReadEssay reads the essay of r, on task, by the shape of the crop of its
-// sheet, as ReadSheet reads a sheet: wider than tall the stub's text, essayText;
-// taller than wide a blank sheet, UNREADABLE_BLANK; square illegible,
-// UNREADABLE_ILLEGIBLE (R66). One reader reads it, as tutor's one model does,
-// and the observation is of the one answer slot bound to the sheet, a value
-// with no crop box, as tutor's. Of tutor's checks before its call the stub
-// keeps those of the request's form: a task that is no handwriting sheet, has
-// no slot bound to the sheet, more than one, or a slot bound otherwise, no open
-// view of the task, a crop that is no PNG or is larger than maxCropSide on a
-// side, and a request whose context ended, fail. Past those checks an own key
+// sheet, as ReadSheet reads a sheet: wider than tall the stub's text,
+// essayText; taller than wide a blank sheet, UNREADABLE_BLANK; square
+// illegible, UNREADABLE_ILLEGIBLE. One reader reads it, as tutor's one model
+// does, and the observation is of the one answer slot bound to the sheet, a
+// value with no crop box, as tutor's. Of tutor's checks before its call the
+// stub keeps those of the request's form: a task that is no handwriting sheet,
+// has no slot bound to the sheet, more than one, or a slot bound otherwise, no
+// open view of the task, a crop that is no PNG or is larger than maxCropSide on
+// a side, and a request whose context ended, fail. Past those checks an own key
 // of an ending of the stub's, own being its value, is refused by it. The call
 // spends the expected price of CallEssay on the route, tutor's by the entry the
-// author's word admits (R90); with none, nothing priced, so the quota keeps its
-// reserve by the value of the kind as spent (R12, R82).
+// author's word admits; with none, nothing priced, so the quota keeps its
+// reserve by the value of the kind as spent.
 func (s *Stub) ReadEssay(ctx context.Context, r tutor.EssayReading, task formatv0.Task, own string) tutor.EssayRead {
 	fail := func(err error) tutor.EssayRead {
 		return tutor.EssayRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
@@ -324,16 +322,15 @@ func essayPlace(task formatv0.Task) (*observationv1.AnswerSlotPlace, error) {
 // AssessEssay assesses the text of r by the criteria of its rubric as the stub
 // does: every criterion met but the last, each with the stub's synthetic
 // evidence, and the stub's feedback in the language of r — English for a
-// language it has no words of —, which passes the leak check and
-// words.Feedback against any text, since it quotes none (R66). Of tutor's
-// checks before its call the stub keeps those of the request's form: no text,
-// no criterion or a blank one, no topic, no style, or a language words.Feedback
-// cannot check, fails, as does a request whose context ended, every criterion
-// without a mark. Past those checks an own key of an ending of the stub's, own
-// being its value, is refused by it. The call spends the expected price of
-// CallRubric on the route, tutor's by the entry the author's word admits (R90);
-// with none, nothing priced, so the quota keeps its reserve by the value of the
-// kind as spent (R12, R82).
+// language it has no words of —, which passes the leak check and words.Feedback
+// against any text, since it quotes none. Of tutor's checks before its call the
+// stub keeps those of the request's form: no text, no criterion or a blank one,
+// no topic, no style, or a language words.Feedback cannot check, fails, as does
+// a request whose context ended, every criterion without a mark. Past those
+// checks an own key of an ending of the stub's, own being its value, is refused
+// by it. The call spends the expected price of CallRubric on the route, tutor's
+// by the entry the author's word admits; with none, nothing priced, so the
+// quota keeps its reserve by the value of the kind as spent.
 func (s *Stub) AssessEssay(ctx context.Context, r tutor.RubricAssessment, own string) tutor.RubricAssessed {
 	none := func(o tutor.Outcome) tutor.RubricAssessed {
 		return tutor.RubricAssessed{Criteria: make([]tutor.CriterionMark, len(r.Criteria)), Outcome: o}
@@ -379,7 +376,7 @@ func feedbackLanguage(tag string) bool {
 }
 
 // evidence is what the stub says it judged each criterion by: synthetic, and
-// never shown, kept or logged, as no evidence is (R15).
+// never shown, kept or logged, as no evidence is.
 const evidence = "The stub's synthetic evidence: no model read the text."
 
 // feedback is the stub's feedback on an essay, by language: two sentences with
@@ -407,8 +404,8 @@ var feedback = map[string]string{
 // and spends nothing, as tutor's does; past those checks an own key of an
 // ending of the stub's, own being its value, is refused by it. The call spends
 // the expected price of CallWorkbook on the route, tutor's by the entry the
-// author's word admits (R90); with none, nothing priced, so the quota keeps its
-// reserve by the value of the kind as spent (R12, R81).
+// author's word admits; with none, nothing priced, so the quota keeps its
+// reserve by the value of the kind as spent.
 func (s *Stub) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead {
 	fail := func(err error) tutor.WorkbookRead {
 		return tutor.WorkbookRead{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
@@ -622,8 +619,8 @@ func (s *Stub) CorrectWords(category formatv0.AgeCategory, ownKeyProvider string
 // TellCorrectWords words the stub's praise in the language of c — of a step of
 // the work when the work went, of the option chosen when it did not — with a
 // question on the technique that helped as its last sentence, or, when the task
-// names no technique, on how the answer was found, as tutor's prompt asks (R112
-// tutor). They hold no number and tell no sex, so they pass the leak check and
+// names no technique, on how the answer was found, as tutor's prompt asks. They
+// hold no number and tell no sex, so they pass the leak check and
 // words.Correct. A language the stub has no words of gets English. Of tutor's
 // checks before its call the stub keeps those of the request's form: no task,
 // no style, no language, or a crop that is no PNG fails with no usage; the
@@ -679,9 +676,9 @@ var praise = map[string]struct{ step, choice, technique, found string }{
 // usage is what the call spends: what tutor expects a call of its kind to cost
 // on route, the reserve the quota took for it, shared by the models that answer
 // in whole micro-dollars, each billed, and priced when tutor gave the price —
-// with none, nothing priced, and the quota keeps the reserve as spent (R12). So
-// the settlement spends the reserve to the micro-dollar, and the quota runs out
-// after as many calls as on the models (R58).
+// with none, nothing priced, and the quota keeps the reserve as spent. So the
+// settlement spends the reserve to the micro-dollar, and the quota runs out
+// after as many calls as on the models.
 func (s *Stub) usage(call tutor.Call, route tutor.Route, models int) []tutor.Usage {
 	price := s.gate.Price(call, route)
 	var total quota.Micro
@@ -706,18 +703,18 @@ const (
 	columnTasks = 12
 )
 
-// FindTasks finds the tasks on the photo of f by its shape (R66): taller than
-// wide, pageTasks of them, one under another across the page, in its order;
-// wider than tall, none, which the learner frames by hand; square, a failure of
-// AI, which spends as a call that went. With the learner's request a photo not
+// FindTasks finds the tasks on the photo of f by its shape: taller than wide,
+// pageTasks of them, one under another across the page, in its order; wider
+// than tall, none, which the learner frames by hand; square, a failure of AI,
+// which spends as a call that went. With the learner's request a photo not
 // square has columnTasks of them, one under another in the left quarter, less
-// those that cover a frame the learner drew, by tutor's own check (R99). Of
-// tutor's checks before its call the stub keeps the photo's form: one that is no
-// JPEG or PNG fails with no usage. Past it an own key of an ending of the stub's,
+// those that cover a frame the learner drew, by tutor's own check. Of tutor's
+// checks before its call the stub keeps the photo's form: one that is no JPEG
+// or PNG fails with no usage. Past it an own key of an ending of the stub's,
 // own being its value, is refused by it. The call spends the expected price of
 // CallFinding, tutor's; with none, nothing priced, so the quota keeps its
-// reserve by the value of the kind as spent (R12). It turns no photo: its turn
-// is 0, the page taken as upright.
+// reserve by the value of the kind as spent. It turns no photo: its turn is 0,
+// the page taken as upright.
 func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) tutor.TasksFound {
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(f.Photo))
 	if err != nil {
@@ -820,7 +817,7 @@ func base(language string) string {
 }
 
 // readers is how many readers read a sheet or a workbook page by the gate's
-// mode of reading: the two of the pair of R68 spec, or the one reader (R88).
+// mode of reading: the two of the pair, or the one reader.
 func (s *Stub) readers() int {
 	if s.gate.Reading() == tutor.ReadingSingle {
 		return 1
@@ -846,13 +843,12 @@ var severalTasks = []tutor.StatementTask{
 }
 
 // ReadStatement reads the statement of a task from paper by the shape of its
-// crop (R66): wider than tall, one task of the formula stubFormula, which the
-// solver takes; at least twice as tall as wide, the three tasks severalTasks;
+// crop: wider than tall, one task of the formula stubFormula, which the solver
+// takes; at least twice as tall as wide, the three tasks severalTasks;
 // otherwise taller than wide or square, one task of no formula, so that a
-// solution of AI is asked.
-// Of tutor's checks before its call the stub keeps the crop's form: one that is
-// no JPEG or PNG fails with no usage. Past it an own key of an ending of the
-// stub's, own being its value, is refused by it.
+// solution of AI is asked. Of tutor's checks before its call the stub keeps the
+// crop's form: one that is no JPEG or PNG fails with no usage. Past it an own
+// key of an ending of the stub's, own being its value, is refused by it.
 func (s *Stub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
 	cfg, o, ok := s.statement(ctx, tutor.CallStatement, p, own)
 	if !ok {

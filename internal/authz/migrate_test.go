@@ -77,7 +77,7 @@ func TestOpenRefusesAStoreWithoutItsModelAndMigrateWritesIt(t *testing.T) {
 
 // While a new revision rolls out, its migrate writes a newer model, and a
 // revision still serving — or one rolled back to — starts on its own, which the
-// store still holds; its migrate, run again, writes nothing (R31).
+// store still holds; its migrate, run again, writes nothing.
 func TestARevisionStartsOnItsOwnModelWhenANewerIsLatest(t *testing.T) {
 	t.Parallel()
 

@@ -79,15 +79,15 @@ func answer(wrong int32, verdict, value string) []byte {
 
 var choices *modulepackage.Package
 
-// The export of a profile with an attempt, its submissions, its evidence and its
-// state, an essay with the marks of its feedback by number (R15), a lesson run,
-// a choice, the storage of works, two stored works, a problem report, an
-// adult's correction of a level — named by its correction_id (R157 spec) —, the
-// open attempts of a page from paper, with where each task's key came from but
-// not the key, and a closed one, which api keeps nothing of, and of its
-// account, is api.zip whose every file passes its schema of spec's part export/
-// and keeps its rules of the layout and the .proto files (R135 spec). A stored
-// work is written newest first, named without its bytes (R70, R84).
+// The export of a profile with an attempt, its submissions, its evidence and
+// its state, an essay with the marks of its feedback by number, a lesson run, a
+// choice, the storage of works, two stored works, a problem report, an adult's
+// correction of a level — named by its correction_id —, the open attempts of a
+// page from paper, with where each task's key came from but not the key, and a
+// closed one, which api keeps nothing of, and of its account, is api.zip whose
+// every file passes its schema of spec's part export/ and keeps its rules of
+// the layout and the .proto files. A stored work is written newest first, named
+// without its bytes.
 func TestTheExportPassesItsSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +164,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	exec(`INSERT INTO submissions (profile_id, attempt_id, number, answer, observation) VALUES ($1, $2, 1, $3, $4)`, profile, gone, unreadable, observation)
 	exec(`UPDATE attempts SET close_reason = 'correct', closed_at = now() WHERE id = $1`, attempt)
 	// An essay closed "done": feedback with the marks of its two criteria, and a
-	// sheet that could not be read, each with its answer of no text (R15).
+	// sheet that could not be read, each with its answer of no text.
 	var essay string
 	if err := pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version, module_format_version,
 			module_kit_version, task_id, seed, previous_attempt_id, close_reason, closed_at)
@@ -182,7 +182,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	exec(`INSERT INTO work_storage_consents (profile_id, giver, text_version, on_at, off_at) VALUES ($1, 'owner', 1, now(), now())`, profile)
 	// Two stored works, the one of the attempt that left the image the newer. The
 	// newer one's bytes are no message at all: the export names a work by its
-	// columns and never reads them (R84).
+	// columns and never reads them.
 	for i, a := range []string{attempt, gone} {
 		work, err := proto.Marshal(&v1.StoredWork{AttemptId: a, History: []byte(`[{"kind":"write","t":1}]`),
 			Submissions: []*v1.WorkSubmission{{Context: []byte(`{"answer_slot":1}`), HistoryLength: 1}}, Picture: []byte("\x89PNG\r\n\x1a\n")})
@@ -202,7 +202,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		profile, string(choices.View.Manifest.ID), string(choices.Inventory.Version), string(choices.Digest)).Scan(&run); err != nil {
 		t.Fatal(err)
 	}
-	// An adult's correction of the level, a fact of the journal of no attempt (R89).
+	// An adult's correction of the level, a fact of the journal of no attempt.
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		s, err := m.Settle(ctx, tx, profile, time.Now())
 		if err != nil {
@@ -298,12 +298,12 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		t.Error("the profile's file holds the seed of an attempt")
 	}
 	// The key of a task from paper and the reading of its statement never reach
-	// the device, and a closed attempt of paper is not kept (R05 spec; R101). The
-	// formula holds letters no UUID has, so that no random ID matches it.
+	// the device, and a closed attempt of paper is not kept. The formula holds
+	// letters no UUID has, so that no random ID matches it.
 	if strings.Contains(text, "3 + 4") || strings.Contains(text, "9 - 6") || strings.Contains(text, "x=9-6") || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
 		t.Error("the profile's file holds a key or a reading of a task from paper, or its closed attempt, or key sources before a check")
 	}
-	// The works are named without their bytes: app reads each by GetWork (R151 spec).
+	// The works are named without their bytes: app reads each by GetWork.
 	if strings.Contains(text, `"history"`) || strings.Contains(text, `"picture"`) {
 		t.Error("the profile's file holds the bytes of a stored work")
 	}

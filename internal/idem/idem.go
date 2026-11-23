@@ -1,13 +1,13 @@
-// Package idem is what tells one request from another under one idempotency key
-// (R17, R35): the key's form and the request's fingerprint.
+// Package idem is what tells one request from another under one idempotency
+// key: the key's form and the request's fingerprint.
 //
 // A fingerprint is of the request as protobuf writes it deterministically, with
 // its key left out, so that a repeat of one request has the fingerprint of its
 // first, and its own key too: the learner's own key at a provider lives in the
-// request's memory alone, and no hash of it is kept (R84 spec). Most are
-// SHA-256. One of a request that carries a PIN or an age is argon2id with a salt
-// of its own: a PIN has 10⁶ values and an age 18, so a fast hash of either would
-// give it back, and the age is kept nowhere (R134 spec).
+// request's memory alone, and no hash of it is kept. Most are SHA-256. One of a
+// request that carries a PIN or an age is argon2id with a salt of its own: a
+// PIN has 10⁶ values and an age 18, so a fast hash of either would give it
+// back, and the age is kept nowhere.
 package idem
 
 import (

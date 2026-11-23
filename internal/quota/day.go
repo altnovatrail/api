@@ -2,18 +2,17 @@ package quota
 
 import "time"
 
-// The family day (R11, R56): the quota counts by the day of the family, from
-// midnight to midnight by the clock of its device, as R293 standalone had it,
-// rather than by UTC, which would renew it in the evening in America. app sends
-// the offset of the device's clock from UTC with the requests on platform AI;
-// the account keeps the offset and its current day, and a new offset holds from
-// the next day on. The first day by a new offset ends at its first midnight no
-// sooner than 20 hours after the end of the day before, so that a jump from +14
-// hours to −12 gives no day of 2 hours and a second quota; after a trip east of
-// more than 4 hours that day is longer, up to 44 hours. Until a device has sent
-// an offset, the day is UTC's.
+// The family day: the quota counts by the day of the family, from midnight to
+// midnight by the clock of its device, rather than by UTC, which would renew it
+// in the evening in America. app sends the offset of the device's clock from
+// UTC with the requests on platform AI; the account keeps the offset and its
+// current day, and a new offset holds from the next day on. The first day by a
+// new offset ends at its first midnight no sooner than 20 hours after the end
+// of the day before, so that a jump from +14 hours to −12 gives no day of 2
+// hours and a second quota; after a trip east of more than 4 hours that day is
+// longer, up to 44 hours. Until a device has sent an offset, the day is UTC's.
 
-// The bounds of an offset (R11): from −12 to +14 hours, by quarters of an hour.
+// The bounds of an offset: from −12 to +14 hours, by quarters of an hour.
 const (
 	minOffset  = -12 * 60
 	maxOffset  = 14 * 60

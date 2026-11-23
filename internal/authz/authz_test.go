@@ -107,7 +107,7 @@ func TestARightNotInTheModelIsRefused(t *testing.T) {
 }
 
 // The deletion of an account reads its tuples, more than a page of them, and
-// deletes them in batches (R21).
+// deletes them in batches.
 func TestTheOwnedProfilesAreReadAndDeletedPastAPage(t *testing.T) {
 	t.Parallel()
 
@@ -144,11 +144,11 @@ func TestTheOwnedProfilesAreReadAndDeletedPastAPage(t *testing.T) {
 	}
 }
 
-// The tuple is written inside the transaction of the database api that makes the
-// profile, before its COMMIT (R31). A write that fails after it rolls the profile
+// The tuple is written inside the transaction of the database api that makes
+// the profile, before its COMMIT. A write that fails after it rolls the profile
 // back and leaves the tuple dangling: it gives a right to a profile that is not
-// there, which the requests answer as "no profile", and the daily job removes it
-// (R21).
+// there, which the requests answer as "no profile", and the daily job removes
+// it.
 func TestTheTupleIsWrittenBeforeTheCommit(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +271,7 @@ func TestOpenRefusesAStringItCannotRead(t *testing.T) {
 }
 
 // The daily job reads every tuple of the store, past a page, with when it was
-// written, to find those left dangling (R21).
+// written, to find those left dangling.
 func TestEveryTupleIsReadWithItsTime(t *testing.T) {
 	t.Parallel()
 
@@ -319,7 +319,7 @@ func TestEveryTupleIsReadWithItsTime(t *testing.T) {
 }
 
 // The changelog keeps who owned which profile: the daily job deletes what is
-// older than a day, and nothing younger, in batches (R05; R27 canvas-api).
+// older than a day, and nothing younger, in batches.
 func TestTheChangelogIsClearedOfWhatIsOld(t *testing.T) {
 	t.Parallel()
 

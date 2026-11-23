@@ -1,10 +1,9 @@
-// Package debug is the debug mode of the models of a task from paper (R97; R163
-// spec): which models serve its calls of AI, past the admission list, and what
-// each call returned and cost, for an account with the right of the mode. Its
-// choice and its calls are each account's, in the memory of the process alone:
-// nothing of them goes to the log or to the database (R09 spec). api makes a
-// Store on a run whose tutor has its own adapters with the key of Anthropic, on
-// a deployment too.
+// Package debug is the debug mode of the models of a task from paper: which
+// models serve its calls of AI, past the admission list, and what each call
+// returned and cost, for an account with the right of the mode. Its choice and
+// its calls are each account's, in the memory of the process alone: nothing of
+// them goes to the log or to the database. api makes a Store on a run whose
+// tutor has its own adapters with the key of Anthropic, on a deployment too.
 package debug
 
 import (
@@ -35,7 +34,7 @@ import (
 // never takes them holds no more than these, the oldest dropped first.
 const kept = 100
 
-// anthropic is the one provider api gives tutor an adapter of (R54).
+// anthropic is the one provider api gives tutor an adapter of.
 const anthropic admissionv0.Provider = "anthropic"
 
 // Store is the choice and the actions of each account.
@@ -43,7 +42,7 @@ type Store struct {
 	mu       sync.Mutex
 	accounts map[string]*account
 	// every gives every account the right of the mode, as API_DEBUG_MODELS of a
-	// local run does; otherwise an account has it by its row (R97).
+	// local run does; otherwise an account has it by its row.
 	every bool
 }
 
@@ -53,12 +52,12 @@ type account struct {
 }
 
 // New is a Store with no choice: each call has its model of the list. every
-// gives every account the right of the mode (R97).
+// gives every account the right of the mode.
 func New(every bool) *Store { return &Store{accounts: map[string]*account{}, every: every} }
 
 // Open says whether the mode is open to the caller: an account whose row has
 // the right, or any account of a store that gives it to every one. A nil Store,
-// of a run without the mode, opens it to none (R97).
+// of a run without the mode, opens it to none.
 func (s *Store) Open(c rpc.Caller) bool {
 	return s != nil && c.AccountID != "" && (s.every || c.DebugModels)
 }
@@ -131,8 +130,8 @@ func (s *Store) Choice(accountID string) *v1.DebugChoice {
 	return &v1.DebugChoice{First: choiceOf(a.first), Second: choiceOf(a.second)}
 }
 
-// Chosen is whether the account has a first model, which bypasses the
-// admission list as tutor does (R97); a nil Store has none.
+// Chosen is whether the account has a first model, which bypasses the admission
+// list as tutor does; a nil Store has none.
 func (s *Store) Chosen(accountID string) bool {
 	if s == nil {
 		return false

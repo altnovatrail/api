@@ -19,8 +19,8 @@ func read(t *testing.T, path string) string {
 }
 
 // The Dockerfile builds with the Go that go.mod names and the tests run on, and
-// on bases pinned by their digests (R105 spec): a builder that drifted from
-// go.mod would ship a binary its tests never ran on.
+// on bases pinned by their digests: a builder that drifted from go.mod would
+// ship a binary its tests never ran on.
 func TestTheDockerfileBuildsWithTheGoOfGoMod(t *testing.T) {
 	t.Parallel()
 
@@ -54,8 +54,8 @@ func TestTheDockerfileBuildsWithTheGoOfGoMod(t *testing.T) {
 	if !strings.Contains(dockerfile, "FROM runtime AS release\n") || !strings.Contains(dockerfile, "COPY --from=binary --chmod=0555 api /api") {
 		t.Error("the Dockerfile has no stage release around the binary of the context binary, which a deployment builds")
 	}
-	// The packages of modules are laid by the binary the image holds, and copied in
-	// owned by root (R41).
+	// The packages of modules are laid by the binary the image holds, and
+	// copied in owned by root.
 	for _, line := range []string{
 		`RUN ["/api", "packages", "/tmp/packages"]`,
 		"COPY --from=release-packages --chown=0:0 /tmp/packages /packages",
@@ -68,8 +68,8 @@ func TestTheDockerfileBuildsWithTheGoOfGoMod(t *testing.T) {
 }
 
 // git archive writes the commit and its time into archive.txt, which
-// release-files reads (R28): the attribute that makes it do so, and the format
-// it fills in, are held here.
+// release-files reads: the attribute that makes it do so, and the format it
+// fills in, are held here.
 func TestTheArchiveNamesItsCommit(t *testing.T) {
 	t.Parallel()
 

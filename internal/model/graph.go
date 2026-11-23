@@ -80,7 +80,7 @@ var assessabilities = map[formatv0.SkillAssessability]learnermodel.Assessability
 
 // graphOf is the graph of the package's version, as learner-model builds it of
 // its bands, its skills with their tiers, its retired skills and the
-// descriptions of its tasks (R08).
+// descriptions of its tasks.
 func graphOf(pkg *modulepackage.Package) (learnermodel.Graph, error) {
 	module := pkg.View.Manifest.ID
 	var skills []learnermodel.Skill
@@ -124,12 +124,12 @@ var checkKinds = map[formatv0.CheckKind]learnermodel.CheckKind{
 }
 
 // Describe is the task of the package as learner-model describes it, for the
-// evidence of an attempt and for a candidate of the engine (R08): its full ID —
-// a template's own —, its band and difficulty, its skills and those of its
-// items, where its key and skill tags came from, and the kind of the check of
-// each answer slot, with the number of options of a choice. Every key of a
-// module is the author's, but a template's, which the program works out, and so
-// are its skill tags.
+// evidence of an attempt and for a candidate of the engine: its full ID — a
+// template's own —, its band and difficulty, its skills and those of its items,
+// where its key and skill tags came from, and the kind of the check of each
+// answer slot, with the number of options of a choice. Every key of a module is
+// the author's, but a template's, which the program works out, and so are its
+// skill tags.
 func Describe(pkg *modulepackage.Package, task formatv0.Task) (learnermodel.Task, error) {
 	m := pkg.View.Manifest
 	band := slices.IndexFunc(m.Bands, func(b formatv0.Band) bool { return b.ID == task.Band })

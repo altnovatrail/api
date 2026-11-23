@@ -1,8 +1,7 @@
-// Package consentage is the age of digital consent by country (R52): the table
-// of spec's part consent-age/, at the tag api pins, and the category of a
-// learner it gives. api keeps the category, the day it was given and applied,
-// the age of the country on that day, and never the age in years (R06 spec,
-// R134 spec).
+// Package consentage is the age of digital consent by country: the table of
+// spec's part consent-age/, at the tag api pins, and the category of a learner
+// it gives. api keeps the category, the day it was given and applied, the age
+// of the country on that day, and never the age in years.
 package consentage
 
 import (
@@ -19,7 +18,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// The categories of a learner by age (R134 spec).
+// The categories of a learner by age.
 const (
 	Under13         = "under_13"
 	From13ToConsent = "from_13_to_consent"
@@ -28,7 +27,7 @@ const (
 )
 
 // The ages the category is bound by: below the first a learner is under 13
-// everywhere, and from the second an adult (R134 spec).
+// everywhere, and from the second an adult.
 const (
 	childAge = 13
 	adultAge = 18

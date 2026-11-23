@@ -13,14 +13,14 @@ import (
 	"github.com/altnovatrail/api/internal/packages"
 )
 
-// FilesPattern is the route of the files of the device parts (R18, R42):
+// FilesPattern is the route of the files of the device parts:
 // sha256-<hex> of the package, then the path of the file in its device part —
 // LICENSE, NOTICE or media/<path>.
 const FilesPattern = "GET /packages/{package}/device/{path...}"
 
 // retryAfter is how long, in seconds, app waits before it asks again for a file
 // of a digest the index of the image does not know: a deployment is going on,
-// and a repeat reaches the new image (R07).
+// and a repeat reaches the new image.
 const retryAfter = 30
 
 // mediaTypes are the media types of the four formats of media/, by their one
@@ -32,8 +32,8 @@ var mediaTypes = map[string]string{
 	".mp3":  "audio/mpeg",
 }
 
-// Files is the handler of FilesPattern (R18, R42). It goes with no token, so
-// that fetch sends it with no preflight and through the HTTP cache:
+// Files is the handler of FilesPattern. It goes with no token, so that fetch
+// sends it with no preflight and through the HTTP cache:
 //   - 200, the file, by http.ServeContent — HEAD, ranges, and 304 by its ETag,
 //     the file's own digest — kept for a day;
 //   - 404, a digest that is not one, or a path the device part does not have;

@@ -1,6 +1,6 @@
 // Package argon is api's slow hash, argon2id, for what has too few values for a
-// fast one: a PIN, and the fingerprint of a request that carries a PIN or an age
-// (R35). A hash is written as the PHC string format writes it,
+// fast one: a PIN, and the fingerprint of a request that carries a PIN or an
+// age. A hash is written as the PHC string format writes it,
 // $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>, so that it carries its own
 // parameters, and raising them later needs no migration: a hash made before is
 // still checked by the parameters it names.
@@ -17,7 +17,7 @@ import (
 )
 
 // The parameters: the minimum OWASP's Password Storage Cheat Sheet recommends,
-// "m=19456 (19 MiB), t=2, p=1" (read 2026-11-09; R35).
+// "m=19456 (19 MiB), t=2, p=1" (read 2026-11-09).
 const (
 	memoryKiB = 19456
 	passes    = 2

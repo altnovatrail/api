@@ -11,9 +11,9 @@ import (
 	"github.com/altnovatrail/api/internal/rpc"
 )
 
-// PackageService gives what a package gives by its digest (R62 spec, R18): the
-// four open views, which go without a token by Connect GET and are cached for a
-// day, and which digests the image still gives.
+// PackageService gives what a package gives by its digest: the four open views,
+// which go without a token by Connect GET and are cached for a day, and which
+// digests the image still gives.
 type PackageService struct {
 	c *Catalog
 }

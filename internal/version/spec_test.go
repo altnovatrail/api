@@ -17,11 +17,11 @@ const (
 )
 
 // spec releases both modules from one commit, the contracts' tag carrying the
-// number of spec's own (R83 spec), and api takes both at the tag of its spec
-// submodule. A go.mod that moved one without the other would build the
-// service against a contract of one tag and a format of another. The versions
-// are read from this test binary, which links both, and not from the
-// submodule: CI checks out none.
+// number of spec's own, and api takes both at the tag of its spec submodule. A
+// go.mod that moved one without the other would build the service against a
+// contract of one tag and a format of another. The versions are read from this
+// test binary, which links both, and not from the submodule: CI checks out
+// none.
 func TestSpecAndItsContractsAreAtOneTag(t *testing.T) {
 	t.Parallel()
 

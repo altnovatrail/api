@@ -17,16 +17,16 @@ const healthBody = `{"status":"ok"}`
 var redirect = reflect.TypeOf(http.RedirectHandler("/", http.StatusTemporaryRedirect))
 
 // Routes is the service's handler: the health check, and whatever mount puts on
-// the mux — the methods of the contract, by the Connect server (R33). A panic
-// in any of them is answered here, and CORS is answered to appOrigin, when it
-// is set, on every path and every answer.
+// the mux — the methods of the contract, by the Connect server. A panic in any
+// of them is answered here, and CORS is answered to appOrigin, when it is set,
+// on every path and every answer.
 //
 // The router is the standard library's: a Connect handler is an http.Handler,
 // and a pattern with a method is all the routes need.
 func Routes(log *slog.Logger, appOrigin string, mount func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 	// GET /health answers HEAD too. The path does not end in z: Cloud Run's
-	// front end keeps paths that do for itself (R30 canvas-api).
+	// front end keeps paths that do for itself.
 	mux.HandleFunc("GET /health", health)
 	if mount != nil {
 		mount(mux)
