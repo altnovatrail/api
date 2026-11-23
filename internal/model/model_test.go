@@ -474,7 +474,7 @@ func TestAWrongKeyIsLeftOutAndAModuleGoneWaits(t *testing.T) {
 }
 
 // Under a major version that renamed adding summing, the evidence of adding on
-// the earlier version goes to summing, appended or recomputed (R08).
+// the earlier version goes to summing, appended or recomputed.
 func TestTheProgressMovesByTheRetiredSkills(t *testing.T) {
 	t.Parallel()
 
@@ -520,9 +520,9 @@ func right(task string) [][]byte {
 	return [][]byte{answer(0, []slot{{"correct", "", "three and four"}})}
 }
 
-// A trap repeats when two closed attempts found it, those of a version withdrawn
-// for a wrong key not counted, with the texts of the version of the last; one
-// whose last version left the image is left out (R49).
+// A trap repeats when two closed attempts found it, those of a version
+// withdrawn for a wrong key not counted, with the texts of the version of the
+// last; one whose last version left the image is left out.
 func TestATrapRepeatsInTwoAttempts(t *testing.T) {
 	t.Parallel()
 

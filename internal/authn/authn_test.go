@@ -48,9 +48,9 @@ func TestEachClassHasItsName(t *testing.T) {
 	}
 }
 
-// api reads no email of a token or a user (R29 canvas-api): what the port gives
-// has no field for one, and the code reads no field or claim of the SDK's
-// beyond the ones it names.
+// api reads no email of a token or a user: what the port gives has no field for
+// one, and the code reads no field or claim of the SDK's beyond the ones it
+// names.
 func TestNoEmailIsRead(t *testing.T) {
 	t.Parallel()
 

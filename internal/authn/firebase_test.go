@@ -72,8 +72,8 @@ func TestATokenWithNoTimeOfSignInHasNone(t *testing.T) {
 	}
 }
 
-// Each refusal of the SDK is its class (R20), and a revoked token, or one of a
-// user who is gone, still gives its UID.
+// Each refusal of the SDK is its class, and a revoked token, or one of a user
+// who is gone, still gives its UID.
 func TestEachRefusalIsItsClass(t *testing.T) {
 	now := time.Now()
 	for _, tc := range []struct {
@@ -211,7 +211,7 @@ func TestRemovingAUserWhoIsGoneIsDone(t *testing.T) {
 }
 
 // A failed revocation does not stop the deletion, and once the user is deleted
-// the step is done (R21).
+// the step is done.
 func TestTheDeletionGoesOnWhenTheRevocationFails(t *testing.T) {
 	g := at(t)
 	g.addUser("u", fakeUser{})

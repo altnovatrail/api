@@ -15,7 +15,7 @@ import (
 )
 
 // storeLock is the advisory lock that migrate holds while it finds or makes the
-// store and writes the model, so that two runs never make two stores (R31).
+// store and writes the model, so that two runs never make two stores.
 const storeLock = 0x617069 // "api"
 
 // Migrated is what a run of Migrate did.
@@ -32,11 +32,11 @@ type Migrated struct {
 }
 
 // Migrate brings the database openfga at url — the direct connection — to what
-// api needs: OpenFGA's schema, the store api, and in it the model api embeds
-// (R31). The schema's migrations are OpenFGA's own files, which goose runs under
-// its advisory lock of the session as it runs api's (R29), rather than by
-// OpenFGA's RunMigrations: that one takes no lock, works on goose's global state,
-// and its package brings a MySQL driver under MPL-2.0 into the binary.
+// api needs: OpenFGA's schema, the store api, and in it the model api embeds.
+// The schema's migrations are OpenFGA's own files, which goose runs under its
+// advisory lock of the session as it runs api's, rather than by OpenFGA's
+// RunMigrations: that one takes no lock, works on goose's global state, and its
+// package brings a MySQL driver under MPL-2.0 into the binary.
 func Migrate(ctx context.Context, url string) (Migrated, error) {
 	// Never fails here: fs.Sub only on a name that is not valid.
 	files, _ := fs.Sub(assets.EmbedMigrations, assets.PostgresMigrationDir)

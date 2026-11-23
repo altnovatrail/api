@@ -17,13 +17,12 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// The quota of platform AI on the calls of AI (R11, R12, R58): a request that
-// calls platform AI takes a reserve of the call's expected price on the
-// counters of its profile and its account before the call, in its first
-// transaction, and settles it by what the call cost after it, in a transaction
-// of its own. A reserve that does not fit makes no call: the answer's outcome
-// is the quota, with when the next family day begins. An own key spends no
-// quota.
+// The quota of platform AI on the calls of AI: a request that calls platform AI
+// takes a reserve of the call's expected price on the counters of its profile
+// and its account before the call, in its first transaction, and settles it by
+// what the call cost after it, in a transaction of its own. A reserve that does
+// not fit makes no call: the answer's outcome is the quota, with when the next
+// family day begins. An own key spends no quota.
 
 // settleTimeout bounds the transaction that settles a reserve after its call:
 // it goes on a context the request's end does not cut short, so that a call
@@ -32,10 +31,10 @@ const settleTimeout = 5 * time.Second
 
 // familyDay is the caller's family day at the request's time, on a request that
 // goes to platform AI by route, once it sent the offset of its device's clock,
-// if any (R11): the account keeps the offset, when valid, for the days to come,
-// and the day that holds now, in the first transaction of the request, which
-// holds the account's row. An own key spends no quota and sends no offset: its
-// route keeps nothing, and has no day.
+// if any: the account keeps the offset, when valid, for the days to come, and
+// the day that holds now, in the first transaction of the request, which holds
+// the account's row. An own key spends no quota and sends no offset: its route
+// keeps nothing, and has no day.
 func (s *Service) familyDay(ctx context.Context, tx pgx.Tx, route tutor.Route, offset *int32) (quota.Day, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return quota.Day{}, nil
@@ -57,13 +56,12 @@ type reserve struct {
 }
 
 // reserveFor reserves the call on platform AI by route, for the profile, on the
-// family day, in tx (R12): its expected price by tutor, or the value of its
-// kind when tutor has none, for each of the crops it shows (R81). Platform AI
-// that the limit of its provider closed makes no call, with the outcome
-// "platform limit" (R59). The quota of the profile or the account that does
-// not hold it refuses it with the outcome "quota" and when the next family day
-// begins; an account whose tariff has no caps, with "not admitted": platform AI
-// is closed to it by default (R11).
+// family day, in tx: its expected price by tutor, or the value of its kind when
+// tutor has none, for each of the crops it shows. Platform AI that the limit of
+// its provider closed makes no call, with the outcome "platform limit". The
+// quota of the profile or the account that does not hold it refuses it with the
+// outcome "quota" and when the next family day begins; an account whose tariff
+// has no caps, with "not admitted": platform AI is closed to it by default.
 // Either is noted in the request's log, with the cap and no ID.
 func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, crops int, day quota.Day) (reserve, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
@@ -72,12 +70,12 @@ func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, r
 	return s.reserveOf(ctx, tx, profileID, quota.Reserve(call, s.price(call, route), crops), day)
 }
 
-// reserveEssay reserves the reading of an essay together with its assessment
-// by the rubric on platform AI by route, as reserveFor reserves one call (R12,
-// R14): one charge of the two prices, which the quota holds whole or not at
-// all, given as the two parts each call settles by itself — the reading's, and
-// the assessment's, which an essay that cannot be read gives back whole (R82).
-// A refusal is the reading's.
+// reserveEssay reserves the reading of an essay together with its assessment by
+// the rubric on platform AI by route, as reserveFor reserves one call: one
+// charge of the two prices, which the quota holds whole or not at all, given as
+// the two parts each call settles by itself — the reading's, and the
+// assessment's, which an essay that cannot be read gives back whole. A refusal
+// is the reading's.
 func (s *Service) reserveEssay(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, day quota.Day) (reading, assessing reserve, err error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, reserve{}, nil
@@ -144,10 +142,10 @@ func refusal(ctx context.Context, o *v1.Outcome) error { return rpc.Keep(closedR
 // afterCall settles the reserve r by the outcome of its call, in a transaction
 // of its own on a context the request's end does not cut short: the call went,
 // and what it cost counts whatever the request comes to after it. A settlement
-// that fails leaves the reserve spent on its day, as a process that fell does
-// (R12), and the request's line names the failure. A refusal of the provider by
-// its limit on the platform's key closes platform AI to all, until the operator
-// opens it again, and the first such refusal is a line of the log (R11, R59).
+// that fails leaves the reserve spent on its day, as a process that fell does,
+// and the request's line names the failure. A refusal of the provider by its
+// limit on the platform's key closes platform AI to all, until the operator
+// opens it again, and the first such refusal is a line of the log.
 func (s *Service) afterCall(ctx context.Context, r reserve, o tutor.Outcome) {
 	if !r.taken {
 		return
@@ -168,18 +166,18 @@ func (s *Service) afterCall(ctx context.Context, r reserve, o tutor.Outcome) {
 }
 
 // release gives the reserve r back whole, as afterCall settles a call that no
-// model got: the assessment of an essay that was not read (R12, R14).
+// model got: the assessment of an essay that was not read.
 func (s *Service) release(ctx context.Context, r reserve) {
 	s.afterCall(ctx, r, tutor.Outcome{Kind: tutor.NotAdmitted})
 }
 
 // closedTo is why platform AI is closed to a new task of the profile that it
-// would check, read in q at the request's time, or none when it is open (R11):
-// the limit of its provider; what is left of the family day of the profile or
-// the account, which does not hold typical — with when the next day begins —;
-// or a tariff with no caps. The day is the one the account keeps at now,
-// written by the requests on platform AI: a beginning sends no offset (R97
-// spec). It asks what reserveFor asks, writing nothing.
+// would check, read in q at the request's time, or none when it is open: the
+// limit of its provider; what is left of the family day of the profile or the
+// account, which does not hold typical — with when the next day begins —; or a
+// tariff with no caps. The day is the one the account keeps at now, written by
+// the requests on platform AI: a beginning sends no offset. It asks what
+// reserveFor asks, writing nothing.
 func (s *Service) closedTo(ctx context.Context, q store.Querier, profileID string, typical quota.Micro, now time.Time) (*v1.Outcome, error) {
 	if limit, err := platformLimit(ctx, q); err != nil || limit != nil {
 		return limit, err
@@ -198,8 +196,8 @@ func (s *Service) closedTo(ctx context.Context, q store.Querier, profileID strin
 }
 
 // platformLimit is the outcome "platform limit" while the limit of its provider
-// keeps platform AI closed to all, until the operator opens it (R59), read in q
-// on every request: one instance closes it for the others at once.
+// keeps platform AI closed to all, until the operator opens it, read in q on
+// every request: one instance closes it for the others at once.
 func platformLimit(ctx context.Context, q store.Querier) (*v1.Outcome, error) {
 	closed, err := store.PlatformAIClosed(ctx, q)
 	if err != nil || !closed {
@@ -208,8 +206,8 @@ func platformLimit(ctx context.Context, q store.Querier) (*v1.Outcome, error) {
 	return &v1.Outcome{Cause: v1.Cause_CAUSE_PLATFORM_LIMIT}, nil
 }
 
-// cost is what a call that reserved reserved cost by its outcome, by the table
-// of R12: no call went — the admission refused it before any model — nothing; a
+// cost is what a call that reserved reserved cost by its outcome, by this
+// table: no call went — the admission refused it before any model — nothing; a
 // call with no record of usage at all, its reserve — tutor tells no call that
 // came back with nothing from one that never went, but by "not admitted" —;
 // records that are each the whole bill by the prices, their sum, which is that

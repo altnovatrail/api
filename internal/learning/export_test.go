@@ -52,8 +52,8 @@ func (f workbookFunc) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading,
 
 // WithWords is what words the tutor's words, in place of tutor: a test's own,
 // admitted for every learner and route, so that no test calls a provider. The
-// real gate admits the words at the author's stage (R54), so a test on it must
-// not ask for them.
+// real gate admits the words at the author's stage, so a test on it must not
+// ask for them.
 func WithWords(tell func(ctx context.Context, w tutor.WordsRequest) tutor.WordsAnswer) Option {
 	return func(s *Service) { s.teller = tellerFunc(tell) }
 }

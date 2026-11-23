@@ -15,11 +15,11 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// setTariff gives the account that redeemed an invite code another tariff
-// (R11): the operator finds the account by its code, so that the account's ID
-// never leaves the platform (R04), and neither its output nor its log names
-// it. The code is the one argument, written any way invite.Read takes it; the
-// tariff, its flag. stdout says the tariff the account has now.
+// setTariff gives the account that redeemed an invite code another tariff: the
+// operator finds the account by its code, so that the account's ID never
+// leaves the platform, and neither its output nor its log names it. The code
+// is the one argument, written any way invite.Read takes it; the tariff, its
+// flag. stdout says the tariff the account has now.
 func setTariff(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	set := flag.NewFlagSet("api tariff", flag.ContinueOnError)
 	set.SetOutput(stderr)

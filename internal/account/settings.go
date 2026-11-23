@@ -138,10 +138,10 @@ func applyVoicing(p *store.Profile, v *v1.Voicing) error {
 }
 
 // wellFormed says whether tag is a well-formed tag of BCP 47, which api keeps
-// with no list of its own (R92 spec): subtags of letters and digits joined by
-// hyphens, as RFC 5646 writes them, of no more than maxTag, that the library
-// parses. A subtag it does not know is still well-formed. The library alone
-// would take an underscore for a hyphen, and a tag of any length.
+// with no list of its own: subtags of letters and digits joined by hyphens, as
+// RFC 5646 writes them, of no more than maxTag, that the library parses. A
+// subtag it does not know is still well-formed. The library alone would take an
+// underscore for a hyphen, and a tag of any length.
 func wellFormed(tag string) bool {
 	if len(tag) > maxTag || !tagShape.MatchString(tag) {
 		return false

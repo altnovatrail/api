@@ -12,16 +12,16 @@ import (
 )
 
 // check checks what the deployment declares for admission to AI and serves
-// nothing (R45): the file of facts by the admission table of this release,
-// and the least stage; a copy's folder of legal texts by the rules of the
-// part, and the store of the forms (R52); and the deployment's list of modules
-// against the pinned index the image laid (R150 spec). The rollout of infra
-// runs it as a Cloud Run job of the same image before the migrations (R51), so
-// that a dictionary of facts that this release does not know, or a module its
-// index does not hold, stops the rollout before anything changed, rather than
-// the first start of the revision after them. A refusal is the
-// configuration's, printed before any log as every refusal of the
-// configuration is; what it found, the line admission says.
+// nothing: the file of facts by the admission table of this release, and the
+// least stage; a copy's folder of legal texts by the rules of the part, and
+// the store of the forms; and the deployment's list of modules against the
+// pinned index the image laid. The rollout of infra runs it as a Cloud Run job
+// of the same image before the migrations, so that a dictionary of facts that
+// this release does not know, or a module its index does not hold, stops the
+// rollout before anything changed, rather than the first start of the revision
+// after them. A refusal is the configuration's, printed before any log as
+// every refusal of the configuration is; what it found, the line admission
+// says.
 func check(_ context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	if err := flags("check", args, stderr); err != nil {
 		return err
@@ -38,9 +38,8 @@ func check(_ context.Context, args, environ []string, stdout, stderr io.Writer) 
 	if err != nil {
 		return err
 	}
-	// A copy's folder of legal texts is checked by the rules of the part, as
-	// serve reads it at its start, and the store of the forms named as serve
-	// takes it (R52).
+	// A copy's folder of legal texts is checked by the rules of the part, as serve
+	// reads it at its start, and the store of the forms named as serve takes it.
 	agreements, err := config.AgreementsFrom(environ)
 	if err != nil {
 		return err
@@ -49,7 +48,7 @@ func check(_ context.Context, args, environ []string, stdout, stderr io.Writer) 
 		return err
 	}
 	// The deployment's list of modules is checked against the pinned index the
-	// image laid, as serve checks it at its start (R150 spec).
+	// image laid, as serve checks it at its start.
 	catalog, err := config.CatalogFrom(environ)
 	if err != nil {
 		return err

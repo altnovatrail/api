@@ -11,7 +11,7 @@ import (
 )
 
 // With nothing declared there is no file of facts, and the stage is full,
-// unnamed: closed by default (R25).
+// unnamed: closed by default.
 func TestAdmissionDefaultsToNoFactsAndTheStageFull(t *testing.T) {
 	t.Parallel()
 
@@ -42,9 +42,9 @@ func TestAdmissionReadsWhatIsDeclared(t *testing.T) {
 	}
 }
 
-// The stage is the operator's, author on a deployment too (R149 spec): a stage
-// tutor does not code, a relative path and a file in a git working tree are
-// refused, each by its variable.
+// The stage is the operator's, author on a deployment too: a stage tutor does
+// not code, a relative path and a file in a git working tree are refused, each
+// by its variable.
 func TestAdmissionRefusals(t *testing.T) {
 	t.Parallel()
 
@@ -122,7 +122,7 @@ func TestThePlatformsKeysAreSecrets(t *testing.T) {
 }
 
 // A key of OpenAI, inline or by its file, is refused: api gives tutor no
-// adapter of OpenAI (R54), and the refusal names the variable, not the key.
+// adapter of OpenAI, and the refusal names the variable, not the key.
 func TestAKeyOfOpenAIIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -136,10 +136,10 @@ func TestAKeyOfOpenAIIsRefused(t *testing.T) {
 	}
 }
 
-// The stub of tutor is the dev mode's alone (R66): off a deployment, with no
-// platform key, API_TUTOR_STUB=1 is taken, and empty is unset. Deployed, as a
-// service or as a job, it is refused by the variable the platform set; so is
-// it beside a key of Anthropic, inline or by its file, and with any value but 1.
+// The stub of tutor is the dev mode's alone: off a deployment, with no platform
+// key, API_TUTOR_STUB=1 is taken, and empty is unset. Deployed, as a service or
+// as a job, it is refused by the variable the platform set; so is it beside a
+// key of Anthropic, inline or by its file, and with any value but 1.
 func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
 	t.Parallel()
 
@@ -181,9 +181,9 @@ func TestTheStubOfTutorIsTheDevModesAlone(t *testing.T) {
 }
 
 // The flag that gives every account of a local run the debug mode is
-// API_DEBUG_MODELS=1, and empty is unset (R97). Deployed, as a service or as a job, it is refused by the variable the
-// platform set; so is it beside the stub, which calls no model, and with any
-// value but 1.
+// API_DEBUG_MODELS=1, and empty is unset. Deployed, as a service or as a job,
+// it is refused by the variable the platform set; so is it beside the stub,
+// which calls no model, and with any value but 1.
 func TestTheDebugFlagIsALocalRunsAlone(t *testing.T) {
 	t.Parallel()
 
@@ -221,8 +221,8 @@ func TestTheDebugFlagIsALocalRunsAlone(t *testing.T) {
 }
 
 // The mode of reading is pair unset or empty, and single where it is named, at
-// either stage, deployed too (R88): a value tutor does not code is refused by
-// its variable.
+// either stage, deployed too: a value tutor does not code is refused by its
+// variable.
 func TestTheModeOfReading(t *testing.T) {
 	t.Parallel()
 

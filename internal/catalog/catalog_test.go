@@ -519,9 +519,9 @@ func TestModulesAreConnectedAndDisconnected(t *testing.T) {
 	}
 }
 
-// The deployment's list narrows the catalog (R150 spec): a module it leaves out
-// is given to nobody, is refused a connection as a module with no current
-// version is, and connected already, it stays, with no digest.
+// The deployment's list narrows the catalog: a module it leaves out is given to
+// nobody, is refused a connection as a module with no current version is, and
+// connected already, it stays, with no digest.
 func TestTheListOfTheDeploymentNarrowsTheCatalog(t *testing.T) {
 	t.Parallel()
 

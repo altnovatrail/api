@@ -14,7 +14,7 @@ import (
 var ErrNoForm = errors.New("store: no form of the code waits")
 
 // SentForm is a parent's consent whose form the operator checks: its code and
-// where its scan lies (R116 spec).
+// where its scan lies.
 type SentForm struct {
 	RequestCode string
 	Object      string
@@ -104,8 +104,7 @@ func ReviewReport(ctx context.Context, db Querier, reportID string) error {
 	return nil
 }
 
-// DropReports deletes the reports reviewed before before, a batch at a time
-// (R123 spec).
+// DropReports deletes the reports reviewed before before, a batch at a time.
 func DropReports(ctx context.Context, db Querier, before time.Time) (int64, error) {
 	return inBatches(ctx, db, `DELETE FROM problem_reports WHERE id IN (
 		SELECT id FROM problem_reports WHERE reviewed_at < $1 LIMIT $2)`, before, "drop the reports reviewed")

@@ -11,7 +11,7 @@ import (
 )
 
 // RunAbandonedAfter is how long an open lesson run goes with no request on it
-// or its attempts before it is abandoned (R13).
+// or its attempts before it is abandoned.
 const RunAbandonedAfter = 30 * 24 * time.Hour
 
 // The end reasons of a lesson run, as the schema writes them.
@@ -27,7 +27,7 @@ const (
 // choice: the request reads it again.
 var ErrRunBegun = errors.New("store: the profile has an open run of the lesson")
 
-// LessonRun is a lesson run's row, as the requests on it read it (R13).
+// LessonRun is a lesson run's row, as the requests on it read it.
 type LessonRun struct {
 	ID            string
 	LessonID      string
@@ -39,10 +39,10 @@ type LessonRun struct {
 	EndReason     *string
 }
 
-// runColumns are the columns of a LessonRun, in scanRun's order. Its last action
-// is the later of the run's own and its attempts': a request on an attempt of the
-// run is an action on the run too, and is not written on the run's row, which
-// the requests on the run hold before the attempt (R48).
+// runColumns are the columns of a LessonRun, in scanRun's order. Its last
+// action is the later of the run's own and its attempts': a request on an
+// attempt of the run is an action on the run too, and is not written on the
+// run's row, which the requests on the run hold before the attempt.
 const runColumns = `id, lesson_id, module_id, module_version, package_digest, choice_id,
 	greatest(last_action_at, (SELECT max(a.last_action_at) FROM attempts a
 		WHERE a.profile_id = lesson_runs.profile_id AND a.lesson_run_id = lesson_runs.id)), end_reason`
@@ -125,7 +125,7 @@ func BeginLessonRun(ctx context.Context, tx pgx.Tx, profileID string, r NewRun, 
 
 // EndLessonRun ends the profile's open run with reason at at; one ended already
 // keeps its end. A run that ends "not suitable" closes its open attempt "not
-// suitable" with it (R10, R13).
+// suitable" with it.
 func EndLessonRun(ctx context.Context, tx pgx.Tx, profileID, runID, reason string, at time.Time) error {
 	if _, err := tx.Exec(ctx, `UPDATE lesson_runs SET end_reason = $3, ended_at = $4
 		WHERE profile_id = $1 AND id = $2 AND ended_at IS NULL`, profileID, runID, reason, at); err != nil {
@@ -142,8 +142,8 @@ func EndLessonRun(ctx context.Context, tx pgx.Tx, profileID, runID, reason strin
 }
 
 // TouchLessonRun records a request on the profile's open run at at: its last
-// action (R13). A request on an attempt of the run is its attempt's action, which
-// the run's last action reads too.
+// action. A request on an attempt of the run is its attempt's action, which the
+// run's last action reads too.
 func TouchLessonRun(ctx context.Context, tx pgx.Tx, profileID, runID string, at time.Time) error {
 	if _, err := tx.Exec(ctx, `UPDATE lesson_runs SET last_action_at = $3
 		WHERE profile_id = $1 AND id = $2 AND ended_at IS NULL`, profileID, runID, at); err != nil {
@@ -154,7 +154,7 @@ func TouchLessonRun(ctx context.Context, tx pgx.Tx, profileID, runID string, at 
 
 // EndedSegments is the places of the run's task segments that have ended, in
 // order: those whose attempt was closed by a correct answer, by the solution
-// shown or by "Done" (R13).
+// shown or by "Done".
 func EndedSegments(ctx context.Context, tx pgx.Tx, profileID, runID string) ([]int, error) {
 	rows, err := tx.Query(ctx, `SELECT DISTINCT segment FROM attempts
 		WHERE profile_id = $1 AND lesson_run_id = $2 AND close_reason IN ('correct', 'solution_shown', 'done')
@@ -230,7 +230,7 @@ func RunLesson(ctx context.Context, db Querier, profileID, runID string) (string
 // attempt, when it is one of a run, or of the profile's open attempt when
 // attemptID is empty: a request on an attempt holds its run first, as the
 // requests on the run do, so that the close of the attempt, which may end the
-// run, takes the two rows in the order every request takes them (R48).
+// run, takes the two rows in the order every request takes them.
 func HoldAttemptRun(ctx context.Context, tx pgx.Tx, profileID, attemptID string) error {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT r.id FROM lesson_runs r JOIN attempts a ON a.profile_id = r.profile_id AND a.lesson_run_id = r.id

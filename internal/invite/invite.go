@@ -1,6 +1,6 @@
-// Package invite is the invite codes of the closed slice (R04, R34): how a code
-// is made, how one given back is read, and the SHA-256 that is all the database
-// keeps of it.
+// Package invite is the invite codes of the closed slice: how a code is made,
+// how one given back is read, and the SHA-256 that is all the database keeps of
+// it.
 //
 // A code is 16 symbols of Crockford's base32, 80 bits from crypto/rand, written
 // in four groups of four: 0123-4567-89AB-CDEF. It is read as Crockford reads it,

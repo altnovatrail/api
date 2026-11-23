@@ -27,18 +27,17 @@ type recognising struct {
 	ready     *v1.ReadStatementResponse
 }
 
-// ReadStatement is "Recognise" on a task from paper (R169 spec): the reading of
-// the statement of the attempt's crop, the one its first Check would make, by
-// one call of AI between two transactions (rpc.Across), whose reading the
-// attempt keeps until it closes, for the Check to derive the key by with no
-// call of its own. An attempt that keeps a reading or a key answers its
-// statements, repeated, with no AI. The answer is the statements alone, never a
-// formula (R05 spec). On platform AI the call goes only with the reserve of the
-// quota, the statement's part of a first Check's, and a reserve refused is a
-// refusal that keeps the family day the request wrote. A call that gives no
-// reading is an outcome, and nothing is kept: the next press asks again. The
-// crop goes no further than the call, and the record of the key holds the
-// outcome alone.
+// ReadStatement is "Recognise" on a task from paper: the reading of the
+// statement of the attempt's crop, the one its first Check would make, by one
+// call of AI between two transactions (rpc.Across), whose reading the attempt
+// keeps until it closes, for the Check to derive the key by with no call of its
+// own. An attempt that keeps a reading or a key answers its statements,
+// repeated, with no AI. The answer is the statements alone, never a formula. On
+// platform AI the call goes only with the reserve of the quota, the statement's
+// part of a first Check's, and a reserve refused is a refusal that keeps the
+// family day the request wrote. A call that gives no reading is an outcome, and
+// nothing is kept: the next press asks again. The crop goes no further than the
+// call, and the record of the key holds the outcome alone.
 func (a *AttemptService) ReadStatement(ctx context.Context, req *v1.ReadStatementRequest) (*v1.ReadStatementResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -49,7 +48,7 @@ func (a *AttemptService) ReadStatement(ctx context.Context, req *v1.ReadStatemen
 		return nil, err
 	}
 	// The reading is the Check's first call, and goes by the Check's choice of the
-	// debug mode, so that the key derived from it is of the models chosen (R97).
+	// debug mode, so that the key derived from it is of the models chosen.
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
 	defer act.End()
 	profileID, attemptID := req.GetProfileId(), req.GetAttemptId()

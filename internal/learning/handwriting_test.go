@@ -155,7 +155,7 @@ func TestAHandwritingSheetIsReadByTwoReaders(t *testing.T) {
 			}
 		})
 		if tc.cause == v1.Cause_CAUSE_PLATFORM_LIMIT {
-			// The provider's limit closed platform AI to all; the operator opens it (R59).
+			// The provider's limit closed platform AI to all; the operator opens it.
 			var closed bool
 			if err := w.pool.QueryRow(t.Context(), `SELECT closed_at IS NOT NULL FROM platform_ai`).Scan(&closed); err != nil || !closed {
 				t.Error("the platform's limit did not close platform AI")
@@ -330,7 +330,7 @@ func TestASubmissionWithTooLittleTimeIsRefused(t *testing.T) {
 	}
 }
 
-// In the mode single, a handwriting sheet is read by one reader (R88): module-kit
+// In the mode single, a handwriting sheet is read by one reader: module-kit
 // gives the verdict on its one observation as it is, which the submission
 // keeps; a reading of two observations, or of one module-kit does not take, is
 // a failure of AI, and a refusal of the admission is not admitted, as in the

@@ -63,8 +63,8 @@ func countingWorld(t *testing.T) (*world, *counting, *admission.Gate) {
 	return worldOf(t, g, []learning.Option{learning.WithTutor(c)}), c, g
 }
 
-// "Recognise" reads the statement of the crop once (R169 spec): the answer is
-// its statements, never a formula, and the attempt keeps the reading, so that a
+// "Recognise" reads the statement of the crop once: the answer is its
+// statements, never a formula, and the attempt keeps the reading, so that a
 // repeat and a later press answer with no AI. The first Check derives the key
 // from the reading kept, with no reading of its own and no reserve of one — its
 // own crop, which the stub would read into a word problem, goes to no reading

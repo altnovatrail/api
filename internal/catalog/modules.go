@@ -29,11 +29,11 @@ type DB interface {
 	store.Lister
 }
 
-// ModuleService gives the modules of a learner (R07, R42):
-// each method is a learning request, with the right can_learn, which the checks
-// hold before it, and a profile whose consent is not confirmed is refused. A
-// module suits a learner by the audience of its current version alone: the
-// explanation language chooses nothing (R92 spec).
+// ModuleService gives the modules of a learner: each method is a learning
+// request, with the right can_learn, which the checks hold before it, and a
+// profile whose consent is not confirmed is refused. A module suits a learner
+// by the audience of its current version alone: the explanation language
+// chooses nothing.
 type ModuleService struct {
 	c  *Catalog
 	db DB
@@ -43,10 +43,10 @@ type ModuleService struct {
 func (c *Catalog) Modules(db DB) *ModuleService { return &ModuleService{c: c, db: db} }
 
 // ListCatalog gives the modules of the pinned index whose current version suits
-// the profile and which the deployment's list names, when it has one (R150
-// spec), connected ones too, by their IDs. An ID is lowercase ASCII by
-// the format's schema, so the order of its bytes is that of its UTF-16 code
-// units, as the contract asks.
+// the profile and which the deployment's list names, when it has one,
+// connected ones too, by their IDs. An ID is lowercase ASCII by the format's
+// schema, so the order of its bytes is that of its UTF-16 code units, as the
+// contract asks.
 func (s *ModuleService) ListCatalog(ctx context.Context, req *v1.ListCatalogRequest) (*v1.ListCatalogResponse, error) {
 	category, err := s.learner(ctx, req.GetProfileId())
 	if err != nil {
@@ -93,7 +93,7 @@ func (s *ModuleService) ConnectModule(ctx context.Context, req *v1.ConnectModule
 // unconnectable says why the module id cannot be connected to a learner of
 // category, by the code and cause of its refusal: the index does not name it,
 // or it has no current version for the learner — none, too, when the
-// deployment's list leaves it out (R150 spec).
+// deployment's list leaves it out.
 func (c *Catalog) unconnectable(id formatv0.ModuleID, category formatv0.AgeCategory) (connect.Code, v1.Cause, bool) {
 	if !c.set.Names(id) {
 		return connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND, true
@@ -143,7 +143,7 @@ func (s *ModuleService) learner(ctx context.Context, profileID string) (formatv0
 	return formatv0.AgeCategory(category), err
 }
 
-// change runs fn under the caller's account, which a deletion marks (R21), and
+// change runs fn under the caller's account, which a deletion marks, and
 // reads the modules connected in the same transaction, so that the answer is
 // what the change left.
 func (s *ModuleService) change(ctx context.Context, profileID string, fn func(pgx.Tx) error) ([]store.ConnectedModule, error) {
@@ -165,7 +165,7 @@ func (s *ModuleService) change(ctx context.Context, profileID string, fn func(pg
 
 // connected is the modules connected in the contract's words, each with the
 // digest of its current version for a learner of category: none for a module
-// the deployment's list leaves out, which stays connected (R150 spec).
+// the deployment's list leaves out, which stays connected.
 func (c *Catalog) connected(rows []store.ConnectedModule, category formatv0.AgeCategory) []*v1.ConnectedModule {
 	modules := make([]*v1.ConnectedModule, 0, len(rows))
 	for _, row := range rows {

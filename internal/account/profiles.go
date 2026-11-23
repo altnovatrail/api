@@ -21,9 +21,9 @@ var errCountry = errors.New("account: the country is not accepted")
 var errAdultSets = errors.New("account: an adult sets this of a child's profile")
 
 // CreateOwnerProfile creates the owner's profile, of the category adult by the
-// owner's statement, with its consent, and its tuple before the COMMIT (R04,
-// R36). A profile of the owner there already comes before the country, so that
-// a repeat is told it is there.
+// owner's statement, with its consent, and its tuple before the COMMIT. A
+// profile of the owner there already comes before the country, so that a repeat
+// is told it is there.
 func (s *Service) CreateOwnerProfile(ctx context.Context, req *v1.CreateOwnerProfileRequest) (*v1.CreateOwnerProfileResponse, error) {
 	if !s.ages.Country(req.GetCountry()) {
 		return nil, rpc.Malformed("country")
@@ -75,11 +75,10 @@ func (s *Service) SetVoicing(ctx context.Context, req *v1.SetVoicingRequest) (*v
 	return &v1.SetVoicingResponse{Profile: s.profile(p)}, nil
 }
 
-// SetHintMode sets the hint mode alone, from the profile's menu: the checks have
-// held the right can_learn. A mode not named is invalid_argument, as the
+// SetHintMode sets the hint mode alone, from the profile's menu: the checks
+// have held the right can_learn. A mode not named is invalid_argument, as the
 // contract has it, where UpdateProfile leaves the mode as it is; a child's
-// profile is CAUSE_ADULT_NEEDED, whose mode an adult sets with UpdateProfile
-// (R100).
+// profile is CAUSE_ADULT_NEEDED, whose mode an adult sets with UpdateProfile.
 func (s *Service) SetHintMode(ctx context.Context, req *v1.SetHintModeRequest) (*v1.SetHintModeResponse, error) {
 	if req.GetHintMode() == v1.HintMode_HINT_MODE_UNSPECIFIED {
 		return nil, rpc.Malformed("hint_mode")
@@ -138,7 +137,7 @@ func ownerProfileAbsent(ctx context.Context, tx pgx.Tx, accountID string) error 
 	return nil
 }
 
-// accepted refuses a country the deployment does not take (R118, R119 spec).
+// accepted refuses a country the deployment does not take.
 func accepted(ctx context.Context, tx pgx.Tx, country string) error {
 	ok, err := store.CountryAccepted(ctx, tx, country)
 	switch {

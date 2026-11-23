@@ -35,7 +35,7 @@ func (w *world) familyDayOf(t *testing.T, accountID string) (*int32, *time.Time)
 // A request on platform AI that sends the offset of its device's clock gives
 // the account its family day by it, which ends at a midnight of that clock; a
 // request by an own key keeps nothing of its offset, and no line of the log
-// names an offset (R11, R12).
+// names an offset.
 func TestARequestOnPlatformAIGivesTheAccountItsFamilyDay(t *testing.T) {
 	t.Parallel()
 
@@ -118,8 +118,8 @@ func (w *world) spend(t *testing.T, accountID string, spent quota.Micro) quota.D
 }
 
 // A call of platform AI reserves its expected price on the counters of the
-// profile and the account before it goes, and settles it after by what it cost
-// (R12): an exact record its price, one at its worst the reserve, none at all the
+// profile and the account before it goes, and settles it after by what it cost:
+// an exact record its price, one at its worst the reserve, none at all the
 // reserve, and no call — the admission refused it — nothing. The line of each
 // model's usage says what it cost and whether that is its whole bill.
 func TestACallReservesItsPriceAndSettlesWhatItCost(t *testing.T) {
@@ -174,9 +174,9 @@ func TestACallReservesItsPriceAndSettlesWhatItCost(t *testing.T) {
 }
 
 // The words of a rung and "explain differently" reserve by tutor's kind of
-// call, by the request they send (R106 tutor): the words of a handwriting
-// sheet, with its crop, the words with the work; of a task a tap checks, with
-// no work, the hint without it, as "explain differently" is.
+// call, by the request they send: the words of a handwriting sheet, with its
+// crop, the words with the work; of a task a tap checks, with no work, the hint
+// without it, as "explain differently" is.
 func TestTheWordsReserveByTheirKindOfCall(t *testing.T) {
 	t.Parallel()
 
@@ -609,13 +609,13 @@ func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
 	waits(l.child, v1.Cause_CAUSE_NOT_ADMITTED)
 }
 
-// Every choice of the engine goes by the route the request names (R65): with
-// platform AI closed by the quota or the platform's limit, the owner's profile
-// that names the provider of its own key gets what a beginning by that key
-// takes — the run whose next segment is of handwriting, and a pool not limited
-// to taps in "something else", in next and at the end of a run alike —, while
-// platform AI's route waits; a provider whose models are not admitted gives a
-// task that begins or nothing to give, "not admitted" alone.
+// Every choice of the engine goes by the route the request names: with platform
+// AI closed by the quota or the platform's limit, the owner's profile that
+// names the provider of its own key gets what a beginning by that key takes —
+// the run whose next segment is of handwriting, and a pool not limited to taps
+// in "something else", in next and at the end of a run alike —, while platform
+// AI's route waits; a provider whose models are not admitted gives a task that
+// begins or nothing to give, "not admitted" alone.
 func TestAnOwnKeyChoosesByItsRoute(t *testing.T) {
 	t.Parallel()
 

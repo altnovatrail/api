@@ -1,7 +1,7 @@
--- The stored works of a profile (R113 spec; R70): while the storage of its works is on, the work
--- of each attempt as the device holds it — its history of writing, the context of each submission
--- and its picture —, the last one put of the attempt, which api keeps as bytes and reads no more
--- of. Switching the storage off erases them in its transaction, and they go with the profile.
+-- The stored works of a profile: while the storage of its works is on, the work of each attempt
+-- as the device holds it — its history of writing, the context of each submission and its picture
+-- —, the last one put of the attempt, which api keeps as bytes and reads no more of. Switching
+-- the storage off erases them in its transaction, and they go with the profile.
 
 -- +goose Up
 

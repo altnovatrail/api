@@ -8,8 +8,7 @@ import (
 	"strings"
 )
 
-// The variables of the command serve beyond the server's own (R29, R31, R32,
-// R33).
+// The variables of the command serve beyond the server's own.
 const (
 	// VarDatabaseURL is the pooler's connection string of the database api: a
 	// secret, read as VarMigrateDatabaseURL is.
@@ -28,7 +27,7 @@ const (
 	VarAppOrigin = "API_APP_ORIGIN"
 	// VarPackagesDir is the folder of the packages of modules that api packages
 	// laid: in the image, DefaultPackagesDir; for the first app, a folder outside
-	// git (R41).
+	// git.
 	VarPackagesDir = "API_PACKAGES_DIR"
 )
 
@@ -60,27 +59,26 @@ func init() {
 // Serve is what serve opens beyond the server: the databases api and openfga
 // through the pooler, the sign-in service and the origin of app.
 type Serve struct {
-	// DatabaseURL is the pooler's connection string of the database api (R29).
+	// DatabaseURL is the pooler's connection string of the database api.
 	DatabaseURL Secret
 	// OpenFGADatabaseURL is the pooler's connection string of the database
-	// openfga (R31).
+	// openfga.
 	OpenFGADatabaseURL Secret
-	// FirebaseProjectID is the Firebase project of the tokens (R32).
+	// FirebaseProjectID is the Firebase project of the tokens.
 	FirebaseProjectID string
 	// FirebaseCredentials is a service account's key off a deployment; deployed,
-	// none (R32).
+	// none.
 	FirebaseCredentials Secret
-	// AppOrigin is the exact origin of app, or empty for none (R33).
+	// AppOrigin is the exact origin of app, or empty for none.
 	AppOrigin string
-	// PackagesDir is the absolute path of the folder of the packages (R41).
+	// PackagesDir is the absolute path of the folder of the packages.
 	PackagesDir string
 	// Agreements is where the legal texts come from and where the scans of the
-	// forms of consent go (R52).
+	// forms of consent go.
 	Agreements Agreements
-	// Admission is what the deployment declares for admission to AI (R25, R45).
+	// Admission is what the deployment declares for admission to AI.
 	Admission Admission
-	// Catalog is the deployment's list of modules, nil for the whole index
-	// (R150 spec).
+	// Catalog is the deployment's list of modules, nil for the whole index.
 	Catalog []string
 }
 
@@ -156,7 +154,7 @@ func checkOrigin(origin string, deployed bool) error {
 	return nil
 }
 
-// firebaseCredentials reads the key of the service account into into by R32's
+// firebaseCredentials reads the key of the service account into into by this
 // rule: deployed — deployedBy, the variable the platform sets, is — a key is
 // refused, since a deployment takes its own account's token with no key; off a
 // deployment it is required, since the machine's default credentials might be

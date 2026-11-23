@@ -31,10 +31,10 @@ type kept struct{ refusal error }
 
 func (k kept) Error() string { return k.refusal.Error() }
 
-// Keep is a refusal of act that commits what act wrote before it, with no record
-// of the key: the close of an attempt that the check of a request found
-// abandoned, or on a package the image no longer gives (R07, R10). A repeat is
-// checked again, and finds what was written.
+// Keep is a refusal of act that commits what act wrote before it, with no
+// record of the key: the close of an attempt that the check of a request found
+// abandoned, or on a package the image no longer gives. A repeat is checked
+// again, and finds what was written.
 func Keep(refusal error) error { return kept{refusal: refusal} }
 
 // Kept is the refusal err keeps, when it is one of Keep: for a request with no
@@ -52,24 +52,24 @@ type Key struct {
 	// Method is the procedure of the contract.
 	Method string
 	// Slow is a fingerprint by argon2id, of a request that carries a PIN or an
-	// age; SHA-256 otherwise (R35).
+	// age; SHA-256 otherwise.
 	Slow bool
-	// Repeat is the answer of a repeat, read in the repeat's transaction, when
-	// the record does not hold the answer itself: the submission it names, or the
-	// words the attempt keeps, which the record does not (R47). Nil for a method
-	// whose records hold their answers.
+	// Repeat is the answer of a repeat, read in the repeat's transaction, when the
+	// record does not hold the answer itself: the submission it names, or the
+	// words the attempt keeps, which the record does not. Nil for a method whose
+	// records hold their answers.
 	Repeat func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error)
-	// GoingFor is the longest a request may run (R33): a record going older than
-	// that is of a request that fell, and a repeat goes again. Zero for a method
-	// that never records a key going.
+	// GoingFor is the longest a request may run: a record going older than that is
+	// of a request that fell, and a repeat goes again. Zero for a method that
+	// never records a key going.
 	GoingFor time.Duration
 }
 
 // Once runs act under the request's idempotency key, in one transaction with
-// the record of the key, under the account of the caller (R17, R35). The
-// account's row is held FOR NO KEY UPDATE first, so that a repeat beside its
-// first waits for it and finds its record. A record of this method and this
-// request gives its answer, and act does nothing; of another method or request,
+// the record of the key, under the account of the caller. The account's row is
+// held FOR NO KEY UPDATE first, so that a repeat beside its first waits for it
+// and finds its record. A record of this method and this request gives its
+// answer, and act does nothing; of another method or request,
 // CAUSE_KEY_ALREADY_USED; one still going, CAUSE_STILL_GOING. Otherwise act
 // acts, and its target is written with the record: the answer, unless it names
 // the submission a repeat reads instead. A refusal of act rolls everything back
@@ -121,12 +121,12 @@ func Once[Res proto.Message](ctx context.Context, db store.Beginner, k Key, req 
 // whose last part failed.
 const dropTimeout = 5 * time.Second
 
-// Phases are the three parts of a request under a key that calls AI between
-// two transactions (R17, R46): Prepare checks what the request acts on and names
-// its target, in the transaction that records the key going; Call calls AI
-// outside any transaction, holding no row and no connection; and Finish writes
-// what came of it, in the transaction that records the key done. S is what one
-// part gives the next.
+// Phases are the three parts of a request under a key that calls AI between two
+// transactions: Prepare checks what the request acts on and names its target,
+// in the transaction that records the key going; Call calls AI outside any
+// transaction, holding no row and no connection; and Finish writes what came of
+// it, in the transaction that records the key done. S is what one part gives
+// the next.
 type Phases[S any, Res proto.Message] struct {
 	Prepare func(tx pgx.Tx, accountID string) (S, store.KeyTarget, error)
 	Call    func(ctx context.Context, s S) S
@@ -135,12 +135,12 @@ type Phases[S any, Res proto.Message] struct {
 
 // Across runs the phases of a request under its key, as Once runs one action,
 // with the record going between its two transactions: a repeat beside it is
-// CAUSE_STILL_GOING while it calls AI, and one after it gets its answer, with no
-// call. A record going past k.GoingFor is of a request that fell, and the repeat
-// goes again (R17). A refusal of Prepare records nothing, and one of Keep
+// CAUSE_STILL_GOING while it calls AI, and one after it gets its answer, with
+// no call. A record going past k.GoingFor is of a request that fell, and the
+// repeat goes again. A refusal of Prepare records nothing, and one of Keep
 // commits what Prepare wrote, as in Once. A refusal of Finish rolls back what
-// Finish wrote, unless it is one of Keep, and either way drops the record going,
-// so that a repeat is checked again.
+// Finish wrote, unless it is one of Keep, and either way drops the record
+// going, so that a repeat is checked again.
 func Across[S any, Res proto.Message](ctx context.Context, db store.Beginner, k Key, req Keyed, p Phases[S, Res]) (Res, error) {
 	var answer, zero Res
 	key := req.GetIdempotencyKey()

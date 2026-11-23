@@ -1,9 +1,8 @@
 // Package forms is the port of the store of the scans of the forms of a
-// parent's consent (R52; R116 spec): the closed bucket of the operator in Cloud
-// Storage, where api writes under a prefix of its own and reads nothing, and a
-// folder outside every git working tree, which no development agent gets (R114
-// spec), for the dev projects and the first app. The scan never enters the
-// database api (R116 spec).
+// parent's consent: the closed bucket of the operator in Cloud Storage, where
+// api writes under a prefix of its own and reads nothing, and a folder outside
+// every git working tree, which no development agent gets, for the dev projects
+// and the first app. The scan never enters the database api.
 package forms
 
 import (
@@ -53,7 +52,7 @@ func (d Dir) Delete(_ context.Context, object string) error {
 // the service's own account: client carries its token — one of
 // golang.org/x/oauth2/google's — and base is the API's root, its public one by
 // default. Its objects are named by the prefix and the scan's name. The account
-// may create and erase objects there and read none (R116 spec).
+// may create and erase objects there and read none.
 type Bucket struct {
 	Client *http.Client
 	Base   string

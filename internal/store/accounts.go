@@ -16,16 +16,16 @@ type Querier interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-// Account is what a request knows of the account of its token (R04).
+// Account is what a request knows of the account of its token.
 type Account struct {
 	// ID is the account's own ID, the subject of the rights.
 	ID string
-	// Deleting says the account is marked "deleting" (R21).
+	// Deleting says the account is marked "deleting".
 	Deleting bool
 	// LastRequestOn is the date, by UTC, of the account's last request; zero if
 	// none was written yet.
 	LastRequestOn time.Time
-	// DebugModels says the account has the right of the debug mode (R97).
+	// DebugModels says the account has the right of the debug mode.
 	DebugModels bool
 }
 
@@ -53,8 +53,8 @@ func AccountByUID(ctx context.Context, db Querier, uid string) (Account, error) 
 }
 
 // SetDebugModels gives the account of the sign-in service's UID the right of
-// the debug mode, or takes it (R97). An account marked "deleting", whose fields
-// are cleared (R21), is none — ErrNoAccount, as is a UID with no account.
+// the debug mode, or takes it. An account marked "deleting", whose fields are
+// cleared, is none — ErrNoAccount, as is a UID with no account.
 func SetDebugModels(ctx context.Context, db Querier, uid string, right bool) error {
 	tag, err := db.Exec(ctx, `UPDATE accounts SET debug_models = $2 WHERE auth_uid = $1 AND deleting_at IS NULL`, uid, right)
 	switch {
@@ -68,8 +68,8 @@ func SetDebugModels(ctx context.Context, db Querier, uid string, right bool) err
 
 // TouchAccount writes today, by UTC, as the date of the account's last request,
 // once a day at most: the date the account is deleted by after 12 months with
-// no request (R05, R33). A plain UPDATE takes FOR NO KEY UPDATE, which the
-// writes under the account, by FOR KEY SHARE, do not wait for.
+// no request. A plain UPDATE takes FOR NO KEY UPDATE, which the writes under
+// the account, by FOR KEY SHARE, do not wait for.
 func TouchAccount(ctx context.Context, db Querier, accountID string) error {
 	_, err := db.Exec(ctx, `UPDATE accounts SET last_request_on = (now() AT TIME ZONE 'UTC')::date
 		WHERE id = $1 AND last_request_on IS DISTINCT FROM (now() AT TIME ZONE 'UTC')::date`, accountID)
@@ -81,8 +81,7 @@ func TouchAccount(ctx context.Context, db Querier, accountID string) error {
 
 // ProfileOf says whether the account has the profile, and the date of the
 // profile's last activity. It is read after the right to the profile, never
-// before: a tuple whose profile is gone — dangling (R21) — gives a right to
-// nothing.
+// before: a tuple whose profile is gone — dangling — gives a right to nothing.
 func ProfileOf(ctx context.Context, db Querier, accountID, profileID string) (bool, time.Time, error) {
 	var activeOn time.Time
 	err := db.QueryRow(ctx, `SELECT active_on FROM profiles WHERE id = $1 AND account_id = $2`,

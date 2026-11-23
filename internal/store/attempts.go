@@ -11,8 +11,7 @@ import (
 )
 
 // AbandonedAfter is how long an open attempt goes with no action before it is
-// abandoned (R10): the check of a request closes it then, and so does the daily
-// job.
+// abandoned: the check of a request closes it then, and so does the daily job.
 const AbandonedAfter = 7 * 24 * time.Hour
 
 // uniqueViolation is the SQLSTATE of a row that a unique index refuses.
@@ -21,13 +20,13 @@ const uniqueViolation = "23505"
 // The refusals of the rows of an attempt.
 var (
 	// ErrNotFound is an attempt, a lesson run or an engine's choice that the
-	// profile does not have: another profile's is the same (R04).
+	// profile does not have: another profile's is the same.
 	ErrNotFound = errors.New("store: the profile has no such row")
 	// ErrChoiceBegun is an engine's choice of a task that has begun an attempt
 	// already.
 	ErrChoiceBegun = errors.New("store: the choice has begun an attempt already")
 	// ErrPaper is an attempt of a task from paper, which has no package and no
-	// task of a module (R10).
+	// task of a module.
 	ErrPaper = errors.New("store: the attempt is of a task from paper")
 )
 
@@ -80,19 +79,19 @@ type Attempt struct {
 	WrongAnswers   int
 	StepTechniques bool
 	// RequestedTechniques and LeadingQuestion say whether a hint asked for gave
-	// the task's techniques, and its leading question (R47).
+	// the task's techniques, and its leading question.
 	RequestedTechniques bool
 	LeadingQuestion     bool
-	// CorrectWordsGiven says whether the tutor's words after a correct answer
-	// were given on it (R09).
+	// CorrectWordsGiven says whether the tutor's words after a correct answer were
+	// given on it.
 	CorrectWordsGiven bool
 	// PaperKey is the key of an attempt of a task from paper, the message Key of
 	// novatrail.paper.v1, while the attempt is open: nil before the first
-	// submission derived it (R162 spec).
+	// submission derived it.
 	PaperKey []byte
 	// PaperReading is the reading of the statement of an attempt of a task from
-	// paper, the message Reading of novatrail.paper.v1, while the attempt is
-	// open: nil before "Recognise" made it (R169 spec).
+	// paper, the message Reading of novatrail.paper.v1, while the attempt is open:
+	// nil before "Recognise" made it.
 	PaperReading []byte
 }
 
@@ -170,7 +169,7 @@ type NewAttempt struct {
 
 // HoldOpenAttempt is the profile's open attempt of a task of a module, its row
 // held FOR UPDATE in tx, and whether it has one: the open attempts of a page
-// from paper stay beside it (R10).
+// from paper stay beside it.
 func HoldOpenAttempt(ctx context.Context, tx pgx.Tx, profileID string) (Attempt, bool, error) {
 	a, err := scanAttempt(tx.QueryRow(ctx, `SELECT `+attemptColumns+` FROM attempts
 		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'module' FOR UPDATE`, profileID))
@@ -183,9 +182,9 @@ func HoldOpenAttempt(ctx context.Context, tx pgx.Tx, profileID string) (Attempt,
 	return a, true, nil
 }
 
-// BeginAttempt begins a at at, in tx, once the profile's open attempt is closed:
-// the profile has one open attempt of a module (R10). A choice that has begun an attempt
-// already is ErrChoiceBegun.
+// BeginAttempt begins a at at, in tx, once the profile's open attempt is
+// closed: the profile has one open attempt of a module. A choice that has begun
+// an attempt already is ErrChoiceBegun.
 func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt, at time.Time) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version,
@@ -206,11 +205,10 @@ func BeginAttempt(ctx context.Context, tx pgx.Tx, profileID string, a NewAttempt
 
 // BeginPaperAttempts closes "left", at at, in tx, the profile's open attempts
 // of tasks from paper of another page than pageID, and begins n attempts of
-// tasks from paper on it, one of each, their IDs in order (R10, R101). An
-// attempt of paper gives no evidence, so the close settles none. Its caller
-// holds the account's row FOR NO KEY UPDATE (HoldAccount), so that two
-// beginnings of one profile go one after the other and the second sees the
-// first's attempts.
+// tasks from paper on it, one of each, their IDs in order. An attempt of paper
+// gives no evidence, so the close settles none. Its caller holds the account's
+// row FOR NO KEY UPDATE (HoldAccount), so that two beginnings of one profile go
+// one after the other and the second sees the first's attempts.
 func BeginPaperAttempts(ctx context.Context, tx pgx.Tx, profileID, pageID string, n int, at time.Time) ([]string, error) {
 	if _, err := tx.Exec(ctx, `UPDATE attempts SET close_reason = 'left', closed_at = $2
 		WHERE profile_id = $1 AND closed_at IS NULL AND kind = 'paper' AND paper_page IS DISTINCT FROM $3`,
@@ -243,8 +241,8 @@ func ChoiceBegun(ctx context.Context, db Querier, profileID, choiceID string) (b
 }
 
 // SetPaperKey keeps the key of the profile's open attempt of a task from paper,
-// the message Key of novatrail.paper.v1, until the attempt closes (R162 spec).
-// An attempt that is not of paper, or closed, keeps none.
+// the message Key of novatrail.paper.v1, until the attempt closes. An attempt
+// that is not of paper, or closed, keeps none.
 func SetPaperKey(ctx context.Context, tx pgx.Tx, profileID, attemptID string, key []byte) error {
 	tag, err := tx.Exec(ctx, `UPDATE attempts SET paper_key = $3
 		WHERE profile_id = $1 AND id = $2 AND kind = 'paper' AND closed_at IS NULL`, profileID, attemptID, key)
@@ -259,8 +257,8 @@ func SetPaperKey(ctx context.Context, tx pgx.Tx, profileID, attemptID string, ke
 
 // SetPaperReading keeps the reading of the statement of the profile's open
 // attempt of a task from paper, the message Reading of novatrail.paper.v1,
-// until the attempt closes (R169 spec). An attempt that is not of paper, or
-// closed, keeps none.
+// until the attempt closes. An attempt that is not of paper, or closed, keeps
+// none.
 func SetPaperReading(ctx context.Context, tx pgx.Tx, profileID, attemptID string, reading []byte) error {
 	tag, err := tx.Exec(ctx, `UPDATE attempts SET paper_reading = $3
 		WHERE profile_id = $1 AND id = $2 AND kind = 'paper' AND closed_at IS NULL`, profileID, attemptID, reading)
@@ -307,7 +305,7 @@ func Submit(ctx context.Context, tx pgx.Tx, profileID, attemptID string, answer,
 }
 
 // How a submission of an essay ends, and the source of its words, as the schema
-// writes them (R15).
+// writes them.
 const (
 	EssayFeedback   = "feedback"
 	EssayUnreadable = "unreadable"
@@ -321,9 +319,9 @@ const (
 	SourceNoFeedback = "no_feedback"
 )
 
-// Essay is how a submission of an essay ended (R15): its end, and beside
-// feedback the mark of each criterion by its number in the rubric, from 1, and
-// the source of the words. Neither the text read nor the words are in it.
+// Essay is how a submission of an essay ended: its end, and beside feedback the
+// mark of each criterion by its number in the rubric, from 1, and the source of
+// the words. Neither the text read nor the words are in it.
 type Essay struct {
 	End    string
 	Marks  []string
@@ -377,7 +375,7 @@ func EssaySubmissions(ctx context.Context, db Lister, profileID string, attemptI
 }
 
 // Submitted says whether the profile's attempt has a submission, however it
-// ended: what "Done" asks of an attempt with a rubric (R14).
+// ended: what "Done" asks of an attempt with a rubric.
 func Submitted(ctx context.Context, db Querier, profileID, attemptID string) (bool, error) {
 	var submitted bool
 	if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM submissions WHERE profile_id = $1 AND attempt_id = $2)`,

@@ -29,7 +29,7 @@ func texts(ids ...string) []*v1.LegalTextRef { return legal.Spec().On(time.Now()
 func text(id string) *v1.LegalTextRef { return texts(id)[0] }
 
 // An account is made on the current versions of the policy and the terms, which
-// it records; a text left out, or a version not current, is refused (R136 spec).
+// it records; a text left out, or a version not current, is refused.
 func TestAnAccountIsMadeOnTheCurrentTexts(t *testing.T) {
 	t.Parallel()
 
@@ -51,9 +51,9 @@ func TestAnAccountIsMadeOnTheCurrentTexts(t *testing.T) {
 	}
 }
 
-// The texts a request names are those of its day in UTC: version 3 of the
-// tag's policy, which applies from 2026-11-27, is refused the minute before,
-// and version 2 the minute after, when 3 is current (R130 spec).
+// The texts a request names are those of its day in UTC: version 3 of the tag's
+// policy, which applies from 2026-11-27, is refused the minute before, and
+// version 2 the minute after, when 3 is current.
 func TestTheTextsOfARequestAreThoseOfItsDay(t *testing.T) {
 	t.Parallel()
 
@@ -152,8 +152,7 @@ func (w *world) childProfile(t *testing.T, ctx context.Context, consentID string
 
 // A learner from the age of digital consent of their country consents
 // themselves: the profile is made at once and waits for the consent, which the
-// learner gives to the current teen-consent, once; a learner below it does not
-// (R116 spec).
+// learner gives to the current teen-consent, once; a learner below it does not.
 func TestALearnerFromTheAgeConsentsThemselves(t *testing.T) {
 	t.Parallel()
 
@@ -192,7 +191,7 @@ func TestALearnerFromTheAgeConsentsThemselves(t *testing.T) {
 
 // A parent's consent goes by the scan of its signed form, kept in the store of
 // the forms and not in the database; the operator confirms it by its code, and
-// a new scan takes the place of one not accepted (R116 spec).
+// a new scan takes the place of one not accepted.
 func TestAParentsConsentGoesByItsForm(t *testing.T) {
 	t.Parallel()
 
@@ -277,7 +276,7 @@ func TestNoStoreOfTheFormsIsUnavailable(t *testing.T) {
 
 // A consent with no profile is taken back: one that waits leaves nothing, and
 // its scan goes the same day; one confirmed leaves its minimal record, and its
-// scan is kept 5 years (R117 spec). A repeat is "not found".
+// scan is kept 5 years. A repeat is "not found".
 func TestAConsentIsTakenBack(t *testing.T) {
 	t.Parallel()
 
@@ -311,9 +310,9 @@ func TestAConsentIsTakenBack(t *testing.T) {
 	}
 }
 
-// A learner withdraws their own consent, which deletes their profile and
-// leaves its minimal record; at a profile whose consent an adult gives, it is
-// "adult needed" (R132 spec).
+// A learner withdraws their own consent, which deletes their profile and leaves
+// its minimal record; at a profile whose consent an adult gives, it is "adult
+// needed".
 func TestALearnerWithdrawsTheirOwnConsent(t *testing.T) {
 	t.Parallel()
 
@@ -342,7 +341,7 @@ func TestALearnerWithdrawsTheirOwnConsent(t *testing.T) {
 
 // The age given again works out the category anew: below the country's age a
 // parent's consent is asked by a new code, from it the learner's own; the
-// owner's profile gives its country alone (R134 spec).
+// owner's profile gives its country alone.
 func TestTheAgeIsGivenAgain(t *testing.T) {
 	t.Parallel()
 
@@ -391,7 +390,7 @@ func TestTheAgeIsGivenAgain(t *testing.T) {
 }
 
 // The age of a learner who consents themselves is asked again once their
-// country raised its age above the one the category was given by (R134 spec).
+// country raised its age above the one the category was given by.
 func TestARaisedAgeAsksTheAgeAgain(t *testing.T) {
 	t.Parallel()
 
@@ -417,9 +416,9 @@ func TestARaisedAgeAsksTheAgeAgain(t *testing.T) {
 	}
 }
 
-// The storage of works is switched on by whoever consents for the learner —
-// the adult, or a learner who consents themselves — to the current
-// storage-consent, and off with its date (R113 spec).
+// The storage of works is switched on by whoever consents for the learner — the
+// adult, or a learner who consents themselves — to the current storage-consent,
+// and off with its date.
 func TestTheStorageOfWorks(t *testing.T) {
 	t.Parallel()
 
@@ -468,9 +467,9 @@ func TestTheStorageOfWorks(t *testing.T) {
 }
 
 // A request that holds a profile's consent waits for the deletion of the
-// profile, which holds the profile and then reaches the consent by the
-// cascade, rather than deadlock with it or take the consent before it: the
-// deletion goes through, and the request finds no profile (R74).
+// profile, which holds the profile and then reaches the consent by the cascade,
+// rather than deadlock with it or take the consent before it: the deletion goes
+// through, and the request finds no profile.
 func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
 	t.Parallel()
 
@@ -585,7 +584,7 @@ func TestAConsentsWriteWaitsForTheDeletionOfItsProfile(t *testing.T) {
 
 // The export gives api.zip of a profile and of the account, by the version of
 // the part, and a learner's own only at a profile whose learner consents
-// themselves (R132, R135 spec).
+// themselves.
 func TestTheExportIsGiven(t *testing.T) {
 	t.Parallel()
 

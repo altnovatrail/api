@@ -1,7 +1,6 @@
--- The modules connected to a profile (R07, R42): the module's ID and when it was
--- connected, with no version. The attempts and lesson runs go on the current version of
--- the pinned index, which the image holds, never on a version kept here. The rows go with
--- their profile.
+-- The modules connected to a profile: the module's ID and when it was connected, with no
+-- version. The attempts and lesson runs go on the current version of the pinned index,
+-- which the image holds, never on a version kept here. The rows go with their profile.
 
 -- +goose Up
 

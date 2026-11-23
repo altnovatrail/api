@@ -7,17 +7,16 @@ import (
 	"strings"
 )
 
-// The variables of the texts and the forms of consent (R52).
+// The variables of the texts and the forms of consent.
 const (
 	// VarLegalDir is the absolute path of a self-hosted copy's folder of its
-	// operator's legal texts, outside any git working tree; unset, api serves
-	// the texts of its tag of spec (R115 spec).
+	// operator's legal texts, outside any git working tree; unset, api serves the
+	// texts of its tag of spec.
 	VarLegalDir = "API_LEGAL_DIR"
 	// VarConsentFormsBucket is the operator's closed bucket of Cloud Storage the
 	// scans of the forms of a parent's consent go to, under the prefix of
-	// VarConsentFormsPrefix (R116 spec). A deployment alone names it: api
-	// writes with its own account, and off a deployment takes no default
-	// credentials.
+	// VarConsentFormsPrefix. A deployment alone names it: api writes with its own
+	// account, and off a deployment takes no default credentials.
 	VarConsentFormsBucket = "API_CONSENT_FORMS_BUCKET"
 	// VarConsentFormsPrefix is api's prefix in the bucket, ending in a slash.
 	VarConsentFormsPrefix = "API_CONSENT_FORMS_PREFIX"

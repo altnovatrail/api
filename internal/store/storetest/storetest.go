@@ -1,8 +1,8 @@
-// Package storetest runs the tests of api's database on a real PostgreSQL with no
-// Docker, as the devcontainer and CI have none: embedded-postgres starts one server
-// for a test binary, when its first test asks for a database, migrates a template
-// database once, and gives each test a database of its own made from it, which is
-// a copy and takes milliseconds (R05, R29).
+// Package storetest runs the tests of api's database on a real PostgreSQL with
+// no Docker, as the devcontainer and CI have none: embedded-postgres starts one
+// server for a test binary, when its first test asks for a database, migrates a
+// template database once, and gives each test a database of its own made from
+// it, which is a copy and takes milliseconds.
 //
 // A package whose tests use it runs them under its TestMain:
 //
@@ -32,14 +32,14 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// version is the PostgreSQL the tests run on, and the one the Neon project of the
-// first app is made with (R29).
+// version is the PostgreSQL the tests run on, and the one the Neon project of
+// the first app is made with.
 const version = embeddedpostgres.V17
 
-// supervisorPackage is embedded-postgres's own supervisor, which stops PostgreSQL
-// when the test binary dies. It is built here from the module's sources, which
-// go.sum holds, rather than downloaded and checked against a sum the library
-// reads from the same release while it runs (R05).
+// supervisorPackage is embedded-postgres's own supervisor, which stops
+// PostgreSQL when the test binary dies. It is built here from the module's
+// sources, which go.sum holds, rather than downloaded and checked against a sum
+// the library reads from the same release while it runs.
 const supervisorPackage = "github.com/fergusstrange/embedded-postgres/v2/cmd/embedded-postgres"
 
 // The databases the migrations run in once, which each test's is a copy of: the
@@ -128,11 +128,11 @@ func boot(ctx context.Context) error {
 }
 
 // identity gives PostgreSQL a name to run under when the tests run as a uid the
-// system does not know, as CI runs them: .github's go.yml starts the toolchain
+// system does not know, as CI runs them:.github's go.yml starts the toolchain
 // container as the runner's uid, and initdb stops on a uid it cannot look up.
-// nss_wrapper, which the toolchain stage installs, answers the lookup from a passwd
-// and a group file of its own, written here; PostgreSQL's processes take it from
-// the environment (R30). A uid the system knows needs none of it.
+// nss_wrapper, which the toolchain stage installs, answers the lookup from a
+// passwd and a group file of its own, written here; PostgreSQL's processes take
+// it from the environment. A uid the system knows needs none of it.
 func identity(work string) error {
 	uid, gid := strconv.Itoa(os.Getuid()), strconv.Itoa(os.Getgid())
 	if _, err := user.LookupId(uid); err == nil {

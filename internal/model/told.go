@@ -13,9 +13,9 @@ import (
 )
 
 // Told is what an attempt's rows tell of it once the package of its version
-// reads them, as its export gives it (R52; R135 spec): what came of each item,
-// the traps the program found in its wrong values, the IDs of the task's
-// techniques, and its leading question.
+// reads them, as its export gives it: what came of each item, the traps the
+// program found in its wrong values, the IDs of the task's techniques, and its
+// leading question.
 type Told struct {
 	Items      []learnermodel.ItemAnswer
 	Traps      []string
@@ -29,7 +29,7 @@ type Told struct {
 
 // Tell is what the rows of the attempt o tell: its items of its answers alone,
 // and the rest when the image holds its package — one that left the image tells
-// no trap, technique or question (R49).
+// no trap, technique or question.
 func (m *Model) Tell(ctx context.Context, o store.Owed) (Told, error) {
 	answers := make([]*v1.SubmitWorkResponse, len(o.Answers))
 	for i, written := range o.Answers {

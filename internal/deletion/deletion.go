@@ -1,8 +1,8 @@
-// Package deletion is the deletion of a profile and of an account in the order
-// of R21: the database first, then the tuples of the rights, then the user at
+// Package deletion is the deletion of a profile and of an account in this
+// order: the database first, then the tuples of the rights, then the user at
 // the sign-in service, and the account's row last. What does not finish after
 // the database is done is the daily job's to finish, and the caller answers
-// "deleted" all the same (R37).
+// "deleted" all the same.
 package deletion
 
 import (
@@ -29,8 +29,8 @@ type Signin interface {
 }
 
 // Unfinished is a deletion whose database part is done and whose rest is not: a
-// tuple left dangling, a user left at the sign-in service, the account's row. The
-// caller answers "deleted": nothing of a learner is left in the database (R21).
+// tuple left dangling, a user left at the sign-in service, the account's row.
+// The caller answers "deleted": nothing of a learner is left in the database.
 type Unfinished struct{ err error }
 
 func (u *Unfinished) Error() string { return "deletion: unfinished: " + u.err.Error() }
@@ -49,12 +49,11 @@ func New(db store.Beginner, rights Rights, signin Signin) *Deleter {
 	return &Deleter{db: db, rights: rights, signin: signin}
 }
 
-// Profile deletes the account's profile (R21): one transaction under the
-// account, the account's row FOR KEY SHARE and the profile's FOR UPDATE, then
-// its tuple. A profile that is not the account's is store.ErrNoProfile, a
-// marked account store.ErrAccountDeleting; a tuple that does not go is
-// Unfinished, dangling: no row is there for it to give a right to, and the job
-// removes it.
+// Profile deletes the account's profile: one transaction under the account, the
+// account's row FOR KEY SHARE and the profile's FOR UPDATE, then its tuple. A
+// profile that is not the account's is store.ErrNoProfile, a marked account
+// store.ErrAccountDeleting; a tuple that does not go is Unfinished, dangling:
+// no row is there for it to give a right to, and the job removes it.
 func (d *Deleter) Profile(ctx context.Context, accountID, profileID string) error {
 	_, err := d.profile(ctx, accountID, profileID, func(tx pgx.Tx) (bool, error) {
 		_, err := store.ProfileFor(ctx, tx, accountID, profileID)
@@ -67,7 +66,7 @@ func (d *Deleter) Profile(ctx context.Context, accountID, profileID string) erro
 // profile that was not active since before, and says whether it did: the daily
 // job's deletion after 12 months (П-9). The term is read again under the row's
 // lock, so that a learner who came back while the job chose the profile keeps
-// it (R38).
+// it.
 func (d *Deleter) IdleProfile(ctx context.Context, accountID, profileID string, before time.Time) (bool, error) {
 	return d.profile(ctx, accountID, profileID, func(tx pgx.Tx) (bool, error) {
 		return store.ProfileIdle(ctx, tx, accountID, profileID, before)
@@ -94,9 +93,9 @@ func (d *Deleter) profile(ctx context.Context, accountID, profileID string, hold
 	return true, nil
 }
 
-// Account deletes the account of the sign-in service's uid (R21). Step 1 is
-// one transaction: the account's row FOR UPDATE, the mark "deleting", and all
-// its data. When it fails, nothing is done, and the error is the caller's to
+// Account deletes the account of the sign-in service's uid. Step 1 is one
+// transaction: the account's row FOR UPDATE, the mark "deleting", and all its
+// data. When it fails, nothing is done, and the error is the caller's to
 // answer. The rest — Finish — that does not finish is Unfinished: the mark
 // stays, which tells the other devices the account is gone and which the job
 // finishes.
@@ -110,8 +109,7 @@ func (d *Deleter) Account(ctx context.Context, accountID, uid string) error {
 // IdleAccount deletes, as Account does and with no fresh sign-in, the account
 // that had no request since before, and says whether it did: the daily job's
 // deletion after 12 months (П-9). The term is read again under the row's lock,
-// so that an owner who came back while the job chose the account keeps it
-// (R38).
+// so that an owner who came back while the job chose the account keeps it.
 func (d *Deleter) IdleAccount(ctx context.Context, accountID, uid string, before time.Time) (bool, error) {
 	return d.account(ctx, accountID, uid, func(tx pgx.Tx) (bool, error) {
 		return store.MarkIdle(ctx, tx, accountID, before)
@@ -138,13 +136,13 @@ func (d *Deleter) account(ctx context.Context, accountID, uid string, mark func(
 	return true, nil
 }
 
-// Finish does steps 2 to 4 of the deletion of a marked account (R21): the
-// tuples of all its profiles, read by the account and deleted in batches; the
-// user at the sign-in service — its refresh tokens revoked, then the user
-// deleted, a user not there being done — which goes on when the tuples failed,
-// since the sign-in service holds the person's identity and the tuples only
-// IDs; and only when both are done, the account's row. A repeat redoes what is
-// left; the daily job calls it for the marks the requests left (R37).
+// Finish does steps 2 to 4 of the deletion of a marked account: the tuples of
+// all its profiles, read by the account and deleted in batches; the user at the
+// sign-in service — its refresh tokens revoked, then the user deleted, a user
+// not there being done — which goes on when the tuples failed, since the
+// sign-in service holds the person's identity and the tuples only IDs; and only
+// when both are done, the account's row. A repeat redoes what is left; the
+// daily job calls it for the marks the requests left.
 func (d *Deleter) Finish(ctx context.Context, accountID, uid string) error {
 	tuples := d.tuples(ctx, accountID)
 	var user error

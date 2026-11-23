@@ -55,9 +55,8 @@ func (w *world) corrections(t *testing.T, profile string) int {
 // An adult sets a module's level a band at a time, easier or harder, from the
 // band the skill map gives, and the model takes it at once: the map gives the
 // new band and when the adult set it, and the progress the last correction of
-// each module, connected or not since. A band named that is the level's
-// appends nothing and answers as the level is, and any band further off is
-// refused (R89; R157 spec).
+// each module, connected or not since. A band named that is the level's appends
+// nothing and answers as the level is, and any band further off is refused.
 func TestAnAdultSetsTheLevelABandAtATime(t *testing.T) {
 	t.Parallel()
 
@@ -145,9 +144,8 @@ func TestAnAdultSetsTheLevelABandAtATime(t *testing.T) {
 	}
 }
 
-// Below the lowest band, where a learner of its grades starts, the only band
-// to name is the lowest, and no band comes before it: the owner's profile too
-// (R89).
+// Below the lowest band, where a learner of its grades starts, the only band to
+// name is the lowest, and no band comes before it: the owner's profile too.
 func TestBelowTheLowestBandOnlyTheLowestIsNext(t *testing.T) {
 	t.Parallel()
 
@@ -176,7 +174,7 @@ func TestBelowTheLowestBandOnlyTheLowestIsNext(t *testing.T) {
 
 // The correction is refused as a learning request is — a profile without
 // consent, one not of the account —, and a module not connected or with no
-// current version, as the skill map refuses it (R89).
+// current version, as the skill map refuses it.
 func TestACorrectionIsRefusedAsTheSkillMapIs(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +194,7 @@ func TestACorrectionIsRefusedAsTheSkillMapIs(t *testing.T) {
 }
 
 // A correction on a database that fails is unavailable, wherever it fails: the
-// settling, the reading of the corrections or their appending (R89).
+// settling, the reading of the corrections or their appending.
 func TestACorrectionOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 	t.Parallel()
 

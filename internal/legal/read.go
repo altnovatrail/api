@@ -36,8 +36,7 @@ const (
 )
 
 // whoWeAre is the heading, of the second level, of the section of the privacy
-// policy that names the operator, which the pages of app that name it open
-// (R115 spec).
+// policy that names the operator, which the pages of app that name it open.
 const whoWeAre = "Who we are"
 
 // Part is a part of the legal texts as it is read: its passport as a JSON value
@@ -59,12 +58,12 @@ func (r *Refusal) Error() string {
 	return fmt.Sprintf("legal: the part breaks %s: %s", r.Step, strings.Join(r.Names, ", "))
 }
 
-// Read reads the part on the day today, YYYY-MM-DD in UTC (R69): the schema of
-// the passport, then legal.files, legal.versions, legal.set-texts,
-// legal.markdown and legal.operator, then, when previous is the part of the
-// release before, legal.in-force-unchanged. It gives the passport,
-// or the Refusal of the first step that refuses the part: a part is never read
-// in part. A today that is no day is an error, and no Refusal.
+// Read reads the part on the day today, YYYY-MM-DD in UTC: the schema of the
+// passport, then legal.files, legal.versions, legal.set-texts, legal.markdown
+// and legal.operator, then, when previous is the part of the release before,
+// legal.in-force-unchanged. It gives the passport, or the Refusal of the first
+// step that refuses the part: a part is never read in part. A today that is no
+// day is an error, and no Refusal.
 func Read(part Part, previous *Part, today string) (legalv3.Legal, error) {
 	if on, err := time.Parse(time.DateOnly, today); err != nil || on.Format(time.DateOnly) != today {
 		return legalv3.Legal{}, fmt.Errorf("legal: a part is read on a day, YYYY-MM-DD, and %q is none", today)
@@ -292,9 +291,9 @@ func dayOf(since *string) string {
 
 // operatorBreaches is legal.operator: the part has the privacy policy, at the
 // place app, with a version in force whose day has come by today, and every
-// version of it, a draft too, has the section "Who we are" (R115 spec). The
-// policy is named by its ID when it is missing, elsewhere or not yet in force,
-// and a version without the section by its file; a translation needs none.
+// version of it, a draft too, has the section "Who we are". The policy is named
+// by its ID when it is missing, elsewhere or not yet in force, and a version
+// without the section by its file; a translation needs none.
 func operatorBreaches(passport legalv3.Legal, files map[string][]byte, today string) []string {
 	var names []string
 	policy, ok := passport.Texts[PrivacyPolicy]

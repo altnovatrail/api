@@ -1,29 +1,29 @@
--- The contract of consent (R52; R116, R130, R134, R136 spec): who gives a consent — the
--- owner, a parent by a signed form, or the learner — the code of a parent's request,
--- the state of the form and where its scan lies, outside this database, the age of the country the
--- category was given by, and the versions of the texts a consent is given to; the texts an account
--- was created on; the storage of works; and the problem reports of an adult.
+-- The contract of consent: who gives a consent — the owner, a parent by a signed form, or the
+-- learner — the code of a parent's request, the state of the form and where its scan lies, outside
+-- this database, the age of the country the category was given by, and the versions of the texts a
+-- consent is given to; the texts an account was created on; the storage of works; and the problem
+-- reports of an adult.
 --
 -- contract: the check that only a confirmed consent has a profile is dropped — a learner who
 -- consents themselves has their profile at once, which waits for the consent, and a profile whose
 -- age is given again waits for a new one. No release before this one writes a consent of a profile
 -- that waits, and one that reads a profile's consent as confirmed or not reads such a consent as not
--- confirmed, which refuses its learning as no consent (R29).
+-- confirmed, which refuses its learning as no consent.
 
 -- +goose Up
 
 ALTER TABLE consents
     DROP CONSTRAINT consents_check1,
-    -- Who gives it: the owner of the account, of their own profile, by their statement; a parent,
-    -- by the signed form of parent-consent; or the learner, from the age of digital consent of
-    -- their country (R116 spec).
+    -- Who gives it: the owner of the account, of their own profile, by their statement; a parent, by
+    -- the signed form of parent-consent; or the learner, from the age of digital consent of their
+    -- country.
     ADD COLUMN giver text CHECK (giver IN ('owner', 'parent', 'learner')),
     -- A parent's: the code of the request the parent writes on the form, ten characters of
     -- Crockford's base32 in two groups of five, and the state of its form.
     ADD COLUMN request_code text CHECK (request_code ~ '^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$'),
     ADD COLUMN form_state text CHECK (form_state IN ('not_sent', 'sent', 'not_accepted')),
-    -- The age of digital consent of the country on the day the age was given, which the category
-    -- was given by (R134 spec).
+    -- The age of digital consent of the country on the day the age was given, which the category was
+    -- given by.
     ADD COLUMN applied smallint CHECK (applied BETWEEN 13 AND 18),
     -- The version of the text the consent is given to: parent-consent of a parent's, teen-consent of
     -- the learner's; none while the text had no version in force.
@@ -40,9 +40,9 @@ UPDATE consents SET giver = CASE WHEN subject = 'adult' THEN 'owner' ELSE 'paren
 
 ALTER TABLE consents ALTER COLUMN giver SET NOT NULL;
 
--- The release before this one writes a consent with none of these fields while a deployment goes
--- on (R29): its owner's consent is the owner's, and its child's a parent's, which waits for a form
--- by a code of its own. This release always names them.
+-- The release before this one writes a consent with none of these fields while a deployment goes on:
+-- its owner's consent is the owner's, and its child's a parent's, which waits for a form by a code
+-- of its own. This release always names them.
 -- +goose StatementBegin
 CREATE FUNCTION consent_defaults() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -66,10 +66,10 @@ CREATE TRIGGER consents_defaults BEFORE INSERT ON consents FOR EACH ROW EXECUTE 
 CREATE UNIQUE INDEX consents_request_code ON consents (request_code) WHERE state = 'waiting';
 
 -- The scans of the forms of a parent's consent, which lie in the closed bucket of the operator, out
--- of this database (R116 spec): where each lies, and until when it is kept. A scan is the consent's
--- while its consent is there; once the consent is gone, the scan of one confirmed is kept 5 years
--- after, as its minimal record is (R117 spec), and the scan of one that waited goes at once — the
--- daily job erases both by keep_until.
+-- of this database: where each lies, and until when it is kept. A scan is the consent's while its
+-- consent is there; once the consent is gone, the scan of one confirmed is kept 5 years after, as
+-- its minimal record is, and the scan of one that waited goes at once — the daily job erases both by
+-- keep_until.
 CREATE TABLE consent_forms (
     object text PRIMARY KEY CHECK (char_length(object) >= 1),
     consent_id uuid UNIQUE REFERENCES consents (id) ON DELETE SET NULL,
@@ -102,9 +102,9 @@ CREATE TABLE account_texts (
     PRIMARY KEY (account_id, text_id)
 );
 
--- The storage of a learner's works on the server (R113 spec): whether it is on, and the record of
--- each time it was switched on — who gave the consent, to which version of storage-consent — and
--- off. The record lives as long as the profile.
+-- The storage of a learner's works on the server: whether it is on, and the record of each time it
+-- was switched on — who gave the consent, to which version of storage-consent — and off. The record
+-- lives as long as the profile.
 ALTER TABLE profiles ADD COLUMN work_storage boolean NOT NULL DEFAULT false;
 
 CREATE TABLE work_storage_consents (
@@ -119,9 +119,9 @@ CREATE TABLE work_storage_consents (
 
 CREATE INDEX work_storage_consents_profile ON work_storage_consents (profile_id, on_at);
 
--- The problem reports of an adult on a reply of the tutor (R123 spec): kept until the operator
--- reviews one and a year after; the deletion of the profile or the account keeps it to its term
--- without their IDs, nor the attempt's.
+-- The problem reports of an adult on a reply of the tutor: kept until the operator reviews one and a
+-- year after; the deletion of the profile or the account keeps it to its term without their IDs, nor
+-- the attempt's.
 CREATE TABLE problem_reports (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id uuid REFERENCES accounts (id) ON DELETE SET NULL,

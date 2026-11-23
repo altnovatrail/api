@@ -2,12 +2,12 @@
 // Cloud Logging reads, held to the table of events in events.go.
 //
 // Every line goes through guard, which writes only what the table allows. So
-// the rule that the log carries no direct identifier, IP address, work,
-// reading or hint text (R09 spec) does not rest on each line's
-// author remembering it: a field the table does not give the event is dropped
-// and counted, and an event the table does not know loses its message. The
-// libraries in the process — tutor, module-kit and the rest — are handed this
-// same *slog.Logger, and their lines pass the same guard.
+// the rule that the log carries no direct identifier, IP address, work, reading
+// or hint text does not rest on each line's author remembering it: a field the
+// table does not give the event is dropped and counted, and an event the table
+// does not know loses its message. The libraries in the process — tutor,
+// module-kit and the rest — are handed this same *slog.Logger, and their lines
+// pass the same guard.
 package logging
 
 import (

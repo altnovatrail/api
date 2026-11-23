@@ -48,7 +48,7 @@ func TestAnAccountIsFoundByItsUID(t *testing.T) {
 
 // The right of the debug mode is given and taken by the account's UID, and
 // AccountByUID reads it; a UID with no account, or one of an account being
-// deleted, is ErrNoAccount (R97).
+// deleted, is ErrNoAccount.
 func TestTheRightOfTheDebugMode(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +81,7 @@ func TestTheRightOfTheDebugMode(t *testing.T) {
 
 // The migration of the right of the debug mode gives it to every account there
 // is when it runs, but one being deleted, and an account made after it has it
-// off (R97).
+// off.
 func TestTheMigrationGivesTheRightToTheAccountsThereAre(t *testing.T) {
 	t.Parallel()
 

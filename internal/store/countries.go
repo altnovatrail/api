@@ -12,8 +12,8 @@ type Lister interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-// CountryAccepted says whether the deployment takes learners from country
-// (R118, R119 spec; R36). None is taken until the operator adds it.
+// CountryAccepted says whether the deployment takes learners from country. None
+// is taken until the operator adds it.
 func CountryAccepted(ctx context.Context, db Querier, country string) (bool, error) {
 	var accepted bool
 	err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accepted_countries WHERE country = $1)`, country).Scan(&accepted)

@@ -80,11 +80,11 @@ func (w *world) ended(t *testing.T, runID string) string {
 	return *reason
 }
 
-// The job after a rollout closes "unchecked" each open attempt and lesson run on
-// a package the image no longer gives — withdrawn, or out of the window —, writes
-// the evidence of the attempts whose package the image holds, makes no engine's
-// choice, and leaves what is on a package the index does not know and what an
-// account being deleted holds (R07, R49).
+// The job after a rollout closes "unchecked" each open attempt and lesson run
+// on a package the image no longer gives — withdrawn, or out of the window —,
+// writes the evidence of the attempts whose package the image holds, makes no
+// engine's choice, and leaves what is on a package the index does not know and
+// what an account being deleted holds.
 func TestTheJobAfterARolloutClosesWhatTheImageNoLongerGives(t *testing.T) {
 	t.Parallel()
 
@@ -145,8 +145,8 @@ func TestTheJobAfterARolloutClosesWhatTheImageNoLongerGives(t *testing.T) {
 	if got := w.ended(t, unknownRun); got != "open" {
 		t.Errorf("the run on a package the index does not know ended %s, want it left open", got)
 	}
-	// The evidence of the attempts on the package the image holds is written;
-	// the one out of the window gets none, its package being gone (R49).
+	// The evidence of the attempts on the package the image holds is written; the
+	// one out of the window gets none, its package being gone.
 	for i, want := range []int{1, 1, 0} {
 		if got := w.count(t, "evidence WHERE profile_id = $1", profiles[i]); got != want {
 			t.Errorf("profile %d has %d pieces of evidence, want %d", i, got, want)
@@ -199,7 +199,7 @@ func TestARunEndsWithItsOpenAttempt(t *testing.T) {
 
 // The daily job takes the two steps before it closes the abandoned attempts: an
 // attempt on a package the image no longer gives is "unchecked", however long
-// it was idle, and not "abandoned" (R07).
+// it was idle, and not "abandoned".
 func TestTheDailyJobClosesThemUncheckedBeforeAbandoned(t *testing.T) {
 	t.Parallel()
 

@@ -1,9 +1,8 @@
-// Command modules-check is the check of CI of modules.json (R07, R41): just
-// ci-modules runs it once release-verify has accepted the signature of the
-// index, and just ci-withdrawals, the scheduled job, with the index of the
-// newest release of modules, once release-verify has accepted its signature too
-// (R61). It is no part of the binary of a release: the release builds ./cmd/api
-// alone.
+// Command modules-check is the check of CI of modules.json: just ci-modules
+// runs it once release-verify has accepted the signature of the index, and just
+// ci-withdrawals, the scheduled job, with the index of the newest release of
+// modules, once release-verify has accepted its signature too. It is no part of
+// the binary of a release: the release builds ./cmd/api alone.
 //
 //	modules-check -config modules.json -index <index> [-main-config <file> -main-index <file>]
 //	modules-check -config modules.json -index <index> -latest <newest index>
@@ -99,7 +98,7 @@ func withdrawals(configFile, indexFile, latestFile string, stdout, stderr io.Wri
 		}
 		fmt.Fprintf(stdout, "%s %s: withdrawn, %s%s\n", w.ID, w.Version, w.Reason, current)
 	}
-	fmt.Fprintf(stderr, "modules-check: the newest release of modules withdraws versions that %s gives: pin it in modules.json (R07)\n", cfg.Release)
+	fmt.Fprintf(stderr, "modules-check: the newest release of modules withdraws versions that %s gives: pin it in modules.json\n", cfg.Release)
 	return 1
 }
 

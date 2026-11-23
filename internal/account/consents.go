@@ -25,11 +25,11 @@ const (
 	oldestAge   = 17
 )
 
-// waitingConsentsMax is how many consents for a child may wait under an
-// account with no profile: a family needs a few, not hundreds, and each request
-// with a new key makes a row and a key's record (R36). The slow fingerprint of a
-// request is worked out before the count, so the limit bounds the rows, not
-// that work. The number is api's.
+// waitingConsentsMax is how many consents for a child may wait under an account
+// with no profile: a family needs a few, not hundreds, and each request with a
+// new key makes a row and a key's record. The slow fingerprint of a request is
+// worked out before the count, so the limit bounds the rows, not that work. The
+// number is api's.
 const waitingConsentsMax = 10
 
 // The scan of a form: up to 10 MiB, a photo or a PDF.
@@ -62,13 +62,12 @@ func requestCode() string {
 
 // RequestChildConsent records a consent for a child that waits, with the
 // category worked out of the age and the country by the table of the age of
-// digital consent; the age in years lives in this request's memory alone
-// (R134 spec). Below the age of the country the consent is a parent's, by a
-// code of its request; from it, the learner's own. The request names the
-// current version of parent-consent whoever gives it, on the day of its time in
-// UTC. A repeat under its key is the same consent, at the limit and past the
-// day of a new version too, since the limit and the texts are checked after the
-// key.
+// digital consent; the age in years lives in this request's memory alone. Below
+// the age of the country the consent is a parent's, by a code of its request;
+// from it, the learner's own. The request names the current version of
+// parent-consent whoever gives it, on the day of its time in UTC. A repeat
+// under its key is the same consent, at the limit and past the day of a new
+// version too, since the limit and the texts are checked after the key.
 func (s *Service) RequestChildConsent(ctx context.Context, req *v1.RequestChildConsentRequest) (*v1.RequestChildConsentResponse, error) {
 	if req.AgeYears == nil || req.GetAgeYears() < youngestAge || req.GetAgeYears() > oldestAge {
 		return nil, rpc.Malformed("age_years")
@@ -170,10 +169,10 @@ func (s *Service) CreateChildProfile(ctx context.Context, req *v1.CreateChildPro
 // SendConsentForm keeps the scan of the signed form of a parent's consent that
 // waits — the account's own, or one a profile waits for — in the operator's
 // store, apart from the database, where the operator checks it against the code
-// and confirms the consent (R116 spec). A new scan takes the place of the one
-// before. With no store configured, the request is refused unavailable. A
-// repeat under its key gives the same consent, with the form it sent; the key's
-// fingerprint is fast, as the scan carries no PIN and no age.
+// and confirms the consent. A new scan takes the place of the one before. With
+// no store configured, the request is refused unavailable. A repeat under its
+// key gives the same consent, with the form it sent; the key's fingerprint is
+// fast, as the scan carries no PIN and no age.
 func (s *Service) SendConsentForm(ctx context.Context, req *v1.SendConsentFormRequest) (*v1.SendConsentFormResponse, error) {
 	switch {
 	case !store.CanonicalID(req.GetConsentId()):
@@ -246,8 +245,8 @@ func (s *Service) sendScan(ctx context.Context, accountID string, req *v1.SendCo
 
 // CancelChildConsent takes back a consent for a child that has no profile: one
 // that waits is erased with its form — the daily job erases the scan —, one
-// confirmed leaves its minimal record and its form for their term (R117 spec).
-// A consent not there is CAUSE_NOT_FOUND, which is the answer to a repeat too.
+// confirmed leaves its minimal record and its form for their term. A consent
+// not there is CAUSE_NOT_FOUND, which is the answer to a repeat too.
 func (s *Service) CancelChildConsent(ctx context.Context, req *v1.CancelChildConsentRequest) (*v1.CancelChildConsentResponse, error) {
 	if !store.CanonicalID(req.GetConsentId()) {
 		return nil, notFound(ctx)
@@ -297,10 +296,10 @@ func (s *Service) GiveOwnConsent(ctx context.Context, req *v1.GiveOwnConsentRequ
 }
 
 // WithdrawOwnConsent withdraws the learner's own consent — given, or asked of a
-// learner who reached the age while a parent's stood (R141 spec) — and deletes
-// their profile and all of it, as DeleteProfile does, leaving the consent's
-// minimal record and the problem reports (R117, R132 spec). A consent an adult
-// gives is CAUSE_ADULT_NEEDED; a profile gone, a repeat's, CAUSE_NO_PROFILE.
+// learner who reached the age while a parent's stood — and deletes their
+// profile and all of it, as DeleteProfile does, leaving the consent's minimal
+// record and the problem reports. A consent an adult gives is
+// CAUSE_ADULT_NEEDED; a profile gone, a repeat's, CAUSE_NO_PROFILE.
 func (s *Service) WithdrawOwnConsent(ctx context.Context, req *v1.WithdrawOwnConsentRequest) (*v1.WithdrawOwnConsentResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	err := store.WriteUnderAccount(ctx, s.db, caller.AccountID, func(tx pgx.Tx) error {
@@ -321,11 +320,11 @@ func (s *Service) WithdrawOwnConsent(ctx context.Context, req *v1.WithdrawOwnCon
 
 // RestateAge gives the age of a profile again — after CAUSE_AGE_NEEDED, at the
 // yearly check, or with a new country — and works out its category anew by the
-// table, keeping the age nowhere (R134 spec). A category whose consent another
-// gives leaves the profile waiting for it: the learner's own, or a parent's by
-// a new code; the consent before is kept as its minimal record. The owner's
-// profile gives its country alone. A repeat under its key is the same profile;
-// the fingerprint is slow, as the request carries the age.
+// table, keeping the age nowhere. A category whose consent another gives leaves
+// the profile waiting for it: the learner's own, or a parent's by a new code;
+// the consent before is kept as its minimal record. The owner's profile gives
+// its country alone. A repeat under its key is the same profile; the
+// fingerprint is slow, as the request carries the age.
 func (s *Service) RestateAge(ctx context.Context, req *v1.RestateAgeRequest) (*v1.RestateAgeResponse, error) {
 	if req.AgeYears != nil && (req.GetAgeYears() < youngestAge || req.GetAgeYears() > oldestAge) {
 		return nil, rpc.Malformed("age_years")
@@ -390,13 +389,13 @@ func (s *Service) restate(ctx context.Context, tx pgx.Tx, c store.Consent, r sto
 }
 
 // SetWorkStorage switches the storage of the learner's works on the server on
-// or off (R113, R127 spec): an adult with can_manage, as the action ADULT, or,
-// at a profile whose learner consents themselves, the learner alone, as the
-// action LEARNING — the other is CAUSE_LEARNER_DECIDES or CAUSE_ADULT_NEEDED.
-// Switching on names the current version of storage-consent and needs the
-// profile's consent; switching off records when, even while it waits. A learner
-// who switches on what an adult did gives their own consent in its place (R141
-// spec). A state that holds already is the answer, as a repeat's.
+// or off: an adult with can_manage, as the action ADULT, or, at a profile whose
+// learner consents themselves, the learner alone, as the action LEARNING — the
+// other is CAUSE_LEARNER_DECIDES or CAUSE_ADULT_NEEDED. Switching on names the
+// current version of storage-consent and needs the profile's consent; switching
+// off records when, even while it waits. A learner who switches on what an
+// adult did gives their own consent in its place. A state that holds already is
+// the answer, as a repeat's.
 func (s *Service) SetWorkStorage(ctx context.Context, req *v1.SetWorkStorageRequest) (*v1.SetWorkStorageResponse, error) {
 	action := req.GetAction()
 	if action != v1.Action_ACTION_ADULT && action != v1.Action_ACTION_LEARNING {
@@ -457,7 +456,7 @@ func (s *Service) SetWorkStorage(ctx context.Context, req *v1.SetWorkStorageRequ
 // consentOf is the consent of the account's profile, held, or ErrNoProfile: a
 // profile has a consent always. The profile is held first, as its deletion
 // holds it, since SetWorkStorage and RestateAge change the profile after the
-// consent (R74).
+// consent.
 func (s *Service) consentOf(ctx context.Context, tx pgx.Tx, accountID, profileID string) (store.Consent, error) {
 	if !store.CanonicalID(profileID) {
 		return store.Consent{}, store.ErrNoProfile

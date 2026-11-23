@@ -36,12 +36,12 @@ func (w *world) choices(t *testing.T, profile string) int {
 }
 
 // "Done" ends an attempt with a rubric once it has a submission, however that
-// ended (R14): before one it is "no submission"; after an empty sheet,
-// "unreadable", the attempt is closed "done" with no evidence, and the answer
-// is the task solved — the criteria of its rubric, without the marks, and no
-// keys or solution, which story has none of (R87 spec) — and, outside a
-// lesson, the engine's choice. A repeat gets the same answer and asks the
-// engine nothing; the attempt takes no submission more.
+// ended: before one it is "no submission"; after an empty sheet, "unreadable",
+// the attempt is closed "done" with no evidence, and the answer is the task
+// solved — the criteria of its rubric, without the marks, and no keys or
+// solution, which story has none of — and, outside a lesson, the engine's
+// choice. A repeat gets the same answer and asks the engine nothing; the
+// attempt takes no submission more.
 func TestDoneEndsAnEssayOnceSubmitted(t *testing.T) {
 	t.Parallel()
 
@@ -96,9 +96,8 @@ func TestDoneEndsAnEssayOnceSubmitted(t *testing.T) {
 }
 
 // The segment of a task with a rubric begins where both its calls are admitted
-// and ends once its attempt is closed "done" (R13): before, the lesson's
-// segments have not all ended; after, no segment is left, and the lesson is
-// passed.
+// and ends once its attempt is closed "done": before, the lesson's segments
+// have not all ended; after, no segment is left, and the lesson is passed.
 func TestASegmentWithARubricEndsByDone(t *testing.T) {
 	t.Parallel()
 
@@ -131,8 +130,7 @@ func TestASegmentWithARubricEndsByDone(t *testing.T) {
 // The engine gets a task with a rubric and its lesson where both its calls are
 // admitted, and AI that reads the work is admitted by the two together: the
 // pool of a learner for whom only an essay's calls are admitted is not limited
-// to the tasks a tap checks, and one for whom only the reading is, is (R50,
-// R82).
+// to the tasks a tap checks, and one for whom only the reading is, is.
 func TestTheEngineGetsATaskWithARubricByBothItsCalls(t *testing.T) {
 	t.Parallel()
 

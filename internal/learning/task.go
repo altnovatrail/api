@@ -19,7 +19,7 @@ import (
 )
 
 // newSeed is the seed of an attempt, from a cryptographically strong source: it
-// never reaches the device, and a template's instance comes of it (R59 spec).
+// never reaches the device, and a template's instance comes of it.
 func newSeed() uint64 {
 	var b [8]byte
 	// crypto/rand.Read never fails, as its documentation says from Go 1.24; go.mod
@@ -30,7 +30,7 @@ func newSeed() uint64 {
 
 // instance is the task an attempt of seed gets in pkg: the task itself, or the
 // instance its seed picks when the task is a template, and that instance's
-// number. The numbers are the package's, and no Starlark runs (R60 spec).
+// number. The numbers are the package's, and no Starlark runs.
 func instance(pkg *modulepackage.Package, task formatv0.Task, seed uint64) (formatv0.Task, *int, error) {
 	if task.Template == nil {
 		return task, nil, nil
@@ -65,7 +65,7 @@ func instanceAgain(pkg *modulepackage.Package, id formatv0.TaskID, picked *int) 
 
 // openTask is the open view of the task, an instance's when it is one, as JSON
 // of the format beside its version: no check, key, solution, trap, technique or
-// leading question is in it (R05 spec).
+// leading question is in it.
 func openTask(pkg *modulepackage.Package, task formatv0.Task) (*v1.OpenView, error) {
 	view, err := openview.Task(task)
 	if err != nil {
@@ -79,7 +79,7 @@ func openTask(pkg *modulepackage.Package, task formatv0.Task) (*v1.OpenView, err
 }
 
 // suits says whether the task suits a learner of category: by its own age
-// categories, or by the module's audience when it names none (R51 spec).
+// categories, or by the module's audience when it names none.
 func suits(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory) bool {
 	categories := task.AgeCategories
 	if len(categories) == 0 {
@@ -126,7 +126,7 @@ func techniques(task formatv0.Task) []string {
 // solved is what reaches the device once the task is solved: the key of each
 // answer slot that has one, by its place, the solution as JSON of the format,
 // beside the format's version, and on a task with a rubric the texts of its
-// criteria in order, without the marks of any assessment (R14; R87 spec).
+// criteria in order, without the marks of any assessment.
 func solved(pkg *modulepackage.Package, task formatv0.Task) (*v1.SolvedTask, error) {
 	out := &v1.SolvedTask{ModuleFormatVersion: string(pkg.View.Manifest.ModuleFormatVersion)}
 	if rubric(task) {
@@ -158,8 +158,8 @@ func placeOf(i, j int) *observationv1.AnswerSlotPlace {
 // itemVerdicts is the verdicts in the contract's words, each answer slot with
 // what was read in it: the text of the option tapped, or the value AI read and
 // the readers agreed on, in joined; the trap a value shows stays in api. wrong
-// says whether a slot got "not_yet", which makes the submission a wrong answer
-// (R09), and correct whether every item is correct.
+// says whether a slot got "not_yet", which makes the submission a wrong answer,
+// and correct whether every item is correct.
 func itemVerdicts(verdicts []verdict.ItemVerdict, tapped map[string]string, joined *observationv1.Observation) (items []*v1.ItemVerdict, wrong, correct bool) {
 	read := maps.Clone(tapped)
 	if read == nil {
@@ -193,11 +193,11 @@ func placeKey(p *observationv1.AnswerSlotPlace) string {
 	return fmt.Sprintf("%d.%d", p.GetItem(), p.GetSlot())
 }
 
-// callOf is tutor's kind of call that reads the work of the task, by its canvas
-// (R81): the reading of a sheet, CallSheet, for a handwriting sheet tutor reads
-// (sheetRead), and of a workbook page, CallWorkbook, for a workbook (bookRead).
-// A task of neither has none: one a tap checks, and one with a zone or the
-// whole sheet, which tutor does not read.
+// callOf is tutor's kind of call that reads the work of the task, by its
+// canvas: the reading of a sheet, CallSheet, for a handwriting sheet tutor
+// reads (sheetRead), and of a workbook page, CallWorkbook, for a workbook
+// (bookRead). A task of neither has none: one a tap checks, and one with a zone
+// or the whole sheet, which tutor does not read.
 func callOf(task formatv0.Task) (tutor.Call, bool) {
 	switch {
 	case sheetRead(task):
@@ -266,7 +266,7 @@ func essayRead(task formatv0.Task) bool {
 }
 
 // criteriaOf is the texts of the criteria of the task's rubric, in their order:
-// the assessment numbers them from 1, and a mark is kept by that number (R15).
+// the assessment numbers them from 1, and a mark is kept by that number.
 func criteriaOf(task formatv0.Task) []string {
 	var out []string
 	for _, item := range task.Items {

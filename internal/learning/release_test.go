@@ -23,26 +23,26 @@ import (
 	"github.com/altnovatrail/api/internal/tutorstub"
 )
 
-// releaseModule is the module of the first app (R76 spec): the one module of
-// the pinned release whose every lesson this code must begin.
+// releaseModule is the module of the first app: the one module of the pinned
+// release whose every lesson this code must begin.
 const releaseModule = "novatrail/olympiad-math"
 
 // boardModule is the module of tutor's board, whose tasks the author solves in
-// app (R71): every task of it is on a handwriting sheet.
+// app: every task of it is on a handwriting sheet.
 const boardModule = "novatrail/check-board"
 
 // The pinned release of modules, laid by api packages into the folder that
-// API_RELEASE_PACKAGES names, as ci-modules lays it (R53): its packages are read
-// as serve reads them, every lesson of the module of the first app begins for an
+// API_RELEASE_PACKAGES names, as ci-modules lays it: its packages are read as
+// serve reads them, every lesson of the module of the first app begins for an
 // adult whose handwriting AI may read, and the owner's path on it — connect,
-// "something else" and what it gives begun, a lesson opened with its first
-// task segment, a task of the pool tapped with its leading question asked for,
-// a wrong answer and its rung's words, then the key — gives evidence of kind 2
-// that holds the question. A task with a time of day describes its slot as
-// one. The module of the board begins too, on the stub of tutor, as
-// boardIsLearnedOn tells, so does every task of the module of workbook pages for
-// a child, as workbookIsLearnedOn tells, so does every task with a rubric of the
-// module of essays for an adult, as essaysAreLearnedOn tells, and the catalog of
+// "something else" and what it gives begun, a lesson opened with its first task
+// segment, a task of the pool tapped with its leading question asked for, a
+// wrong answer and its rung's words, then the key — gives evidence of kind 2
+// that holds the question. A task with a time of day describes its slot as one.
+// The module of the board begins too, on the stub of tutor, as boardIsLearnedOn
+// tells, so does every task of the module of workbook pages for a child, as
+// workbookIsLearnedOn tells, so does every task with a rubric of the module of
+// essays for an adult, as essaysAreLearnedOn tells, and the catalog of
 // novatrail is its list, as novatrailCatalog tells. With no folder named, the
 // test is skipped: ci-test runs with no network, and its packages are the
 // vectors.
@@ -144,13 +144,12 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 	}
 }
 
-// boardIsLearnedOn walks the owner's path on the module of tutor's board (R71,
-// R76 spec) in the dev mode, the gate and the stub of tutor as just dev builds
-// them: every task and lesson of it reaches the engine for an adult, the
-// owner's catalog gives its current version, it connects, its lesson opens and
-// its first task segment begins, and the sheet is read — a tall crop not yet,
-// with the words of rung 1 on the work, then a wide one correct — and gives its
-// evidence.
+// boardIsLearnedOn walks the owner's path on the module of tutor's board in the
+// dev mode, the gate and the stub of tutor as just dev builds them: every task
+// and lesson of it reaches the engine for an adult, the owner's catalog gives
+// its current version, it connects, its lesson opens and its first task segment
+// begins, and the sheet is read — a tall crop not yet, with the words of rung 1
+// on the work, then a wide one correct — and gives its evidence.
 func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	pkg, ok := set.Current(boardModule)
 	if !ok {
@@ -218,15 +217,15 @@ func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	}
 }
 
-// novatrailList is the list of modules of the deployment novatrail (R150 spec):
-// olympiad mathematics and the check board, and no essays.
+// novatrailList is the list of modules of the deployment novatrail: olympiad
+// mathematics and the check board, and no essays.
 var novatrailList = []formatv0.ModuleID{releaseModule, boardModule}
 
 // novatrailCatalog reads the pinned release again, as serve reads it on
-// novatrail at the stage author with its list (R149, R150 spec): the pinned index
-// holds both modules of the list, the owner's catalog is the two on their
-// current versions, and a module the list leaves out is refused a connection as
-// one with no current version.
+// novatrail at the stage author with its list: the pinned index holds both
+// modules of the list, the owner's catalog is the two on their current
+// versions, and a module the list leaves out is refused a connection as one
+// with no current version.
 func novatrailCatalog(t *testing.T, dir string, cfg packages.Config) {
 	set, err := packages.Read(dir, cfg)
 	if err != nil {
@@ -325,16 +324,16 @@ func tappedWithQuestion(t *testing.T, pkg *modulepackage.Package, pool []string)
 }
 
 // workbookModule is the module of the pinned release whose every task is on a
-// workbook page, for a child under 13 alone (R53).
+// workbook page, for a child under 13 alone.
 const workbookModule = "novatrail/grade-3-math"
 
 // workbookIsLearnedOn walks a child's path on the module of workbook pages in
 // the dev mode, on the stub of tutor, which admits a workbook page where the
-// gate admits a sheet (R66), by the facts of a child, as dev-check declares
-// them to its server on the stub: every task and lesson of it reaches the
-// engine for a child, it connects, and every task of it begins and is solved by
-// a page of a wide crop in each of its boxes, which the stub reads as the right
-// value of each — a number, a fraction, a sign.
+// gate admits a sheet, by the facts of a child, as dev-check declares them to
+// its server on the stub: every task and lesson of it reaches the engine for a
+// child, it connects, and every task of it begins and is solved by a page of a
+// wide crop in each of its boxes, which the stub reads as the right value of
+// each — a number, a fraction, a sign.
 func workbookIsLearnedOn(t *testing.T, set *packages.Set) {
 	pkg, ok := set.Current(workbookModule)
 	if !ok {
@@ -383,15 +382,15 @@ func workbookIsLearnedOn(t *testing.T, set *packages.Set) {
 	}
 }
 
-// essayModule is the module of the pinned release whose tasks with a rubric
-// are essays on a handwriting sheet, beside tasks a tap checks (R53).
+// essayModule is the module of the pinned release whose tasks with a rubric are
+// essays on a handwriting sheet, beside tasks a tap checks.
 const essayModule = "novatrail/english-essays"
 
 // essaysAreLearnedOn walks an adult's path on the module of essays in the dev
 // mode, on the stub of tutor, which admits an essay and its assessment where
-// the gate admits a sheet (R66): every task and lesson of it reaches the engine
-// for an adult, it connects, and every task of it with a rubric begins, a wide
-// crop of its sheet ends in feedback — the stub's text read, its marks, and its
+// the gate admits a sheet: every task and lesson of it reaches the engine for
+// an adult, it connects, and every task of it with a rubric begins, a wide crop
+// of its sheet ends in feedback — the stub's text read, its marks, and its
 // words, which pass the leak check and the rule of feedback on each task —, and
 // "Done" closes it with the criteria of its rubric.
 func essaysAreLearnedOn(t *testing.T, set *packages.Set) {

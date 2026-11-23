@@ -46,11 +46,11 @@ func (w *world) beginPage(t *testing.T, l learner, profile string, n int32) []st
 	return res.GetAttemptIds()
 }
 
-// The finding on the stub (R66; R162 spec): the frames of the tasks in the order
-// of the page, none as no outcome, a failure of AI as an outcome; each call
-// spends the reserve of the finding, which tutor expects no price of, and a
-// repeat under the key is "repeated" without frames, with no call. The record of
-// the key keeps no frame, and the log no photo.
+// The finding on the stub: the frames of the tasks in the order of the page,
+// none as no outcome, a failure of AI as an outcome; each call spends the
+// reserve of the finding, which tutor expects no price of, and a repeat under
+// the key is "repeated" without frames, with no call. The record of the key
+// keeps no frame, and the log no photo.
 func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 	t.Parallel()
 
@@ -109,8 +109,8 @@ func (s turning) FindTasks(ctx context.Context, f tutor.TaskFinding, own string)
 	return found
 }
 
-// The turn tutor gave the photo goes with its frames (R162 spec): none without
-// frames, and none in a repeat, whose record keeps no frame.
+// The turn tutor gave the photo goes with its frames: none without frames, and
+// none in a repeat, whose record keeps no frame.
 func TestTheTurnGoesWithTheFrames(t *testing.T) {
 	t.Parallel()
 
@@ -130,9 +130,9 @@ func TestTheTurnGoesWithTheFrames(t *testing.T) {
 	}
 }
 
-// The learner's request finds the page anew (R99; R165 spec): the stub gives
-// twelve frames in the left column, none of them over a frame drawn; the
-// request goes neither to the record of the key nor to the log.
+// The learner's request finds the page anew: the stub gives twelve frames in
+// the left column, none of them over a frame drawn; the request goes neither to
+// the record of the key nor to the log.
 func TestARequestFindsThePageAnew(t *testing.T) {
 	t.Parallel()
 
@@ -242,8 +242,8 @@ func TestTheFindingRefusesWhatTheContractRefuses(t *testing.T) {
 
 // The attempts of a page begin one for each task, in order, beside the open
 // attempt of a module, which stays; a new page closes the one before "left",
-// and a task of a module closes no attempt of paper (R10). The list of profiles
-// names the attempt of the module alone, and a repeat gets the same attempts.
+// and a task of a module closes no attempt of paper. The list of profiles names
+// the attempt of the module alone, and a repeat gets the same attempts.
 func TestThePagesAttemptsGoBesideTheModulesAttempt(t *testing.T) {
 	t.Parallel()
 
@@ -352,7 +352,7 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 
 	// The admission is that of the calls without which a Check gives no verdict:
-	// the statement and the work read; the reading of a sheet admits none (R96).
+	// the statement and the work read; the reading of a sheet admits none.
 	for name, tc := range map[string]struct {
 		admitted []tutor.Call
 		begins   bool
@@ -376,8 +376,8 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 }
 
 // An attempt of a task from paper has no solution to show, no steps, no rubric,
-// no open view, no words after a correct answer and no stored work (R162
-// spec); nor is it begun again as a task of a module.
+// no open view, no words after a correct answer and no stored work; nor is it
+// begun again as a task of a module.
 func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 	t.Parallel()
 

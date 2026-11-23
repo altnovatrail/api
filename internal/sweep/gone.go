@@ -15,10 +15,10 @@ import (
 )
 
 // unchecked is the reason the job closes an attempt and ends a lesson run with
-// when the image no longer gives its package (R07): the schema's word for both.
+// when the image no longer gives its package: the schema's word for both.
 const unchecked = store.RunUnchecked
 
-// AfterJob runs the passes of the job after a rollout (R07, R51).
+// AfterJob runs the passes of the job after a rollout.
 type AfterJob struct {
 	job
 }
@@ -26,7 +26,7 @@ type AfterJob struct {
 // After is the job after a rollout on db: it closes "unchecked" the open
 // attempts and lesson runs on the packages the image of set no longer gives —
 // withdrawn, or out of the window — and writes the evidence the closed attempts
-// owe (R49). It needs neither the rights nor the sign-in service.
+// owe. It needs neither the rights nor the sign-in service.
 func After(db DB, set *packages.Set, m *model.Model, log *slog.Logger) *AfterJob {
 	return &AfterJob{job{db: db, model: m, gone: set.NotGiven(), log: log, moment: logging.MomentAfter}}
 }
@@ -40,16 +40,16 @@ func (a *AfterJob) Run(ctx context.Context, now time.Time) Report {
 	})
 }
 
-// goneAttempts closes "unchecked" the open attempts on the packages the image no
-// longer gives, one at a time, each in a transaction of its own that holds the
-// rows as a request holds them — the account FOR KEY SHARE, the attempt's run,
-// then the attempt — so that the job and a request on the same attempt wait for
-// each other rather than lock each other out. A trigger deletes the words of
-// its hints and ends its run (R47, R48), and the evidence the profile owes is
-// written in the same transaction, as a close by a request writes it (R49): the
+// goneAttempts closes "unchecked" the open attempts on the packages the image
+// no longer gives, one at a time, each in a transaction of its own that holds
+// the rows as a request holds them — the account FOR KEY SHARE, the attempt's
+// run, then the attempt — so that the job and a request on the same attempt
+// wait for each other rather than lock each other out. A trigger deletes the
+// words of its hints and ends its run, and the evidence the profile owes is
+// written in the same transaction, as a close by a request writes it: the
 // attempt on a package out of the window gets none, its package being no longer
-// in the image. One that a request closed meanwhile, or whose account or profile
-// went, counts as nothing done.
+// in the image. One that a request closed meanwhile, or whose account or
+// profile went, counts as nothing done.
 func (j *job) goneAttempts(ctx context.Context, now time.Time, step *Step) {
 	step.Finished = len(j.gone) == 0 || pages(ctx, j, step,
 		func(after string) ([]store.OpenOn, error) {
@@ -70,8 +70,8 @@ func (j *job) goneAttempts(ctx context.Context, now time.Time, step *Step) {
 // longer gives, as goneAttempts closes attempts: the run held first, then its
 // open attempt, if goneAttempts did not get to it, closed with it; a run whose
 // attempt was closed otherwise meanwhile ends by itself. No engine's choice is
-// made: the end is given to nobody, as that of a run OpenLesson ends for another
-// choice (R50).
+// made: the end is given to nobody, as that of a run OpenLesson ends for
+// another choice.
 func (j *job) goneRuns(ctx context.Context, now time.Time, step *Step) {
 	step.Finished = len(j.gone) == 0 || pages(ctx, j, step,
 		func(after string) ([]store.OpenOn, error) {

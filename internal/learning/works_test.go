@@ -91,9 +91,9 @@ func (w *world) kept(t *testing.T, profile string) int {
 
 // A work is kept as it was put, with its kind by the attempt's task and when it
 // was kept, and with no field the contract does not name; the last one put
-// stands. It is listed newest first, read whole, by the learner and by the adult
-// with can_manage, and erased by the adult who decides the storage, a repeat
-// too; neither its history nor its picture reaches the log (R113 spec; R70).
+// stands. It is listed newest first, read whole, by the learner and by the
+// adult with can_manage, and erased by the adult who decides the storage, a
+// repeat too; neither its history nor its picture reaches the log.
 func TestAWorkIsKeptListedReadAndErased(t *testing.T) {
 	t.Parallel()
 
@@ -260,7 +260,7 @@ func TestAWorkIsRefusedBySizeFormAndState(t *testing.T) {
 }
 
 // Switching the storage off erases the profile's works at once, and the
-// deletion of the profile or of the account takes them with it (R113 spec; R21).
+// deletion of the profile or of the account takes them with it.
 func TestTheWorksGoWithTheStorageAndTheProfile(t *testing.T) {
 	t.Parallel()
 
@@ -307,7 +307,7 @@ func TestTheWorksGoWithTheStorageAndTheProfile(t *testing.T) {
 }
 
 // A profile that is none, or another account's, is "no profile" at each method,
-// before anything is read of it (R04).
+// before anything is read of it.
 func TestTheWorksOfAProfileNotTheAccountsAreNoProfile(t *testing.T) {
 	t.Parallel()
 
@@ -446,8 +446,8 @@ func TestTheWorksOnADatabaseThatFailsAreUnavailable(t *testing.T) {
 
 // The learner's ListWorks and GetWork, and DeleteWork, go while the profile
 // waits for a consent, as the learner's ExportProfile goes: app builds the
-// export by them (R113 spec, R84). PutWork is still "no consent", and a profile
-// not the account's is still "no profile".
+// export by them. PutWork is still "no consent", and a profile not the
+// account's is still "no profile".
 func TestTheWorksAreReadWhileTheConsentWaits(t *testing.T) {
 	t.Parallel()
 

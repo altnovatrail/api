@@ -4,12 +4,12 @@
 # detected at RUN time via dpkg instead, so any host that has Docker can build this.
 #
 # `toolchain-core` holds Node, just, Go and buf: what a release needs — its version and its files —
-# and every check that runs no browser, and a release builds it alone (R31 spec). `toolchain` adds what
+# and every check that runs no browser, and a release builds it alone. `toolchain` adds what
 # the repository's tests need — in a copy, its kind's lines at the end of the stage — and is the
 # stage the automated checks run inside. `devcontainer` adds what a person needs, and
 # devcontainer.json names it as its target. spec's own file ends with `orchestrator`, the
 # devcontainer with the Docker CLI and the Dev Containers CLI, which `just new-repo` leaves out of
-# a copy (R156 spec, R158 spec): in a copy `devcontainer` is the last stage, the one a build with no target
+# a copy: in a copy `devcontainer` is the last stage, the one a build with no target
 # gives, and in spec every build names its stage.
 
 # -- toolchain-core: releases the repository, checks it without a browser -----
@@ -25,15 +25,15 @@ ARG JUST_VERSION=1.58.0
 # Go, in /usr/local/go, where the shared CodeQL workflow of .github looks for it: a repository's
 # Go code is built, vetted, tested and read by CodeQL with it. In spec that code is its Go module
 # and the Go tools in tools/, and the checks build the module's zip as the Go module proxy will.
-# Every copy gets Go whatever its kind, unused where there is no Go code (R64 spec).
+# Every copy gets Go whatever its kind, unused where there is no Go code.
 ARG GO_VERSION=1.27.4
 # buf formats, lints, compares with the previous release and generates code from the protobuf
-# API contracts, spec's contracts/ (R83 spec). Every copy gets it as it gets Go, unused where there are
+# API contracts, spec's contracts/. Every copy gets it as it gets Go, unused where there are
 # no contracts: the other repositories take the generated code from a release of spec.
 ARG BUF_VERSION=1.75.0
 # Each archive's sha256 per architecture, as its publisher lists it: SHASUMS256.txt of the Node
 # release, SHA256SUMS of just's, go.dev/dl for Go, sha256.txt of buf's, whose binary comes bare. A
-# sum written here keeps a download from being swapped, and is raised with its version (R34 spec).
+# sum written here keeps a download from being swapped, and is raised with its version.
 ARG NODE_SHA256_AMD64=6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff
 ARG NODE_SHA256_ARM64=724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5
 ARG JUST_SHA256_AMD64=4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d
@@ -99,7 +99,7 @@ ENV PATH="/usr/local/node/bin:/usr/local/go/bin:/home/vscode/.local/bin:${PATH}"
 # -- toolchain: the core, plus what the repository's tests need ---------------
 #
 # api's tests need one thing the core lacks, nss_wrapper below, its own difference from the
-# template (R30); its kind, go, adds no lines here. What this stage installs, a release never
+# template; its kind, go, adds no lines here. What this stage installs, a release never
 # builds, and neither do the checks that run no test: what the release and those ci- recipes call
 # belongs in toolchain-core.
 
@@ -188,13 +188,13 @@ RUN arch="$(dpkg --print-architecture)"; \
 # gopls is the language server that the Go extension in devcontainer.json starts. It is built
 # with the Go that toolchain-core installs, and only here: the checks do not need it. This step and
 # gopls/ beside this file are the go kind's, and come with the rest of spec's devcontainer on a
-# move to a tag of spec (R102 spec).
+# move to a tag of spec.
 ARG GOPLS_VERSION=0.24.0
 
 # gopls is built from its lock file, gopls/ in this folder: go.mod names gopls as a tool at an
 # exact version, go.sum holds the hash of every module the build takes, and -mod=readonly builds
 # from that lock alone, so a module missing from go.sum, or with another hash, stops the build, as
-# a wrong sum stops an archive (R34 spec). The built gopls must name GOPLS_VERSION exactly, so the lock
+# a wrong sum stops an archive. The built gopls must name GOPLS_VERSION exactly, so the lock
 # and the ARG cannot drift apart. CI never builds this stage: before a rebuild only a check that
 # reads both holds them together — spec's tests the go kind's pair in repo-template, new-repo-check
 # a new repository's copy once, when it is made, and after that its repository's own check, if

@@ -39,13 +39,13 @@ run:
     go run ./cmd/api serve
 
 # The connection string is API_MIGRATE_DATABASE_URL, or the file API_MIGRATE_DATABASE_URL_FILE
-# names, outside the repository: the direct one, not the pooler's (R29).
+# names, outside the repository: the direct one, not the pooler's.
 # Apply the migrations of the database api.
 migrate:
     go run ./cmd/api migrate
 
 # What .github's shared release.yml runs to build a release, in the stage toolchain-core of the
-# commit it releases, from that commit's tree with no git in it, and then signs every file (R28).
+# commit it releases, from that commit's tree with no git in it, and then signs every file.
 # dist/ is made afresh and holds plain files alone: the binary for each
 # platform below, static and named api_<version>_<os>_<arch>; the Dockerfile a deployment builds
 # the image by; the licenses a binary has to come with; and SHA256SUMS over
@@ -255,7 +255,7 @@ release-licenses folder:
         echo "${built:-none}" >&2
         echo "and the justfile names these, whose licenses go with a release:" >&2
         echo "${named:-none}" >&2
-        echo "Name each module the binary is built from in THIRD_PARTY, with its license (R28)." >&2
+        echo "Name each module the binary is built from in THIRD_PARTY, with its license." >&2
         exit 1
     fi
     mkdir -p "$folder"
@@ -327,8 +327,7 @@ ci-lint:
         echo "ci-lint: the submodule spec/ is at ${submodule:-no commit}, while the build takes" \
             "github.com/altnovatrail/spec ${spec_version}, from ${spec_origin:-a commit the Go module proxy does not give}," \
             "and github.com/altnovatrail/spec/contracts ${contracts_version}, from" \
-            "${contracts_origin:-a commit the Go module proxy does not give}; move them to one tag together" \
-            "(R64 spec; R27)" >&2
+            "${contracts_origin:-a commit the Go module proxy does not give}; move them to one tag together" >&2
         exit 1
     fi
 

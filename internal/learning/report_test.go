@@ -13,8 +13,7 @@ import (
 // An adult reports a problem with a reply of the tutor on an attempt, open or
 // closed, which is kept with its words and text to be reviewed in 3 days; a
 // repeat is the same report, an opening question is reported on a task from
-// paper alone, and the deletion of the profile keeps it with no
-// ID (R123 spec).
+// paper alone, and the deletion of the profile keeps it with no ID.
 func TestAProblemIsReported(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +45,7 @@ func TestAProblemIsReported(t *testing.T) {
 		Kind: v1.ProblemKind_PROBLEM_KIND_OTHER}); err != nil {
 		t.Errorf("a report on the words after a correct answer = %v", err)
 	}
-	// The opening question is a task from paper's alone (R100).
+	// The opening question is a task from paper's alone.
 	var paper string
 	if err := w.pool.QueryRow(t.Context(), `INSERT INTO attempts (profile_id, kind, paper_page, started_at, last_action_at)
 		VALUES ($1, 'paper', 'page', now(), now()) RETURNING id`, l.adult).Scan(&paper); err != nil {

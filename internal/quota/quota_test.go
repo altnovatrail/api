@@ -33,9 +33,9 @@ func TestDollarsAreMicroDollarsRoundedUp(t *testing.T) {
 }
 
 // The tariff of the closed slice caps a profile at $0.50 and an account at
-// $1.50 (R11), and the probe at a few cents with room for a typical task; an
-// account with no tariff, or one the table does not know, has no caps, and
-// platform AI is closed to it.
+// $1.50, and the probe at a few cents with room for a typical task; an account
+// with no tariff, or one the table does not know, has no caps, and platform AI
+// is closed to it.
 func TestATariffHasItsCapsAndNoneIsClosed(t *testing.T) {
 	t.Parallel()
 
@@ -68,7 +68,7 @@ func TestATariffHasItsCapsAndNoneIsClosed(t *testing.T) {
 // The tariff of dev-check caps a profile at $5.00 and an account at $15.00,
 // tenfold the closed slice, off a deployment; deployed, or not told it is off
 // one, it has no caps, and platform AI is closed to an account that got it all
-// the same (R55).
+// the same.
 func TestTheTariffOfDevCheckIsTheDevProjectsAlone(t *testing.T) {
 	t.Parallel()
 
@@ -84,7 +84,7 @@ func TestTheTariffOfDevCheckIsTheDevProjectsAlone(t *testing.T) {
 }
 
 // A call reserves tutor's expected price, rounded up, when tutor has one; else
-// the value of its kind, and a page of a workbook by its crops (R12).
+// the value of its kind, and a page of a workbook by its crops.
 func TestACallReservesTheExpectedPriceOrItsKindsValue(t *testing.T) {
 	t.Parallel()
 

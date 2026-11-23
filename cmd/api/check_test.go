@@ -106,7 +106,7 @@ func TestServeRefusesAFileOfFactsBeforeTheLog(t *testing.T) {
 }
 
 // serve refuses the stub of tutor on a deployment, as it refuses the emulator
-// of the sign-in service, before it writes a line or opens anything (R66).
+// of the sign-in service, before it writes a line or opens anything.
 func TestServeRefusesTheStubOnADeployment(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +117,7 @@ func TestServeRefusesTheStubOnADeployment(t *testing.T) {
 }
 
 // Off a deployment serve starts on the stub of tutor, and its startup line says
-// so, with no key of the platform (R66).
+// so, with no key of the platform.
 func TestServeStartsOnTheStub(t *testing.T) {
 	t.Parallel()
 

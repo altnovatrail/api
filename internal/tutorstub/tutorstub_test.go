@@ -115,11 +115,10 @@ func read(t *testing.T, tk formatv0.Task, width, height int) *observationv1.Answ
 	return slot
 }
 
-// The shape of the crop says what the stub reads (R66): wider than tall, the
-// right value; taller than wide, the first trap value, or with none, the first
-// value the check holds not right; square, illegible. A predicate's right and
-// wrong values are whole numbers, and a choice written by hand reads its
-// options.
+// The shape of the crop says what the stub reads: wider than tall, the right
+// value; taller than wide, the first trap value, or with none, the first value
+// the check holds not right; square, illegible. A predicate's right and wrong
+// values are whole numbers, and a choice written by hand reads its options.
 func TestTheStubReadsByTheShapeOfTheCrop(t *testing.T) {
 	t.Parallel()
 
@@ -207,7 +206,7 @@ func TestTheStubFailsWhatTutorFails(t *testing.T) {
 // asked yet, so "explain differently" gets other words, and the list again once
 // all were asked; another language gets English. A call spends the expected
 // price of its kind: the hint without the work, or the words with it when the
-// work goes (R106 tutor). Admission is the gate's.
+// work goes. Admission is the gate's.
 func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 	t.Parallel()
 
@@ -309,8 +308,8 @@ func TestTheStubFailsAReadingCutShort(t *testing.T) {
 // found when it names none, in English and Russian, and English in another
 // language, which the form check of that language takes too. On both languages
 // they pass the leak check of module-kit on the task and words.Correct of
-// tutor, as api checks them (R112 tutor; R76). A call spends the expected price
-// of CallCorrect, with the work and without it; admission is the gate's.
+// tutor, as api checks them. A call spends the expected price of CallCorrect,
+// with the work and without it; admission is the gate's.
 func TestTheStubPraisesACorrectAnswer(t *testing.T) {
 	t.Parallel()
 
@@ -522,10 +521,10 @@ func photo(t *testing.T, width, height int) []byte {
 	return b.Bytes()
 }
 
-// The shape of the photo says what the stub finds (R66): taller than wide, five
-// tasks one under another, in the order of the page; wider than tall, none;
-// square, a failure of AI that spent. A PNG is a photo too, and what is no
-// picture fails before the call, with no usage.
+// The shape of the photo says what the stub finds: taller than wide, five tasks
+// one under another, in the order of the page; wider than tall, none; square, a
+// failure of AI that spent. A PNG is a photo too, and what is no picture fails
+// before the call, with no usage.
 func TestTheStubFindsTheTasksByTheShapeOfThePhoto(t *testing.T) {
 	t.Parallel()
 
@@ -564,7 +563,7 @@ func (g asking) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProv
 
 // The stub admits each kind of call as the gate does, on its category and
 // route: admission is tutor's, so the stub admits none of them in a sheet's
-// stead (R90).
+// stead.
 func TestTheStubAdmitsAsTheGateDoes(t *testing.T) {
 	t.Parallel()
 
@@ -748,11 +747,11 @@ func assessment(route tutor.Route, language string, n int) tutor.RubricAssessmen
 	return a
 }
 
-// An essay is read by the shape of its sheet's crop (R66): wider than tall the
-// stub's text, taller than wide a blank sheet, square illegible, each an
-// observation of the one slot bound to the sheet, with no crop box, which
-// module-kit takes as an essay read or unreadable. One reader reads it,
-// spending the expected price of the essay, and with no price nothing priced.
+// An essay is read by the shape of its sheet's crop: wider than tall the stub's
+// text, taller than wide a blank sheet, square illegible, each an observation
+// of the one slot bound to the sheet, with no crop box, which module-kit takes
+// as an essay read or unreadable. One reader reads it, spending the expected
+// price of the essay, and with no price nothing priced.
 func TestTheStubReadsAnEssayByTheShapeOfTheCrop(t *testing.T) {
 	t.Parallel()
 
@@ -842,12 +841,12 @@ func TestTheStubFailsAnEssayTutorFails(t *testing.T) {
 	}
 }
 
-// The stub assesses every criterion met but the last (R66), each with its
-// synthetic evidence, and gives its feedback in English and Russian, English in
-// another language: each passes words.Feedback against the text the stub reads
-// and against any other, and the leak check of the task, as api checks it
-// (R82). The assessment spends the expected price of the rubric, and with none
-// nothing priced.
+// The stub assesses every criterion met but the last, each with its synthetic
+// evidence, and gives its feedback in English and Russian, English in another
+// language: each passes words.Feedback against the text the stub reads and
+// against any other, and the leak check of the task, as api checks it. The
+// assessment spends the expected price of the rubric, and with none nothing
+// priced.
 func TestTheStubAssessesEveryCriterionButTheLast(t *testing.T) {
 	t.Parallel()
 
@@ -936,9 +935,9 @@ func TestTheStubFailsAnAssessmentTutorFails(t *testing.T) {
 	}
 }
 
-// By one reader (R88), a sheet and a workbook page read into one observation,
-// which module-kit takes as it is, and the reading spends the whole of what
-// tutor expects it to cost on one row: the one reader's.
+// By one reader, a sheet and a workbook page read into one observation, which
+// module-kit takes as it is, and the reading spends the whole of what tutor
+// expects it to cost on one row: the one reader's.
 func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
 	t.Parallel()
 
@@ -968,14 +967,13 @@ func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
 	}
 }
 
-// A task from paper by shapes (R66): the statement wider than tall reads into
-// one task of the formula the solver takes, at least twice as tall into three,
-// and any other into one of none; a square statement has no one answer, any
-// other the stub's number for each task asked; the work of one task reads the
-// key more than twice as wide as tall, a wrong value wider but not twice,
-// illegible square or taller, and of several the key in each, with its band of
-// the crop. Each
-// call spends its expected price, and what is no picture fails before it.
+// A task from paper by shapes: the statement wider than tall reads into one
+// task of the formula the solver takes, at least twice as tall into three, and
+// any other into one of none; a square statement has no one answer, any other
+// the stub's number for each task asked; the work of one task reads the key
+// more than twice as wide as tall, a wrong value wider but not twice, illegible
+// square or taller, and of several the key in each, with its band of the crop.
+// Each call spends its expected price, and what is no picture fails before it.
 func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
 	t.Parallel()
 

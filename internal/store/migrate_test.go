@@ -77,8 +77,8 @@ var (
 // contract is the mark of a migration that removes, with its reason.
 var contract = regexp.MustCompile(`(?m)^-- contract: \S`)
 
-// broken says what a migration breaks of the rules of R29: it goes only forward,
-// it has its Up, and it removes only when marked.
+// broken says what a migration breaks of the rules of the migrations: it goes
+// only forward, it has its Up, and it removes only when marked.
 func broken(content string) []string {
 	var problems []string
 	if !strings.Contains(content, "-- +goose Up") {

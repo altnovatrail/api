@@ -110,7 +110,7 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 				t.Errorf("Reads(sheet, %s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
 			}
 			// The workbook, the essay and the rubric are admitted by the author's word
-			// at the rung author alone, where the sheet is (R126 tutor; R90).
+			// at the rung author alone, where the sheet is.
 			for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
 				if got := g.Reads(call, tc.category, tc.provider); got != tc.want {
 					t.Errorf("Reads(%s, %s, %q) = %v, want %v", call, tc.category, tc.provider, got, tc.want)
@@ -248,14 +248,14 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	}
 }
 
-// The tutor's words are admitted where the table admits them (R100 tutor):
-// at the author's stage, for an adult, by the platform's key of Anthropic or an
-// own key of Anthropic, the hint and the analysis with the work alike; at the
-// stage full, for a child, with no key of the platform, or by a provider api
-// gives no adapter of, they are not. Either is admitted exactly when the
-// choice of its kind of call by the gate's tutor gives an entry: the hint
-// without the work by CallHint, the words with it by CallWords (R106, R111
-// tutor). The call of words with no task asks no model.
+// The tutor's words are admitted where the table admits them: at the author's
+// stage, for an adult, by the platform's key of Anthropic or an own key of
+// Anthropic, the hint and the analysis with the work alike; at the stage full,
+// for a child, with no key of the platform, or by a provider api gives no
+// adapter of, they are not. Either is admitted exactly when the choice of its
+// kind of call by the gate's tutor gives an entry: the hint without the work
+// by CallHint, the words with it by CallWords. The call of words with no task
+// asks no model.
 func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	t.Parallel()
 
@@ -304,9 +304,9 @@ func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 }
 
 // The tutor's words of a task from paper are admitted as those of a task of a
-// module (R82 spec): a rung's, with the work, by CallPaperWords, and the
-// opening question and a rung put another way by CallPaperHint, each exactly
-// when tutor chooses an entry for its kind of call.
+// module: a rung's, with the work, by CallPaperWords, and the opening question
+// and a rung put another way by CallPaperHint, each exactly when tutor chooses
+// an entry for its kind of call.
 func TestTheGateAdmitsPaperWordsWhereTutorChooses(t *testing.T) {
 	t.Parallel()
 
@@ -370,10 +370,10 @@ func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
 }
 
 // The words after a correct answer are admitted exactly where tutor chooses an
-// entry for their kind of call, CallCorrect (R112, R113 tutor; R76): at the
-// stage author for an adult, by the platform's key of Anthropic or an own key
-// of Anthropic; not at the stage full, for a child or a teen, with no key of the
-// platform, or by an own key of OpenAI. The call with no task asks no model.
+// entry for their kind of call, CallCorrect: at the stage author for an adult,
+// by the platform's key of Anthropic or an own key of Anthropic; not at the
+// stage full, for a child or a teen, with no key of the platform, or by an own
+// key of OpenAI. The call with no task asks no model.
 func TestTheGateAdmitsCorrectWordsWhereTutorChooses(t *testing.T) {
 	t.Parallel()
 
@@ -420,8 +420,7 @@ func TestTheGateAdmitsCorrectWordsWhereTutorChooses(t *testing.T) {
 	}
 }
 
-// The gate gives tutor Anthropic's adapter alone, and OpenAI's is not given
-// (R54).
+// The gate gives tutor Anthropic's adapter alone, and OpenAI's is not given.
 func TestTheGateGivesAnthropicsAdapterAlone(t *testing.T) {
 	t.Parallel()
 
@@ -442,8 +441,8 @@ func TestAConfigurationTutorRefusesIsInvalid(t *testing.T) {
 
 // The price of a call is tutor's, on a route it admits a model for: the
 // expected price of a sheet read by the pair, of the words and of the words
-// after a correct answer (R113 tutor), which the quota reserves; on a route it
-// admits none for, no price, and the quota reserves its own value (R58).
+// after a correct answer, which the quota reserves; on a route it admits none
+// for, no price, and the quota reserves its own value.
 func TestTheGatePricesWhatItAdmits(t *testing.T) {
 	t.Parallel()
 
@@ -458,8 +457,8 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 			t.Errorf("%s reserves %d, want its expected price, %d", call, got, quota.USD(p.ExpectedUSD))
 		}
 	}
-	// The hint without the work has no expected tokens at tutor (R106 tutor), so
-	// the quota reserves its own value of the kind.
+	// The hint without the work has no expected tokens at tutor, so the quota
+	// reserves its own value of the kind.
 	if p := g.Price(tutor.CallHint, adult); p.Expected || !p.Worst || p.WorstUSD <= 0 {
 		t.Errorf("the price of a hint without the work = %+v, want its worst alone", p)
 	}
@@ -468,8 +467,8 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 		t.Errorf("the price of a route not admitted = %+v, want none", p)
 	}
 	// The workbook, the essay and the rubric have the expected price of the
-	// entries the author's word admits at the rung author (R126 tutor), and none
-	// at the rung full, which admits none of them (R90).
+	// entries the author's word admits at the rung author, and none at the rung
+	// full, which admits none of them.
 	full := load(t, keyed(t, file(t, adultFacts), config.RungFull))
 	for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
 		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
@@ -481,10 +480,10 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 	}
 }
 
-// The dev mode's stub (R66): with no key of the platform, tutor admits the
-// reading and the words on the route of platform AI as with Anthropic's key,
-// and prices them by the catalog of its adapter, while its models answer no
-// call and check no key. The report says so, and counts no key of the platform.
+// The dev mode's stub: with no key of the platform, tutor admits the reading
+// and the words on the route of platform AI as with Anthropic's key, and
+// prices them by the catalog of its adapter, while its models answer no call
+// and check no key. The report says so, and counts no key of the platform.
 func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -529,8 +528,8 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 	}
 }
 
-// apiCalls are the kinds of call api makes (R72, R76, R81, R82), and before are
-// the three that R72 names: the reading of a sheet, the words and the hint.
+// apiCalls are the kinds of call api makes, and before are the first three of
+// them: the reading of a sheet, the words and the hint.
 var (
 	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook,
 		tutor.CallEssay, tutor.CallRubric}
@@ -557,11 +556,10 @@ func chosenOf(tu *tutor.Tutor, calls []tutor.Call, category formatv0.AgeCategory
 	return false
 }
 
-// The words after a correct answer open no own key that the three kinds of call
-// of R72 leave closed (R76): at either stage, for every category and every
-// provider of the table, OwnKeyOpen answers as the choice of the reading, the
-// words and the hint alone, so ListOwnKeyProviders lists the providers those
-// three open.
+// The words after a correct answer open no own key that the reading, the words
+// and the hint leave closed: at either stage, for every category and every
+// provider of the table, OwnKeyOpen answers as the choice of those three kinds
+// of call alone, so ListOwnKeyProviders lists the providers those three open.
 func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
 	t.Parallel()
 
@@ -585,8 +583,8 @@ func TestTheWordsAfterACorrectAnswerOpenNoOtherOwnKey(t *testing.T) {
 
 // The check of a key asks Opus 5.5, Haiku 5.5 and Sonnet 5.5, each once: the
 // words after a correct answer are on Opus 5.5, as the words, so they add no
-// model to check (R73, R76), and Sonnet is an attempt of the cascade of a task
-// from paper (R137 tutor).
+// model to check, and Sonnet is an attempt of the cascade of a task from
+// paper.
 func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 	t.Parallel()
 
@@ -626,8 +624,8 @@ func TestTheCheckOfAKeyAsksTheSameModels(t *testing.T) {
 	}
 }
 
-// The own key is open where tutor admits it for a kind of call api makes (R72):
-// an adult's of Anthropic at the stage author, with no facts or key of the
+// The own key is open where tutor admits it for a kind of call api makes: an
+// adult's of Anthropic at the stage author, with no facts or key of the
 // platform, which the own key needs none of; not OpenAI's, whose adapter api
 // does not give and whose model tutor admits none of, nor a provider the table
 // does not know, nor none; at the stage full nobody's, and below 18 none.
@@ -789,10 +787,10 @@ func checkingGate(t *testing.T, err error, deadline chan<- time.Time) (*admissio
 	return g, dials
 }
 
-// The check of a key is tutor's (R73): what the provider answers the check of
-// each model is how it ends — taken, a limit too, the key refused, no rights,
-// or a failure of neither kind, which is no answer —, and each model tutor
-// would call is dialled with it.
+// The check of a key is tutor's: what the provider answers the check of each
+// model is how it ends — taken, a limit too, the key refused, no rights, or a
+// failure of neither kind, which is no answer —, and each model tutor would
+// call is dialled with it.
 func TestTheGateChecksAKeyByTutor(t *testing.T) {
 	t.Parallel()
 
@@ -830,7 +828,7 @@ func TestTheGateChecksAKeyByTutor(t *testing.T) {
 
 // A provider closed to the key — OpenAI, whose model tutor admits none of, one
 // the table does not know, any below 18 — is "provider closed" with no model
-// dialled, as the list leaves it out (R72).
+// dialled, as the list leaves it out.
 func TestTheGateChecksNoKeyOfAClosedProvider(t *testing.T) {
 	t.Parallel()
 
@@ -882,10 +880,10 @@ func TestTheCheckOfAKeyEndsBeforeTheDeadline(t *testing.T) {
 	}
 }
 
-// The stub's check of a key answers by its ending (R66, R73), through tutor's
-// own check: each of the five ends with no call of a provider, OpenAI closed
-// as on the models. The endings by which the stub refuses a call of AI are
-// accepted, so that app connects such a key before it meets the refusal.
+// The stub's check of a key answers by its ending, through tutor's own check:
+// each of the five ends with no call of a provider, OpenAI closed as on the
+// models. The endings by which the stub refuses a call of AI are accepted, so
+// that app connects such a key before it meets the refusal.
 func TestTheStubChecksAKeyByItsEnding(t *testing.T) {
 	t.Parallel()
 
@@ -933,8 +931,8 @@ func TestACheckWithTooLittleTimeDoesNotBegin(t *testing.T) {
 	}
 }
 
-// In the mode single (R88), tutor reads a sheet by Haiku 5.5 at medium alone,
-// which the report and the gate say: it admits the reading where the pair is
+// In the mode single, tutor reads a sheet by Haiku 5.5 at medium alone, which
+// the report and the gate say: it admits the reading where the pair is
 // admitted, at the author's stage, for less than the pair, and at the stage
 // full, which admits no model of the pair, it is no refusal of the
 // configuration but no admission of the reading.
@@ -971,7 +969,7 @@ func TestTheModeSingleReadsByOneReader(t *testing.T) {
 // apart whether the flag gives every account its right; the gate gives the
 // models the list admits for each call of a task from paper for an adult on
 // platform AI, the attempts of its cascade in their order, none at the stage
-// full (R97).
+// full.
 func TestTheGateOfTheDebugMode(t *testing.T) {
 	t.Parallel()
 

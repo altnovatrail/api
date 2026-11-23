@@ -1,10 +1,10 @@
-// Package packages is the module packages api holds (R07, R41): the release of
-// modules that modules.json pins and the digest of its index, the command that
-// lays the packages of that index which are in api's window into a folder — the
-// image's, or the first app's outside git — and the reading of that folder when
-// serve starts. module-kit checks each package by the chain of digests from the
+// Package packages is the module packages api holds: the release of modules
+// that modules.json pins and the digest of its index, the command that lays the
+// packages of that index which are in api's window into a folder — the image's,
+// or the first app's outside git — and the reading of that folder when serve
+// starts. module-kit checks each package by the chain of digests from the
 // index; the index itself is held by its digest, which the pull request that
-// pinned it checked against its signature (R77 spec).
+// pinned it checked against its signature.
 package packages
 
 import (
@@ -20,11 +20,11 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 )
 
-// ErrConfig is a modules.json that is not the form R07 gives it.
+// ErrConfig is a modules.json that is not of the form of Config.
 var ErrConfig = errors.New("packages: modules.json is not a release and the digest of its index")
 
 // Config is modules.json: the tag of a release of modules and the digest of the
-// bytes of its module-index.json (R07).
+// bytes of its module-index.json.
 type Config struct {
 	// Release is the tag of the release, vX.Y.Z.
 	Release string `json:"release"`

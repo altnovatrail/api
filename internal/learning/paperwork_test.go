@@ -39,7 +39,7 @@ var (
 
 // reserveOf is what a call of a task from paper reserves on platform AI for an
 // adult: the expected price of every attempt of its cascade, by tutor through
-// the gate (R137 tutor).
+// the gate.
 func reserveOf(g *admission.Gate, c tutor.Call) quota.Micro {
 	return quota.Reserve(c, g.Price(c, tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}), 1)
 }
@@ -79,13 +79,13 @@ func slotOf(t *testing.T, res *v1.SubmitWorkResponse) *v1.AnswerSlotVerdict {
 }
 
 // The first Check of a task from paper derives its key while the work is read
-// beside it (R162 spec): a statement the stub reads into a formula gets the
-// solver's key, and its solution is not asked, its part of the reserve given
-// back. A wrong value is a wrong answer, and a later Check reads the work alone
-// by the key kept; the right one closes the attempt "correct" with an empty
-// solved and no next, the key and the submissions erased with the close. A
-// repeat under the key gives the task solved alone, with no call and no verdict
-// of a task, which the close erased (R101).
+// beside it: a statement the stub reads into a formula gets the solver's key,
+// and its solution is not asked, its part of the reserve given back. A wrong
+// value is a wrong answer, and a later Check reads the work alone by the key
+// kept; the right one closes the attempt "correct" with an empty solved and no
+// next, the key and the submissions erased with the close. A repeat under the
+// key gives the task solved alone, with no call and no verdict of a task, which
+// the close erased.
 func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
 	t.Parallel()
 
@@ -212,12 +212,12 @@ func TestATaskFromPaperWithNoKeyIsNotChecked(t *testing.T) {
 	}
 }
 
-// A crop of several tasks is checked task by task (R162 spec): the statement
-// reads into three, each keyed by the solver, so no solution is asked and its
-// reserve goes back; the work is read given their statements, and each task's
-// item gets its verdict, its value and the box where it was read. One wrong
-// task makes the Check a wrong answer, and the attempt stays open; a later
-// Check reads the work alone, by the key kept with its statements.
+// A crop of several tasks is checked task by task: the statement reads into
+// three, each keyed by the solver, so no solution is asked and its reserve goes
+// back; the work is read given their statements, and each task's item gets its
+// verdict, its value and the box where it was read. One wrong task makes the
+// Check a wrong answer, and the attempt stays open; a later Check reads the
+// work alone, by the key kept with its statements.
 func TestATaskFromPaperOfSeveralTasksIsCheckedTaskByTask(t *testing.T) {
 	t.Parallel()
 
@@ -438,12 +438,12 @@ func itemVerdicts(res *v1.SubmitWorkResponse) []string {
 }
 
 // What the statement, the solution and the reading give a Check as AI gave
-// them (R162 spec): a crop on which the statement found no task has a key of
-// none, CAUSE_NO_KEY, with no reading; a solution that fails keeps no key; a
-// task the solution gives no answer is unchecked beside one the solver keyed,
-// which alone decides the attempt; and a task the reader read nothing of is
-// unchecked with the failure of AI beside one it read, whose value with no
-// box comes with none.
+// them: a crop on which the statement found no task has a key of none,
+// CAUSE_NO_KEY, with no reading; a solution that fails keeps no key; a task the
+// solution gives no answer is unchecked beside one the solver keyed, which
+// alone decides the attempt; and a task the reader read nothing of is unchecked
+// with the failure of AI beside one it read, whose value with no box comes with
+// none.
 func TestAChecksKeyAndReadingAreWhatAIGave(t *testing.T) {
 	t.Parallel()
 
@@ -635,8 +635,8 @@ func TestTheRequestsOfPaperWithTooLittleTimeAreRefused(t *testing.T) {
 }
 
 // The record of a Check of paper going is of a request that fell only past the
-// time limit of paper (R98): under a limit of five minutes, one two minutes old
-// is still going, and one six minutes old goes again.
+// time limit of paper: under a limit of five minutes, one two minutes old is
+// still going, and one six minutes old goes again.
 func TestACheckOfPaperGoesForTheTimeLimitOfPaper(t *testing.T) {
 	t.Parallel()
 

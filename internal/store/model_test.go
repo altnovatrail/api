@@ -201,8 +201,8 @@ func TestTheStatementsOfTheModelFail(t *testing.T) {
 
 // An adult's correction of a level is a row of the journal of no attempt, under
 // an ID of its own and the next number, read by module, in the order of the
-// modules' IDs byte by byte and of the journal; it goes with its profile, and
-// a row of both an attempt and a correction, or of neither, is refused (R89).
+// modules' IDs byte by byte and of the journal; it goes with its profile, and a
+// row of both an attempt and a correction, or of neither, is refused.
 func TestACorrectionIsARowOfTheJournal(t *testing.T) {
 	t.Parallel()
 

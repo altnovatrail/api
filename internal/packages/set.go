@@ -9,7 +9,7 @@ import (
 	"github.com/altnovatrail/spec/types/formatv0"
 )
 
-// Status is whether the image gives a package (R07).
+// Status is whether the image gives a package.
 type Status int
 
 // The statuses of a digest.
@@ -33,7 +33,7 @@ func (s *Set) Status(digest formatv0.Digest) Status {
 
 // NotGiven is every digest the image no longer gives, in the order of their
 // bytes: those whose attempts and lesson runs the job after a rollout closes
-// "unchecked" (R07).
+// "unchecked".
 func (s *Set) NotGiven() []string {
 	var out []string
 	for digest, status := range s.statuses {
@@ -47,7 +47,7 @@ func (s *Set) NotGiven() []string {
 
 // Current is the package of the current version of the module id: the newest by
 // semver of its versions the index does not mark withdrawn and whose format
-// version is in the window, by module-kit (R07). ok is false when it has none.
+// version is in the window, by module-kit. ok is false when it has none.
 func (s *Set) Current(id formatv0.ModuleID) (pkg *modulepackage.Package, ok bool) {
 	_, pkg, ok = s.current(id)
 	return pkg, ok
@@ -66,9 +66,9 @@ func (s *Set) current(id formatv0.ModuleID) (formatv0.Entry, *modulepackage.Pack
 }
 
 // CurrentFor is the package of the current version of the module id for a
-// learner of category: none when the module has no current version, or one whose
-// audience the learner is not in — the version is one for every learner, and an
-// older one is never given instead (R07).
+// learner of category: none when the module has no current version, or one
+// whose audience the learner is not in — the version is one for every learner,
+// and an older one is never given instead.
 func (s *Set) CurrentFor(id formatv0.ModuleID, category formatv0.AgeCategory) (*modulepackage.Package, bool) {
 	pkg, ok := s.Current(id)
 	if !ok || !suits(pkg, category) {
@@ -82,10 +82,9 @@ func suits(pkg *modulepackage.Package, category formatv0.AgeCategory) bool {
 	return slices.Contains(pkg.View.Manifest.Audience.AgeCategories, category)
 }
 
-// Teachers is, by each anchor skill, the ID of each module whose current version
-// for a learner of category names it in teaches of its entry of the index, in
-// the order of their bytes (R63 spec), among those the deployment's list names
-// (R150 spec).
+// Teachers is, by each anchor skill, the ID of each module whose current
+// version for a learner of category names it in teaches of its entry of the
+// index, in the order of their bytes, among those the deployment's list names.
 func (s *Set) Teachers(category formatv0.AgeCategory) map[formatv0.AnchorSkillID][]formatv0.ModuleID {
 	out := map[formatv0.AnchorSkillID][]formatv0.ModuleID{}
 	for _, id := range s.Modules() {

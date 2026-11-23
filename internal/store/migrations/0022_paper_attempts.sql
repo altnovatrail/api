@@ -1,8 +1,8 @@
--- An attempt of a task from the learner's paper (R10; R162 spec): a row of kind 'paper', of no
--- module, package, task or seed, begun by no choice, lesson run or earlier attempt, beside the
--- attempts of a module, of kind 'module', which hold all of them as before. A profile has one
--- open attempt of a module, and the open attempts of one page beside it. An attempt of paper
--- gives no evidence, and the daily job closes it "abandoned" as any.
+-- An attempt of a task from the learner's paper: a row of kind 'paper', of no module, package,
+-- task or seed, begun by no choice, lesson run or earlier attempt, beside the attempts of a
+-- module, of kind 'module', which hold all of them as before. A profile has one open attempt
+-- of a module, and the open attempts of one page beside it. An attempt of paper gives no
+-- evidence, and the daily job closes it "abandoned" as any.
 -- contract: every row there is, and every row the release before this one adds, is of a module
 -- and holds the checks; that release reads an open attempt of the profile by its index, so a
 -- profile with a page begun in this release fails its requests on an attempt there until that

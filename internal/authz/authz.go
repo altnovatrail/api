@@ -1,8 +1,8 @@
-// Package authz is api's rights: OpenFGA, a library in api's own process, on its
-// store in the database openfga (R04, R31). The model is the one
-// docs/architecture.md gives, which the binary embeds; migrate puts it in the
-// store, and the server only checks that the store holds it. Code asks a right
-// and writes the tuple owner through Rights.
+// Package authz is api's rights: OpenFGA, a library in api's own process, on
+// its store in the database openfga. The model is the one docs/architecture.md
+// gives, which the binary embeds; migrate puts it in the store, and the server
+// only checks that the store holds it. Code asks a right and writes the tuple
+// owner through Rights.
 package authz
 
 import (
@@ -37,7 +37,7 @@ var (
 	errManyStores = errors.New("authz: more than one store api")
 )
 
-// A Right is what a request asks on a learner's profile (R04).
+// A Right is what a request asks on a learner's profile.
 type Right string
 
 // The rights of the model.
@@ -62,11 +62,11 @@ type Rights struct {
 }
 
 // Open opens the rights on the database at url — the pooler's, for serve — and
-// finds the store and, among its models, the one api embeds. It writes neither: a
-// store that is missing, or holds no such model, is a migrate that did not run,
-// and Open refuses it (R31). The model is found among all of the store's, not
-// only as the latest, so that a revision still serving while a newer one rolls out
-// — or one rolled back to — starts on its own model.
+// finds the store and, among its models, the one api embeds. It writes neither:
+// a store that is missing, or holds no such model, is a migrate that did not
+// run, and Open refuses it. The model is found among all of the store's, not
+// only as the latest, so that a revision still serving while a newer one rolls
+// out — or one rolled back to — starts on its own model.
 func Open(ctx context.Context, url string) (*Rights, error) {
 	srv, pool, err := newServer(ctx, url)
 	if err != nil {
@@ -100,12 +100,12 @@ func open(ctx context.Context, srv *server.Server) (*Rights, error) {
 func (r *Rights) Close() { r.srv.Close() }
 
 // newServer is OpenFGA on its Postgres datastore at url. The pool is api's own,
-// opened and pinged under ctx, so that a stop asked for while the database wakes
-// is not waited out; the datastore closes it. Its logger is a noop: OpenFGA logs by
-// zap, with the IDs of stores, models and requests in its fields, which api's log
-// would drop (R26). Its caches stay off, as they are by default, so a check sees
-// the write before it. The pool comes back too, for what OpenFGA does not do
-// itself: clearing its changelog.
+// opened and pinged under ctx, so that a stop asked for while the database
+// wakes is not waited out; the datastore closes it. Its logger is a noop:
+// OpenFGA logs by zap, with the IDs of stores, models and requests in its
+// fields, which api's log would drop. Its caches stay off, as they are by
+// default, so a check sees the write before it. The pool comes back too, for
+// what OpenFGA does not do itself: clearing its changelog.
 func newServer(ctx context.Context, url string) (*server.Server, *pgxpool.Pool, error) {
 	pool, err := store.Open(ctx, url)
 	if err != nil {
@@ -179,7 +179,7 @@ func learner(profileID string) string { return "learner:" + profileID }
 
 // Can says whether the account has the right on the profile. A profile that is
 // not there, and one that is another account's, both say no, so that the answer
-// tells nothing of a profile the account does not own (R04).
+// tells nothing of a profile the account does not own.
 func (r *Rights) Can(ctx context.Context, accountID string, right Right, profileID string) (bool, error) {
 	switch right {
 	case CanLearn, CanManage, CanView:
@@ -200,8 +200,8 @@ func (r *Rights) Can(ctx context.Context, accountID string, right Right, profile
 }
 
 // WriteOwner writes the tuple: the account owns the profile. A repeat is no
-// error. It is written inside the transaction of the database api that makes the
-// profile, before its COMMIT (R04, R31).
+// error. It is written inside the transaction of the database api that makes
+// the profile, before its COMMIT.
 func (r *Rights) WriteOwner(ctx context.Context, accountID, profileID string) error {
 	_, err := r.srv.Write(ctx, &openfgav1.WriteRequest{
 		StoreId:              r.store,
@@ -218,13 +218,13 @@ func (r *Rights) WriteOwner(ctx context.Context, accountID, profileID string) er
 }
 
 // DeleteOwner deletes the tuple of the profile, after the transaction that
-// deleted it (R21). A tuple that is not there is no error.
+// deleted it. A tuple that is not there is no error.
 func (r *Rights) DeleteOwner(ctx context.Context, accountID, profileID string) error {
 	return r.DeleteOwned(ctx, accountID, []string{profileID})
 }
 
 // DeleteOwned deletes the account's tuples of the profiles, as many at once as
-// OpenFGA takes, skipping those that are not there (R21; R27 canvas-api).
+// OpenFGA takes, skipping those that are not there.
 func (r *Rights) DeleteOwned(ctx context.Context, accountID string, profileIDs []string) error {
 	for start := 0; start < len(profileIDs); start += pageSize {
 		batch := profileIDs[start:min(start+pageSize, len(profileIDs))]
@@ -244,8 +244,8 @@ func (r *Rights) DeleteOwned(ctx context.Context, accountID string, profileIDs [
 	return nil
 }
 
-// OwnedProfiles is the IDs of the profiles the account owns by its tuples, which
-// the deletion of an account reads them by (R21).
+// OwnedProfiles is the IDs of the profiles the account owns by its tuples,
+// which the deletion of an account reads them by.
 func (r *Rights) OwnedProfiles(ctx context.Context, accountID string) ([]string, error) {
 	var profiles []string
 	token := ""
@@ -277,9 +277,9 @@ type Owned struct {
 }
 
 // Tuples is every tuple of the store by which an account owns a profile, a page
-// at a time, for the daily job that finds those left dangling (R21). A tuple of
-// any other kind, which the model has none of yet, is not given. An error ends
-// the list.
+// at a time, for the daily job that finds those left dangling. A tuple of any
+// other kind, which the model has none of yet, is not given. An error ends the
+// list.
 func (r *Rights) Tuples(ctx context.Context) iter.Seq2[Owned, error] {
 	return func(yield func(Owned, error) bool) {
 		token := ""
@@ -319,8 +319,8 @@ const changelogBatch = 1000
 
 // DropChangelog deletes the store's changelog written before before, a batch at
 // a time, and says how many rows went. OpenFGA keeps it for ever and does not
-// clear it; it holds who owned which profile, so the daily job keeps it no longer
-// than two days (R05; R27 canvas-api). A stop between batches keeps what went.
+// clear it; it holds who owned which profile, so the daily job keeps it no
+// longer than two days. A stop between batches keeps what went.
 func (r *Rights) DropChangelog(ctx context.Context, before time.Time) (int64, error) {
 	var dropped int64
 	for {

@@ -32,7 +32,7 @@ func account(t *testing.T, pool *pgxpool.Pool) string {
 	return id
 }
 
-// mark marks an account "deleting", as the deletion of an account does (R21).
+// mark marks an account "deleting", as the deletion of an account does.
 func mark(t *testing.T, pool *pgxpool.Pool, id string) {
 	t.Helper()
 
@@ -77,7 +77,7 @@ func TestAWriteUnderALiveAccountCommits(t *testing.T) {
 }
 
 // The test the helper is for: a write under an account marked "deleting" is
-// refused and writes nothing (R21).
+// refused and writes nothing.
 func TestAWriteUnderAMarkedAccountIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -142,9 +142,9 @@ func TestAFailedWriteRollsBack(t *testing.T) {
 }
 
 // A write that holds the account before its mark commits first: MarkDeleting
-// waits for it, and the next write sees the mark (R21). The writes below do not
-// touch the account's row, which is the case a plain UPDATE of the mark would
-// not wait for, and then update it, which FOR KEY SHARE lets them do.
+// waits for it, and the next write sees the mark. The writes below do not touch
+// the account's row, which is the case a plain UPDATE of the mark would not
+// wait for, and then update it, which FOR KEY SHARE lets them do.
 func TestTheMarkWaitsForAWriteThatHoldsTheAccount(t *testing.T) {
 	t.Parallel()
 
@@ -233,7 +233,7 @@ func TestMarkDeleting(t *testing.T) {
 	}
 }
 
-// The schema holds what R21 and the contract ask of it.
+// The schema holds what the deletion and the contract ask of it.
 func TestTheSchemaRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -325,7 +325,7 @@ func TestTheSchemaRefuses(t *testing.T) {
 	}
 }
 
-// The deletion of an account unbinds its code, which stays redeemed (R21).
+// The deletion of an account unbinds its code, which stays redeemed.
 func TestADeletedAccountLeavesItsCodeRedeemed(t *testing.T) {
 	t.Parallel()
 

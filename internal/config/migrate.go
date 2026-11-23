@@ -11,8 +11,7 @@ import (
 )
 
 // Migrate is the configuration of the command migrate: the level of its log and
-// the direct connection strings of the databases it migrates, api and openfga
-// (R29, R31).
+// the direct connection strings of the databases it migrates, api and openfga.
 type Migrate struct {
 	// LogLevel is the lowest level the log writes.
 	LogLevel slog.Level
@@ -21,7 +20,7 @@ type Migrate struct {
 	// the session, so migrate never goes through the pooler.
 	DatabaseURL Secret
 	// OpenFGADatabaseURL is the direct connection string of the database openfga,
-	// which migrate brings the store of the rights in, by the same lock (R31).
+	// which migrate brings the store of the rights in, by the same lock.
 	OpenFGADatabaseURL Secret
 }
 

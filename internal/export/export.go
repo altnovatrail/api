@@ -1,10 +1,10 @@
-// Package export is api's part of the export of a profile or an account, api.zip
-// (R52; R135 spec): its files by spec's part export/ — account.json in the
-// export of the account, a file of each profile and the .proto files the records
-// of protobuf are written by —, of whatever the database api keeps, with what
-// the package of a module tells of an attempt while the image holds it. The
-// evidence, the state and the observation go in as the JSON of their messages,
-// with the fields' names as in their .proto files, which go in beside them.
+// Package export is api's part of the export of a profile or an account,
+// api.zip: its files by spec's part export/ — account.json in the export of the
+// account, a file of each profile and the .proto files the records of protobuf
+// are written by —, of whatever the database api keeps, with what the package
+// of a module tells of an attempt while the image holds it. The evidence, the
+// state and the observation go in as the JSON of their messages, with the
+// fields' names as in their .proto files, which go in beside them.
 package export
 
 import (
@@ -176,7 +176,7 @@ func (x *Exporter) profile(ctx context.Context, tx pgx.Tx, accountID, profileID 
 }
 
 // modules is each module of the log with the version whose graph the state
-// was computed by: the current version of the image, or none (R08).
+// was computed by: the current version of the image, or none.
 func (x *Exporter) modules(journal []exportv4.EvidenceEntry) []exportv4.StateEntryModule {
 	var ids []string
 	for _, e := range journal {
@@ -229,7 +229,7 @@ func (x *Exporter) attempt(ctx context.Context, a store.ExportedAttempt, observa
 
 // paperAttempt is the open attempt of a task from paper a, with what its
 // submissions tell and where the key of each task of its crop came from, but
-// not the key, which never reaches the device (R05 spec).
+// not the key, which never reaches the device.
 func (x *Exporter) paperAttempt(a store.ExportedPaperAttempt, observations map[int64][]byte) (exportv4.PaperAttempt, error) {
 	out := a.Attempt
 	if a.Key != nil {

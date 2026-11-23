@@ -55,11 +55,11 @@ func TestTheRowsOfAnAccountGoAndTheMinimalRecordsStay(t *testing.T) {
 	if count(t, pool, "account_texts") != 0 || count(t, pool, "problem_reports WHERE account_id IS NULL") != 1 {
 		t.Error("want the texts gone and the report kept with no account")
 	}
-	// The checks of an own key go with the account's fields (R78).
+	// The checks of an own key go with the account's fields.
 	if count(t, pool, "accounts WHERE cardinality(key_checked_at) > 0") != 0 {
 		t.Error("want the checks of a key gone with the account's fields")
 	}
-	// So does the right of the debug mode (R97).
+	// So does the right of the debug mode.
 	if count(t, pool, "accounts WHERE debug_models") != 0 {
 		t.Error("want the right of the debug mode gone with the account's fields")
 	}

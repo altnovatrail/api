@@ -18,7 +18,7 @@ import (
 // with the models of the list for the calls it admits; a choice the models do
 // not take is invalid_argument; a caller with no account is no answer, and an
 // account without the right is permission_denied, but on a store that gives it
-// to every account (R97).
+// to every account.
 func TestTheService(t *testing.T) {
 	t.Parallel()
 

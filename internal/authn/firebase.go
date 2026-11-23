@@ -16,7 +16,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Options are what the adapter of Firebase Auth is built from (R32).
+// Options are what the adapter of Firebase Auth is built from.
 type Options struct {
 	// ProjectID is the Firebase project whose tokens api accepts.
 	ProjectID string
@@ -29,7 +29,7 @@ type Options struct {
 }
 
 // emulatorHost is the variable that turns the SDK to the emulator, which
-// verifies no signature: api refuses to start with it (R32).
+// verifies no signature: api refuses to start with it.
 const emulatorHost = "FIREBASE_AUTH_EMULATOR_HOST"
 
 // scopes are the scopes of the service's token: those the Admin SDK v4.22.0 asks
@@ -68,7 +68,7 @@ func serviceAccount(key []byte) error {
 	return nil
 }
 
-// Firebase is the Port on Firebase Auth, through the Admin SDK for Go (R03).
+// Firebase is the Port on Firebase Auth, through the Admin SDK for Go.
 type Firebase struct {
 	client *auth.Client
 }
@@ -114,7 +114,7 @@ func newFirebase(ctx context.Context, o Options, extra ...option.ClientOption) (
 // Verify verifies the token's signature and asks the sign-in service whether it
 // is revoked and its user still there and enabled. A token revoked, or of a user
 // who is not there, is read once more by its signature alone, with no call, for
-// its UID (R20).
+// its UID.
 func (f *Firebase) Verify(ctx context.Context, idToken string) (Token, error) {
 	token, err := f.client.VerifyIDTokenAndCheckRevoked(ctx, idToken)
 	if err == nil {
@@ -176,7 +176,7 @@ func (f *failure) Unwrap() error { return f.err }
 
 // RemoveUser revokes the user's refresh tokens and deletes the user. The deletion
 // goes on when the revocation fails, since a deleted user's refresh token serves
-// nobody, and the step is done once the deletion is (R21).
+// nobody, and the step is done once the deletion is.
 func (f *Firebase) RemoveUser(ctx context.Context, uid string) error {
 	revoked := f.client.RevokeRefreshTokens(ctx, uid)
 	deleted := f.client.DeleteUser(ctx, uid)

@@ -300,7 +300,7 @@ func TestTheWordsOfARungWithNoModelAdmittedAreItsFallbackText(t *testing.T) {
 	_, err = w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.child, AttemptId: a, IdempotencyKey: uuid.NewString(),
 		WrongAnswers: &wrong, OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-test"}})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
-	// An own key short of its provider or its key is refused before the gate (R54).
+	// An own key short of its provider or its key is refused before the gate.
 	for _, own := range []*v1.OwnKey{{Key: "sk-test"}, {Provider: "anthropic"}} {
 		_, err = w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.child, AttemptId: a,
 			IdempotencyKey: uuid.NewString(), WrongAnswers: &wrong, OwnKey: own})

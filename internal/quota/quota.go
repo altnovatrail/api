@@ -1,13 +1,13 @@
-// Package quota is the quota of platform AI (R11, R12, R55): its unit, the
-// tariffs and their caps for a family day, the typical tasks a new task of
-// handwriting must find room for, and the reserve of a kind of call when tutor
-// gives no expected price.
+// Package quota is the quota of platform AI: its unit, the tariffs and their
+// caps for a family day, the typical tasks a new task of handwriting must find
+// room for, and the reserve of a kind of call when tutor gives no expected
+// price.
 //
-// The values are the configuration of api, and a pull request changes them, as
-// R11 has it: they are product, not deployment, and a deployment that set its
-// own would make two platforms of one release without a word in the log. The
-// first values are those of the tariff of the closed slice, $0.50 a profile and
-// $1.50 an account.
+// The values are the configuration of api, and a pull request changes them:
+// they are product, not deployment, and a deployment that set its own would
+// make two platforms of one release without a word in the log. The first values
+// are those of the tariff of the closed slice, $0.50 a profile and $1.50 an
+// account.
 package quota
 
 import (
@@ -37,24 +37,24 @@ func (m Micro) Dollars() float64 { return float64(m) / 1e6 }
 
 // Caps are the caps of a tariff for a family day: of each profile, which keeps
 // the children of one account fair to each other, and of the account, which
-// holds what the account spends (R11).
+// holds what the account spends.
 type Caps struct {
 	Profile, Account Micro
 }
 
-// The tariffs. An account gets its tariff with its invite code (R04, R34), and
-// the operator changes it by api tariff.
+// The tariffs. An account gets its tariff with its invite code, and the
+// operator changes it by api tariff.
 const (
 	// ClosedSlice is the tariff of the closed slice, a code's by default.
 	ClosedSlice = "closed_slice"
-	// Probe is a tariff of a few cents a day, which the operator gives an account
-	// to see the quota run out on a run with app: room for a typical task and a
-	// few checks after it, and no more (R55).
+	// Probe is a tariff of a few cents a day, which the operator gives an
+	// account to see the quota run out on a run with app: room for a typical
+	// task and a few checks after it, and no more.
 	Probe = "probe"
 	// DevCheck is the tariff of the account of dev-check on the dev projects,
 	// tenfold the closed slice's, so that the runs of a chain of tasks in one
-	// family day all find room. It is off a deployment alone: there the commands
-	// refuse it, and api reads it as a tariff with no caps (R55).
+	// family day all find room. It is off a deployment alone: there the
+	// commands refuse it, and api reads it as a tariff with no caps.
 	DevCheck = "dev_check"
 )
 
@@ -105,9 +105,9 @@ func DevOnly(name string) bool {
 	return t.dev
 }
 
-// CapsOf is the caps of the tariff, and false for an account with no tariff or a
-// tariff with no caps: platform AI is closed to it, by default, as the function
-// of admission closes a route it does not know (R11). A tariff of the dev
+// CapsOf is the caps of the tariff, and false for an account with no tariff or
+// a tariff with no caps: platform AI is closed to it, by default, as the
+// function of admission closes a route it does not know. A tariff of the dev
 // projects alone has its caps only offDeployment, so that, deployed or not told
 // otherwise, an account that got it all the same opens no spending of the
 // platform's.
@@ -119,9 +119,9 @@ func CapsOf(name string, offDeployment bool) (Caps, bool) {
 	return t.caps, t.caps.Profile > 0 && t.caps.Account > 0
 }
 
-// The typical tasks (R11, R55). A new task that platform AI checks begins only
-// when what is left of the day holds one, so that the learner does not begin
-// work nobody can read today.
+// The typical tasks. A new task that platform AI checks begins only when what
+// is left of the day holds one, so that the learner does not begin work nobody
+// can read today.
 const (
 	// TypicalHandwriting is a task of handwriting: two checks and the words of a
 	// rung and of praise, ≈ $0.05 by tutor's expected prices (Tutor.Price), with
@@ -137,18 +137,17 @@ const (
 const wordsReserve Micro = 18_200
 
 // reserves are what a call of a kind reserves when tutor's price of it has no
-// expected tokens (R12, R55): the sheet by the pair as the first app measured
-// it, the words by tutor's expected price, the hint without the work as the
-// words — the same prompt and model with no picture, so no dearer, and tutor
-// expects no tokens of it (R106 tutor) —, the essay's reading and assessment
-// half each of $0.030, tutor's price of an essay, and a page of a workbook by
-// each of its crops, as a sheet. The four calls of a task from paper keep their
-// values of one model each, should tutor give no expected price: it expects the
-// tokens of each of their three attempts, and their reserve is that (R137
-// tutor, R98); so do the tutor's words of a task from paper, with the work and
-// without it, the words' value, about a call of the last model of their cascade
-// (R82 spec). The words after a correct answer have no value here: tutor
-// expects their tokens (R113 tutor, R76).
+// expected tokens: the sheet by the pair as the first app measured it, the
+// words by tutor's expected price, the hint without the work as the words — the
+// same prompt and model with no picture, so no dearer, and tutor expects no
+// tokens of it —, the essay's reading and assessment half each of $0.030,
+// tutor's price of an essay, and a page of a workbook by each of its crops, as
+// a sheet. The four calls of a task from paper keep their values of one model
+// each, should tutor give no expected price: it expects the tokens of each of
+// their three attempts, and their reserve is that; so do the tutor's words of a
+// task from paper, with the work and without it, the words' value, about a call
+// of the last model of their cascade. The words after a correct answer have no
+// value here: tutor expects their tokens.
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:      14_000,
 	tutor.CallWords:      wordsReserve,
@@ -192,9 +191,9 @@ type Counter struct {
 	Spent, Reserved Micro
 }
 
-// Share is the share of the cap limit that spent takes, in whole percent rounded
-// down, as the share of the quota gives it (R11):
-// 100 is the cap reached, and spending past it is 100 too, as is any of no cap.
+// Share is the share of the cap limit that spent takes, in whole percent
+// rounded down, as the share of the quota gives it: 100 is the cap reached, and
+// spending past it is 100 too, as is any of no cap.
 func Share(spent, limit Micro) int32 {
 	if limit <= 0 || spent >= limit {
 		return 100
@@ -211,8 +210,8 @@ func Reached(caps Caps, profile, account Micro) bool {
 
 // Room says whether a reserve of amount fits under caps beside the counters of
 // the profile and of its account: on each, what is spent, what is in reserve
-// and amount together are no more than its cap (R12). The profile's cap is
-// asked first.
+// and amount together are no more than its cap. The profile's cap is asked
+// first.
 func Room(caps Caps, profile, account Counter, amount Micro) Spent {
 	switch {
 	case profile.Spent+profile.Reserved+amount > caps.Profile:

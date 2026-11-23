@@ -1,6 +1,6 @@
-// The tests of scripts/dev.sh, the run on the dev projects (R39): its loader of the dev file, the
-// custom token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a
-// task AI reads, a workbook page and an essay, sends the boxes of the page, sums the counters of the
+// The tests of scripts/dev.sh, the run on the dev projects: its loader of the dev file, the custom
+// token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a task
+// AI reads, a workbook page and an essay, sends the boxes of the page, sums the counters of the
 // quota, gives the check's account its tariff and makes the synthetic child of `just dev-app` once.
 // They run the script's own functions in bash, with jq and openssl, as the devcontainer and its
 // toolchain stage, where CI runs the tests, have them.
@@ -178,7 +178,7 @@ func TestTheCustomTokenIsFirebases(t *testing.T) {
 
 // The token for app lies in its folder as custom-token, its owner's alone, and a new one takes the
 // old one's place by a rename, leaving nothing else behind; a folder that is not there — the volume
-// not mounted — is refused, not made (R67).
+// not mounted — is refused, not made.
 func TestTheTokenIsLaidForApp(t *testing.T) {
 	t.Parallel()
 
@@ -251,7 +251,7 @@ func TestATaskAIReadsIsToldFromOneByTap(t *testing.T) {
 }
 
 // The check knows a workbook page by its canvas, and sends a crop in every box of it, by the places
-// of the item and of the box among the item's boxes, from 1, past the text of the line (R81).
+// of the item and of the box among the item's boxes, from 1, past the text of the line.
 func TestAWorkbookPageIsToldAndEachOfItsBoxesSent(t *testing.T) {
 	t.Parallel()
 
@@ -286,7 +286,7 @@ func TestAWorkbookPageIsToldAndEachOfItsBoxesSent(t *testing.T) {
 }
 
 // The check knows an essay by its answer slot bound to the sheet, and tells it from a task AI reads
-// anywhere on the sheet and from one checked by tap (R82).
+// anywhere on the sheet and from one checked by tap.
 func TestAnEssayIsTold(t *testing.T) {
 	t.Parallel()
 
@@ -340,7 +340,7 @@ func TestTheCountersOfAnExportAreSummed(t *testing.T) {
 }
 
 // `just dev` runs on the stub of tutor with no key of platform AI from the dev file, and `just
-// dev-ai` and the check with the key and no stub (R66).
+// dev-ai` and the check with the key and no stub.
 func TestARunIsOnTheStubOrOnTheModels(t *testing.T) {
 	t.Parallel()
 
@@ -362,9 +362,9 @@ func TestARunIsOnTheStubOrOnTheModels(t *testing.T) {
 	}
 }
 
-// The check's account gets the tariff dev_check (R55): an account whose code <UID>.code beside the
-// dev file keeps by `api tariff`, one with no code kept deleted and made anew, and a new account's
-// code kept in the file, readable by its owner alone. A tariff refused, or a deletion not finished,
+// The check's account gets the tariff dev_check: an account whose code <UID>.code beside the dev
+// file keeps by `api tariff`, one with no code kept deleted and made anew, and a new account's code
+// kept in the file, readable by its owner alone. A tariff refused, or a deletion not finished,
 // stops the check, naming why.
 func TestTheChecksAccountIsOnTheTariffOfDevCheck(t *testing.T) {
 	t.Parallel()
@@ -449,11 +449,11 @@ check_account && printf '%s' "${token:-}"`
 	}
 }
 
-// The run for app has one synthetic child under 13 (R67): a child of the pseudonym the account
-// holds who learns is taken as it is, and with none — or only one who has turned 13 or waits for a
-// consent — the consents with no profile are taken back and a child of 9 is made by a parent's
-// consent sent with its form and confirmed by the operator's command, then a profile. Its ID is
-// printed either way. A consent the command does not confirm stops the run.
+// The run for app has one synthetic child under 13: a child of the pseudonym the account holds who
+// learns is taken as it is, and with none — or only one who has turned 13 or waits for a consent —
+// the consents with no profile are taken back and a child of 9 is made by a parent's consent sent
+// with its form and confirmed by the operator's command, then a profile. Its ID is printed either
+// way. A consent the command does not confirm stops the run.
 func TestTheSyntheticChildOfDevAppIsMadeOnce(t *testing.T) {
 	t.Parallel()
 
@@ -557,7 +557,7 @@ app_child && printf '|%s' "$child"`
 }
 
 // The run for app is on the stub of tutor with the facts of a child, and with API_DEV_APP_AI=1 on
-// the models with the dev file's key and facts, which it leaves as they are (R67).
+// the models with the dev file's key and facts, which it leaves as they are.
 func TestTheRunForAppGoesOnTheStubOrOnTheModels(t *testing.T) {
 	t.Parallel()
 

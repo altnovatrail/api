@@ -18,8 +18,8 @@ var (
 	ErrNoProfile = errors.New("store: no such profile")
 )
 
-// The ways a consent was given (R36). The owner's own is the statement that
-// they are 18 or older, dated with the account (R118 spec).
+// The ways a consent was given. The owner's own is the statement that they are
+// 18 or older, dated with the account.
 const ConsentByOwnerStatement = "owner_statement"
 
 // profileColumns are the columns of a Profile, in scanProfile's order.
@@ -35,10 +35,9 @@ func scanProfile(row pgx.Row) (Profile, error) {
 
 // CreateOwnerProfile makes the owner's profile in tx, of the category adult by
 // the owner's statement, with its consent: confirmed now, given by that
-// statement (R36), and the row of its skill state. The date the age was given
-// is the date of the statement, and every date is by UTC, as TouchProfile
-// writes it. The account has one owner's profile: a second is
-// ErrProfileExists.
+// statement, and the row of its skill state. The date the age was given is the
+// date of the statement, and every date is by UTC, as TouchProfile writes it.
+// The account has one owner's profile: a second is ErrProfileExists.
 func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Profile) (Profile, error) {
 	p.Owner, p.AgeCategory = true, "adult"
 	created, err := scanProfile(tx.QueryRow(ctx, `INSERT INTO profiles (account_id, owner, pseudonym, avatar,
@@ -73,7 +72,7 @@ func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Prof
 
 // startSkillState makes the row of the profile's cache of the skill state, with
 // the profile: empty and at number 0, so that the first evidence of the profile
-// has a row to lock (R06, R43).
+// has a row to lock.
 func startSkillState(ctx context.Context, tx pgx.Tx, profileID string) error {
 	if _, err := tx.Exec(ctx, `INSERT INTO skill_states (profile_id) VALUES ($1)`, profileID); err != nil {
 		return fmt.Errorf("store: start the skill state: %w", err)
@@ -99,8 +98,8 @@ func ProfileFor(ctx context.Context, tx pgx.Tx, accountID, profileID string) (Pr
 // ErrNoProfile: what a write takes before the profile's consent, so that it
 // holds the two rows in the order of the deletion of a profile, which takes the
 // profile FOR UPDATE and reaches the consent by the cascade, and the two wait
-// rather than deadlock (R74). NO KEY UPDATE is the lock an UPDATE of the row
-// takes anyway, and it lets a row that references the profile be written.
+// rather than deadlock. NO KEY UPDATE is the lock an UPDATE of the row takes
+// anyway, and it lets a row that references the profile be written.
 func HoldProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) error {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT id FROM profiles WHERE id = $1 AND account_id = $2 FOR NO KEY UPDATE`,
@@ -114,7 +113,7 @@ func HoldProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) er
 	return nil
 }
 
-// HintModeShowWhere is the hint mode of a new profile (R100).
+// HintModeShowWhere is the hint mode of a new profile.
 const HintModeShowWhere = "show_where"
 
 // hintModeOr is a hint mode to write, "Show where" when none is set.
@@ -141,7 +140,7 @@ func WriteProfile(ctx context.Context, tx pgx.Tx, p Profile) error {
 
 // TouchProfile writes today, by UTC, as the date of the profile's last
 // activity, once a day at most: the date a profile is deleted by after 12 months
-// with none (П-9; R36), as TouchAccount writes the account's.
+// with none (П-9), as TouchAccount writes the account's.
 func TouchProfile(ctx context.Context, db Querier, profileID string) error {
 	_, err := db.Exec(ctx, `UPDATE profiles SET active_on = (now() AT TIME ZONE 'UTC')::date
 		WHERE id = $1 AND active_on IS DISTINCT FROM (now() AT TIME ZONE 'UTC')::date`, profileID)

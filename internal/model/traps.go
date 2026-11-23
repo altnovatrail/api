@@ -29,8 +29,8 @@ type Trap struct {
 // RepeatingTraps is the traps the program found in two of the journal's
 // attempts or more, by full ID, the most found first, then the latest. An
 // attempt on a version withdrawn for a wrong key counts none: its verdicts are
-// wrong (R63 spec). A trap whose last version left the image has no catalog to
-// describe it by, and is left out (R49).
+// wrong. A trap whose last version left the image has no catalog to describe it
+// by, and is left out.
 func (m *Model) RepeatingTraps(journal []store.Entry) ([]Trap, error) {
 	type found struct {
 		attempts int

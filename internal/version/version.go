@@ -28,9 +28,9 @@ var Date = "unknown"
 const moduleKit = "github.com/altnovatrail/module-kit"
 
 // ModuleKit is the version of module-kit the binary is built with, which every
-// attempt keeps beside its package, so that its verdict repeats (R44). It is
-// read from the list of modules the build records, as go.mod pins it, and is
-// empty in a binary that recorded none or links no module-kit.
+// attempt keeps beside its package, so that its verdict repeats. It is read
+// from the list of modules the build records, as go.mod pins it, and is empty
+// in a binary that recorded none or links no module-kit.
 func ModuleKit() string { return dependency(moduleKit) }
 
 // moduleVersion is the version of the module path among deps, as replaced
@@ -58,9 +58,9 @@ func moduleVersion(deps []*debug.Module, path string) string {
 const learnerModel = "github.com/altnovatrail/learner-model"
 
 // LearnerModel is the version of learner-model the binary is built with, which
-// the mark of the cache of the skill state names (R06): learner-model has no
-// constant of its version. It is read as ModuleKit is, and is empty in a binary
-// that recorded none.
+// the mark of the cache of the skill state names: learner-model has no constant
+// of its version. It is read as ModuleKit is, and is empty in a binary that
+// recorded none.
 func LearnerModel() string { return dependency(learnerModel) }
 
 // dependency is the version of the module path among the modules the build
@@ -77,5 +77,5 @@ func dependency(path string) string {
 const engine = "github.com/altnovatrail/engine"
 
 // Engine is the version of engine the binary is built with, which every
-// engine's choice keeps (R06): engine has no constant of its version either.
+// engine's choice keeps: engine has no constant of its version either.
 func Engine() string { return dependency(engine) }

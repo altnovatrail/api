@@ -28,7 +28,7 @@ type Consent struct {
 // no profile: those the limit of CAUSE_TOO_MANY_CONSENTS counts. It takes no
 // lock: its caller holds the account's row FOR NO KEY UPDATE, by HoldAccount,
 // as every request under a key does, so that two requests beside each other
-// count one after the other (R35, R36).
+// count one after the other.
 func WaitingConsents(ctx context.Context, tx pgx.Tx, accountID string) (int, error) {
 	var n int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM consents

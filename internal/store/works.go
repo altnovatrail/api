@@ -10,8 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrStorageOff is a work put while the storage of the profile's works is off
-// (R113 spec).
+// ErrStorageOff is a work put while the storage of the profile's works is off.
 var ErrStorageOff = errors.New("store: the storage of the profile's works is off")
 
 // The kinds of a stored work, by the attempt's task.
@@ -21,10 +20,10 @@ const (
 	WorkDrawing     = "drawing"
 )
 
-// Work is a stored work of a profile (R70): the attempt whose work it is, what
-// it is, its size as the contract counts it, when api kept it, and, where it is
-// read whole, its bytes — the contract's StoredWork in binary protobuf, which
-// the store does not read.
+// Work is a stored work of a profile: the attempt whose work it is, what it is,
+// its size as the contract counts it, when api kept it, and, where it is read
+// whole, its bytes — the contract's StoredWork in binary protobuf, which the
+// store does not read.
 type Work struct {
 	AttemptID string
 	Kind      string
@@ -38,10 +37,10 @@ type Work struct {
 // ErrNoProfile when the account has no such profile, ErrNotFound when the
 // attempt is not the profile's. The profile's row is held FOR SHARE, which a
 // switch of the storage off waits for and waits on — SetWorkStorage at its
-// HoldProfile, before the consent (R74), and SwitchWorkStorageOff at its UPDATE
-// in any case: a work put before the switch is erased by it, and one after it
-// is refused. FOR KEY SHARE would not do: both take FOR NO KEY UPDATE, which
-// does not conflict with it.
+// HoldProfile, before the consent, and SwitchWorkStorageOff at its UPDATE in
+// any case: a work put before the switch is erased by it, and one after it is
+// refused. FOR KEY SHARE would not do: both take FOR NO KEY UPDATE, which does
+// not conflict with it.
 func PutWork(ctx context.Context, tx pgx.Tx, accountID, profileID string, w Work) error {
 	var on bool
 	err := tx.QueryRow(ctx, `SELECT work_storage FROM profiles WHERE id = $1 AND account_id = $2 FOR SHARE`,
@@ -126,9 +125,9 @@ func DeleteWork(ctx context.Context, db Querier, profileID, attemptID string) er
 }
 
 // WorkDecider is who gave the consent of the account's profile, and so decides
-// the storage of its works (R113 spec), read without a lock, or ErrNoProfile:
-// a profile has a consent always. A lock on the consent would wait in another
-// order than the deletion of the profile, which holds the profile first.
+// the storage of its works, read without a lock, or ErrNoProfile: a profile has
+// a consent always. A lock on the consent would wait in another order than the
+// deletion of the profile, which holds the profile first.
 func WorkDecider(ctx context.Context, db Querier, accountID, profileID string) (string, error) {
 	var giver string
 	err := db.QueryRow(ctx, `SELECT giver FROM consents WHERE profile_id = $1 AND account_id = $2`,

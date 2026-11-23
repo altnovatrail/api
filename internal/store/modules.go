@@ -13,24 +13,22 @@ import (
 // foreignKeyViolation is the SQLSTATE of a row that refers to one that is gone.
 const foreignKeyViolation = "23503"
 
-// ConnectedModule is a module connected to a profile (R07): its ID and when it
-// was connected, with no version.
+// ConnectedModule is a module connected to a profile: its ID and when it was
+// connected, with no version.
 type ConnectedModule struct {
 	ModuleID    string
 	ConnectedAt time.Time
 }
 
 // Learner is what a learning request reads of its profile, in one query: the
-// age category, by which a module's audience suits it (R07), and whether its
-// consent is confirmed: a profile has one consent at most, which a learner who
-// consents themselves, or whose age was given again, waits for (R116, R136
-// spec).
+// age category, by which a module's audience suits it, and whether its consent
+// is confirmed: a profile has one consent at most, which a learner who consents
+// themselves, or whose age was given again, waits for.
 type Learner struct {
 	AgeCategory string
 	Consented   bool
 	// Country and Applied are the country of the learner and the age of digital
-	// consent their category was given by, by which their age may be asked again
-	// (R134 spec).
+	// consent their category was given by, by which their age may be asked again.
 	Country string
 	Applied int
 }

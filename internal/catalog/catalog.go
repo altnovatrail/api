@@ -1,11 +1,11 @@
 // Package catalog is api's way from a module to its package, in the contract
-// novatrail.api.v1 (R07, R17, R18, R42): PackageService, the open views of a
-// package by its digest and which digests the image still gives; ModuleService,
-// the catalog of a profile and the modules connected to it; and the files of the
-// device parts, by HTTP GET, which are no method of Connect. All of it is read
-// from the packages serve read at its start, packages.Set, and the open views
-// are built once, there: a request reads them, and a package whose views do not
-// build is a failed start.
+// novatrail.api.v1: PackageService, the open views of a package by its digest
+// and which digests the image still gives; ModuleService, the catalog of a
+// profile and the modules connected to it; and the files of the device parts,
+// by HTTP GET, which are no method of Connect. All of it is read from the
+// packages serve read at its start, packages.Set, and the open views are built
+// once, there: a request reads them, and a package whose views do not build is
+// a failed start.
 package catalog
 
 import (
@@ -19,11 +19,10 @@ import (
 	"github.com/altnovatrail/api/internal/packages"
 )
 
-// The caching of the answers (R18): what a digest gives never changes, so an
-// open view and a file are kept for a day, and a withdrawal reaches the
-// learners only with the author's pull request anyway (R07). A refusal is kept
-// by nobody: the next request may find the version given, or the deployment
-// over.
+// The caching of the answers: what a digest gives never changes, so an open
+// view and a file are kept for a day, and a withdrawal reaches the learners
+// only with the author's pull request anyway. A refusal is kept by nobody: the
+// next request may find the version given, or the deployment over.
 const (
 	cacheFor = "public, max-age=86400"
 	noStore  = "no-store"
@@ -43,7 +42,7 @@ type views struct {
 }
 
 // New is the catalog of set, with the open views of each of its packages built
-// by module-kit, by the marks x-open of the format (R72 spec).
+// by module-kit, by the marks x-open of the format.
 func New(set *packages.Set) (*Catalog, error) {
 	c := &Catalog{set: set, views: map[formatv0.Digest]views{}}
 	for digest, pkg := range set.Packages {

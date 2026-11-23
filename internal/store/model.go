@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Mark is what the cache of a profile's skill state was computed on (R06): the
+// Mark is what the cache of a profile's skill state was computed on: the
 // version of learner-model, the release of modules and the window of the
 // format's versions. An empty field is a cache never written.
 type Mark struct {
@@ -28,13 +28,13 @@ type SkillState struct {
 }
 
 // HoldSkillState holds the profile's row of the cache FOR UPDATE in tx, so that
-// the evidence of one profile is numbered and folded one piece after another
-// (R06). The profile's own row is held FOR KEY SHARE first, as the rows of the
-// journal that the caller then adds refer to it: a deletion of the profile,
-// which takes it FOR UPDATE before its cascade reaches the cache, waits, rather
-// than locking the two rows in the other order. A profile may have no row of
-// the cache, so the row is made first, empty, when it is not there (R06); a
-// profile gone is ErrNoProfile.
+// the evidence of one profile is numbered and folded one piece after another.
+// The profile's own row is held FOR KEY SHARE first, as the rows of the journal
+// that the caller then adds refer to it: a deletion of the profile, which takes
+// it FOR UPDATE before its cascade reaches the cache, waits, rather than
+// locking the two rows in the other order. A profile may have no row of the
+// cache, so the row is made first, empty, when it is not there; a profile gone
+// is ErrNoProfile.
 func HoldSkillState(ctx context.Context, tx pgx.Tx, profileID string) (SkillState, error) {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT id FROM profiles WHERE id = $1 FOR KEY SHARE`, profileID).Scan(&id)
@@ -70,11 +70,11 @@ func WriteSkillState(ctx context.Context, tx pgx.Tx, profileID string, s SkillSt
 }
 
 // Owed is a closed attempt whose evidence is not in the journal yet, with what
-// its evidence is built of (R06, R10): what it was of, how it closed, its last
-// action, the techniques given at a step and on request, whether a hint asked
-// for gave the task's leading question, how many times "explain differently"
-// was asked for, whether the solution of its task reached the device before it
-// began, and the answers of its submissions, in order.
+// its evidence is built of: what it was of, how it closed, its last action, the
+// techniques given at a step and on request, whether a hint asked for gave the
+// task's leading question, how many times "explain differently" was asked for,
+// whether the solution of its task reached the device before it began, and the
+// answers of its submissions, in order.
 type Owed struct {
 	ID                  string
 	PackageDigest       string
@@ -95,7 +95,7 @@ type Owed struct {
 // owedWhere is the closed attempts that owe their evidence, on the packages of
 // the parameter digests: closed correct, with the solution shown or unchecked;
 // or left, abandoned or not suitable with wrong answers, since one with none
-// gives no evidence (R06, R10). "Done" gives none (О-17).
+// gives no evidence. "Done" gives none (О-17).
 func owedWhere(digests string) string {
 	return `a.closed_at IS NOT NULL AND a.package_digest = ANY(` + digests + `::text[])
 	AND (a.close_reason IN ('correct', 'solution_shown', 'unchecked')
@@ -105,8 +105,8 @@ func owedWhere(digests string) string {
 
 // OwedAttempts is the profile's attempts that owe their evidence, on the
 // packages digests names — those the image holds: one whose package left the
-// image gives none, as its evidence is built from the package (R49) —, in the
-// order they closed.
+// image gives none, as its evidence is built from the package —, in the order
+// they closed.
 func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []string) ([]Owed, error) {
 	rows, err := tx.Query(ctx, `SELECT a.id, a.package_digest, a.module_id, a.task_id, a.instance, a.close_reason,
 			a.wrong_answers, a.last_action_at, a.step_techniques_at IS NOT NULL, a.requested_techniques_at IS NOT NULL,
@@ -157,8 +157,7 @@ func ProfilesOwingEvidence(ctx context.Context, db Lister, digests []string, aft
 // the package and the module of the attempt, when the attempt closed, and the
 // evidence as learner-model's codec gives it. A row of an adult's correction of
 // a module's level has no attempt, AttemptID empty and ClosedAt zero, and its
-// package is that of the module's current version when the level was set
-// (R89).
+// package is that of the module's current version when the level was set.
 type Entry struct {
 	Seq           int64
 	AttemptID     string
@@ -204,9 +203,9 @@ func JournalModules(ctx context.Context, tx pgx.Tx, profileID string) ([]string,
 	return modules, nil
 }
 
-// AppendEvidence adds the evidence of the profile's attempt to its journal at at,
-// under the number after the journal's last, and gives the number. The caller
-// holds the profile's row of the cache, which orders the numbers (R06).
+// AppendEvidence adds the evidence of the profile's attempt to its journal at
+// at, under the number after the journal's last, and gives the number. The
+// caller holds the profile's row of the cache, which orders the numbers.
 func AppendEvidence(ctx context.Context, tx pgx.Tx, profileID string, o Owed, evidence []byte, at time.Time) (int64, error) {
 	var seq int64
 	if err := tx.QueryRow(ctx, `INSERT INTO evidence (profile_id, seq, attempt_id, package_digest, module_id, recorded_at, evidence)
@@ -219,10 +218,9 @@ func AppendEvidence(ctx context.Context, tx pgx.Tx, profileID string, o Owed, ev
 
 // AppendCorrection adds an adult's correction of the level of the profile's
 // module to its journal at at, under an ID of its own and the number after the
-// journal's last, and gives the number (R89): evidence, as learner-model's
-// codec gives it, of no attempt, on the package of the module's current
-// version. The caller holds the profile's row of the cache, as for
-// AppendEvidence.
+// journal's last, and gives the number: evidence, as learner-model's codec
+// gives it, of no attempt, on the package of the module's current version. The
+// caller holds the profile's row of the cache, as for AppendEvidence.
 func AppendCorrection(ctx context.Context, tx pgx.Tx, profileID, packageDigest, moduleID string, evidence []byte, at time.Time) (int64, error) {
 	var seq int64
 	if err := tx.QueryRow(ctx, `INSERT INTO evidence (profile_id, seq, correction_id, package_digest, module_id, recorded_at, evidence)
@@ -242,7 +240,7 @@ type Correction struct {
 
 // Corrections is the corrections of the level of the module of the profile's
 // journal, or with module empty of every module, connected or not since, in the
-// order of the modules' IDs byte by byte and of the journal (R89).
+// order of the modules' IDs byte by byte and of the journal.
 func Corrections(ctx context.Context, db Lister, profileID, module string) ([]Correction, error) {
 	rows, err := db.Query(ctx, `SELECT module_id, evidence FROM evidence
 		WHERE profile_id = $1 AND correction_id IS NOT NULL AND ($2 = '' OR module_id = $2)

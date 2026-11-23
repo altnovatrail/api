@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The run of api on the dev projects of Firebase and Neon (R39): `just dev <command>` runs a command
-# of the binary with the configuration of the dev file on the stub of tutor, which calls no provider
-# (R66), `just dev-ai <command>` the same with the dev file's key of platform AI, on the models, and
+# The run of api on the dev projects of Firebase and Neon: `just dev <command>` runs a command
+# of the binary with the configuration of the dev file on the stub of tutor, which calls no provider,
+# `just dev-ai <command>` the same with the dev file's key of platform AI, on the models, and
 # `just dev-check` goes the whole way — migrations, an invite code, a country, the packages of
 # modules, the opening of platform AI, the server, an ID token, the legal texts, the account, the
 # owner's profile, its progress and "something else", the own key's providers and its check, a
@@ -12,7 +12,7 @@
 # server's key of platform AI is one Anthropic refuses, so that no call of the check reaches a
 # model. `just dev-app` keeps the server up on the stub for the local build of app, with a synthetic
 # child of 9 whose workbook pages it admits, and app signs in by a custom token this script lays in
-# a volume the two devcontainers share (R67).
+# a volume the two devcontainers share.
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
 # volume the devcontainer mounts: its lines are read as they are, never run, only names of
@@ -322,7 +322,7 @@ handwriting() {
         jq .attempt "$work/answer.json" > "$work/attempt.json"
         "$takes" "$work/attempt.json" && return 0
     done
-    die "the engine gave no task that AI reads and $takes takes in 8 choices — a family day of the profile with no room for a typical task narrows the pool to the tasks a tap checks (R59), so run the check again on the next one if that is why; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
+    die "the engine gave no task that AI reads and $takes takes in 8 choices — a family day of the profile with no room for a typical task narrows the pool to the tasks a tap checks, so run the check again on the next one if that is why; the last answer: $(jq -c '{code, message}' "$work/answer.json" 2> /dev/null || true)"
 }
 
 stop_serve() {

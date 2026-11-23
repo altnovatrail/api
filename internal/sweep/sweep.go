@@ -1,16 +1,15 @@
-// Package sweep is the daily job of the terms of keeping (R05, R21, R38, R43):
-// it finishes the deletions the requests left unfinished and deletes what is
-// kept past its term — accounts and profiles idle for 12 months, users of the
-// sign-in service with no account for 30 days, dangling tuples, the minimal
-// records of consents for children 5 years after the deletion, the counters of
-// the quota a day after their day, and the records of keys and OpenFGA's
-// changelog after a day — and closes what a learner abandoned: an attempt with
-// no action for 7 days, and a lesson run with none for 30 (R10, R13). Before
-// them it closes "unchecked" the attempts and lesson runs on the packages the
-// image no longer gives, which are the two steps of the job after a rollout too
-// (R07). A pass keeps no state for the next: each step chooses its work again
-// by a query, so a pass cut short is taken up by the next one. Its log is
-// counts alone.
+// Package sweep is the daily job of the terms of keeping: it finishes the
+// deletions the requests left unfinished and deletes what is kept past its term
+// — accounts and profiles idle for 12 months, users of the sign-in service with
+// no account for 30 days, dangling tuples, the minimal records of consents for
+// children 5 years after the deletion, the counters of the quota a day after
+// their day, and the records of keys and OpenFGA's changelog after a day — and
+// closes what a learner abandoned: an attempt with no action for 7 days, and a
+// lesson run with none for 30. Before them it closes "unchecked" the attempts
+// and lesson runs on the packages the image no longer gives, which are the two
+// steps of the job after a rollout too. A pass keeps no state for the next:
+// each step chooses its work again by a query, so a pass cut short is taken up
+// by the next one. Its log is counts alone.
 package sweep
 
 import (
@@ -32,28 +31,27 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// The terms (R05, R17, R21; П-9; R117 spec). An account and a profile are
-// deleted after 12 months without a request or activity, by the date of their
-// row; a user with no account after 30 days with no sign-in, refresh of a token
-// or creation; the minimal record of a consent for a child 5 years after the
-// deletion of its account or profile; the records of keys and the changelog after
-// a day, so that neither is kept for more than two. An attempt with no action for
-// 7 days is closed "abandoned", and a lesson run with none for 30 days ends so
-// (R10, R13).
+// The terms (П-9). An account and a profile are deleted after 12 months without
+// a request or activity, by the date of their row; a user with no account after
+// 30 days with no sign-in, refresh of a token or creation; the minimal record
+// of a consent for a child 5 years after the deletion of its account or
+// profile; the records of keys and the changelog after a day, so that neither
+// is kept for more than two. An attempt with no action for 7 days is closed
+// "abandoned", and a lesson run with none for 30 days ends so.
 const (
 	attemptsTerm       = store.AbandonedAfter
 	runsTerm           = store.RunAbandonedAfter
 	usersTerm          = 30 * 24 * time.Hour
 	consentRecordYears = 5
 	keysTerm           = 24 * time.Hour
-	// quotaTerm is how long a counter of the quota is kept after its day ends:
-	// a day, to settle the requests that went over midnight, so that by the daily
-	// pass it lives no more than 2 days after its day (R12).
+	// quotaTerm is how long a counter of the quota is kept after its day ends: a
+	// day, to settle the requests that went over midnight, so that by the daily
+	// pass it lives no more than 2 days after its day.
 	quotaTerm     = 24 * time.Hour
 	changelogTerm = 24 * time.Hour
 )
 
-// batch is how many accounts, profiles and tuples a step takes at a time (R38).
+// batch is how many accounts, profiles and tuples a step takes at a time.
 const batch = 100
 
 // DB is the database api: a pool.
@@ -77,8 +75,8 @@ type Signin interface {
 }
 
 // job is what both jobs share: the database, the learner model, which writes
-// the evidence the closed attempts owe (R49), the digests the image no longer
-// gives, whose attempts and lesson runs they close (R07), and the log.
+// the evidence the closed attempts owe, the digests the image no longer gives,
+// whose attempts and lesson runs they close, and the log.
 type job struct {
 	db    DB
 	model *model.Model
@@ -101,10 +99,10 @@ type Sweeper struct {
 	forms forms.Store
 }
 
-// New is the daily job on db, rights and signin, with the packages of the image,
-// whose attempts and lesson runs it closes once the image no longer gives them
-// (R07), and the learner model. settle is the longest a request may run: a mark
-// or a tuple younger than that may be a request's still going, and the job
+// New is the daily job on db, rights and signin, with the packages of the
+// image, whose attempts and lesson runs it closes once the image no longer
+// gives them, and the learner model. settle is the longest a request may run: a
+// mark or a tuple younger than that may be a request's still going, and the job
 // leaves it.
 func New(db DB, set *packages.Set, m *model.Model, rights Rights, signin Signin, settle time.Duration, log *slog.Logger) *Sweeper {
 	return &Sweeper{
@@ -126,7 +124,7 @@ type Step struct {
 type Report []Step
 
 // Clean says whether the pass did all it had to: every step to its end, with no
-// failure. A term that depends on the job runs to its next clean pass (R21).
+// failure. A term that depends on the job runs to its next clean pass.
 func (r Report) Clean() bool {
 	for _, step := range r {
 		if !step.Finished || step.Failed > 0 {
@@ -140,11 +138,11 @@ func (r Report) Clean() bool {
 type stepFunc func(ctx context.Context, now time.Time, step *Step)
 
 // Run runs one pass at now, until ctx ends: the steps of logging.Steps in their
-// order, so that the tuples and the changelog the deletions leave go in the same
-// pass, and the attempts the image no longer gives close "unchecked" before the
-// abandoned ones close "abandoned" (R07). A step that fails goes on to the next
-// item, and the next step runs all the same; once ctx is done, every step left
-// stops before its first item.
+// order, so that the tuples and the changelog the deletions leave go in the
+// same pass, and the attempts the image no longer gives close "unchecked"
+// before the abandoned ones close "abandoned". A step that fails goes on to the
+// next item, and the next step runs all the same; once ctx is done, every step
+// left stops before its first item.
 func (s *Sweeper) Run(ctx context.Context, now time.Time) Report {
 	return s.pass(ctx, now, logging.Steps, map[string]stepFunc{
 		logging.StepMarks:             s.marks,
@@ -231,7 +229,7 @@ func pages[T any](ctx context.Context, j *job, step *Step, choose func(after str
 }
 
 // marks finishes the deletions of the accounts marked longer ago than a request
-// may run: what follows the mark, from the tuples to the account's row (R21).
+// may run: what follows the mark, from the tuples to the account's row.
 func (s *Sweeper) marks(ctx context.Context, now time.Time, step *Step) {
 	before := now.Add(-s.settle)
 	step.Finished = pages(ctx, &s.job, step,
@@ -275,8 +273,8 @@ func (s *Sweeper) idleProfiles(ctx context.Context, now time.Time, step *Step) {
 }
 
 // users removes the users of the sign-in service that have no account of api
-// and have neither signed in, refreshed a token nor been made for 30 days
-// (R21, R38): one who signed in with no invite code, or again after a deletion.
+// and have neither signed in, refreshed a token nor been made for 30 days: one
+// who signed in with no invite code, or again after a deletion.
 func (s *Sweeper) users(ctx context.Context, now time.Time, step *Step) {
 	before := now.Add(-usersTerm)
 	for user, err := range s.signin.Users(ctx) {
@@ -327,9 +325,9 @@ func latest(user authn.User) time.Time {
 	return last
 }
 
-// tuples deletes the dangling tuples: written longer ago than a request may run,
-// whose profile is not there or is another account's (R21, R38). A younger one
-// may be a profile's whose transaction is still open, written before its COMMIT.
+// tuples deletes the dangling tuples: written longer ago than a request may
+// run, whose profile is not there or is another account's. A younger one may be
+// a profile's whose transaction is still open, written before its COMMIT.
 func (s *Sweeper) tuples(ctx context.Context, now time.Time, step *Step) {
 	before := now.Add(-s.settle)
 	var chosen []authz.Owned
@@ -384,9 +382,9 @@ func (s *Sweeper) tuples(ctx context.Context, now time.Time, step *Step) {
 
 // consentRecords erases the minimal records of consents for children 5 years
 // after their account or profile was deleted, by the calendar of UTC, in which
-// the date of deletion is written: a record of exactly 5 years is kept (R117
-// spec; R21). The record holds no ID of the account or the profile, so the term
-// runs from its own date of deletion.
+// the date of deletion is written: a record of exactly 5 years is kept. The
+// record holds no ID of the account or the profile, so the term runs from its
+// own date of deletion.
 func (s *Sweeper) consentRecords(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropConsentRecords(ctx, s.db, now.UTC().AddDate(-consentRecordYears, 0, 0))
 	step.Done = dropped
@@ -397,9 +395,9 @@ func (s *Sweeper) consentRecords(ctx context.Context, now time.Time, step *Step)
 	step.Finished = true
 }
 
-// abandonedAttempts closes the attempts with no action for 7 days (R10). A
-// trigger deletes the words of their hints with the close (R47), and the next
-// step writes the evidence of those with wrong answers (R49).
+// abandonedAttempts closes the attempts with no action for 7 days. A trigger
+// deletes the words of their hints with the close, and the next step writes the
+// evidence of those with wrong answers.
 func (s *Sweeper) abandonedAttempts(ctx context.Context, now time.Time, step *Step) {
 	closed, err := store.CloseAbandonedAttempts(ctx, s.db, now.Add(-attemptsTerm), now)
 	step.Done = closed
@@ -412,8 +410,8 @@ func (s *Sweeper) abandonedAttempts(ctx context.Context, now time.Time, step *St
 
 // evidence writes the evidence the closed attempts owe — those of the attempts
 // this pass closed "abandoned" among them —, each profile's in a transaction of
-// its own, as a request writes it (R49). A profile counts as done when evidence
-// of it was written; one deleted since it was chosen counts as nothing done.
+// its own, as a request writes it. A profile counts as done when evidence of it
+// was written; one deleted since it was chosen counts as nothing done.
 func (s *Sweeper) evidence(ctx context.Context, now time.Time, step *Step) {
 	step.Finished = pages(ctx, &s.job, step,
 		func(after string) ([]string, error) { return s.model.Owing(ctx, s.db, after, batch) },
@@ -432,7 +430,7 @@ func (s *Sweeper) evidence(ctx context.Context, now time.Time, step *Step) {
 		})
 }
 
-// abandonedRuns ends the lesson runs with no action for 30 days (R13).
+// abandonedRuns ends the lesson runs with no action for 30 days.
 func (s *Sweeper) abandonedRuns(ctx context.Context, now time.Time, step *Step) {
 	ended, err := store.EndAbandonedRuns(ctx, s.db, now.Add(-runsTerm), now)
 	step.Done = ended
@@ -443,7 +441,7 @@ func (s *Sweeper) abandonedRuns(ctx context.Context, now time.Time, step *Step) 
 	step.Finished = true
 }
 
-// keys deletes the records of idempotency keys older than a day (R17).
+// keys deletes the records of idempotency keys older than a day.
 func (s *Sweeper) keys(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropKeys(ctx, s.db, now.Add(-keysTerm))
 	step.Done = dropped
@@ -454,8 +452,7 @@ func (s *Sweeper) keys(ctx context.Context, now time.Time, step *Step) {
 	step.Finished = true
 }
 
-// quota deletes the counters of the quota whose day ended more than a day ago
-// (R12).
+// quota deletes the counters of the quota whose day ended more than a day ago.
 func (s *Sweeper) quota(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropQuotaCounters(ctx, s.db, now.Add(-quotaTerm))
 	step.Done = dropped
@@ -466,7 +463,7 @@ func (s *Sweeper) quota(ctx context.Context, now time.Time, step *Step) {
 	step.Finished = true
 }
 
-// changelog deletes OpenFGA's changelog older than a day (R05; R27 canvas-api).
+// changelog deletes OpenFGA's changelog older than a day.
 func (s *Sweeper) changelog(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := s.rights.DropChangelog(ctx, now.Add(-changelogTerm))
 	step.Done = dropped
@@ -478,21 +475,20 @@ func (s *Sweeper) changelog(ctx context.Context, now time.Time, step *Step) {
 }
 
 // WithForms is the job with the store of the scans of the forms of consent,
-// whose scans past their term it erases (R116 spec, R117 spec).
+// whose scans past their term it erases.
 func (s *Sweeper) WithForms(store forms.Store) *Sweeper {
 	s.forms = store
 	return s
 }
 
-// reportsTerm is how long a problem report is kept after it was reviewed
-// (R123 spec).
+// reportsTerm is how long a problem report is kept after it was reviewed.
 const reportsTerm = 365 * 24 * time.Hour
 
 // consentForms erases the scans whose consent is gone and whose term ended: at
-// once for one that waited, 5 years after for one confirmed (R117 spec), a page
-// at a time; the store first, then the row, so that a failure leaves the row to
-// the next pass. With no store configured, a scan past its term is a failure:
-// the job is configured with another store than the service that sent it.
+// once for one that waited, 5 years after for one confirmed, a page at a time;
+// the store first, then the row, so that a failure leaves the row to the next
+// pass. With no store configured, a scan past its term is a failure: the job is
+// configured with another store than the service that sent it.
 func (s *Sweeper) consentForms(ctx context.Context, now time.Time, step *Step) {
 	if s.forms == nil {
 		past, err := store.FormsPastTerm(ctx, s.db, now, "", 1)
@@ -517,8 +513,7 @@ func (s *Sweeper) consentForms(ctx context.Context, now time.Time, step *Step) {
 		})
 }
 
-// problemReports deletes the problem reports reviewed more than a year ago
-// (R123 spec).
+// problemReports deletes the problem reports reviewed more than a year ago.
 func (s *Sweeper) problemReports(ctx context.Context, now time.Time, step *Step) {
 	dropped, err := store.DropReports(ctx, s.db, now.Add(-reportsTerm))
 	step.Done = dropped

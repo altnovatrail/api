@@ -1,6 +1,6 @@
 # RUN.md — work plan of api
 
-What api does, does not do and has still to decide — [docs/architecture.md](docs/architecture.md); why — [docs/decisions.md](docs/decisions.md). The platform is in `spec/`, a submodule at tag v0.19.11: the component's card — architecture 3.5 spec; the order of repositories — repositories 6 spec; learners' data and law — privacy spec; the platform's decisions — spec's log. Small tasks, one at a time, each reviewed by the author; only the current epic is in detail (R19 spec). Other tables, each a file opening with its rules (R153 spec): 2, epics for later — [run/EPICS.md](run/EPICS.md); 3, questions to the author — [run/QUESTIONS.md](run/QUESTIONS.md); 4, debt — [run/DEBT.md](run/DEBT.md). Open tasks outside an epic — [run/TASKS.md](run/TASKS.md) (R155 spec). The archives of the done epics — [docs/plan/](docs/plan/).
+What api does, does not do and has still to decide — [docs/architecture.md](docs/architecture.md); why — [docs/decisions.md](docs/decisions.md). The platform is in `spec/`, a submodule at tag v0.19.12: the component's card — architecture 3.5 spec; the order of repositories — repositories 6 spec; learners' data and law — privacy spec; the platform's decisions — spec's log. Small tasks, one at a time, each reviewed by the author; only the current epic is in detail (R19 spec). Other tables, each a file opening with its rules (R153 spec): 2, epics for later — [run/EPICS.md](run/EPICS.md); 3, questions to the author — [run/QUESTIONS.md](run/QUESTIONS.md); 4, debt — [run/DEBT.md](run/DEBT.md). Open tasks outside an epic — [run/TASKS.md](run/TASKS.md) (R155 spec). The archives of the done epics — [docs/plan/](docs/plan/).
 
 Language (R154 spec): rules and tables in English, terse, for the session; the bodies of tasks in table 1 and in `run/TASKS.md` in Russian — the author writes and reviews them.
 
@@ -86,19 +86,22 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T124 | Переход на тег `spec` v0.19.4 | Claude | — | — |
 | [x] | T125 | Переход на тег `spec` v0.19.11 | Claude | — | — |
 | [x] | T126 | Ссылки по R171 spec: план, CLAUDE.md, правила частей, `docs/README.md`, `docs/build.md`, комментарии вне Go; разбивка на T127–T142 | Claude | да | T125 |
-| [ ] | T127 | Ссылки по R171 spec: комментарии `internal/learning` | Claude | — | T126 |
-| [ ] | T128 | Ссылки по R171 spec: комментарии `internal/store` с миграциями SQL, `internal/account`, `internal/config` | Claude | — | T126 |
-| [ ] | T129 | Ссылки по R171 spec: комментарии `cmd/api`, `internal/admission`, `rpc`, `sweep`, `packages` | Claude | — | T126 |
-| [ ] | T130 | Ссылки по R171 spec: комментарии остального Go | Claude | — | T126 |
-| [ ] | T131 | Ссылки по R171 spec: архитектура 1, 2, 3.1–3.4, 4 | Claude | — | T126 |
-| [ ] | T132 | Ссылки по R171 spec: архитектура 3.5–3.8 | Claude | — | T126 |
-| [ ] | T133 | Ссылки по R171 spec: архитектура 3.9–3.11 | Claude | — | T126 |
-| [ ] | T134 | Ссылки по R171 spec: `docs/sources.md` и `docs/measurements.md` | Claude | — | T126 |
-| [ ] | T135 | Ссылки по R171 spec: журнал: вводная и разделы от «The `spec` tag» до «Database and learner model» | Claude | — | T126 |
-| [ ] | T136 | Ссылки по R171 spec: журнал: от «Module versions» до «The `spec` tag: v0.6.6» | Claude | — | T126 |
-| [ ] | T137 | Ссылки по R171 spec: журнал: от «Protocol `app` ↔ `api`» до «Database and migrations» | Claude | — | T126 |
-| [ ] | T138 | Ссылки по R171 spec: журнал: от «Devcontainer» до «The database of E3 in code» | Claude | — | T126 |
-| [ ] | T139 | Ссылки по R171 spec: журнал: от «Attempt without AI in code» до «The learner model in code» | Claude | — | T126 |
-| [ ] | T140 | Ссылки по R171 spec: журнал: от «The engine choice in code» до «Withdrawal on a schedule» | Claude | — | T126 |
-| [ ] | T141 | Ссылки по R171 spec: журнал: от «The `spec` tag: v0.16.3» до «The board module» | Claude | — | T126 |
-| [ ] | T142 | Ссылки по R171 spec: журнал: от «The providers of the own key» до конца; ключ `"citations": true` | Claude | — | T127–T141 |
+| [x] | T127 | Ссылки по R171 spec: комментарии `internal/learning` | Claude | — | T126 |
+| [x] | T128 | Ссылки по R171 spec: комментарии `internal/store` с миграциями SQL, `internal/account`, `internal/config` | Claude | — | T126 |
+| [x] | T129 | Ссылки по R171 spec: комментарии `cmd/api`, `internal/admission`, `rpc`, `sweep`, `packages` | Claude | — | T126 |
+| [x] | T130 | Ссылки по R171 spec: комментарии остального Go | Claude | — | T126 |
+| [x] | T131 | Ссылки по R171 spec: архитектура 1, 2, 3.1–3.4, 4 | Claude | — | T126 |
+| [x] | T132 | Ссылки по R171 spec: архитектура 3.5–3.8 | Claude | — | T126 |
+| [x] | T133 | Ссылки по R171 spec: архитектура 3.9–3.11 | Claude | — | T126 |
+| [x] | T134 | Ссылки по R171 spec: `docs/sources.md` и `docs/measurements.md` | Claude | — | T126 |
+| [x] | T135 | Ссылки по R171 spec: журнал: вводная и разделы от «The `spec` tag» до «Database and learner model» | Claude | — | T126 |
+| [x] | T136 | Ссылки по R171 spec: журнал: от «Module versions» до «The `spec` tag: v0.6.6» | Claude | — | T126 |
+| [x] | T137 | Ссылки по R171 spec: журнал: от «Protocol `app` ↔ `api`» до «Database and migrations» | Claude | — | T126 |
+| [x] | T138 | Ссылки по R171 spec: журнал: от «Devcontainer» до «The database of E3 in code» | Claude | — | T126 |
+| [x] | T139 | Ссылки по R171 spec: журнал: от «Attempt without AI in code» до «The learner model in code» | Claude | — | T126 |
+| [x] | T140 | Ссылки по R171 spec: журнал: от «The engine choice in code» до «Withdrawal on a schedule» | Claude | — | T126 |
+| [x] | T141 | Ссылки по R171 spec: журнал: от «The `spec` tag: v0.16.3» до «The board module» | Claude | — | T126 |
+| [x] | T142 | Ссылки по R171 spec: журнал: от «The providers of the own key» до конца; ключ — T145 (В88) | Claude | — | T127–T141, T144 |
+| [x] | T143 | Переход на тег `spec` v0.19.12 | Claude | — | — |
+| [x] | T144 | Ссылки по строгому правилу R171 spec: проход по первой части | Claude | — | T143 |
+| [ ] | T145 | Ключ `"citations": true` с релизом `learner-model` и тегом `spec`, чьи `.proto` без ссылок | Claude | — | T142; релиз `learner-model` и тег `spec` с `.proto` без ссылок |

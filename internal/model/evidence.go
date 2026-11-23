@@ -18,7 +18,7 @@ import (
 )
 
 // lastRung is the hint ladder's last rung: wrong answers past it give no rung
-// of their own (R09).
+// of their own.
 const lastRung = 3
 
 // outcomeOf is the outcome of an attempt closed with reason after wrong wrong
@@ -44,16 +44,16 @@ func outcomeOf(reason string, wrong int) learnermodel.Outcome {
 
 // evidence is the evidence of the attempt o, of a learner of grade, on its
 // package pkg, and false for an attempt of a task with a rubric, which gives
-// none (О-17): none begins in this code (R14), and the path of a task with a
-// rubric takes one closed "unchecked" out of what is owed, which each settling
-// would find again. What it holds is the facts of the attempt, as learner-model
-// describes them (R06): the task, the start band by the
-// grade, the outcome, the time of the last action, the techniques given at a
-// step and on request, whether a hint asked for gave the leading question — a
-// hint gives it only before the first wrong answer, and only when asked for
-// (R47) —, how many times "explain differently" was asked for, whether the
-// solution of the task — not of a template — reached the device before, what
-// came of each item, and the traps the program found.
+// none (О-17): none begins in this code, and the path of a task with a rubric
+// takes one closed "unchecked" out of what is owed, which each settling would
+// find again. What it holds is the facts of the attempt, as learner-model
+// describes them: the task, the start band by the grade, the outcome, the time
+// of the last action, the techniques given at a step and on request, whether a
+// hint asked for gave the leading question — a hint gives it only before the
+// first wrong answer, and only when asked for —, how many times "explain
+// differently" was asked for, whether the solution of the task — not of a
+// template — reached the device before, what came of each item, and the traps
+// the program found.
 func evidence(ctx context.Context, pkg *modulepackage.Package, o store.Owed, grade learnermodel.Grade) (learnermodel.Evidence, bool, error) {
 	task, ok := pkg.View.Tasks[formatv0.TaskID(o.TaskID)]
 	if !ok {
@@ -182,7 +182,7 @@ func reasonOf(item *v1.ItemVerdict) learnermodel.UnverdictedReason {
 // the trap value each value "not yet" matches, found again by module-kit's
 // verdict of the instance's answer slot — with their skills in the trap catalog
 // of the attempt's version and the places of the items they were found in, by
-// ID. A trap that AI suggested is not among them (R82 spec).
+// ID. A trap that AI suggested is not among them.
 func trapsOf(ctx context.Context, pkg *modulepackage.Package, task formatv0.Task, answers []*v1.SubmitWorkResponse) ([]learnermodel.FoundTrap, error) {
 	found := map[formatv0.TrapID]map[int32]bool{}
 	for _, answer := range answers {

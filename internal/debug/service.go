@@ -13,7 +13,7 @@ import (
 )
 
 // Service is the DebugService of a Store: api registers it on a run with a
-// Store, and without one each method answers unimplemented (R97).
+// Store, and without one each method answers unimplemented.
 type Service struct {
 	apiv1connect.UnimplementedDebugServiceHandler
 	store    *Store
@@ -29,7 +29,7 @@ func NewService(s *Store, admitted func(tutor.Call) []admission.Model) *Service 
 }
 
 // account is the account of the caller, whom the checks let through with one:
-// without the right of the mode it is permission_denied with no Refusal (R97).
+// without the right of the mode it is permission_denied with no Refusal.
 func (s *Service) account(ctx context.Context) (string, error) {
 	caller, ok := s.caller(ctx)
 	switch {

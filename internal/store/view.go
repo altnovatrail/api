@@ -40,13 +40,12 @@ type Profile struct {
 	InterfaceLanguage *string
 	Grade             *int16
 	AskBeforeShowing  bool
-	// HintMode is "show_where" or "questions_only" (R162 spec).
+	// HintMode is "show_where" or "questions_only".
 	HintMode string
-	// WorkStorage says the storage of the learner's works on the server is on
-	// (R113 spec).
+	// WorkStorage says the storage of the learner's works on the server is on.
 	WorkStorage bool
 	// AgeStatedOn is the day the age was last given, by UTC: a year after it, the
-	// category is refined (R98 spec).
+	// category is refined.
 	AgeStatedOn *time.Time
 	// Consent is the profile's consent, which AccountView and ProfileWithConsent
 	// read.

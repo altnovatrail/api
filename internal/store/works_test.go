@@ -95,7 +95,7 @@ func TestAWorkIsKeptInThePlaceOfTheOneBefore(t *testing.T) {
 
 // A work put and the switch of the storage off wait for each other on the
 // profile's row: a work put before the switch commits is erased by it, and one
-// after is refused (R70). Each side waits here no longer than its lock_timeout.
+// after is refused. Each side waits here no longer than its lock_timeout.
 func TestAWorkPutAndTheSwitchOffWaitForEachOther(t *testing.T) {
 	t.Parallel()
 

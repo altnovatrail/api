@@ -219,7 +219,7 @@ func TestServeStartsServesAndStops(t *testing.T) {
 // serve starts with the debug mode beside the platform's key it needs, with the
 // flag that gives it to every account of a local run or without it, as its
 // startup line says, and serves DebugService under the checks of every method:
-// with no token, unauthenticated (R97).
+// with no token, unauthenticated.
 func TestServeStartsWithTheDebugMode(t *testing.T) {
 	t.Parallel()
 

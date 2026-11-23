@@ -434,10 +434,10 @@ func TestALapseDoesNotStopALesson(t *testing.T) {
 	}
 }
 
-// A module the deployment's list leaves out is not offered (R150 spec): the
-// engine chooses none of it, a new attempt and a new run on it are refused as on
-// a module with no current version, and so is its skill map; the run open on it
-// goes on to its end on its package.
+// A module the deployment's list leaves out is not offered: the engine chooses
+// none of it, a new attempt and a new run on it are refused as on a module with
+// no current version, and so is its skill map; the run open on it goes on to
+// its end on its package.
 func TestAModuleTheListLeavesOutIsOfferedNoMore(t *testing.T) {
 	t.Parallel()
 

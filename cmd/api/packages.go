@@ -30,9 +30,9 @@ var (
 	modulesSource = packages.Source{Base: packages.DefaultBase}
 )
 
-// layPackages lays the packages of the pinned release of modules into a folder
-// (R07, R41): the stage of the Dockerfile that builds the image runs it, and the
-// recipe of the first app, with the one modules.json embedded in the binary.
+// layPackages lays the packages of the pinned release of modules into a folder:
+// the stage of the Dockerfile that builds the image runs it, and the recipe of
+// the first app, with the one modules.json embedded in the binary.
 func layPackages(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	set := flag.NewFlagSet("api packages", flag.ContinueOnError)
 	set.SetOutput(stderr)

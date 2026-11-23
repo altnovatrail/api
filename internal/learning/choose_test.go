@@ -298,8 +298,8 @@ func TestAChoiceOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 }
 
 // The provider of an own key is named by the owner's profile of an adult alone:
-// a child's that names one is refused at every request whose answer may give
-// an engine's choice, before anything is read or written (R65).
+// a child's that names one is refused at every request whose answer may give an
+// engine's choice, before anything is read or written.
 func TestAChildNamesNoProvider(t *testing.T) {
 	t.Parallel()
 

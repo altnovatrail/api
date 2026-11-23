@@ -1,10 +1,10 @@
-// Package authn is api's port to the sign-in service. It verifies an ID token of
-// Firebase Auth with its revocation and names the class of a refusal, removes a
-// user and lists the users (R03, R20, R21, R32). api's code holds the Port:
-// Firebase is its adapter on the Admin SDK for Go, and authntest a fake of it for
-// the tests of the rest. The sign-in service's UID lives only in the account's
-// row; rights are the account's (R04), so another sign-in service changes the
-// adapter, not the rights or the data.
+// Package authn is api's port to the sign-in service. It verifies an ID token
+// of Firebase Auth with its revocation and names the class of a refusal,
+// removes a user and lists the users. api's code holds the Port: Firebase is
+// its adapter on the Admin SDK for Go, and authntest a fake of it for the tests
+// of the rest. The sign-in service's UID lives only in the account's row;
+// rights are the account's, so another sign-in service changes the adapter, not
+// the rights or the data.
 package authn
 
 import (
@@ -19,16 +19,16 @@ type Port interface {
 	// *Refusal, which names its class.
 	Verify(ctx context.Context, idToken string) (Token, error)
 	// RemoveUser revokes the user's refresh tokens, then deletes the user: step 3
-	// of an account's deletion (R21). A user who is not there is a step already
-	// done, and no error.
+	// of an account's deletion. A user who is not there is a step already done,
+	// and no error.
 	RemoveUser(ctx context.Context, uid string) error
 	// Users lists every user of the sign-in service, for the operator's job that
-	// removes those without an account (R21). An error ends the list.
+	// removes those without an account. An error ends the list.
 	Users(ctx context.Context) iter.Seq2[User, error]
 }
 
 // Token is what api reads of a verified ID token: the user and when they signed
-// in. Neither the email nor any other claim is read (R29 canvas-api).
+// in. Neither the email nor any other claim is read.
 type Token struct {
 	// UID is the sign-in service's ID of the user.
 	UID string
@@ -49,7 +49,7 @@ type User struct {
 	Created time.Time
 }
 
-// Class is why a token was refused (R20).
+// Class is why a token was refused.
 type Class int
 
 // The classes of a refusal.
@@ -95,7 +95,7 @@ type Refusal struct {
 	// Class is why the token was refused.
 	Class Class
 	// UID is the token's user, read from its signature alone, when the class is
-	// Revoked or NoUser: api answers those by the account's mark (R20).
+	// Revoked or NoUser: api answers those by the account's mark.
 	UID string
 	err error
 }
@@ -108,8 +108,8 @@ func (r *Refusal) Unwrap() error { return r.err }
 
 // FreshFor is how old a sign-in may be, and how far ahead of api's clock, for an
 // action that waits for a fresh one: the deletion of a profile or of an account,
-// and a forgotten PIN's change (R20). A refusal for want of one carries it, as
-// RFC 9470 carries max_age.
+// and a forgotten PIN's change. A refusal for want of one carries it, as RFC
+// 9470 carries max_age.
 const FreshFor = 300 * time.Second
 
 // Fresh says whether a sign-in at authTime is fresh at now: no older than

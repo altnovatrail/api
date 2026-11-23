@@ -1,14 +1,15 @@
-// Package model is the learner model of api (R06, R08, R49): it builds the
-// evidence of a closed attempt, appends it to the profile's journal, keeps the
-// cache of the skill state that learner-model folds of the journal, and reads
-// the state for the skill map. The journal is the truth, and the cache is
-// learner-model's state under a mark: the version of learner-model, the release
-// of modules and the window of the format's versions it was computed on.
+// Package model is the learner model of api: it builds the evidence of a closed
+// attempt, appends it to the profile's journal, keeps the cache of the skill
+// state that learner-model folds of the journal, and reads the state for the
+// skill map. The journal is the truth, and the cache is learner-model's state
+// under a mark: the version of learner-model, the release of modules and the
+// window of the format's versions it was computed on.
 //
-// Evidence is owed, rather than written by each close: Settle, under the lock of
-// the profile's row of the cache, writes the evidence of every closed attempt of
-// the profile that owes it, in the order they closed — those a request closed,
-// and those the daily job, a trigger or the image before closed too (R49).
+// Evidence is owed, rather than written by each close: Settle, under the lock
+// of the profile's row of the cache, writes the evidence of every closed
+// attempt of the profile that owes it, in the order they closed — those a
+// request closed, and those the daily job, a trigger or the image before closed
+// too.
 package model
 
 import (
@@ -36,10 +37,10 @@ type Model struct {
 	// digests is the packages the image holds, of which evidence can be built.
 	digests []string
 	// wrongKey is the packages the index withdrew for a wrong key, whose
-	// evidence the state leaves out (R63 spec); in the window or not.
+	// evidence the state leaves out; in the window or not.
 	wrongKey map[string]bool
-	// graphs is the graph of the current version of each module that has one
-	// (R07): the index's, for every learner.
+	// graphs is the graph of the current version of each module that has one:
+	// the index's, for every learner.
 	graphs map[formatv0.ModuleID]learnermodel.Graph
 }
 
@@ -83,9 +84,9 @@ func New(set *packages.Set, learnerModel string) (*Model, error) {
 // Settled is a profile's state once its owed evidence is in its journal: the
 // state, the graphs it was computed on, the learner's grade, which reading it
 // needs, the number of the last evidence of the journal, which an engine's
-// choice keeps (R06), and how many pieces of evidence the settling wrote.
-// newerCache tells that the cache is of the image after this one, which this
-// one does not write.
+// choice keeps, and how many pieces of evidence the settling wrote. newerCache
+// tells that the cache is of the image after this one, which this one does not
+// write.
 type Settled struct {
 	State      learnermodel.State
 	Graphs     learnermodel.Graphs
@@ -96,22 +97,21 @@ type Settled struct {
 }
 
 // Settle writes, in tx, the evidence the profile's closed attempts owe, and
-// gives its state (R06, R49). It holds the profile's row of the cache, which
-// numbers the evidence one piece after another, and takes the cache by its mark:
+// gives its state. It holds the profile's row of the cache, which numbers the
+// evidence one piece after another, and takes the cache by its mark:
 //   - the mark this image works on: the tail of the journal the cache has not
 //     taken yet is appended first, in order;
 //   - an older one, or none, or a cache that does not decode: the state is
 //     recomputed of the whole journal;
 //   - a newer one — the image after this one, during a deployment, wrote it —:
-//     the state is recomputed for the answer, and the cache is not written
-//     (R06).
+//     the state is recomputed for the answer, and the cache is not written.
 //
-// Then each owed attempt's evidence is appended to the state and to the journal,
-// with the start band the fold took. The evidence of a package withdrawn for a
-// wrong key goes to the journal and not to the state, as the recomputing leaves
-// it out, so that appending gives what recomputing does (R63 spec). An adult's
-// correction of a module's level is folded whatever its package: a wrong key
-// makes no level the adult set wrong (R89).
+// Then each owed attempt's evidence is appended to the state and to the
+// journal, with the start band the fold took. The evidence of a package
+// withdrawn for a wrong key goes to the journal and not to the state, as the
+// recomputing leaves it out, so that appending gives what recomputing does. An
+// adult's correction of a module's level is folded whatever its package: a
+// wrong key makes no level the adult set wrong.
 //
 // What cannot be read or built stops nothing: a piece of the journal that does
 // not decode, or that the fold refuses, is left out of the state, as both ways
@@ -210,15 +210,15 @@ func fold(s learnermodel.State, e learnermodel.Evidence, g learnermodel.Graphs) 
 	return next
 }
 
-// Owing is up to n of the profiles that owe evidence this image can build, by ID
-// after the ID after: those with an attempt closed with no request after it — by
-// the daily job, a trigger or the image before (R49).
+// Owing is up to n of the profiles that owe evidence this image can build, by
+// ID after the ID after: those with an attempt closed with no request after it
+// — by the daily job, a trigger or the image before.
 func (m *Model) Owing(ctx context.Context, db store.Lister, after string, n int) ([]string, error) {
 	return store.ProfilesOwingEvidence(ctx, db, m.digests, after, n)
 }
 
 // Graphs gives each of the modules the graph of its current version, or no
-// current version, whose evidence then waits in the journal (R08).
+// current version, whose evidence then waits in the journal.
 func (m *Model) Graphs(modules []string) learnermodel.Graphs {
 	g := learnermodel.Graphs{}
 	for _, id := range modules {
@@ -230,7 +230,7 @@ func (m *Model) Graphs(modules []string) learnermodel.Graphs {
 
 // Read reads the settled state at at, against its graphs and those of the
 // modules of the engine — the modules connected and fit for the learner — with
-// the grade (R08).
+// the grade.
 func (m *Model) Read(s Settled, at time.Time, engineModules []string) (learnermodel.Readout, error) {
 	g := m.Graphs(engineModules)
 	for id, graph := range s.Graphs {

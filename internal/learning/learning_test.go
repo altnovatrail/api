@@ -90,7 +90,7 @@ type world struct {
 	works    apiv1connect.WorkServiceClient
 	paper    apiv1connect.PaperServiceClient
 	service  *learning.Service
-	// set is the packages it reads, whose list a test narrows (R150 spec).
+	// set is the packages it reads, whose list a test narrows.
 	set     *packages.Set
 	current *modulepackage.Package
 	earlier *modulepackage.Package
@@ -1140,7 +1140,7 @@ const adultFacts = `anthropic:
 // own key of a provider whose models are admitted, and only in a form tutor
 // reads by a kind of call the gate admits: one answer slot bound anywhere on a
 // handwriting sheet, a workbook page, or a sheet with a rubric, whose reading
-// and assessment the author's word admits at the stage author alone (R90).
+// and assessment tutor admits without an eval run at the stage author alone.
 func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 	t.Parallel()
 
@@ -1169,9 +1169,9 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 		"facts for an adult, the stage author": {adultFacts, config.RungAuthor, map[string]beginning{
 			"an adult":   {false, "apples", "", admitted},
 			"a child":    {true, "apples", "", refused},
-			"a rubric":   {false, "story", "", admitted}, // by the author's word (R90)
+			"a rubric":   {false, "story", "", admitted}, // tutor admits it at the stage author alone
 			"a zone":     {false, "parity", "", refused},
-			"a workbook": {false, "table", "", admitted}, // by the author's word (R90)
+			"a workbook": {false, "table", "", admitted}, // tutor admits it at the stage author alone
 		}},
 		"facts for an adult, the stage full": {adultFacts, config.RungFull, map[string]beginning{
 			"an adult":   {false, "apples", "", refused},

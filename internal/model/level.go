@@ -15,21 +15,20 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// Level is an adult's last correction of a module's level, as the journal
-// holds it (R89; R157 spec): the module, the ID of the band set, and when, in
-// whole seconds.
+// Level is an adult's last correction of a module's level, as the journal holds
+// it: the module, the ID of the band set, and when, in whole seconds.
 type Level struct {
 	Module string
 	Band   string
 	SetAt  time.Time
 }
 
-// Correct appends an adult's correction of the level of the module of pkg —
-// its current version — to band, at at, to the settled state s and to the
-// profile's journal in tx, and writes the cache, as Settle does (R89): the
-// evidence learner-model's LevelCorrection gives, with the start band by the
-// learner's grade, which every evidence of the module has. It gives the state
-// after it. That the band is next to the level's is the caller's to check.
+// Correct appends an adult's correction of the level of the module of pkg — its
+// current version — to band, at at, to the settled state s and to the profile's
+// journal in tx, and writes the cache, as Settle does: the evidence
+// learner-model's LevelCorrection gives, with the start band by the learner's
+// grade, which every evidence of the module has. It gives the state after it.
+// That the band is next to the level's is the caller's to check.
 func (m *Model) Correct(ctx context.Context, tx pgx.Tx, profileID string, s Settled, pkg *modulepackage.Package, band learnermodel.BandRef, at time.Time) (Settled, error) {
 	module := string(pkg.View.Manifest.ID)
 	start, err := learnermodel.BandByGrade(s.Grade, bandsOf(pkg))
@@ -60,7 +59,7 @@ func (m *Model) Correct(ctx context.Context, tx pgx.Tx, profileID string, s Sett
 
 // Levels is the adult's last correction of the level of the module of the
 // profile's journal, or with module empty of each module that has one,
-// connected or not since, in the order of the modules' IDs byte by byte (R89).
+// connected or not since, in the order of the modules' IDs byte by byte.
 func Levels(ctx context.Context, db store.Lister, profileID, module string) ([]Level, error) {
 	corrections, err := store.Corrections(ctx, db, profileID, module)
 	if err != nil {
@@ -69,7 +68,7 @@ func Levels(ctx context.Context, db store.Lister, profileID, module string) ([]L
 	return lastLevels(corrections), nil
 }
 
-// LevelsOf is Levels of a journal already read, whole, in its order (R89).
+// LevelsOf is Levels of a journal already read, whole, in its order.
 func LevelsOf(journal []store.Entry) []Level {
 	var corrections []store.Correction
 	for _, e := range journal {

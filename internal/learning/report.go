@@ -44,12 +44,12 @@ var (
 
 // ReportProblem records an adult's report of a problem with a reply of the
 // tutor, on an attempt of the profile, open or closed, which the operator reads
-// by a command of api and reviews in 3 days (R123 spec). It keeps the words and
-// the text as they were written, nothing of the work beyond them, and outlives
-// the deletion of the profile and the account to its term, without their IDs.
-// Neither a consent that waits nor an age to give again refuses it. A repeat
-// under its key is the same report. The reply "opening" is of a task from
-// paper alone: on an attempt of a module it is invalid_argument.
+// by a command of api and reviews in 3 days. It keeps the words and the text as
+// they were written, nothing of the work beyond them, and outlives the deletion
+// of the profile and the account to its term, without their IDs. Neither a
+// consent that waits nor an age to give again refuses it. A repeat under its
+// key is the same report. The reply "opening" is of a task from paper alone: on
+// an attempt of a module it is invalid_argument.
 func (a *AttemptService) ReportProblem(ctx context.Context, req *v1.ReportProblemRequest) (*v1.ReportProblemResponse, error) {
 	reply, ok := replies[req.GetReply()]
 	if !ok {
@@ -82,7 +82,7 @@ func (a *AttemptService) ReportProblem(ctx context.Context, req *v1.ReportProble
 	profileID := req.GetProfileId()
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.AttemptServiceReportProblemProcedure}, req,
 		func(tx pgx.Tx, accountID string) (*v1.ReportProblemResponse, store.KeyTarget, error) {
-			// The opening question is a task from paper's alone (R100).
+			// The opening question is a task from paper's alone.
 			_, _, err := store.AttemptTask(ctx, tx, profileID, req.GetAttemptId())
 			switch {
 			case err == nil && reply == "opening":

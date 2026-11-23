@@ -16,7 +16,7 @@ import (
 // pinned index and each package of it in api's window, by its digest. A package
 // holds its three texts, read by module-kit by the chain of digests from the
 // index; the files of its device part stay in the folder, each under its own
-// digest, which package catalog serves (R42).
+// digest, which package catalog serves.
 type Set struct {
 	// Release is the release of modules that modules.json pins.
 	Release string
@@ -34,7 +34,7 @@ type Set struct {
 	// device/.
 	files map[formatv0.Digest]map[string]formatv0.Descriptor
 	// listed is each module of the deployment's list, or nil for no list: the
-	// whole index (R150 spec).
+	// whole index.
 	listed map[formatv0.ModuleID]bool
 }
 
@@ -43,14 +43,14 @@ func (s *Set) File(digest formatv0.Digest) string {
 	return filepath.Join(s.Dir, filesDir, Name(digest))
 }
 
-// Read reads the folder dir that Lay laid for cfg: its index must have the digest
-// cfg pins, so that a folder of another release is a failed start rather than
-// another set of versions (R41), and each package of that index in the window
+// Read reads the folder dir that Lay laid for cfg: its index must have the
+// digest cfg pins, so that a folder of another release is a failed start rather
+// than another set of versions, and each package of that index in the window
 // must be there: its texts whole, by the chain of digests from the index, and
 // each file its listing names, of the size it names. The files of the device
-// parts are not read again: Lay laid each under its digest after
-// module-kit had read it, and an image does not change; so serve holds no media
-// in memory and does not hash them at every start.
+// parts are not read again: Lay laid each under its digest after module-kit had
+// read it, and an image does not change; so serve holds no media in memory and
+// does not hash them at every start.
 func Read(dir string, cfg Config) (*Set, error) {
 	index, err := ReadIndex(dir, cfg)
 	if err != nil {

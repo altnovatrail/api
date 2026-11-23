@@ -11,19 +11,18 @@ import (
 // for its value, and an event names the fields it may carry; whatever a line
 // carries beyond that is dropped before it is written (see guard).
 //
-// The table is what holds the log to events, codes, times and versions, and
-// no direct identifier, IP address, work, reading or hint text (R09 spec). So
-// a field holds a number, a flag, a duration, a word from a closed set, a
-// build's identity in its own shape, or a kind this package made itself (see
-// ErrorKind) — never free text. A new event, or a new field, comes with the
-// code that writes it, as a row here, and the test of the table holds every row
-// to its rules.
+// The table is what holds the log to events, codes, times and versions, and no
+// direct identifier, IP address, work, reading or hint text. So a field holds a
+// number, a flag, a duration, a word from a closed set, a build's identity in
+// its own shape, or a kind this package made itself (see ErrorKind) — never
+// free text. A new event, or a new field, comes with the code that writes it,
+// as a row here, and the test of the table holds every row to its rules.
 
 // The events of the service's own lines.
 const (
 	// EventStartup is the line that says a revision has started, which build it
-	// runs, and what it declared for admission to AI (R25, R45). The delivery
-	// finds a revision's release by it.
+	// runs, and what it declared for admission to AI. The delivery finds a
+	// revision's release by it.
 	EventStartup = "startup"
 	// EventStopping is the line that says a stop was asked for.
 	EventStopping = "stopping"
@@ -40,46 +39,45 @@ const (
 	// it applied, the version the schema is at, and, for the rights', whether it
 	// made the store and wrote the model.
 	EventMigrated = "migrated"
-	// EventRequest is the line of a request of the protocol: its method, its code,
-	// the cause of a refusal, the class of a refused token, how long it ran and,
-	// when it failed, the kind of the failure — never its body, headers, address
-	// or an ID (R18, R33). The path of a Connect GET holds the message, so the
-	// method is written, not the path.
+	// EventRequest is the line of a request of the protocol: its method, its
+	// code, the cause of a refusal, the class of a refused token, how long it
+	// ran and, when it failed, the kind of the failure — never its body,
+	// headers, address or an ID. The path of a Connect GET holds the message,
+	// so the method is written, not the path.
 	EventRequest = "request"
-	// EventSwept is the line of a step of the daily job (R38) or of the job after
-	// a rollout (R51): which step, how many it did and failed, and whether it
-	// went to its end — counts alone, never an ID of what it did them to.
+	// EventSwept is the line of a step of the daily job or of the job after a
+	// rollout: which step, how many it did and failed, and whether it went to
+	// its end — counts alone, never an ID of what it did them to.
 	EventSwept = "swept"
-	// EventPackagesLaid is the line of api packages that laid the packages of the
-	// pinned release of modules into a folder (R07, R41): the release, and how many
+	// EventPackagesLaid is the line of api packages that laid the packages of
+	// the pinned release of modules into a folder: the release, and how many
 	// packages and files of their device parts it laid.
 	EventPackagesLaid = "packages_laid"
-	// EventPackageFile is the line of a request for a file of a device part, which
-	// is no method of Connect (R18, R42): its HTTP status, how long it ran and, when
-	// it failed, the kind of the failure — never its path, which names the package
-	// and the file.
+	// EventPackageFile is the line of a request for a file of a device part,
+	// which is no method of Connect: its HTTP status, how long it ran and, when
+	// it failed, the kind of the failure — never its path, which names the
+	// package and the file.
 	EventPackageFile = "package_file"
 	// EventAdmission is the line of api check that says what it found the
-	// deployment to declare for admission to AI (R25, R45): the version of the
-	// table, whether a file of facts was given, and the least stage and whether it
-	// was named, so that the operator sees what is missing — never a provider, a
+	// deployment to declare for admission to AI: the version of the table,
+	// whether a file of facts was given, and the least stage and whether it was
+	// named, so that the operator sees what is missing — never a provider, a
 	// fact or a path.
 	EventAdmission = "admission"
-	// EventAIUsage is the line of what one model of a call of AI took, beside the
-	// line of the request that made the call (R12, R46): the method, the provider
-	// and the model, its tokens — those of the cache apart (R94) —, how the call
-	// ended and how long it took, and the model's own time, retries and first
-	// text (R107 tutor) — never the work, what was read or what failed in its
-	// words.
+	// EventAIUsage is the line of what one model of a call of AI took, beside
+	// the line of the request that made the call: the method, the provider and
+	// the model, its tokens — those of the cache apart —, how the call ended
+	// and how long it took, and the model's own time, retries and first text —
+	// never the work, what was read or what failed in its words.
 	EventAIUsage = "ai_usage"
-	// EventQuotaExhausted is the line of a call of platform AI that the quota did
-	// not hold, so that it made no call, beside the line of its request (R12): the
-	// method and the cap it met — never an ID, a sum or an offset. The unit
+	// EventQuotaExhausted is the line of a call of platform AI that the quota
+	// did not hold, so that it made no call, beside the line of its request:
+	// the method and the cap it met — never an ID, a sum or an offset. The unit
 	// economics count them by the day.
 	EventQuotaExhausted = "quota_exhausted"
-	// EventPlatformLimit is the line of a refusal of the provider by its limit on
-	// the platform's key, which closed platform AI to all until the operator opens
-	// it again (R11): the method alone. It is the operator's signal.
+	// EventPlatformLimit is the line of a refusal of the provider by its limit
+	// on the platform's key, which closed platform AI to all until the operator
+	// opens it again: the method alone. It is the operator's signal.
 	EventPlatformLimit = "platform_limit"
 	// EventPlatformAIOpened is the line of api reopen, which opened platform AI
 	// again: whether it was closed.
@@ -134,13 +132,12 @@ const (
 	// FieldPlatformKeys is how many providers the platform holds a key of.
 	FieldPlatformKeys = "platform_keys"
 	// FieldTutorStub says whether tutor's calls go to the stub of the dev mode,
-	// which calls no provider (R66).
+	// which calls no provider.
 	FieldTutorStub = "tutor_stub"
 	// FieldDebugModels says whether API_DEBUG_MODELS gives every account of a
-	// local run the right of the debug mode (R97).
+	// local run the right of the debug mode.
 	FieldDebugModels = "debug_models"
-	// FieldReadingMode is the mode tutor reads handwriting by, pair or single
-	// (R88).
+	// FieldReadingMode is the mode tutor reads handwriting by, pair or single.
 	FieldReadingMode = "reading_mode"
 	// FieldLegalDir says whether the deployment names a folder of its own legal
 	// texts, rather than serving those of spec's tag.
@@ -158,7 +155,7 @@ const (
 	// FieldInputTokens is the input of a call of a model without the cache, as
 	// tutor counts it; FieldCacheWriteTokens, what it wrote to the provider's
 	// cache, for every time the cache keeps a write, and FieldCacheReadTokens,
-	// what it read from it: the three add up to the call's input (R94).
+	// what it read from it: the three add up to the call's input.
 	FieldInputTokens      = "input_tokens"
 	FieldCacheWriteTokens = "cache_write_tokens"
 	FieldCacheReadTokens  = "cache_read_tokens"
@@ -167,19 +164,19 @@ const (
 	// FieldAIOutcome is how a call of AI ended, in a word of AIOutcomes.
 	FieldAIOutcome = "ai_outcome"
 	// FieldWordsCheck is the check that turned the tutor's words down, so that
-	// the learner read the fallback text: a word of WordsChecks (R47).
+	// the learner read the fallback text: a word of WordsChecks.
 	FieldWordsCheck = "words_check"
 	// FieldKeyCheck is how the check of an own key ended, in a word of
-	// KeyChecks — never the key or its provider (R73).
+	// KeyChecks — never the key or its provider.
 	FieldKeyCheck = "key_check"
-	// FieldCostMicroUSD is what a call of a model cost by tutor's prices, in whole
-	// micro-dollars: at its worst when its tokens are not its whole bill (R12).
+	// FieldCostMicroUSD is what a call of a model cost by tutor's prices, in
+	// whole micro-dollars: at its worst when its tokens are not its whole bill.
 	FieldCostMicroUSD = "cost_micro_usd"
 	// FieldBilled says the tokens of a call of a model are its whole bill.
 	FieldBilled = "billed"
 	// FieldModelMS is how long a call of one model took at tutor, its SDK's
-	// retries counted in (Usage.Latency; R107 tutor): of a pair, which reader
-	// held the call, beside the call's own duration_ms.
+	// retries counted in (Usage.Latency): of a pair, which reader held the
+	// call, beside the call's own duration_ms.
 	FieldModelMS = "model_ms"
 	// FieldRetries is how many times the SDK sent a call of a model again.
 	FieldRetries = "retries"
@@ -239,8 +236,7 @@ const (
 var Steps = []string{StepMarks, StepIdleAccounts, StepIdleProfiles, StepGoneAttempts, StepGoneRuns, StepAbandonedAttempts, StepEvidence, StepAbandonedRuns, StepUsers, StepTuples, StepConsentRecords, StepConsentForms, StepProblemReports, StepQuota, StepKeys, StepChangelog}
 
 // AfterSteps is every step of the job after a rollout, in the order it takes
-// them: the steps of the daily job that close what the image no longer gives
-// (R07).
+// them: the steps of the daily job that close what the image no longer gives.
 var AfterSteps = []string{StepGoneAttempts, StepGoneRuns}
 
 // The databases api migrates: the value set of FieldDatabase.
@@ -368,7 +364,7 @@ func isBuildDate(value string) bool {
 	return err == nil
 }
 
-// The values of a request's line (R33). A method is one of the contract's,
+// The values of a request's line. A method is one of the contract's,
 // /novatrail.api.v1.<Service>/<Method>, and a cause one of its enum Cause; both
 // are names of the contract, never a value of a request. rpc's tests hold these
 // sets to the contract, to Connect's codes and to authn's classes.
@@ -387,30 +383,30 @@ var Codes = []string{
 }
 
 // TokenClasses is the value set of FieldTokenClass: the classes of a refused
-// token, in authn's words (R20, R32).
+// token, in authn's words.
 var TokenClasses = []string{"expired", "invalid", "revoked", "no_user", "disabled", "failed"}
 
 // Rungs is the value set of FieldRung: the stages of tutor's rule of admission
-// of models, in tutor's codes (R25). admission's tests hold the set to config's.
+// of models, in tutor's codes. admission's tests hold the set to config's.
 var Rungs = []string{"author", "full"}
 
 // ReadingModes is the value set of FieldReadingMode: the modes of tutor's
-// reading of handwriting, in its codes (R88). admission's tests hold the set to
+// reading of handwriting, in its codes. admission's tests hold the set to
 // config's and tutor's.
 var ReadingModes = []string{"pair", "single"}
 
 // Providers is the value set of FieldProvider: the providers of the admission
-// table, by their codes (R96 spec). admission's tests hold the set to the table.
+// table, by their codes. admission's tests hold the set to the table.
 var Providers = []string{"anthropic", "google", "openai"}
 
 // AIOutcomes is the value set of FieldAIOutcome: how a call of tutor ended, in
-// tutor's kinds (R46).
+// tutor's kinds.
 var AIOutcomes = []string{"answered", "failed", "limit_reached", "not_admitted", "key_refused"}
 
-// The checks of the tutor's words that may turn them down (R47), the value set
-// of FieldWordsCheck: the question is empty; the leak check of module-kit found
-// a key or a leak phrase of the task in it; or its form is no hint's, by
-// tutor's words.
+// The checks of the tutor's words that may turn them down, the value set of
+// FieldWordsCheck: the question is empty; the leak check of module-kit found a
+// key or a leak phrase of the task in it; or its form is no hint's, by tutor's
+// words.
 const (
 	WordsCheckEmpty = "empty"
 	WordsCheckLeak  = "leak"
@@ -420,10 +416,9 @@ const (
 // WordsChecks is the value set of FieldWordsCheck.
 var WordsChecks = []string{WordsCheckEmpty, WordsCheckLeak, WordsCheckForm}
 
-// The ends of the check of an own key (R73), the value set of FieldKeyCheck:
-// the contract's OwnKeyCheck in its own words, and "unanswered" for a
-// provider that gave no answer, OWN_KEY_CHECK_UNSPECIFIED with
-// CAUSE_AI_FAILURE.
+// The ends of the check of an own key, the value set of FieldKeyCheck: the
+// contract's OwnKeyCheck in its own words, and "unanswered" for a provider that
+// gave no answer, OWN_KEY_CHECK_UNSPECIFIED with CAUSE_AI_FAILURE.
 const (
 	KeyCheckAccepted       = "accepted"
 	KeyCheckInvalid        = "invalid"

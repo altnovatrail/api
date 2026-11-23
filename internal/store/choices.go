@@ -9,23 +9,23 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// NewChoice is an engine's choice as it is written (R06, R50; R107 spec): what
-// it gives — a task, a lesson or nothing, with the outcome "not admitted" or
-// none —, its reason code, the skills it handed out and the package it was made
-// on, and the input a replay needs — the skill chosen on the skill map, the age
-// category and the grade of the profile, whether the pool was limited to the
-// tasks a tap checks, the versions, the release and the window, the number of
-// the last evidence read, and the digests of the graphs —, with the close or the
-// end of a run whose next it is, when it is one.
+// NewChoice is an engine's choice as it is written: what it gives — a task, a
+// lesson or nothing, with the outcome "not admitted" or none —, its reason
+// code, the skills it handed out and the package it was made on, and the input
+// a replay needs — the skill chosen on the skill map, the age category and the
+// grade of the profile, whether the pool was limited to the tasks a tap checks,
+// the versions, the release and the window, the number of the last evidence
+// read, and the digests of the graphs —, with the close or the end of a run
+// whose next it is, when it is one.
 type NewChoice struct {
 	Kind        string
 	ModuleID    string
 	TaskID      string
 	LessonID    string
 	NotAdmitted bool
-	// Closed is why the AI that checks the tasks was closed, beside nothing to give
-	// when it left a task out: a word of NothingCauses, with NextDay beside the
-	// quota (R59).
+	// Closed is why the AI that checks the tasks was closed, beside nothing to
+	// give when it left a task out: a word of NothingCauses, with NextDay beside
+	// the quota.
 	Closed        string
 	NextDay       *time.Time
 	ReasonCode    int
@@ -112,7 +112,7 @@ func madeChoice(ctx context.Context, db Querier, column, profileID, id string) (
 
 // HeldMapSkill is the skill chosen on the skill map that the profile's last
 // choice holds, empty when it holds none: a choice from the map holds until the
-// learner asks for something else (R107 spec).
+// learner asks for something else.
 func HeldMapSkill(ctx context.Context, db Querier, profileID string) (string, error) {
 	var skill *string
 	err := db.QueryRow(ctx, `SELECT map_skill FROM engine_choices WHERE profile_id = $1 AND reason_code IS NOT NULL
@@ -130,7 +130,7 @@ type Issued struct {
 }
 
 // IssuedSkills is when each skill the profile's choices handed out was last
-// handed out: a lesson hands out each of its skills (R104 spec).
+// handed out: a lesson hands out each of its skills.
 func IssuedSkills(ctx context.Context, db Lister, profileID string) ([]Issued, error) {
 	rows, err := db.Query(ctx, `SELECT s, max(c.chosen_at) FROM engine_choices c, unnest(c.issued_skills) s
 		WHERE c.profile_id = $1 GROUP BY s ORDER BY s`, profileID)
@@ -166,8 +166,7 @@ func ChoicesByModule(ctx context.Context, db Lister, profileID string) ([]Module
 }
 
 // Solution is when the solution of a task of a module last went to the
-// profile's device: an attempt of it closed correct or with the solution shown
-// (R82 spec).
+// profile's device: an attempt of it closed correct or with the solution shown.
 type Solution struct {
 	ModuleID string
 	TaskID   string

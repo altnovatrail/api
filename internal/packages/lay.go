@@ -36,9 +36,9 @@ var (
 	// ErrFetch is a file of the release that could not be fetched: an answer that
 	// is not 200, or more bytes than its limit.
 	ErrFetch = errors.New("packages: the file could not be fetched from the release")
-	// ErrArchive is an archive of a package that holds what a package does not:
-	// a link or another kind of entry, a sparse file, a path out of the package
-	// or of no part of it, or more bytes than its limit (R41).
+	// ErrArchive is an archive of a package that holds what a package does not: a
+	// link or another kind of entry, a sparse file, a path out of the package or
+	// of no part of it, or more bytes than its limit.
 	ErrArchive = errors.New("packages: the archive is not a package's")
 	// ErrNotEmpty is a folder to lay the packages into that holds something.
 	ErrNotEmpty = errors.New("packages: the folder is not empty")
@@ -54,10 +54,9 @@ const (
 	maxUnpacked = 512 << 20
 )
 
-// The layout of the folder (R07, R41): the pinned index; the three files of each
-// package's chain under the digest of the package; and each file of a device
-// part once, under its own digest, so that a medium the next version keeps takes
-// no room.
+// The layout of the folder: the pinned index; the three files of each package's
+// chain under the digest of the package; and each file of a device part once,
+// under its own digest, so that a medium the next version keeps takes no room.
 const (
 	IndexFile   = moduleindex.File
 	packagesDir = "packages"
@@ -89,11 +88,11 @@ type Laid struct {
 
 // Lay fetches the index of the release cfg pins, checks it by its digest, and
 // lays each package of the index in api's window into dir, withdrawn ones too —
-// a withdrawn version is kept to repeat a verdict (R63 spec; R07). Each package
-// is fetched as its archive from the release its entry names, unpacked in
-// memory, read by module-kit by the chain from its digest, and only the files
-// the chain names are written. dir is made afresh beside where it is, and is
-// there whole or not at all: it may not hold anything already.
+// a withdrawn version is kept to repeat a verdict. Each package is fetched as
+// its archive from the release its entry names, unpacked in memory, read by
+// module-kit by the chain from its digest, and only the files the chain names
+// are written. dir is made afresh beside where it is, and is there whole or not
+// at all: it may not hold anything already.
 func Lay(ctx context.Context, src Source, cfg Config, dir string) (Laid, error) {
 	dir = filepath.Clean(dir)
 	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
@@ -162,8 +161,8 @@ func Lay(ctx context.Context, src Source, cfg Config, dir string) (Laid, error) 
 
 // workFolder makes the folder Lay lays into beside dir, under a name of its own
 // that no other run takes, readable by all: the image copies it owned by root
-// for serve, which is nonroot, to read (R41). MkdirTemp would make it for its
-// owner alone.
+// for serve, which is nonroot, to read. MkdirTemp would make it for its owner
+// alone.
 func workFolder(dir string) (string, error) {
 	random := make([]byte, 8)
 	if _, err := rand.Read(random); err != nil {
@@ -209,7 +208,7 @@ func inWindow(index formatv0.ModuleIndex) []formatv0.Entry {
 }
 
 // readable says whether api reads the format version of the package of entry:
-// whether it is in the window (R07).
+// whether it is in the window.
 func readable(entry formatv0.Entry) bool {
 	return module.ReadsFormat(string(entry.ModuleFormatVersion))
 }
@@ -240,7 +239,7 @@ func fetch(ctx context.Context, client *http.Client, base, release, name string,
 }
 
 // archiveName is the name of the archive of the package of digest in its
-// release: the digest with - for : (R03 modules).
+// release: the digest with - for :.
 func archiveName(digest formatv0.Digest) string { return Name(digest) + ".tar.gz" }
 
 // unpack is the files of an archive of a package, by their paths in its folder.
@@ -318,7 +317,7 @@ func sparse(header *tar.Header) bool {
 }
 
 // partOfPackage says whether name is a file a package as files has: its three
-// texts and the files of its device part (R62 spec).
+// texts and the files of its device part.
 func partOfPackage(name string) bool {
 	switch name {
 	case modulepackage.InventoryFile, modulepackage.ServerFile, modulepackage.DeviceFile:
@@ -377,7 +376,7 @@ func deviceFiles(listing formatv0.DeviceListing) []deviceFile {
 }
 
 // Name is a digest as a name in the folder and in a release, and in the path of
-// a file of a device part: sha256-<hex> (R99 spec).
+// a file of a device part: sha256-<hex>.
 func Name(digest formatv0.Digest) string {
 	return strings.Replace(string(digest), ":", "-", 1)
 }

@@ -13,12 +13,12 @@ import (
 )
 
 // storageScope is the scope of the token api writes to the bucket of the forms
-// with: its role there creates and erases objects and reads none (R116 spec).
+// with: its role there creates and erases objects and reads none.
 const storageScope = "https://www.googleapis.com/auth/devstorage.read_write"
 
 // legalTexts is the legal texts api serves: a self-hosted copy's folder, read
 // by the rules of the part on the day api starts, or the texts of its tag of
-// spec (R52).
+// spec.
 func legalTexts(a config.Agreements) (*legal.Texts, error) {
 	if a.LegalDir == "" {
 		return legal.Spec(), nil

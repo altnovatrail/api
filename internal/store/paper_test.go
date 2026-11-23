@@ -13,7 +13,7 @@ import (
 // An attempt of a task from paper holds no module, package, task or seed, and
 // begins by no choice, run or earlier attempt; one of a module holds them all,
 // as before. The open attempts of a page go beside the one open attempt of a
-// module (R10).
+// module.
 func TestTheSchemaHoldsTheAttemptsOfPaper(t *testing.T) {
 	t.Parallel()
 
@@ -111,9 +111,9 @@ func TestThePageBeginsItsAttempts(t *testing.T) {
 	}
 }
 
-// The key of a task from paper and the reading of its statement are kept on
-// its open attempt alone, and erased as the attempt closes (R162 spec; R169
-// spec): an attempt of a module holds neither.
+// The key of a task from paper and the reading of its statement are kept on its
+// open attempt alone, and erased as the attempt closes: an attempt of a module
+// holds neither.
 func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 	t.Parallel()
 
@@ -184,9 +184,10 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 }
 
 // The close of an attempt of a task from paper leaves nothing it kept while
-// open but its row (R101): its submissions go, with the idempotency
-// keys that recorded them, its rungs, the opening question among them, and its
-// count of wrong answers, and a problem report on its words stays (R123 spec). An attempt of a module keeps them as before.
+// open but its row: its submissions go, with the idempotency keys that recorded
+// them, its rungs, the opening question among them, and its count of wrong
+// answers, and a problem report on its words stays. An attempt of a module
+// keeps them as before.
 func TestTheCloseOfAPaperAttemptLeavesItsRowAlone(t *testing.T) {
 	t.Parallel()
 

@@ -73,11 +73,10 @@ func TestWhatIsNoCodeIsNotRead(t *testing.T) {
 	}
 }
 
-// Whatever is given, Read does not panic; what it reads, it reads again
-// written otherwise — in the other case, with O for 0 and I or L for 1, with
-// dashes and white space between the symbols — to the same hash, and so it
-// reads a code of sixteen symbols. Dashes and white space never change what
-// it says (R34).
+// Whatever is given, Read does not panic; what it reads, it reads again written
+// otherwise — in the other case, with O for 0 and I or L for 1, with dashes and
+// white space between the symbols — to the same hash, and so it reads a code of
+// sixteen symbols. Dashes and white space never change what it says.
 func FuzzRead(f *testing.F) {
 	for _, seed := range []string{
 		"0123-4567-89AB-CDEF",

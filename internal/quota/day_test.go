@@ -19,7 +19,7 @@ func at(t *testing.T, s string) time.Time {
 
 func offset(minutes int32) *int32 { return &minutes }
 
-// An offset is from −12 to +14 hours, by quarters of an hour (R11).
+// An offset is from −12 to +14 hours, by quarters of an hour.
 func TestAnOffsetIsWithinItsBoundsByQuarters(t *testing.T) {
 	t.Parallel()
 

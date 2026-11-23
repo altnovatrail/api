@@ -24,7 +24,7 @@ import (
 // paperTeller words the tutor's words of a task from paper, as the gate of
 // admission does through tutor: whether they are admitted for a learner — with
 // the work, a rung's, or without it, the opening question and a rung put
-// another way — and the call. own is as wordsTeller has it (R100; R82 spec).
+// another way — and the call. own is as wordsTeller has it.
 type paperTeller interface {
 	PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
 	TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer
@@ -35,7 +35,7 @@ func (g gateTutor) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest
 }
 
 // openingRung is the rung whose words the attempt keeps of the opening question
-// of a task from paper: the model's alone (R82 spec).
+// of a task from paper: the model's alone.
 const openingRung = 0
 
 // wordsLanguage is the language of the words of a task from paper of a profile
@@ -43,9 +43,9 @@ const openingRung = 0
 const wordsLanguage = "en"
 
 // paperTelling is what a request for the words of a task from paper adds to its
-// telling (R82 spec): the tasks of the crop, each with its key and the value read
-// of the submission that gave the rung; the number of the rung's task, the first
-// whose slot is "not_yet" there, from 1, or 0 when none is; the language of the
+// telling: the tasks of the crop, each with its key and the value read of the
+// submission that gave the rung; the number of the rung's task, the first whose
+// slot is "not_yet" there, from 1, or 0 when none is; the language of the
 // profile's interface, which the words are in; whether its hint mode shows
 // where; and the call.
 type paperTelling struct {
@@ -58,7 +58,7 @@ type paperTelling struct {
 
 // paperAdmitted says whether the words of a task from paper may be called for a
 // learner of category: the gate admits them, or the debug mode's first model
-// takes them past the list (R97).
+// takes them past the list.
 func (s *Service) paperAdmitted(ctx context.Context, withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return s.paperWords.PaperWords(withWork, category, ownKeyProvider) || s.debugChosen(ctx)
 }
@@ -155,15 +155,15 @@ func paperRequest(t telling, route tutor.Route, crop []byte, asked []string) tut
 }
 
 // GetOpeningWords gives the tutor's opening question on a task from paper
-// before its first wrong answer (R82 spec): one call of AI on the attempt, with
-// the task's crop as printed and the tasks of the key, when the attempt keeps
-// one, whose words, once they passed the leak check and the form check, the
-// attempt keeps as its rung 0 until it closes, and every later request gets
-// with no AI. The fallback text, which a call that gives no words or words that
-// fail a check leave, is not kept: a request with a new key calls again. A
-// repeat under the key gets the words kept, or the fallback text with the
-// outcome it got. When the deployment admits the words, the call runs between
-// two transactions, as GetRungWords does (rpc.Across).
+// before its first wrong answer: one call of AI on the attempt, with the task's
+// crop as printed and the tasks of the key, when the attempt keeps one, whose
+// words, once they passed the leak check and the form check, the attempt keeps
+// as its rung 0 until it closes, and every later request gets with no AI. The
+// fallback text, which a call that gives no words or words that fail a check
+// leave, is not kept: a request with a new key calls again. A repeat under the
+// key gets the words kept, or the fallback text with the outcome it got. When
+// the deployment admits the words, the call runs between two transactions, as
+// GetRungWords does (rpc.Across).
 func (a *AttemptService) GetOpeningWords(ctx context.Context, req *v1.GetOpeningWordsRequest) (*v1.GetOpeningWordsResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
