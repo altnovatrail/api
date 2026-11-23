@@ -3,7 +3,7 @@ syntax = "proto3";
 // The observation: what AI read in a learner's work, answer slot by answer slot, before any check
 // runs. A reader of `tutor` gives one; `module-kit` joins the observations of two readers into one
 // and gives the verdict on it. What the messages mean, how two observations are joined and which
-// verdict an observation gives are the rules of contracts/README.md, section 10.
+// verdict an observation gives are the rules of contracts/README.md for the observation.
 package novatrail.observation.v1;
 
 // What AI read in a work: one reader's observation, or the one that `module-kit` joins from two.
@@ -22,7 +22,7 @@ message AnswerSlotObservation {
   // What the reading gives: a value, or why it gives none.
   oneof read {
     // The value as it is written, never empty: the reader does not normalize it
-    // (contracts/README.md, section 10). In a slot bound `sheet`, the text of the essay.
+    // (contracts/README.md). In a slot bound `sheet`, the text of the essay.
     string value = 2;
     // Why the reading gives no value.
     Unreadable unreadable = 3;
@@ -45,7 +45,7 @@ message AnswerSlotPlace {
 // Why a reading gives an answer slot no value. In a slot whose check gives a verdict, each makes
 // the verdict `unreadable`, with the reason named as the value is, in lower case and without its
 // prefix; an essay that is blank or illegible does not reach the assessment by its rubric
-// (contracts/README.md, section 10).
+// (contracts/README.md).
 enum Unreadable {
   // No reason: never sent. An observation that holds it, or a reason its reader does not know, is
   // not valid.
@@ -64,7 +64,7 @@ enum Unreadable {
 }
 
 // A box on the crop the device sent, in whole thousandths of the crop's height and width, from 0
-// to 1000, as [ymin, xmin, ymax, xmax]: ymin < ymax and xmin < xmax (R53).
+// to 1000, as [ymin, xmin, ymax, xmax]: ymin < ymax and xmin < xmax.
 message CropBox {
   // The top edge, in thousandths of the crop's height.
   int32 ymin = 1;

@@ -1,6 +1,6 @@
 # RUN.md — work plan of api
 
-What api does, does not do and has still to decide — [docs/architecture.md](docs/architecture.md); why — [docs/decisions.md](docs/decisions.md). The platform is in `spec/`, a submodule at tag v0.19.12: the component's card — architecture 3.5 spec; the order of repositories — repositories 6 spec; learners' data and law — privacy spec; the platform's decisions — spec's log. Small tasks, one at a time, each reviewed by the author; only the current epic is in detail (R19 spec). Other tables, each a file opening with its rules (R153 spec): 2, epics for later — [run/EPICS.md](run/EPICS.md); 3, questions to the author — [run/QUESTIONS.md](run/QUESTIONS.md); 4, debt — [run/DEBT.md](run/DEBT.md). Open tasks outside an epic — [run/TASKS.md](run/TASKS.md) (R155 spec). The archives of the done epics — [docs/plan/](docs/plan/).
+What api does, does not do and has still to decide — [docs/architecture.md](docs/architecture.md); why — [docs/decisions.md](docs/decisions.md). The platform is in `spec/`, a submodule at tag v0.19.14: the component's card — architecture 3.5 spec; the order of repositories — repositories 6 spec; learners' data and law — privacy spec; the platform's decisions — spec's log. Small tasks, one at a time, each reviewed by the author; only the current epic is in detail (R19 spec). Other tables, each a file opening with its rules (R153 spec): 2, epics for later — [run/EPICS.md](run/EPICS.md); 3, questions to the author — [run/QUESTIONS.md](run/QUESTIONS.md); 4, debt — [run/DEBT.md](run/DEBT.md). Open tasks outside an epic — [run/TASKS.md](run/TASKS.md) (R155 spec). The archives of the done epics — [docs/plan/](docs/plan/).
 
 Language (R154 spec): rules and tables in English, terse, for the session; the bodies of tasks in table 1 and in `run/TASKS.md` in Russian — the author writes and reviews them.
 
@@ -104,4 +104,4 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T142 | Ссылки по R171 spec: журнал: от «The providers of the own key» до конца; ключ — T145 (В88) | Claude | — | T127–T141, T144 |
 | [x] | T143 | Переход на тег `spec` v0.19.12 | Claude | — | — |
 | [x] | T144 | Ссылки по строгому правилу R171 spec: проход по первой части | Claude | — | T143 |
-| [ ] | T145 | Ключ `"citations": true` с релизом `learner-model` и тегом `spec`, чьи `.proto` без ссылок | Claude | — | T142; релиз `learner-model` и тег `spec` с `.proto` без ссылок |
+| [x] | T145 | Ключ `"citations": true` с релизом `learner-model` и тегом `spec`, чьи `.proto` без ссылок | Claude | — | T142; релиз `learner-model` и тег `spec` с `.proto` без ссылок |

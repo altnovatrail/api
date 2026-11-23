@@ -1,7 +1,7 @@
 // The evidence of one finished attempt, as the learner model reads it: what happened in the
 // attempt, observed rather than concluded, so that a later version of the model can read it by its
-// own rule when it recomputes the state from the log (R08 of
-// github.com/altnovatrail/learner-model). api keeps the bytes as they are, in an append-only log.
+// own rule when it recomputes the state from the log. api keeps the bytes as they are, in an
+// append-only log.
 syntax = "proto3";
 
 package novatrail.learnermodel.v1;
@@ -69,7 +69,7 @@ message Evidence {
   optional bool level_set_by_adult = 21;
 }
 
-// How an attempt ended (concepts 11 of spec).
+// How an attempt ended.
 enum Outcome {
   // Not given. An outcome that a later version adds weighs nothing; the verdicts before it count.
   OUTCOME_UNSPECIFIED = 0;
@@ -116,7 +116,7 @@ message ItemEvidence {
   optional int32 wrong_answers_before_first_correct = 11;
 }
 
-// Why a submission gave no verdict (concepts 9.1 of spec).
+// Why a submission gave no verdict.
 enum UnverdictedReason {
   // Not given.
   UNVERDICTED_REASON_UNSPECIFIED = 0;
