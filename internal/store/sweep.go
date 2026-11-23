@@ -22,11 +22,10 @@ type ProfileRef struct {
 	ID        string
 }
 
-// MarkedBefore is up to limit accounts marked "deleting" before before, whose ID
-// comes after after — empty for the first page —, by ID: the marks a request
-// left unfinished, which the daily job finishes (R21). The job pages by the last
-// ID it saw, so that an account it fails on is not chosen again in the same
-// pass.
+// MarkedBefore is up to limit accounts marked "deleting" before before, whose
+// ID comes after after — empty for the first page —, by ID: the marks a request
+// left unfinished, which the daily job finishes. The job pages by the last ID
+// it saw, so that an account it fails on is not chosen again in the same pass.
 func MarkedBefore(ctx context.Context, db Lister, before time.Time, after string, limit int) ([]AccountRef, error) {
 	return accountRefs(ctx, db, `SELECT id, auth_uid FROM accounts
 		WHERE deleting_at < $1 AND id > $2 ORDER BY id LIMIT $3`, before, from(after), limit)
@@ -62,7 +61,7 @@ func accountRefs(ctx context.Context, db Lister, sql string, args ...any) ([]Acc
 // still had no request since before, and says whether it did. The term is read
 // under the row's lock: a request that wrote today's date while the job chose the
 // account keeps it, since FOR UPDATE waits for that write and reads the row
-// again (R21; П-9).
+// again (П-9).
 func MarkIdle(ctx context.Context, tx pgx.Tx, accountID string, before time.Time) (bool, error) {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT id FROM accounts
@@ -117,7 +116,7 @@ func ProfileIdle(ctx context.Context, tx pgx.Tx, accountID, profileID string, be
 }
 
 // HaveAccounts is the UIDs, of uids, that have an account, marked or not: the
-// daily job removes the users of the sign-in service that have none (R21).
+// daily job removes the users of the sign-in service that have none.
 func HaveAccounts(ctx context.Context, db Lister, uids []string) (map[string]bool, error) {
 	rows, err := db.Query(ctx, `SELECT auth_uid FROM accounts WHERE auth_uid = ANY($1)`, uids)
 	if err != nil {
@@ -136,8 +135,8 @@ func HaveAccounts(ctx context.Context, db Lister, uids []string) (map[string]boo
 }
 
 // ProfilesThere is the profiles, of ids, that are there, each with its account:
-// a tuple whose profile is not, or is another account's, is dangling (R21). An
-// ID that is no UUID as the database writes one names no row, and is not asked.
+// a tuple whose profile is not, or is another account's, is dangling. An ID
+// that is no UUID as the database writes one names no row, and is not asked.
 func ProfilesThere(ctx context.Context, db Lister, ids []string) (map[string]string, error) {
 	canonical := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -166,8 +165,8 @@ func ProfilesThere(ctx context.Context, db Lister, ids []string) (map[string]str
 // long.
 const dropBatch = 1000
 
-// DropKeys deletes the records of idempotency keys made before before, a batch at
-// a time, and says how many went: a key is kept for a day (R17). A stop between
+// DropKeys deletes the records of idempotency keys made before before, a batch
+// at a time, and says how many went: a key is kept for a day. A stop between
 // batches keeps what went.
 func DropKeys(ctx context.Context, db Querier, before time.Time) (int64, error) {
 	return inBatches(ctx, db, `DELETE FROM idempotency_keys WHERE ctid IN (
@@ -176,15 +175,15 @@ func DropKeys(ctx context.Context, db Querier, before time.Time) (int64, error) 
 
 // DropConsentRecords deletes the minimal records of consents for children whose
 // account or profile was deleted before before, a batch at a time, and says how
-// many went: a record is kept 5 years after the deletion and then erased (R117
-// spec; R21). A stop between batches keeps what went.
+// many went: a record is kept 5 years after the deletion and then erased. A
+// stop between batches keeps what went.
 func DropConsentRecords(ctx context.Context, db Querier, before time.Time) (int64, error) {
 	return inBatches(ctx, db, `DELETE FROM child_consent_records WHERE id IN (
 		SELECT id FROM child_consent_records WHERE deleted_at < $1 LIMIT $2)`, before, "delete the consents' minimal records")
 }
 
 // CloseAbandonedAttempts closes "abandoned", at at, the open attempts with no
-// action since before, a batch at a time, and says how many it closed (R10). One
+// action since before, a batch at a time, and says how many it closed. One
 // clock judges the term and dates the close: the pass's. An attempt a request
 // holds is skipped, and the next pass finds it if it is still idle; the term is
 // checked again on the row the UPDATE takes, so an action that came meanwhile
@@ -197,7 +196,7 @@ func CloseAbandonedAttempts(ctx context.Context, db Querier, before, at time.Tim
 }
 
 // EndAbandonedRuns ends "abandoned", at at, the open lesson runs with no action
-// since before, a batch at a time, as CloseAbandonedAttempts closes attempts (R13):
+// since before, a batch at a time, as CloseAbandonedAttempts closes attempts:
 // no request on the run, and no action on its attempts, which is the run's too.
 func EndAbandonedRuns(ctx context.Context, db Querier, before, at time.Time) (int64, error) {
 	return inBatches(ctx, db, `UPDATE lesson_runs r SET end_reason = 'abandoned', ended_at = $3
@@ -220,8 +219,7 @@ type OpenOn struct {
 
 // OpenAttemptsOn is up to limit open attempts on the packages of digests, whose
 // ID comes after after, by ID, of accounts no deletion marked: those whose
-// package the image does not give (R07). An account marked goes with its
-// attempts.
+// package the image does not give. An account marked goes with its attempts.
 func OpenAttemptsOn(ctx context.Context, db Lister, digests []string, after string, limit int) ([]OpenOn, error) {
 	return openOn(ctx, db, "the attempts", `SELECT t.id, t.profile_id, p.account_id FROM attempts t
 		JOIN profiles p ON p.id = t.profile_id JOIN accounts a ON a.id = p.account_id

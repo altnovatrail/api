@@ -59,7 +59,7 @@ func (w *world) ownKeyProviders(t *testing.T, ctx context.Context, profileID str
 }
 
 // At the stage author the owner's own key of Anthropic is open, by the code and
-// the name of the table, and nobody's below 18, with no refusal (R72).
+// the name of the table, and nobody's below 18, with no refusal.
 func TestTheProvidersOfTheOwnKeyAreTheAdultsAtTheStageAuthor(t *testing.T) {
 	t.Parallel()
 
@@ -134,8 +134,8 @@ func (c *countedKeys) CheckKey(ctx context.Context, category formatv0.AgeCategor
 }
 
 // stubKeyWorld is the world whose own key's requests ask the gate of the dev
-// mode's stub at the stage author (R66), which checks a key by its ending, and
-// counts its checks.
+// mode's stub at the stage author, which checks a key by its ending, and counts
+// its checks.
 func stubKeyWorld(t *testing.T) (*world, *countedKeys) {
 	t.Helper()
 	gate, _, err := admission.Load(config.Admission{Rung: config.RungAuthor, Stub: true})
@@ -147,8 +147,8 @@ func stubKeyWorld(t *testing.T) (*world, *countedKeys) {
 }
 
 // The check of the owner's key gives each of the contract's five ends through
-// tutor's check, on the stub's endings (R73): a provider that gave no answer is
-// no refusal but OWN_KEY_CHECK_UNSPECIFIED with CAUSE_AI_FAILURE; a provider
+// tutor's check, on the stub's endings: a provider that gave no answer is no
+// refusal but OWN_KEY_CHECK_UNSPECIFIED with CAUSE_AI_FAILURE; a provider
 // closed to the key — OpenAI, one the table does not know — is PROVIDER_CLOSED.
 // The log line says how it ended, and holds neither the key nor its provider.
 func TestTheOwnersKeyIsCheckedByTutor(t *testing.T) {
@@ -284,10 +284,10 @@ func TestACheckWithTooLittleTimeIsTheClients(t *testing.T) {
 	}
 }
 
-// No more than ten checks of a key fit in any hour on the account (R78): the
-// eleventh is resource_exhausted with CAUSE_KEY_CHECKS_EXHAUSTED and when the
-// next check opens, with no check, a provider closed with no call counts as a
-// check, and the hour slides, so that a check opens as the oldest leaves it.
+// No more than ten checks of a key fit in any hour on the account: the eleventh
+// is resource_exhausted with CAUSE_KEY_CHECKS_EXHAUSTED and when the next check
+// opens, with no check, a provider closed with no call counts as a check, and
+// the hour slides, so that a check opens as the oldest leaves it.
 func TestNoMoreThanTenChecksOfAKeyFitInAnHour(t *testing.T) {
 	t.Parallel()
 
@@ -412,7 +412,7 @@ func TestChecksOfAKeySideBySideGiveNoEleventh(t *testing.T) {
 }
 
 // The dev mode's stub calls no provider, and with WithoutKeyCheckLimit the
-// checks of a key have no limit there (R78).
+// checks of a key have no limit there.
 func TestTheChecksOfAKeyOnTheStubHaveNoLimit(t *testing.T) {
 	t.Parallel()
 

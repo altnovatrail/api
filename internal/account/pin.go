@@ -68,8 +68,8 @@ func (s *Service) ChangePin(ctx context.Context, req *v1.ChangePinRequest) (*v1.
 }
 
 // ResetPin changes a forgotten PIN by a fresh sign-in, which the checks have
-// held last (R20): it sets the new PIN whether there was one or not, and opens
-// the input.
+// held last: it sets the new PIN whether there was one or not, and opens the
+// input.
 func (s *Service) ResetPin(ctx context.Context, req *v1.ResetPinRequest) (*v1.ResetPinResponse, error) {
 	if !pin.Valid(req.GetNewPin()) {
 		return nil, rpc.Malformed("new_pin")
@@ -101,7 +101,7 @@ func try(ctx context.Context, state *pin.State, given string, now time.Time) (*v
 }
 
 // once runs act on the account's PIN under the request's idempotency key: the
-// PIN is read and written in the transaction of the key's record (R35). Its
+// PIN is read and written in the transaction of the key's record. Its
 // fingerprint is slow, as the request carries a PIN.
 func once[Res proto.Message](ctx context.Context, s *Service, method string, req rpc.Keyed,
 	act func(state *pin.State, now time.Time) (Res, error)) (Res, error) {

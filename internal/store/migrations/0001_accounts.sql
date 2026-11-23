@@ -1,15 +1,15 @@
--- The account, its invite codes, its consents and its profiles (R29). Migrations only
--- go forward: api rolls back only forward (R106 spec), so there is no Down. A migration
--- adds first and removes later: the release still serving while this one rolls out reads
--- the schema as it was, so a statement that drops, renames or narrows comes only in a
--- migration marked "-- contract:" with the reason the old schema is no longer read.
+-- The account, its invite codes, its consents and its profiles. Migrations only go
+-- forward: api rolls back only forward, so there is no Down. A migration adds first and
+-- removes later: the release still serving while this one rolls out reads the schema as
+-- it was, so a statement that drops, renames or narrows comes only in a migration marked
+-- "-- contract:" with the reason the old schema is no longer read.
 
 -- +goose Up
 
 -- The account. After its mark "deleting", its row keeps the ID, the sign-in service's
 -- UID and the time of the mark, and every other field is cleared, so that the rest is
--- nullable (R21). A request updates fields of this row under FOR KEY SHARE, so none of
--- them is a key: the UID is the one unique field, and it never changes.
+-- nullable. A request updates fields of this row under FOR KEY SHARE, so none of them is
+-- a key: the UID is the one unique field, and it never changes.
 CREATE TABLE accounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     auth_uid text NOT NULL UNIQUE,
@@ -25,8 +25,8 @@ CREATE TABLE accounts (
     deleting_at timestamptz
 );
 
--- An invite code, by its SHA-256 alone (R04). Redeemed and bound are kept apart: the
--- deletion of an account unbinds its code, which stays redeemed (R21).
+-- An invite code, by its SHA-256 alone. Redeemed and bound are kept apart: the deletion
+-- of an account unbinds its code, which stays redeemed.
 CREATE TABLE invite_codes (
     code_sha256 bytea PRIMARY KEY CHECK (octet_length(code_sha256) = 32),
     tariff text NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE invite_codes (
 
 -- A learner's profile, with the fields of the contract's Profile, whose codes it keeps.
 -- A row about a profile refers to it, so that one written after the profile is gone
--- fails on the key (R21).
+-- fails on the key.
 CREATE TABLE profiles (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id uuid NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
@@ -89,7 +89,7 @@ CREATE INDEX consents_account ON consents (account_id);
 
 -- What is left of a consent for a child once its profile is deleted: the ID of the
 -- record, when it was given, how it was checked and when it was deleted, with no ID of
--- the account or the profile, until the lawyer answers П-14 (R21).
+-- the account or the profile, until the lawyer answers П-14.
 CREATE TABLE child_consent_records (
     id uuid PRIMARY KEY,
     consented_at timestamptz NOT NULL,

@@ -6,10 +6,9 @@ import (
 	"strings"
 )
 
-// VarCatalogModules is the deployment's list of modules (R150 spec): the IDs of
-// the modules whose current version the catalog may give, separated by commas.
-// Unset or empty, the catalog gives the whole pinned index. On novatrail, infra
-// sets it.
+// VarCatalogModules is the deployment's list of modules: the IDs of the modules
+// whose current version the catalog may give, separated by commas. Unset or
+// empty, the catalog gives the whole pinned index. On novatrail, infra sets it.
 const VarCatalogModules = "API_CATALOG_MODULES"
 
 func init() {

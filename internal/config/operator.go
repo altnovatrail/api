@@ -6,9 +6,9 @@ import (
 )
 
 // Operator is the configuration of a command of the operator that writes to the
-// database api, such as invite (R34): the level of its log and the pooler's
+// database api, such as invite: the level of its log and the pooler's
 // connection string, which serve takes too. Its writes keep no session, so the
-// pooler serves them as it serves the requests (R29).
+// pooler serves them as it serves the requests.
 type Operator struct {
 	// LogLevel is the lowest level the log writes.
 	LogLevel slog.Level

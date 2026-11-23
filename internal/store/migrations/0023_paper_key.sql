@@ -1,8 +1,8 @@
--- The key of an attempt of a task from paper (R162 spec): the message Key of the package
--- novatrail.paper.v1, its provenance and its answer, which the first submission derives from the
--- task's statement and every later one judges by; a Key with no answer says the task has none. It
--- is kept while the attempt is open, and goes with its close, in the close's own transaction,
--- whichever way it closes (R96). It never reaches the device (R05 spec).
+-- The key of an attempt of a task from paper: the message Key of the package novatrail.paper.v1,
+-- its provenance and its answer, which the first submission derives from the task's statement and
+-- every later one judges by; a Key with no answer says the task has none. It is kept while the
+-- attempt is open, and goes with its close, in the close's own transaction, whichever way it
+-- closes. It never reaches the device.
 -- contract: the release before this one writes no key and reads none: it refuses a submission of
 -- an attempt of paper, so the rows it leaves have none.
 

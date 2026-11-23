@@ -1,6 +1,6 @@
 // Package store is api's database: its schema, the migrations that make it, the
-// pool requests take their connections from, and the transaction a write under an
-// account runs in (R29).
+// pool requests take their connections from, and the transaction a write under
+// an account runs in.
 package store
 
 import (
@@ -18,7 +18,7 @@ import (
 var (
 	// ErrNoAccount is a write under an account that is not there.
 	ErrNoAccount = errors.New("store: no account")
-	// ErrAccountDeleting is a write under an account marked "deleting" (R21).
+	// ErrAccountDeleting is a write under an account marked "deleting".
 	ErrAccountDeleting = errors.New("store: the account is being deleted")
 )
 
@@ -28,7 +28,7 @@ var errConnectionString = errors.New("store: the connection string does not pars
 
 // Open is a pool of connections to the database at url. The pool takes them as
 // it needs them, and pgx keeps its prepared statements by the protocol, which
-// Neon's pooler keeps too (R29).
+// Neon's pooler keeps too.
 func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -52,12 +52,12 @@ type TxBeginner interface {
 	BeginTx(ctx context.Context, options pgx.TxOptions) (pgx.Tx, error)
 }
 
-// WriteUnderAccount runs fn in a transaction that holds the account's row by FOR
-// KEY SHARE and has found it not marked "deleting" (R21). The deletion of an
+// WriteUnderAccount runs fn in a transaction that holds the account's row by
+// FOR KEY SHARE and has found it not marked "deleting". The deletion of an
 // account takes the row FOR UPDATE, so a write that got here before the mark
 // commits before the mark is set, and one after it sees the mark and writes
-// nothing. FOR KEY SHARE, rather than FOR SHARE, lets fn itself update fields of
-// the row — the date of the request, the PIN's count — without locking out a
+// nothing. FOR KEY SHARE, rather than FOR SHARE, lets fn itself update fields
+// of the row — the date of the request, the PIN's count — without locking out a
 // neighbouring request of the same account. The transaction commits when fn
 // returns nil, and rolls back on its error, which it returns as it is.
 func WriteUnderAccount(ctx context.Context, db Beginner, accountID string, fn func(pgx.Tx) error) error {
@@ -76,12 +76,12 @@ func WriteUnderAccount(ctx context.Context, db Beginner, accountID string, fn fu
 	})
 }
 
-// MarkDeleting takes the account's row FOR UPDATE in tx and marks it "deleting",
-// the first step of the deletion of an account (R21). FOR UPDATE is what waits
-// for every write that holds the row by FOR KEY SHARE: a plain UPDATE of the mark
-// takes FOR NO KEY UPDATE, which does not conflict with FOR KEY SHARE, and would
-// let a write that does not touch the row commit after the mark. The deletion
-// clears the account's data in the same tx, after this.
+// MarkDeleting takes the account's row FOR UPDATE in tx and marks it
+// "deleting", the first step of the deletion of an account. FOR UPDATE is what
+// waits for every write that holds the row by FOR KEY SHARE: a plain UPDATE of
+// the mark takes FOR NO KEY UPDATE, which does not conflict with FOR KEY SHARE,
+// and would let a write that does not touch the row commit after the mark. The
+// deletion clears the account's data in the same tx, after this.
 func MarkDeleting(ctx context.Context, tx pgx.Tx, accountID string) error {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT id FROM accounts WHERE id = $1 FOR UPDATE`, accountID).Scan(&id)

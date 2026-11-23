@@ -30,17 +30,17 @@ const (
 	VarIdleTimeout       = "API_HTTP_IDLE_TIMEOUT"
 	VarShutdownTimeout   = "API_SHUTDOWN_TIMEOUT"
 	VarRequestTimeout    = "API_REQUEST_TIMEOUT"
-	// VarPaperRequestTimeout is the time limit of the methods of a task from
-	// paper that ask up to three models in turn (R98).
+	// VarPaperRequestTimeout is the time limit of the methods of a task from paper
+	// that ask up to three models in turn.
 	VarPaperRequestTimeout = "API_PAPER_REQUEST_TIMEOUT"
 	VarService             = "K_SERVICE"
 
 	// VarMigrateDatabaseURL is the direct connection string of the database api,
 	// which migrate takes: a secret, read from the variable or from the file its
-	// twin with the suffix _FILE names (R29).
+	// twin with the suffix _FILE names.
 	VarMigrateDatabaseURL = "API_MIGRATE_DATABASE_URL"
 	// VarMigrateOpenFGADatabaseURL is the direct connection string of the database
-	// openfga, the store of the rights, which migrate takes the same way (R31).
+	// openfga, the store of the rights, which migrate takes the same way.
 	VarMigrateOpenFGADatabaseURL = "API_MIGRATE_OPENFGA_DATABASE_URL"
 )
 
@@ -76,9 +76,9 @@ const (
 	DefaultIdleTimeout       = 120 * time.Second
 	DefaultShutdownTimeout   = 9 * time.Second
 	DefaultRequestTimeout    = 30 * time.Second
-	// DefaultPaperRequestTimeout holds six calls of models one after another,
-	// the statement's three attempts and then the solution's, of up to 8 s each
-	// on the author's pages, with room to spare (R98).
+	// DefaultPaperRequestTimeout holds six calls of models one after another, the
+	// statement's three attempts and then the solution's, of up to 8 s each on the
+	// author's pages, with room to spare.
 	DefaultPaperRequestTimeout = 90 * time.Second
 )
 
@@ -116,12 +116,12 @@ type Config struct {
 	// short of it.
 	ShutdownTimeout time.Duration
 	// RequestTimeout is the longest a request may run, its calls of the ports
-	// among it; a client's Connect-Timeout-Ms may shorten it (R33). It is under
+	// among it; a client's Connect-Timeout-Ms may shorten it. It is under
 	// WriteTimeout, so that the answer of a request cut short still goes out.
 	RequestTimeout time.Duration
 	// PaperRequestTimeout is RequestTimeout of FindTasks, ReadStatement and
-	// SubmitWork, whose calls of a task from paper ask up to three models in
-	// turn; it is under WriteTimeout too (R98).
+	// SubmitWork, whose calls of a task from paper ask up to three models in turn;
+	// it is under WriteTimeout too.
 	PaperRequestTimeout time.Duration
 
 	// Service is the name K_SERVICE carries. Cloud Run sets it on every

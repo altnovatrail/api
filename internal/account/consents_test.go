@@ -240,8 +240,7 @@ func TestAChildsTupleNotWrittenLeavesNoProfile(t *testing.T) {
 	}
 }
 
-// consentsLimit is the consents for a child that may wait under an account
-// (R36, R40).
+// consentsLimit is the consents for a child that may wait under an account.
 const consentsLimit = account.WaitingConsentsMax
 
 // Consents wait up to the limit: one more is CAUSE_TOO_MANY_CONSENTS, and a

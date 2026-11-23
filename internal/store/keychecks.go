@@ -14,7 +14,7 @@ import (
 // hold checks older than the window, which no longer count. The lock conflicts
 // with itself and not with FOR KEY SHARE: the checks of one account — from two
 // devices, or two tabs — are counted one after the other, and none is lost,
-// while the other writes under the account do not wait for them (R78).
+// while the other writes under the account do not wait for them.
 func HoldKeyChecks(ctx context.Context, tx pgx.Tx, accountID string) ([]time.Time, error) {
 	var checked []time.Time
 	err := tx.QueryRow(ctx, `SELECT key_checked_at FROM accounts WHERE id = $1 FOR NO KEY UPDATE`, accountID).Scan(&checked)

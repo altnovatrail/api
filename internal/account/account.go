@@ -1,8 +1,7 @@
 // Package account is api's AccountService of the contract novatrail.api.v1: the
-// account and its invite code, its PIN, profiles, consents and deletion (R04,
-// R34, R35, R36). Its methods run after the checks of package rpc, which give
-// them the caller (rpc.CallerFrom); a method it has no handler for answers
-// unimplemented.
+// account and its invite code, its PIN, profiles, consents and deletion. Its
+// methods run after the checks of package rpc, which give them the caller
+// (rpc.CallerFrom); a method it has no handler for answers unimplemented.
 package account
 
 import (
@@ -36,7 +35,7 @@ type Service struct {
 	forms   forms.Store
 	export  *export.Exporter
 	ownKeys OwnKeys
-	// unlimitedChecks lifts the limit of the checks of a key (R78).
+	// unlimitedChecks lifts the limit of the checks of a key.
 	unlimitedChecks bool
 	// offDeployment says api runs off a deployment, where alone a tariff of the
 	// dev projects has its caps, and so its share (quota.CapsOf).
@@ -101,11 +100,11 @@ func (s *Service) GetAccount(ctx context.Context, _ *v1.GetAccountRequest) (*v1.
 
 // CreateAccount creates the caller's account by an invite code, the owner's
 // statement that they are 18 or older and the current versions of
-// privacy-policy and terms-of-use, which it records (R130, R136 spec): a text
-// in force left out, or a version not current, is CAUSE_TEXT_NOT_CURRENT. A
-// caller with an account already gets CAUSE_ALREADY_EXISTS before the statement
-// and the code are looked at, so that a repeat after a lost answer gets that
-// rather than a code redeemed.
+// privacy-policy and terms-of-use, which it records: a text in force left out,
+// or a version not current, is CAUSE_TEXT_NOT_CURRENT. A caller with an account
+// already gets CAUSE_ALREADY_EXISTS before the statement and the code are
+// looked at, so that a repeat after a lost answer gets that rather than a code
+// redeemed.
 func (s *Service) CreateAccount(ctx context.Context, req *v1.CreateAccountRequest) (*v1.CreateAccountResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	if caller.AccountID != "" {

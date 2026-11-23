@@ -1,4 +1,4 @@
--- The countries a deployment takes learners from before the DPIA (П-2, П-6; R36). None
+-- The countries a deployment takes learners from before the DPIA (П-2, П-6). None
 -- at first: closed by default. The operator's command api countries keeps the list,
 -- and refuses to open a country of the EU, the EEA or the United Kingdom.
 

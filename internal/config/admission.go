@@ -6,48 +6,46 @@ import (
 	"path/filepath"
 )
 
-// The variables of admission to AI (R25, R45): what the deployment declares,
-// beside its rollout list in infra, and the first app in a file of the
-// author's own (R106 spec).
+// The variables of admission to AI: what the deployment declares, beside its
+// rollout list in infra, and the first app in a file of the author's own.
 const (
 	// VarAdmissionFactsFile is the absolute path of the file of the deployment's
 	// facts of admission, as the path of a secret's file is given; on Cloud Run,
 	// a volume of an exact version of a secret. Its type and how it is read are
 	// tutor's.
 	VarAdmissionFactsFile = "API_ADMISSION_FACTS_FILE"
-	// VarAdmissionRung is the least stage of tutor's rule of admission of
-	// models, which api hands to Table.Select: the operator names it, "author"
-	// on novatrail and in the first app, where the author alone learns (R149
-	// spec), and "full" unset.
+	// VarAdmissionRung is the least stage of tutor's rule of admission of models,
+	// which api hands to Table.Select: the operator names it, "author" on
+	// novatrail and in the first app, where the author alone learns, and "full"
+	// unset.
 	VarAdmissionRung = "API_ADMISSION_RUNG"
 	// VarAnthropicKey is the platform's key of Anthropic, by which platform AI
-	// calls its models: a secret, read from the variable or from the file its
-	// twin with the suffix _FILE names — on Cloud Run, a volume of a secret of
-	// Secret Manager (R11, R46). Unset, platform AI has no route to Anthropic.
+	// calls its models: a secret, read from the variable or from the file its twin
+	// with the suffix _FILE names — on Cloud Run, a volume of a secret of Secret
+	// Manager. Unset, platform AI has no route to Anthropic.
 	VarAnthropicKey = "API_ANTHROPIC_KEY"
 	// VarOpenAIKey names a platform key of OpenAI, which api refuses: it gives
 	// tutor no adapter of OpenAI, whose models the admission table admits for
 	// nothing, so the variable, or its twin _FILE, set is a refusal, and a
 	// deployment that passes it learns so at its start rather than holding a key
-	// nothing calls (R54).
+	// nothing calls.
 	VarOpenAIKey = "API_OPENAI_KEY"
-	// VarTutorStub, set to 1, puts tutor's calls on a stub in api's process,
-	// off a deployment alone: the stub reads a sheet by the shape of its crop and
-	// words the tutor's words from a list of its own, and calls no provider
-	// (R66; R146 spec). Admission, the prices and the quota stay tutor's own.
+	// VarTutorStub, set to 1, puts tutor's calls on a stub in api's process, off a
+	// deployment alone: the stub reads a sheet by the shape of its crop and words
+	// the tutor's words from a list of its own, and calls no provider. Admission,
+	// the prices and the quota stay tutor's own.
 	VarTutorStub = "API_TUTOR_STUB"
 	// VarReadingMode is how tutor reads the handwriting of a sheet and of a
-	// workbook page: "pair", both readers of R68 spec, whose observations
-	// module-kit joins, or "single", Haiku 5.5 at medium alone, whose
-	// observation is the reading (R88). Unset or empty, it is "pair"; it holds
-	// at either stage.
+	// workbook page: "pair", both readers, whose observations
+	// module-kit joins, or "single", Haiku 5.5 at medium alone, whose observation
+	// is the reading. Unset or empty, it is "pair"; it holds at either stage.
 	VarReadingMode = "API_READING_MODE"
-	// VarDebugModels, set to 1, gives every account of a local run with models
-	// the right of the debug mode, which otherwise an account has by its row:
-	// the developer chooses the models of the calls of a task from paper, past
-	// the admission list, and sees what each returned and cost (R97; R163
-	// spec). It is refused deployed, beside the stub, which calls no model, and
-	// without the key of Anthropic, whose models alone the mode offers.
+	// VarDebugModels, set to 1, gives every account of a local run with models the
+	// right of the debug mode, which otherwise an account has by its row: the
+	// developer chooses the models of the calls of a task from paper, past the
+	// admission list, and sees what each returned and cost. It is refused
+	// deployed, beside the stub, which calls no model, and without the key of
+	// Anthropic, whose models alone the mode offers.
 	VarDebugModels = "API_DEBUG_MODELS"
 )
 
@@ -87,30 +85,28 @@ type Admission struct {
 	RungSet bool
 	// Keys are the platform's keys of the providers, each empty when unset.
 	Keys PlatformKeys
-	// Stub says whether tutor's calls go to the stub of the dev mode (R66).
+	// Stub says whether tutor's calls go to the stub of the dev mode.
 	Stub bool
-	// Reading is the mode of reading handwriting, ReadingPair or ReadingSingle
-	// (R88).
+	// Reading is the mode of reading handwriting, ReadingPair or ReadingSingle.
 	Reading string
-	// Debug says whether API_DEBUG_MODELS gives every account of the run the
-	// right of the debug mode (R97).
+	// Debug says whether API_DEBUG_MODELS gives every account of the run the right
+	// of the debug mode.
 	Debug bool
 }
 
 // AdmissionFrom reads what the deployment declares for admission from a set of
 // KEY=VALUE strings, and validates it. The stage is the operator's, on a
-// deployment too: "author" on novatrail, where the author alone learns (R149
-// spec, R25, R45), and unset it is "full".
-// The file of facts holds no secret, but it lies outside any git working tree
-// as a secret's file does: the first app's is the author's own, outside the
-// repository.
+// deployment too: "author" on novatrail, where the author alone learns, and
+// unset it is "full". The file of facts holds no secret, but it lies outside
+// any git working tree as a secret's file does: the first app's is the author's
+// own, outside the repository.
 //
-// The stub of tutor is the dev mode's alone, as R32 refuses the emulator of the
-// sign-in service: deployed — K_SERVICE set, as serve runs on Cloud Run, or
+// The stub of tutor is the dev mode's alone, as the emulator of the sign-in
+// service is: deployed — K_SERVICE set, as serve runs on Cloud Run, or
 // CLOUD_RUN_JOB, as api check runs before the migrations — it is refused, and
 // so it is beside a platform key, which nothing would call — with the stub no
-// key of a provider is in the process (R66). The debug flag is refused the same
-// way, deployed and beside the stub (R97).
+// key of a provider is in the process. The debug flag is refused the same way,
+// deployed and beside the stub.
 func AdmissionFrom(environ []string) (Admission, error) {
 	env := read(environ)
 	deployedBy := env.deployedBy()
@@ -190,10 +186,10 @@ func AdmissionFrom(environ []string) (Admission, error) {
 	return cfg, nil
 }
 
-// PlatformKeys are the platform's keys of the providers whose models platform AI
-// calls (R11, R46): Anthropic's alone, the one provider api gives tutor an
-// adapter of (R54). It is optional, since a provider with no key is no route of
-// platform AI — tutor's Choose takes none of its models.
+// PlatformKeys are the platform's keys of the providers whose models platform
+// AI calls: Anthropic's alone, the one provider api gives tutor an adapter of.
+// It is optional, since a provider with no key is no route of platform AI —
+// tutor's Choose takes none of its models.
 type PlatformKeys struct {
 	Anthropic Secret
 }

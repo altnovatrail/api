@@ -100,7 +100,7 @@ func newRich(t *testing.T) rich {
 }
 
 // The export reads a profile and its account in full, as the files of api.zip
-// hold them, with the bytes of the records of protobuf beside them (R135 spec).
+// hold them, with the bytes of the records of protobuf beside them.
 func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 	t.Parallel()
 
@@ -227,9 +227,9 @@ func TestAFailedStatementOfTheExportIsAFailure(t *testing.T) {
 	}
 }
 
-// The consents of the contract of consent in the store (R52): a code of a
-// request unique among those that wait, a form sent, the learner's own consent,
-// the age given again, the storage of works and a problem report.
+// The consents of the contract of consent in the store: a code of a request
+// unique among those that wait, a form sent, the learner's own consent, the age
+// given again, the storage of works and a problem report.
 func TestTheAgreementsInTheStore(t *testing.T) {
 	t.Parallel()
 
@@ -486,8 +486,7 @@ func TestAFailedStatementOfTheAgreementsIsAFailure(t *testing.T) {
 
 // An attempt of a task segment of a lesson run names its run and its segment,
 // and a submission of an essay is exported by how it ended, the marks of its
-// criteria and the source of its words, never as a submission with a verdict
-// (R15; R135 spec).
+// criteria and the source of its words, never as a submission with a verdict.
 func TestTheExportReadsASegmentAndAnEssay(t *testing.T) {
 	t.Parallel()
 

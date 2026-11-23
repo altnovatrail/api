@@ -9,18 +9,18 @@ import (
 )
 
 // minimalRecords keeps, of every confirmed consent for a child that the rows
-// matched by cond go with, the minimal record: its ID, when it was given, how it
-// was checked and when it was deleted — no ID of the account or the profile, no
-// pseudonym, category or country (R117 spec; R21). It is kept 5 years and then
-// erased by the daily job. A record kept already stays as it is, so that a
-// repeat of the deletion keeps no second one.
+// matched by cond go with, the minimal record: its ID, when it was given, how
+// it was checked and when it was deleted — no ID of the account or the profile,
+// no pseudonym, category or country. It is kept 5 years and then erased by the
+// daily job. A record kept already stays as it is, so that a repeat of the
+// deletion keeps no second one.
 const minimalRecords = `INSERT INTO child_consent_records (id, consented_at, method)
 	SELECT id, confirmed_at, coalesce(method, '') FROM consents
 	WHERE subject = 'child' AND state = 'confirmed' AND %s
 	ON CONFLICT (id) DO NOTHING`
 
-// DeleteProfileRows deletes, in the transaction that holds the profile, all that
-// the database keeps of it (R21): its consent — for a child into its minimal
+// DeleteProfileRows deletes, in the transaction that holds the profile, all
+// that the database keeps of it: its consent — for a child into its minimal
 // record, an adult's whole — its records of idempotency keys, and the profile.
 // Every other row of a profile goes with it by its keys.
 func DeleteProfileRows(ctx context.Context, tx pgx.Tx, profileID string) error {
@@ -35,11 +35,11 @@ func DeleteProfileRows(ctx context.Context, tx pgx.Tx, profileID string) error {
 }
 
 // ClearAccount deletes, in the transaction that marked the account "deleting",
-// all the database keeps of it but its ID, its UID and the time of the mark
-// (R21): every profile as DeleteProfileRows deletes one, the consents that wait
-// and the adults', the records of its keys, its counters of the quota, the texts
-// it was made on, its fields, the binding of its invite code — the code stays
-// redeemed — and of its problem reports, which stay to their term (R123 spec).
+// all the database keeps of it but its ID, its UID and the time of the mark:
+// every profile as DeleteProfileRows deletes one, the consents that wait and
+// the adults', the records of its keys, its counters of the quota, the texts it
+// was made on, its fields, the binding of its invite code — the code stays
+// redeemed — and of its problem reports, which stay to their term.
 func ClearAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
 	for _, step := range []struct {
 		what, sql string
@@ -50,10 +50,11 @@ func ClearAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
 		{"delete the profiles", `DELETE FROM profiles WHERE account_id = $1`},
 		{"delete the consents", `DELETE FROM consents WHERE account_id = $1`},
 		{"delete the keys' records", `DELETE FROM idempotency_keys WHERE account_id = $1`},
-		// The account's counters of the quota go with it; a profile's go with the profile (R12).
+		// The account's counters of the quota go with it; a profile's go with the
+		// profile.
 		{"delete the counters of the quota", `DELETE FROM account_quota WHERE account_id = $1`},
 		// The texts the account was made on go; the problem reports stay to their
-		// term with no ID of the account (R123 spec).
+		// term with no ID of the account.
 		{"delete the texts accepted", `DELETE FROM account_texts WHERE account_id = $1`},
 		{"unbind the reports", `UPDATE problem_reports SET account_id = NULL WHERE account_id = $1`},
 		{"clear the account", `UPDATE accounts SET adult_stated_at = NULL, pin_hash = NULL, pin_failures = NULL,
@@ -69,7 +70,7 @@ func ClearAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
 	return nil
 }
 
-// DeleteAccountRow is the last step of the deletion of an account (R21): in one
+// DeleteAccountRow is the last step of the deletion of an account: in one
 // transaction, it clears again what a row written late may have left, and
 // deletes the account's row. An account that is not there is deleted already.
 func DeleteAccountRow(ctx context.Context, db Beginner, accountID string) error {

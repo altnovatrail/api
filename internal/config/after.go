@@ -2,12 +2,12 @@ package config
 
 import "errors"
 
-// After is what the job after a rollout opens (R07, R51): the database api, by
-// the pooler's connection string, and the folder of the packages, as serve reads
-// it — of which the job learns what the image no longer gives, and builds the
-// evidence of the attempts it closes. The rights and the sign-in service it does
-// not open. The level of its log is the process's Config, read as serve reads
-// it.
+// After is what the job after a rollout opens: the database api, by the
+// pooler's connection string, and the folder of the packages, as serve reads it
+// — of which the job learns what the image no longer gives, and builds the
+// evidence of the attempts it closes. The rights and the sign-in service it
+// does not open. The level of its log is the process's Config, read as serve
+// reads it.
 type After struct {
 	// DatabaseURL is the pooler's connection string of the database api.
 	DatabaseURL Secret

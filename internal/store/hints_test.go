@@ -252,7 +252,7 @@ func TestTheLaddersStatementsFail(t *testing.T) {
 
 // The words of a task from paper read the profile's language of its interface,
 // none until it has one, and whether its hint mode is "Show where", a new
-// profile's; a profile that is not there is ErrNoProfile (R82 spec).
+// profile's; a profile that is not there is ErrNoProfile.
 func TestTheWordsOfPaperReadTheProfilesSettings(t *testing.T) {
 	t.Parallel()
 

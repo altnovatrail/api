@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Who gives a consent (R116 spec): the owner of the account, of their own
-// profile; a parent, by a signed form; or the learner, from the age of digital
-// consent of their country.
+// Who gives a consent: the owner of the account, of their own profile; a
+// parent, by a signed form; or the learner, from the age of digital consent of
+// their country.
 const (
 	GiverOwner   = "owner"
 	GiverParent  = "parent"
@@ -26,8 +26,8 @@ const (
 	FormNotAccepted = "not_accepted"
 )
 
-// How a consent for a child was checked, as its minimal record keeps it (R117
-// spec): a parent's by the signed form, the learner's by their own consent.
+// How a consent for a child was checked, as its minimal record keeps it: a
+// parent's by the signed form, the learner's by their own consent.
 const (
 	ConsentBySignedForm = "signed_form"
 	ConsentByLearner    = "own_consent"
@@ -50,9 +50,9 @@ type NewConsent struct {
 }
 
 // AskChildConsent records a consent for a child that waits, under the account:
-// with no pseudonym, no other field of the profile, and not the age in years
-// (R36). A code of a request another waiting consent has is ErrCodeTaken, and
-// tx can go on: the insert runs in a savepoint of its own.
+// with no pseudonym, no other field of the profile, and not the age in years. A
+// code of a request another waiting consent has is ErrCodeTaken, and tx can go
+// on: the insert runs in a savepoint of its own.
 func AskChildConsent(ctx context.Context, tx pgx.Tx, accountID string, c NewConsent) (ChildConsent, error) {
 	out := ChildConsent{AgeCategory: c.AgeCategory, Country: c.Country, State: ConsentWaiting, Giver: c.Giver,
 		RequestCode: c.RequestCode}
@@ -114,8 +114,8 @@ func ConsentOfProfile(ctx context.Context, tx pgx.Tx, accountID, profileID strin
 
 // CancelChildConsent takes back the account's consent for a child with no
 // profile, and says whether there was one: one that waits is erased, with its
-// form; one confirmed leaves its minimal record and its form for their term
-// (R117 spec). Neither counts toward the limit after.
+// form; one confirmed leaves its minimal record and its form for their term.
+// Neither counts toward the limit after.
 func CancelChildConsent(ctx context.Context, tx pgx.Tx, accountID, consentID string) (bool, error) {
 	if _, err := tx.Exec(ctx, fmt.Sprintf(minimalRecords, `id = $1 AND account_id = $2 AND profile_id IS NULL`),
 		consentID, accountID); err != nil {
@@ -143,7 +143,7 @@ func PendForm(ctx context.Context, db Querier, object, mediaType string, at time
 
 // SendForm makes the scan at object, pended, the form of the consent c, a
 // parent's that waits, held, and the form sent; the scan it sent before is no
-// longer its form, and goes today (R116 spec).
+// longer its form, and goes today.
 func SendForm(ctx context.Context, tx pgx.Tx, c Consent, object string) error {
 	if _, err := tx.Exec(ctx, `UPDATE consent_forms SET consent_id = NULL, keep_until = (now() AT TIME ZONE 'UTC')::date
 		WHERE consent_id = $1`, c.ID); err != nil {
@@ -206,10 +206,10 @@ func RestateAge(ctx context.Context, tx pgx.Tx, c Consent, r Restated) error {
 		}
 		return nil
 	}
-	// The consent before goes as a deletion takes it: its minimal record, when
-	// it was confirmed, and the term of its scan — 5 years, or none for one that
+	// The consent before goes as a deletion takes it: its minimal record, when it
+	// was confirmed, and the term of its scan — 5 years, or none for one that
 	// waited — by the trigger. The new one is a consent of its own, with an ID of
-	// its own, that its minimal record and its scan are kept by (R117 spec).
+	// its own, that its minimal record and its scan are kept by.
 	if _, err := tx.Exec(ctx, fmt.Sprintf(minimalRecords, `id = $1`), c.ID); err != nil {
 		return fmt.Errorf("store: keep the consent's record: %w", err)
 	}
@@ -253,7 +253,7 @@ func WorkStorageOn(ctx context.Context, tx pgx.Tx, profileID string) (giver stri
 
 // SwitchWorkStorageOn switches the storage of the profile's works on at at, by
 // the consent of giver to the version of storage-consent: a record of its own,
-// in the place of an open one of another giver (R113 spec; R141 spec).
+// in the place of an open one of another giver.
 func SwitchWorkStorageOn(ctx context.Context, tx pgx.Tx, profileID, giver string, textVersion *int32, at time.Time) error {
 	if _, err := tx.Exec(ctx, `UPDATE work_storage_consents SET off_at = $2 WHERE profile_id = $1 AND off_at IS NULL`,
 		profileID, at); err != nil {
@@ -271,11 +271,11 @@ func SwitchWorkStorageOn(ctx context.Context, tx pgx.Tx, profileID, giver string
 
 // SwitchWorkStorageOff switches the storage of the profile's works off at at,
 // records when, and erases every work the server keeps of the profile, in tx:
-// one step (R113 spec; R70). The works go after the profile's row is updated,
-// which waits for a PutWork holding it FOR SHARE, unless tx waited for it
-// before, at HoldProfile (R74): the DELETE then sees the work that PutWork
-// kept. In the other order the DELETE would lock the rows that PutWork waits
-// to update while the UPDATE waits for PutWork.
+// one step. The works go after the profile's row is updated, which waits for a
+// PutWork holding it FOR SHARE, unless tx waited for it before, at HoldProfile:
+// the DELETE then sees the work that PutWork kept. In the other order the
+// DELETE would lock the rows that PutWork waits to update while the UPDATE
+// waits for PutWork.
 func SwitchWorkStorageOff(ctx context.Context, tx pgx.Tx, profileID string, at time.Time) error {
 	if _, err := tx.Exec(ctx, `UPDATE work_storage_consents SET off_at = $2 WHERE profile_id = $1 AND off_at IS NULL`,
 		profileID, at); err != nil {
@@ -307,7 +307,7 @@ func AcceptTexts(ctx context.Context, tx pgx.Tx, accountID string, texts []TextR
 	return nil
 }
 
-// Report is a problem report of an adult on a reply of the tutor (R123 spec).
+// Report is a problem report of an adult on a reply of the tutor.
 type Report struct {
 	ID        string
 	AttemptID string

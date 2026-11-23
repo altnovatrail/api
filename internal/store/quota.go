@@ -11,9 +11,8 @@ import (
 	"github.com/altnovatrail/api/internal/quota"
 )
 
-// The quota of platform AI as the database keeps it (R11, R12, R56): the
-// account's family day — its offset, the beginning and the end of its current
-// day.
+// The quota of platform AI as the database keeps it: the account's family day —
+// its offset, the beginning and the end of its current day.
 
 // clockOf is the family day the account keeps, as read in q.
 func clockOf(ctx context.Context, q Querier, accountID string) (quota.Clock, error) {
@@ -34,11 +33,11 @@ func clockOf(ctx context.Context, q Querier, accountID string) (quota.Clock, err
 }
 
 // FamilyDay is the account's family day at now, once a request on platform AI
-// sent the offset reported, if any (R11): the offset, when valid, kept for the
-// days to come, and the day that holds now, kept once the day before is over.
-// It writes in tx, which holds the account's row already, as a request under a
-// key does (HoldAccount), and only what changed. The offset is no field of any
-// line of the log.
+// sent the offset reported, if any: the offset, when valid, kept for the days
+// to come, and the day that holds now, kept once the day before is over. It
+// writes in tx, which holds the account's row already, as a request under a key
+// does (HoldAccount), and only what changed. The offset is no field of any line
+// of the log.
 func FamilyDay(ctx context.Context, tx pgx.Tx, accountID string, reported *int32, now time.Time) (quota.Day, error) {
 	kept, err := clockOf(ctx, tx, accountID)
 	if err != nil {
@@ -55,8 +54,7 @@ func FamilyDay(ctx context.Context, tx pgx.Tx, accountID string, reported *int32
 }
 
 // Today is the account's family day at now as it keeps it, writing nothing: for
-// a request that sends no offset, such as the beginning of an attempt (R97
-// spec; R11).
+// a request that sends no offset, such as the beginning of an attempt.
 func Today(ctx context.Context, q Querier, accountID string, now time.Time) (quota.Day, error) {
 	c, err := clockOf(ctx, q, accountID)
 	if err != nil {
@@ -77,8 +75,8 @@ type Charge struct {
 }
 
 // capsOf is the caps of the account's tariff, read in q, and false when the
-// account has no tariff with caps: platform AI is closed to it (R11). A tariff
-// of the dev projects alone has caps only offDeployment.
+// account has no tariff with caps: platform AI is closed to it. A tariff of the
+// dev projects alone has caps only offDeployment.
 func capsOf(ctx context.Context, q Querier, accountID string, offDeployment bool) (quota.Caps, bool, error) {
 	var tariff *string
 	err := q.QueryRow(ctx, `SELECT tariff FROM accounts WHERE id = $1`, accountID).Scan(&tariff)
@@ -139,11 +137,11 @@ func room(ctx context.Context, q Querier, c Charge, lock bool) (quota.Spent, err
 // Settled is what a profile and its account have spent of the quota of a family
 // day, as their calls were settled, without the reserves of calls still going,
 // beside the caps of the account's tariff: what the share of the quota counts
-// by (R11).
+// by.
 type Settled struct {
 	Day quota.Day
 	// Caps are the caps of the account's tariff, and Capped is false when it has
-	// none: platform AI is closed to it, and there is no share (R11).
+	// none: platform AI is closed to it, and there is no share.
 	Caps             quota.Caps
 	Capped           bool
 	Profile, Account quota.Micro
@@ -151,10 +149,10 @@ type Settled struct {
 
 // QuotaSettled is what the account's profile and the account have spent of the
 // quota on the family day the account keeps at now, read in q and writing
-// nothing, as Today: the request carries no offset (R97 spec). A profile the
-// account does not have is ErrNoProfile. q is best a snapshot, so that the day,
-// the tariff and the counters are of one moment. A tariff of the dev projects
-// alone has caps only offDeployment, as for a reserve.
+// nothing, as Today: the request carries no offset. A profile the account does
+// not have is ErrNoProfile. q is best a snapshot, so that the day, the tariff
+// and the counters are of one moment. A tariff of the dev projects alone has
+// caps only offDeployment, as for a reserve.
 func QuotaSettled(ctx context.Context, q Querier, accountID, profileID string, now time.Time, offDeployment bool) (Settled, error) {
 	day, err := Today(ctx, q, accountID, now)
 	if err != nil {
@@ -180,19 +178,19 @@ func QuotaSettled(ctx context.Context, q Querier, accountID, profileID string, n
 	return Settled{Day: day, Caps: caps, Capped: true, Profile: profile.Spent, Account: account.Spent}, nil
 }
 
-// QuotaFits says whether the charge c would fit, reserving nothing: what is left
-// of the day holds a typical task, at the beginning of an attempt (R11).
+// QuotaFits says whether the charge c would fit, reserving nothing: what is
+// left of the day holds a typical task, at the beginning of an attempt.
 func QuotaFits(ctx context.Context, q Querier, c Charge) (quota.Spent, error) {
 	return room(ctx, q, c, false)
 }
 
 // ReserveQuota reserves the charge c on the counters of the profile and of the
 // account of its day, in tx, when it fits beside what each has spent and holds
-// in reserve, and says why it does not when it does not, writing nothing (R12).
-// The counters of a day are made by its first reserve. tx holds the account's
-// row already, as a request under a key does, so that two reserves of one
-// account — two devices, a profile and its owner — go one after the other, and
-// the counters are held besides against a settlement going on.
+// in reserve, and says why it does not when it does not, writing nothing. The
+// counters of a day are made by its first reserve. tx holds the account's row
+// already, as a request under a key does, so that two reserves of one account —
+// two devices, a profile and its owner — go one after the other, and the
+// counters are held besides against a settlement going on.
 func ReserveQuota(ctx context.Context, tx pgx.Tx, c Charge) (quota.Spent, error) {
 	spent, err := room(ctx, tx, c, true)
 	if err != nil || spent != quota.Fits {
@@ -215,8 +213,8 @@ func ReserveQuota(ctx context.Context, tx pgx.Tx, c Charge) (quota.Spent, error)
 // SettleQuota settles the reserve of the charge c, on the day of its reserve,
 // by what the call cost: the reserve leaves the counters of the profile and of
 // the account, and spent is added to what each has spent, in one transaction of
-// its own on db (R12). A counter gone meanwhile — the profile deleted, the
-// account — is no failure: there is nothing left to settle.
+// its own on db. A counter gone meanwhile — the profile deleted, the account —
+// is no failure: there is nothing left to settle.
 func SettleQuota(ctx context.Context, db Beginner, c Charge, spent quota.Micro) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		for _, settle := range []struct{ table, column, id string }{
@@ -234,8 +232,8 @@ func SettleQuota(ctx context.Context, db Beginner, c Charge, spent quota.Micro) 
 }
 
 // PlatformAIClosed says whether the flag "platform AI closed" of the deployment
-// is set (R11): read on every request that would call platform AI, so that one
-// set by any instance, or cleared by the operator, holds at once on all.
+// is set: read on every request that would call platform AI, so that one set by
+// any instance, or cleared by the operator, holds at once on all.
 func PlatformAIClosed(ctx context.Context, q Querier) (bool, error) {
 	var closed *time.Time
 	if err := q.QueryRow(ctx, `SELECT closed_at FROM platform_ai`).Scan(&closed); err != nil {
@@ -255,7 +253,7 @@ func ClosePlatformAI(ctx context.Context, q Querier, now time.Time) (bool, error
 }
 
 // OpenPlatformAI clears the flag "platform AI closed", and says whether it was
-// set: the operator's command, once the provider's limit is lifted (R11).
+// set: the operator's command, once the provider's limit is lifted.
 func OpenPlatformAI(ctx context.Context, q Querier) (bool, error) {
 	tag, err := q.Exec(ctx, `UPDATE platform_ai SET closed_at = NULL WHERE closed_at IS NOT NULL`)
 	if err != nil {
@@ -266,8 +264,8 @@ func OpenPlatformAI(ctx context.Context, q Querier) (bool, error) {
 
 // DropQuotaCounters deletes the counters of the quota whose day ended before
 // before, of the profiles and of the accounts, a batch at a time, and says how
-// many it deleted (R12): a counter is needed for its day and for a day after
-// it, to settle the requests that went over midnight.
+// many it deleted: a counter is needed for its day and for a day after it, to
+// settle the requests that went over midnight.
 func DropQuotaCounters(ctx context.Context, db Querier, before time.Time) (int64, error) {
 	var dropped int64
 	for _, table := range []string{"profile_quota", "account_quota"} {

@@ -78,7 +78,7 @@ func (e environment) secret(name string) (Secret, error) {
 }
 
 // inWorkingTree says whether path lies in a git working tree: whether a folder
-// it stands in, up to the root, holds .git — a folder in a clone, a file in a
+// it stands in, up to the root, holds.git — a folder in a clone, a file in a
 // worktree or a submodule.
 func inWorkingTree(path string) bool {
 	for dir := filepath.Dir(filepath.Clean(path)); ; dir = filepath.Dir(dir) {

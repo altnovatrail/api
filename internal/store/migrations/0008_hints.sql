@@ -1,16 +1,16 @@
--- What the hint ladder keeps (R47; R09, R10): when a hint asked for first gave the task's
--- techniques and its leading question, and the words of each rung the attempt reached — the
--- tutor's question or the rung's fallback text, and the words of "explain differently" —
--- which live until the attempt closes. Once it has, each rung keeps its number and where its
--- words came from, and the words are gone (R05).
+-- What the hint ladder keeps: when a hint asked for first gave the task's techniques and its
+-- leading question, and the words of each rung the attempt reached — the tutor's question or
+-- the rung's fallback text, and the words of "explain differently" — which live until the
+-- attempt closes. Once it has, each rung keeps its number and where its words came from, and
+-- the words are gone.
 --
--- contract: everything here only adds (R29).
+-- contract: everything here only adds.
 
 -- +goose Up
 
 -- When a hint asked for first gave the task's techniques, and when it first gave its leading
--- question, which it records only when the task has one (R108 spec): two facts, kept apart, as
--- the evidence carries them apart (R82 spec).
+-- question, which it records only when the task has one: two facts, kept apart, as the evidence
+-- carries them apart.
 ALTER TABLE attempts
     ADD COLUMN requested_techniques_at timestamptz,
     ADD COLUMN leading_question_at timestamptz;
@@ -38,7 +38,7 @@ CREATE INDEX attempt_rungs_profile ON attempt_rungs (profile_id, attempt_id);
 
 -- The close of an attempt deletes the words of its rungs, in its own transaction, whichever way
 -- it closes — a correct answer, the solution shown, a new attempt, the term or a package gone,
--- and the daily job's close (R05, R10).
+-- and the daily job's close.
 -- +goose StatementBegin
 CREATE FUNCTION attempt_words_go() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

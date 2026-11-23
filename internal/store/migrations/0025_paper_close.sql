@@ -1,11 +1,11 @@
--- What the close of an attempt of a task from paper leaves (R162 spec; R101): nothing of
--- what it kept while open but its row — its ID, its times and how it closed, which a problem report
--- on its tutor's words names (R123 spec). In the close's own transaction, whichever way it closes,
--- its submissions go, with what was read, their verdicts and the idempotency keys that recorded
--- them, its rungs, the opening question among them, and its count of wrong answers; its key goes by
--- migration 0023. The Check that solves it writes no submission, and its key's record keeps the
--- answer with `solved` alone, no verdict of a task (R101). An attempt of paper closed before this
--- migration loses them here. An attempt of a module keeps them, as the evidence and its repeat need.
+-- What the close of an attempt of a task from paper leaves: nothing of what it kept while open but
+-- its row — its ID, its times and how it closed, which a problem report on its tutor's words names.
+-- In the close's own transaction, whichever way it closes, its submissions go, with what was read,
+-- their verdicts and the idempotency keys that recorded them, its rungs, the opening question among
+-- them, and its count of wrong answers; its key goes by migration 0023. The Check that solves it
+-- writes no submission, and its key's record keeps the answer with `solved` alone, no verdict of a
+-- task. An attempt of paper closed before this migration loses them here. An attempt of a module
+-- keeps them, as the evidence and its repeat need.
 -- contract: the release before this one keeps them after the close, and reads none of them of a
 -- closed attempt of paper.
 

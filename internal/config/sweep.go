@@ -12,11 +12,11 @@ const VarJob = "CLOUD_RUN_JOB"
 
 func init() { declared[VarJob] = struct{}{} }
 
-// Sweep is what the daily job sweep opens (R21, R38): what serve opens but the
-// origin of app. The level of its log and the longest a request may run — a mark
-// or a tuple younger than that may be a request's still going — are the
-// process's Config, read as serve reads them, so that a deployment that gives
-// both the same variables gives them the same values.
+// Sweep is what the daily job sweep opens: what serve opens but the origin of
+// app. The level of its log and the longest a request may run — a mark or a
+// tuple younger than that may be a request's still going — are the process's
+// Config, read as serve reads them, so that a deployment that gives both the
+// same variables gives them the same values.
 type Sweep struct {
 	// DatabaseURL is the pooler's connection string of the database api.
 	DatabaseURL Secret
@@ -25,16 +25,16 @@ type Sweep struct {
 	OpenFGADatabaseURL Secret
 	// FirebaseProjectID is the Firebase project whose users the job lists.
 	FirebaseProjectID string
-	// FirebaseCredentials is a service account's key off a deployment;
-	// deployed, none (R32).
+	// FirebaseCredentials is a service account's key off a deployment; deployed,
+	// none.
 	FirebaseCredentials Secret
 	// Job is the name of the Cloud Run job, or empty off a deployment.
 	Job string
 	// PackagesDir is the absolute path of the folder of the packages, as serve
-	// reads it: the evidence the job writes is built of them (R49).
+	// reads it: the evidence the job writes is built of them.
 	PackagesDir string
 	// Agreements is where the scans of the forms of consent lie, which the job
-	// erases past their term (R52).
+	// erases past their term.
 	Agreements Agreements
 }
 

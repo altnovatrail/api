@@ -10,14 +10,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The export of the data of a profile or an account, as the database keeps it
-// (R52; R135 spec): the files of api.zip by spec's part export/, of whatever
-// this database holds of them, read in the snapshot of one transaction. What
-// the record of protobuf holds — the evidence, the state, the observation — is
-// given as its bytes, which the package export writes as JSON; what the package
-// of a module tells of an attempt, it adds.
+// The export of the data of a profile or an account, as the database keeps it:
+// the files of api.zip by spec's part export/, of whatever this database holds
+// of them, read in the snapshot of one transaction. What the record of protobuf
+// holds — the evidence, the state, the observation — is given as its bytes,
+// which the package export writes as JSON; what the package of a module tells
+// of an attempt, it adds.
 
-// ExportFormat is the integer of export/VERSION of spec's tag (R135 spec).
+// ExportFormat is the integer of export/VERSION of spec's tag.
 const ExportFormat = 4
 
 // timeOf is t in the form of the export: RFC 3339 in UTC.
@@ -143,10 +143,9 @@ type ExportedAttempt struct {
 }
 
 // ExportedPaperAttempt is an open attempt of a task from paper as the export
-// reads it (R162 spec), with the bytes of the answers of its submissions and its
-// key, the message Key of novatrail.paper.v1, nil before a submission derived
-// it: the export names where each task's key came from, never the key (R05
-// spec).
+// reads it, with the bytes of the answers of its submissions and its key, the
+// message Key of novatrail.paper.v1, nil before a submission derived it: the
+// export names where each task's key came from, never the key.
 type ExportedPaperAttempt struct {
 	Attempt exportv4.PaperAttempt
 	Key     []byte
@@ -157,7 +156,7 @@ type ExportedPaperAttempt struct {
 // with the bytes of its records of protobuf: each piece of evidence, by the
 // order of the log, the state, and each submission's observation, by the
 // attempt and the number of the submission. The stored works it names in the
-// profile alone, without their bytes (R151 spec).
+// profile alone, without their bytes.
 type ExportedProfile struct {
 	Profile       exportv4.Profile
 	Attempts      []ExportedAttempt
@@ -286,7 +285,7 @@ var reasonCodes = map[int16]exportv4.ChoiceReasonCode{
 
 // exportChoices is the engine's choices of the profile that gave a task or a
 // lesson and have their reason code: a choice of nothing is not exported, and
-// one with no reason code has none to give (R50).
+// one with no reason code has none to give.
 func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *exportv4.Profile) error {
 	rows, err := tx.Query(ctx, `SELECT id, kind, chosen_at, module_id, task_id, lesson_id, reason_code, engine_version,
 			learner_model_version, coalesce(digests, '{}'), coalesce(engine_digests, '{}'), modules_release, last_seq,
@@ -373,8 +372,8 @@ func exportStorage(ctx context.Context, tx pgx.Tx, profileID string, out *export
 }
 
 // exportWorks names the profile's stored works by ListWorks, newest first and
-// without their bytes: each is a file of its own beside api.zip, which app reads
-// by GetWork (R151 spec). There are none while the storage is off.
+// without their bytes: each is a file of its own beside api.zip, which app
+// reads by GetWork. There are none while the storage is off.
 func exportWorks(ctx context.Context, tx pgx.Tx, profileID string, out *exportv4.Profile) error {
 	works, err := ListWorks(ctx, tx, profileID)
 	if err != nil {
@@ -387,8 +386,7 @@ func exportWorks(ctx context.Context, tx pgx.Tx, profileID string, out *exportv4
 	return nil
 }
 
-// ReviewWithin is the term the operator reviews a problem report in (R123
-// spec).
+// ReviewWithin is the term the operator reviews a problem report in.
 const ReviewWithin = 3 * 24 * time.Hour
 
 func exportReports(ctx context.Context, tx pgx.Tx, profileID string, out *exportv4.Profile) error {
@@ -417,10 +415,10 @@ func exportReports(ctx context.Context, tx pgx.Tx, profileID string, out *export
 	return nil
 }
 
-// exportAttempts is the profile's attempts of modules, without the seed, each with its
-// rungs and submissions, and the rows its package turns into what it tells; and
-// its open attempts of tasks from paper, those of one page: api keeps nothing
-// of one once it ends (R101).
+// exportAttempts is the profile's attempts of modules, without the seed, each
+// with its rungs and submissions, and the rows its package turns into what it
+// tells; and its open attempts of tasks from paper, those of one page: api
+// keeps nothing of one once it ends.
 func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT id, package_digest, module_id, module_version, module_format_version,
 			module_kit_version, task_id, instance, choice_id, lesson_run_id, segment, previous_attempt_id, started_at,
@@ -454,7 +452,7 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 		if closeReason != nil {
 			reason := exportv4.AttemptCloseReason(*closeReason)
 			a.CloseReason = &reason
-			// The solution shown closes the attempt (R10).
+			// The solution shown closes the attempt.
 			if reason == exportv4.AttemptCloseReasonSolutionShown {
 				a.SolutionShownAt = a.ClosedAt
 			}
@@ -525,7 +523,7 @@ type attemptRows struct {
 // exportAttemptRows reads the rungs and the submissions of the profile's
 // attempts, in two queries, and gives each attempt of at its own: a submission
 // of an essay among its essay_submissions, with neither an answer nor an
-// observation to tell (R15).
+// observation to tell.
 func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[exportv4.ID]attemptRows, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT attempt_id, rung, source, words, explained_at IS NOT NULL, explained_source
 		FROM attempt_rungs WHERE profile_id = $1 ORDER BY attempt_id, rung`, profileID)
@@ -578,8 +576,8 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[
 			continue
 		}
 		if s.essay != nil {
-			// A submission of an essay: how it ended, and beside feedback the marks
-			// by the numbers of the criteria and the source of the words (R15).
+			// A submission of an essay: how it ended, and beside feedback the marks by
+			// the numbers of the criteria and the source of the words.
 			e := exportv4.RubricSubmission{SubmittedAt: timeOf(s.at), End: exportv4.RubricSubmissionEnd(*s.essay)}
 			for _, m := range s.marks {
 				e.CriterionMarks = append(e.CriterionMarks, exportv4.RubricSubmissionCriterionMarks(m))
@@ -605,8 +603,7 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[
 
 // exportJournal is the profile's log of evidence, in its order, and its state
 // with the mark it was computed on. An entry is of an attempt or of an adult's
-// correction of a module's level, whose evidence has level_set_by_adult (R89;
-// R157 spec).
+// correction of a module's level, whose evidence has level_set_by_adult.
 func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *exportv4.Profile, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT seq, attempt_id, correction_id, package_digest, module_id, recorded_at, evidence FROM evidence
 		WHERE profile_id = $1 ORDER BY seq`, profileID)
@@ -652,7 +649,7 @@ func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *export
 }
 
 // exportCounters is every counter of the quota the table keeps of the owner of
-// column, by the beginning of its day (R12): spent and in reserve, in whole
+// column, by the beginning of its day: spent and in reserve, in whole
 // micro-dollars, as the database keeps them.
 func exportCounters(ctx context.Context, tx pgx.Tx, table, column, id string) ([]exportv4.QuotaCounter, error) {
 	rows, err := tx.Query(ctx, `SELECT day_start, spent_micro_usd, reserved_micro_usd FROM `+table+`

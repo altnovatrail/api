@@ -1,6 +1,6 @@
--- What an engine's choice keeps (R06, R50; R107 spec): its reason code, what it handed out, the
--- package it was made on, the input a replay needs, and the close or the end of a run whose
--- next it is. A choice written before this release keeps none of it.
+-- What an engine's choice keeps: its reason code, what it handed out, the package it was made
+-- on, the input a replay needs, and the close or the end of a run whose next it is. A choice
+-- written before this release keeps none of it.
 
 -- +goose Up
 

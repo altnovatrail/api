@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The sources of a rung's words, as the schema writes them (R05).
+// The sources of a rung's words, as the schema writes them.
 const (
 	// SourceModel is the tutor's question, which passed the leak check and the
 	// form check.
@@ -24,7 +24,7 @@ type Words struct {
 	Text   string
 }
 
-// Rung is what an attempt keeps of one of its rungs (R47): its words, and, once
+// Rung is what an attempt keeps of one of its rungs: its words, and, once
 // "explain differently" was asked for on it, the words that came of it, which
 // the learner reads from then on. The words are empty once the attempt has
 // closed.
@@ -97,7 +97,7 @@ func ExplainRung(ctx context.Context, tx pgx.Tx, profileID, attemptID string, ru
 
 // AskedQuestions is the tutor's questions on the attempt so far, in order: the
 // words of its rungs that came of a model, which every call of the words gets,
-// so as not to ask them again (R10).
+// so as not to ask them again.
 func AskedQuestions(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([]string, error) {
 	rows, err := db.Query(ctx, `SELECT q FROM (
 			SELECT rung, 1 AS n, words AS q FROM attempt_rungs
@@ -117,9 +117,9 @@ func AskedQuestions(ctx context.Context, db pgx.Tx, profileID, attemptID string)
 }
 
 // GiveRequested records, at at, that a hint asked for gave the techniques of
-// the attempt's task, when techniques — it has some —, and its leading question,
-// when leading, each the first time it did, and that the attempt's last action
-// is at (R47).
+// the attempt's task, when techniques — it has some —, and its leading
+// question, when leading, each the first time it did, and that the attempt's
+// last action is at.
 func GiveRequested(ctx context.Context, tx pgx.Tx, profileID, attemptID string, techniques, leading bool, at time.Time) error {
 	if _, err := tx.Exec(ctx, `UPDATE attempts
 		SET requested_techniques_at = CASE WHEN $4 THEN coalesce(requested_techniques_at, $3) ELSE requested_techniques_at END,
@@ -148,7 +148,7 @@ func Answers(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([][]b
 }
 
 // AsksBeforeShowing says whether the profile's setting "ask before showing" is
-// on: a child's, and on by default (R09).
+// on: a child's, and on by default.
 func AsksBeforeShowing(ctx context.Context, db Querier, profileID string) (bool, error) {
 	var asks bool
 	err := db.QueryRow(ctx, `SELECT ask_before_showing FROM profiles WHERE id = $1`, profileID).Scan(&asks)
@@ -162,8 +162,8 @@ func AsksBeforeShowing(ctx context.Context, db Querier, profileID string) (bool,
 }
 
 // PaperWordsOf is what the tutor's words of a task from paper read of the
-// profile (R82 spec): the language of its interface, "" when it has none, and
-// whether its hint mode is "Show where".
+// profile: the language of its interface, "" when it has none, and whether its
+// hint mode is "Show where".
 func PaperWordsOf(ctx context.Context, db Querier, profileID string) (language string, showWhere bool, err error) {
 	var tag *string
 	err = db.QueryRow(ctx, `SELECT interface_language, hint_mode = 'show_where' FROM profiles WHERE id = $1`, profileID).
@@ -178,7 +178,7 @@ func PaperWordsOf(ctx context.Context, db Querier, profileID string) (language s
 }
 
 // GiveCorrectWords records that the tutor's words after a correct answer were
-// given on the attempt, which a correct answer closed: once (R09).
+// given on the attempt, which a correct answer closed: once.
 func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID string) error {
 	if _, err := tx.Exec(ctx, `UPDATE attempts SET correct_words_given = true WHERE profile_id = $1 AND id = $2`,
 		profileID, attemptID); err != nil {
@@ -189,8 +189,8 @@ func GiveCorrectWords(ctx context.Context, tx pgx.Tx, profileID, attemptID strin
 
 // LastAttempt says whether the attempt is the last the profile began of its
 // kind: the words after a correct answer are given while the profile has begun
-// no other (R09), and an attempt of a module and the attempts of a page go
-// beside each other (R10).
+// no other, and an attempt of a module and the attempts of a page go beside
+// each other.
 func LastAttempt(ctx context.Context, db Querier, profileID, attemptID string) (bool, error) {
 	var last bool
 	err := db.QueryRow(ctx, `SELECT NOT EXISTS (SELECT 1 FROM attempts b, attempts a

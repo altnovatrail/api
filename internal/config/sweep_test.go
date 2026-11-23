@@ -26,7 +26,7 @@ func TestSweepReadsWhatItOpens(t *testing.T) {
 }
 
 // As a Cloud Run job, sweep takes its own account's token, with no key; off a
-// deployment, the key is required (R32).
+// deployment, the key is required.
 func TestTheJobsKeyIsForThisMachineOnly(t *testing.T) {
 	t.Parallel()
 

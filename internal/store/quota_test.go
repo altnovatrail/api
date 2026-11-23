@@ -50,7 +50,7 @@ func minutes(m int32) *int32 { return &m }
 
 // The account keeps the offset a request sent and the day that holds now, and
 // writes only what changed; a read of today writes nothing, and the deletion of
-// the account clears both (R11, R12).
+// the account clears both.
 func TestTheAccountKeepsItsFamilyDay(t *testing.T) {
 	t.Parallel()
 
@@ -218,7 +218,7 @@ func TestAReserveFitsUnderBothCapsAndASettlementCountsWhatItCost(t *testing.T) {
 }
 
 // An account with no tariff, or a tariff with no caps, has no room at all:
-// platform AI is closed to it (R11).
+// platform AI is closed to it.
 func TestAnAccountWithNoTariffHasNoRoom(t *testing.T) {
 	t.Parallel()
 
@@ -239,7 +239,7 @@ func TestAnAccountWithNoTariffHasNoRoom(t *testing.T) {
 
 // The tariff of dev-check has its caps off a deployment, $5.00 a profile, and
 // none deployed or not told it is off one: the reserve, the room and the share
-// there read it as no tariff (R55).
+// there read it as no tariff.
 func TestTheTariffOfDevCheckHasNoCapsDeployed(t *testing.T) {
 	t.Parallel()
 
@@ -304,7 +304,7 @@ func TestTwoReservesBesideEachOtherDoNotPassTheCap(t *testing.T) {
 }
 
 // The deletion of a profile takes its counters and leaves the account's; the
-// deletion of the account takes them all (R12).
+// deletion of the account takes them all.
 func TestTheCountersGoWithTheirProfileAndTheirAccount(t *testing.T) {
 	t.Parallel()
 

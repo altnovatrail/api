@@ -11,11 +11,11 @@ import (
 )
 
 // DeleteProfile deletes the profile and all of it, by can_manage and a fresh
-// sign-in, which the checks held (R20, R21). The owner's profile goes the same
-// way, and the last profile leaves the account without profiles. A tuple left
-// after the database is done is still "deleted": its line names the failure,
-// and the profile's row is gone, so the tuple gives a right to nothing; its
-// repeat deletes it (R37).
+// sign-in, which the checks held. The owner's profile goes the same way, and
+// the last profile leaves the account without profiles. A tuple left after the
+// database is done is still "deleted": its line names the failure, and the
+// profile's row is gone, so the tuple gives a right to nothing; its repeat
+// deletes it.
 func (s *Service) DeleteProfile(ctx context.Context, req *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	if err := deleted(ctx, s.deleter.Profile(ctx, caller.AccountID, req.GetProfileId())); err != nil {
@@ -25,9 +25,9 @@ func (s *Service) DeleteProfile(ctx context.Context, req *v1.DeleteProfileReques
 }
 
 // DeleteAccount deletes the account, all of it and its user at the sign-in
-// service, by a fresh sign-in, which the checks held (R20, R21). Once its data
-// is gone from the database the answer is "deleted", and what does not finish
-// the daily job does; a repeat gets "the account is gone" from the checks.
+// service, by a fresh sign-in, which the checks held. Once its data is gone
+// from the database the answer is "deleted", and what does not finish the daily
+// job does; a repeat gets "the account is gone" from the checks.
 func (s *Service) DeleteAccount(ctx context.Context, _ *v1.DeleteAccountRequest) (*v1.DeleteAccountResponse, error) {
 	caller, _ := rpc.CallerFrom(ctx)
 	if err := deleted(ctx, s.deleter.Account(ctx, caller.AccountID, caller.UID)); err != nil {

@@ -1,14 +1,14 @@
--- What api keeps of a learner's work (R43): the engine's choices, lesson runs, attempts,
--- the journal of evidence and the cache of the skill state. This is their frame — keys,
--- links, the rules of one open attempt and one open run, and the fields of a row's life;
--- the fields the code needs come by later migrations, each adding first. Every row refers
--- to its profile and goes with it (R21), and a row links only to rows of its own profile:
--- each link carries the profile. The codes are the contract's.
+-- What api keeps of a learner's work: the engine's choices, lesson runs, attempts, the
+-- journal of evidence and the cache of the skill state. This is their frame — keys, links,
+-- the rules of one open attempt and one open run, and the fields of a row's life; the fields
+-- the code needs come by later migrations, each adding first. Every row refers to its
+-- profile and goes with it, and a row links only to rows of its own profile: each link
+-- carries the profile. The codes are the contract's.
 
 -- +goose Up
 
--- An engine's choice (R06): of a task or of a lesson. What it chose and why comes in
--- later migrations.
+-- An engine's choice: of a task or of a lesson. What it chose and why comes in later
+-- migrations.
 CREATE TABLE engine_choices (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
@@ -19,9 +19,9 @@ CREATE TABLE engine_choices (
 
 CREATE INDEX engine_choices_profile ON engine_choices (profile_id, chosen_at);
 
--- A lesson run (R13): one learner's lesson on the package it began on. A choice of a lesson
--- opens one run, and a profile has one open run of a lesson, while runs of other lessons may
--- be open. Its beginning, and its end once written, do not change.
+-- A lesson run: one learner's lesson on the package it began on. A choice of a lesson opens
+-- one run, and a profile has one open run of a lesson, while runs of other lessons may be
+-- open. Its beginning, and its end once written, do not change.
 CREATE TABLE lesson_runs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
@@ -46,11 +46,10 @@ CREATE UNIQUE INDEX lesson_runs_one_open ON lesson_runs (profile_id, lesson_id) 
 -- What the daily job ends "abandoned".
 CREATE INDEX lesson_runs_open_since ON lesson_runs (last_action_at) WHERE ended_at IS NULL;
 
--- An attempt (R07, R10): of a task, on the package, the format version and the module-kit
--- by which its verdict repeats, with its seed. It begins by an engine's choice of a task, on
--- a task segment of a lesson run, or again after an earlier attempt of its task — one of
--- the three. A profile has one open attempt. Its beginning, and its close once written, do
--- not change.
+-- An attempt: of a task, on the package, the format version and the module-kit by which its
+-- verdict repeats, with its seed. It begins by an engine's choice of a task, on a task
+-- segment of a lesson run, or again after an earlier attempt of its task — one of the three.
+-- A profile has one open attempt. Its beginning, and its close once written, do not change.
 CREATE TABLE attempts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
@@ -92,14 +91,14 @@ CREATE INDEX attempts_profile ON attempts (profile_id, started_at);
 CREATE INDEX attempts_lesson_run ON attempts (profile_id, lesson_run_id) WHERE lesson_run_id IS NOT NULL;
 CREATE INDEX attempts_previous ON attempts (profile_id, previous_attempt_id) WHERE previous_attempt_id IS NOT NULL;
 
--- The beginning of a row, and its end once written, do not change (R10, R13).
+-- The beginning of a row, and its end once written, do not change.
 -- +goose StatementBegin
 CREATE FUNCTION attempt_is_kept() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.started_at IS DISTINCT FROM OLD.started_at
         OR (OLD.closed_at IS NOT NULL
             AND (NEW.close_reason IS DISTINCT FROM OLD.close_reason OR NEW.closed_at IS DISTINCT FROM OLD.closed_at)) THEN
-        RAISE EXCEPTION 'the beginning and the close of an attempt do not change (R10)' USING ERRCODE = 'restrict_violation';
+        RAISE EXCEPTION 'the beginning and the close of an attempt do not change' USING ERRCODE = 'restrict_violation';
     END IF;
     RETURN NEW;
 END
@@ -114,7 +113,7 @@ BEGIN
     IF NEW.started_at IS DISTINCT FROM OLD.started_at
         OR (OLD.ended_at IS NOT NULL
             AND (NEW.end_reason IS DISTINCT FROM OLD.end_reason OR NEW.ended_at IS DISTINCT FROM OLD.ended_at)) THEN
-        RAISE EXCEPTION 'the beginning and the end of a lesson run do not change (R13)' USING ERRCODE = 'restrict_violation';
+        RAISE EXCEPTION 'the beginning and the end of a lesson run do not change' USING ERRCODE = 'restrict_violation';
     END IF;
     RETURN NEW;
 END
@@ -123,9 +122,9 @@ $$;
 
 CREATE TRIGGER lesson_runs_kept BEFORE UPDATE ON lesson_runs FOR EACH ROW EXECUTE FUNCTION lesson_run_is_kept();
 
--- The journal of evidence (R06; R80 spec): one piece of evidence of a closed attempt, as
--- learner-model's type holds it, under its number in the profile's journal. The journal is
--- only added to: no row changes, and rows go only with their profile.
+-- The journal of evidence: one piece of evidence of a closed attempt, as learner-model's
+-- type holds it, under its number in the profile's journal. The journal is only added to: no
+-- row changes, and rows go only with their profile.
 CREATE TABLE evidence (
     profile_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
     seq bigint NOT NULL CHECK (seq >= 1),
@@ -147,7 +146,7 @@ BEGIN
     IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
         RETURN OLD;
     END IF;
-    RAISE EXCEPTION 'the journal of evidence is only added to (R06)' USING ERRCODE = 'restrict_violation';
+    RAISE EXCEPTION 'the journal of evidence is only added to' USING ERRCODE = 'restrict_violation';
 END
 $$;
 -- +goose StatementEnd
@@ -157,10 +156,10 @@ CREATE TRIGGER evidence_appended_only BEFORE UPDATE OR DELETE ON evidence
 CREATE TRIGGER evidence_not_truncated BEFORE TRUNCATE ON evidence
     FOR EACH STATEMENT EXECUTE FUNCTION evidence_is_appended_only();
 
--- The cache of the skill state (R06): a row for each profile, made with it, empty and at
--- number 0, so that the first evidence has a row to lock. Its mark — the version of
--- learner-model, the release of modules and the window of the format — says when it is
--- stale; the state is learner-model's type as is.
+-- The cache of the skill state: a row for each profile, made with it, empty and at number 0,
+-- so that the first evidence has a row to lock. Its mark — the version of learner-model, the
+-- release of modules and the window of the format — says when it is stale; the state is
+-- learner-model's type as is.
 CREATE TABLE skill_states (
     profile_id uuid PRIMARY KEY REFERENCES profiles (id) ON DELETE CASCADE,
     state bytea,

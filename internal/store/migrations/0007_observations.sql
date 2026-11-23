@@ -1,7 +1,7 @@
--- What a submission read keeps (R46): the observation of its work, from which the same
--- release of module-kit gives the same verdict again with no AI — the reading of the answer
--- slots that AI read, joined from the two readers — the options tapped are in the answer, as
--- the values of their slots (R05). Neither reader's own observation is kept, nor the crop.
+-- What a submission read keeps: the observation of its work, from which the same release of
+-- module-kit gives the same verdict again with no AI — the reading of the answer slots that
+-- AI read, joined from the two readers — the options tapped are in the answer, as the values
+-- of their slots. Neither reader's own observation is kept, nor the crop.
 
 -- +goose Up
 

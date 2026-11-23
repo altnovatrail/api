@@ -1,7 +1,6 @@
--- The page of an attempt of a task from paper, by the ID app gives it (R162 spec; R101): Start
--- closes the open attempts of another page alone, so that a Start again after "Add" leaves the
--- page's own tasks open. Kept while the attempt is open, and cleared by its close, as what 0025
--- clears.
+-- The page of an attempt of a task from paper, by the ID app gives it: Start closes the open
+-- attempts of another page alone, so that a Start again after "Add" leaves the page's own tasks
+-- open. Kept while the attempt is open, and cleared by its close, as what 0025 clears.
 -- contract: the release before this one writes no page and closes every open attempt of paper at a
 -- Start.
 

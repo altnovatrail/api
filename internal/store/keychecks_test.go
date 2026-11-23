@@ -13,7 +13,7 @@ import (
 )
 
 // The checks of a key are none on a new account, and are read as written, in
-// their order (R78).
+// their order.
 func TestTheChecksOfAKeyAreWrittenAndReadAsTheyAre(t *testing.T) {
 	t.Parallel()
 

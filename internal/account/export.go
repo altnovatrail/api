@@ -14,15 +14,14 @@ import (
 )
 
 // snapshot is the transaction an export reads in: one moment of the database,
-// written by nothing (R135 spec).
+// written by nothing.
 var snapshot = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
 
 // ExportProfile gives api's part of the export of a profile, api.zip by spec's
-// part export/ (R52; R135 spec): an adult's action with can_manage — the action
-// unspecified is one —, or, at a profile whose learner consents themselves, the
-// learner's own with can_learn, which neither a consent that waits nor an age
-// to give again refuses; at any other profile the learner's is
-// CAUSE_ADULT_NEEDED (R132 spec).
+// part export/: an adult's action with can_manage — the action unspecified is
+// one —, or, at a profile whose learner consents themselves, the learner's own
+// with can_learn, which neither a consent that waits nor an age to give again
+// refuses; at any other profile the learner's is CAUSE_ADULT_NEEDED.
 func (s *Service) ExportProfile(ctx context.Context, req *v1.ExportProfileRequest) (*v1.ExportProfileResponse, error) {
 	if s.export == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "no export is configured")
@@ -60,8 +59,8 @@ func (s *Service) ExportProfile(ctx context.Context, req *v1.ExportProfileReques
 	return &v1.ExportProfileResponse{Part: part, ExportFormatVersion: export.Version}, nil
 }
 
-// ExportAccount gives api's part of the export of the account and every
-// profile of it, api.zip by spec's part export/ (R52; R135 spec).
+// ExportAccount gives api's part of the export of the account and every profile
+// of it, api.zip by spec's part export/.
 func (s *Service) ExportAccount(ctx context.Context, _ *v1.ExportAccountRequest) (*v1.ExportAccountResponse, error) {
 	if s.export == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, "no export is configured")

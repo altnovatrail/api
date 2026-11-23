@@ -19,9 +19,9 @@ const (
 	KeyDone = "done"
 )
 
-// KeyRecord is what is recorded of a request under its idempotency key (R17,
-// R35): its method, its fingerprint, its state and, once done, its answer — or,
-// for an answer that holds what the learner sent, the submission it recorded.
+// KeyRecord is what is recorded of a request under its idempotency key: its
+// method, its fingerprint, its state and, once done, its answer — or, for an
+// answer that holds what the learner sent, the submission it recorded.
 type KeyRecord struct {
 	Method       string
 	Fingerprint  string
@@ -34,8 +34,8 @@ type KeyRecord struct {
 }
 
 // KeyTarget is what a request done under a key acted on, and what its record
-// holds of the answer: the profile and the attempt it acted on, when it did, and
-// either the answer or the submission whose answer a repeat gets (R17, R44).
+// holds of the answer: the profile and the attempt it acted on, when it did,
+// and either the answer or the submission whose answer a repeat gets.
 type KeyTarget struct {
 	ProfileID    string
 	AttemptID    string
@@ -78,7 +78,7 @@ func RecordDone(ctx context.Context, tx pgx.Tx, accountID, key, method, fingerpr
 // HoldAccount takes the account's row FOR NO KEY UPDATE in tx: what a request
 // under an idempotency key holds first, so that a repeat beside it waits and
 // finds its record. The lock conflicts with itself and not with FOR KEY SHARE,
-// so the other writes under the account do not wait for it (R29, R35).
+// so the other writes under the account do not wait for it.
 func HoldAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
 	var id string
 	err := tx.QueryRow(ctx, `SELECT id FROM accounts WHERE id = $1 FOR NO KEY UPDATE`, accountID).Scan(&id)
@@ -95,7 +95,7 @@ func HoldAccount(ctx context.Context, tx pgx.Tx, accountID string) error {
 // conflicts with itself and not with FOR KEY SHARE: the requests of the PIN of
 // one account — from two devices, or a repeat beside its first — go one after
 // the other, and its count loses no wrong PIN, while the other writes under the
-// account do not wait for them (R29).
+// account do not wait for them.
 func HoldPin(ctx context.Context, tx pgx.Tx, accountID string) (pin.State, error) {
 	var hash *string
 	var failed []time.Time
@@ -143,9 +143,9 @@ func nullableTime(t time.Time) *time.Time {
 // RecordGoing records a request under the account's key as going, with what it
 // acts on, and commits with the checks before its call of AI: a repeat beside
 // it is "still going" until it is done, or until it outlives the longest a
-// request may run (R17). It gives when the record was made, by the database's
-// clock: the mark by which the request finishes or drops its own record, and
-// never a repeat's that took its place.
+// request may run. It gives when the record was made, by the database's clock:
+// the mark by which the request finishes or drops its own record, and never a
+// repeat's that took its place.
 func RecordGoing(ctx context.Context, tx pgx.Tx, accountID, key, method, fingerprint string, target KeyTarget) (time.Time, error) {
 	var made time.Time
 	err := tx.QueryRow(ctx, `INSERT INTO idempotency_keys (account_id, key, method, fingerprint, state, profile_id, attempt_id)

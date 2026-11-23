@@ -86,7 +86,7 @@ func TestTheOwnersProfileIsOneWithItsConsent(t *testing.T) {
 		t.Errorf("a profile of no account = %v, want ErrNoAccount", err)
 	}
 
-	// The hint mode is "Show where" unless the profile is made with another (R100).
+	// The hint mode is "Show where" unless the profile is made with another.
 	if created.HintMode != store.HintModeShowWhere {
 		t.Errorf("the hint mode of a profile made with none = %q, want show_where", created.HintMode)
 	}

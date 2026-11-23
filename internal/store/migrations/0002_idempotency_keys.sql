@@ -1,7 +1,7 @@
--- The records of idempotency keys (R17, R35). A key lives in its account's space: the
--- same key of another account is another key. A record names the method and the
--- request by its fingerprint, holds the answer once the request is done, and nothing of
--- what the request carried.
+-- The records of idempotency keys. A key lives in its account's space: the same key of
+-- another account is another key. A record names the method and the request by its
+-- fingerprint, holds the answer once the request is done, and nothing of what the
+-- request carried.
 
 -- +goose Up
 
@@ -23,11 +23,11 @@ CREATE TABLE idempotency_keys (
     CHECK ((state = 'done') = (response IS NOT NULL))
 );
 
--- The daily job deletes the records older than a day (R17, R38).
+-- The daily job deletes the records older than a day.
 CREATE INDEX idempotency_keys_created ON idempotency_keys (created_at);
 
 -- When each wrong PIN of the last quarter of an hour was given, so that no more than
--- five fit in any 15 minutes, across the edge of a window too (R35). It takes the place
--- of pin_failures and pin_failures_since, which nothing reads, for a later migration
+-- five fit in any 15 minutes, across the edge of a window too. It takes the place of
+-- pin_failures and pin_failures_since, which nothing reads, for a later migration
 -- marked "-- contract:" to drop.
 ALTER TABLE accounts ADD COLUMN pin_failed_at timestamptz[] NOT NULL DEFAULT '{}';

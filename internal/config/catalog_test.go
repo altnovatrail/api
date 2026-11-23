@@ -11,7 +11,7 @@ import (
 
 // The deployment's list of modules is each ID between the commas, in its order,
 // and none at all when the variable is unset or empty, as every variable reads
-// empty: the whole index (R150 spec).
+// empty: the whole index.
 func TestCatalogReadsTheListOfModules(t *testing.T) {
 	t.Parallel()
 

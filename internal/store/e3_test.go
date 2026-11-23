@@ -245,7 +245,7 @@ func TestTheLinksOfE3StayInTheirKindAndProfile(t *testing.T) {
 	}
 }
 
-// The rows of a profile's learning go with it, and with its account (R21).
+// The rows of a profile's learning go with it, and with its account.
 func TestWhatE3KeepsGoesWithTheProfile(t *testing.T) {
 	t.Parallel()
 
