@@ -94,8 +94,8 @@ release-files version:
 # NOTICE, as module-kit names them: pgx and goose, OpenFGA and the modules they take, the Admin
 # SDK for Go and the modules it takes, Connect and spec's module of contracts, module-kit and
 # spec's own module, tutor, the SDK of the one adapter api gives it, Anthropic's, with the modules
-# it takes, learner-model and engine. A module the binary takes beyond these fails release-licenses, and ci-lint with it,
-# until it is named here.
+# it takes, learner-model and engine. A module the binary takes beyond these fails
+# release-licenses, and ci-lint with it, until it is named here.
 # Each entry is <module path>=<name>, one a line, the name the path without its host, its slashes
 # dashes; where that name would read as a license the release has of its own — go, Go's, and api,
 # api's — the host stays in front of it, and release-licenses refuses a name twice or either of
