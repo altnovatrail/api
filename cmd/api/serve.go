@@ -54,7 +54,7 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	}
 	// What the deployment declares for admission to AI is configuration too: a
 	// file of facts that cannot be read, or that names what the table of this
-	// release does not, is refused as the variables are (R25, R45).
+	// release does not, is refused as the variables are.
 	gate, declared, err := admission.Load(opens.Admission)
 	if err != nil {
 		return err
@@ -63,29 +63,28 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 
 	// The packages of modules are read before anything is opened: a folder of
 	// another release, or a package that is not what its chain names, is a failed
-	// start, not a request that finds it (R07, R41).
+	// start, not a request that finds it.
 	set, err := readPackages(opens.PackagesDir)
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
 	// The deployment's list of modules narrows what the set offers, and an ID the
-	// pinned index does not hold is a failed start (R150 spec).
+	// pinned index does not hold is a failed start.
 	if err := set.List(moduleIDs(opens.Catalog)); err != nil {
 		return startupFailed(ctx, log, listRefused(err))
 	}
-	// Their open views are built once, here (R42).
+	// Their open views are built once, here.
 	cat, err := catalog.New(set)
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
-	// The legal texts are read before anything is opened too: a copy's folder
-	// that breaks the rules of the part is a failed start (R52).
+	// The legal texts are read before anything is opened too: a copy's folder that
+	// breaks the rules of the part is a failed start.
 	texts, err := legalTexts(opens.Agreements)
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
-	// The export writes the evidence and the state by the model of the packages
-	// (R52).
+	// The export writes the evidence and the state by the model of the packages.
 	m, err := model.New(set, version.LearnerModel())
 	if err != nil {
 		return startupFailed(ctx, log, err)
@@ -98,12 +97,12 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	if err != nil {
 		return startupFailed(ctx, log, err)
 	}
-	// Attempts keep the version of module-kit, which the build records (R44), and
-	// ask the gate before a task that AI checks (R45). In the dev mode the stub of
-	// tutor reads and words in place of tutor, which admits and prices still (R66).
-	// The privacy policy of the texts served says from which day the words after a
-	// correct answer go to a provider (R77). On the stub no key reaches a
-	// provider, and the checks of a key have no limit (R78).
+	// Attempts keep the version of module-kit, which the build records, and ask
+	// the gate before a task that AI checks. In the dev mode the stub of tutor
+	// reads and words in place of tutor, which admits and prices still. The
+	// privacy policy of the texts served says from which day the words after a
+	// correct answer go to a provider. On the stub no key reaches a provider, and
+	// the checks of a key have no limit.
 	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithPaperRequestTimeout(cfg.PaperRequestTimeout), learning.WithTexts(texts)}
 	accounts := []account.Option{account.WithTexts(texts), account.WithForms(store), account.WithExport(exporter),
 		account.WithOwnKeys(gate)}
@@ -113,14 +112,14 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	}
 	// The debug mode chooses the models of a task from paper and keeps what each
 	// call returned, in this process alone, for an account with its right, or for
-	// every account of a local run with the flag (R97).
+	// every account of a local run with the flag.
 	var debugs *debug.Store
 	if declared.Debug {
 		debugs = debug.New(declared.DebugEvery)
 		options = append(options, learning.WithDebug(debugs))
 	}
 	// The tariff of dev-check has its caps off a deployment alone: deployed, an
-	// account that got it all the same opens no spending of the platform's (R55).
+	// account that got it all the same opens no spending of the platform's.
 	if !cfg.Deployed() {
 		options = append(options, learning.OffDeployment())
 		accounts = append(accounts, account.OffDeployment())
@@ -182,8 +181,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 		logging.FieldDeployed, cfg.Deployed(),
 		logging.FieldModulesRelease, set.Release,
 		logging.FieldPackages, len(set.Packages),
-		// What is missing for admission, the operator reads here: no file of
-		// facts, no stage named (R25).
+		// What is missing for admission, the operator reads here: no file of facts,
+		// no stage named.
 		logging.FieldAdmissionTable, declared.TableVersion,
 		logging.FieldFactsFile, declared.FactsFile,
 		logging.FieldRung, declared.Rung,
@@ -307,10 +306,10 @@ func (p ports) close() {
 	p.pool.Close()
 }
 
-// openPorts opens the ports (R29, R31, R32): the database api through the
-// pooler, checked by a ping so that a wrong string fails the start and not the
-// first request; the rights, which find their store and model or refuse; and the
-// port to the sign-in service. What opened before a failure is closed.
+// openPorts opens the ports: the database api through the pooler, checked by a
+// ping so that a wrong string fails the start and not the first request; the
+// rights, which find their store and model or refuse; and the port to the
+// sign-in service. What opened before a failure is closed.
 func openPorts(ctx context.Context, database, openfga config.Secret, projectID string, credentials config.Secret) (ports, error) {
 	pool, err := store.Open(ctx, database.Reveal())
 	if err == nil {
@@ -343,7 +342,7 @@ func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attemp
 	if err != nil {
 		return rpc.Deps{}, rpc.Handlers{}, nil, err
 	}
-	// The handlers write the tuples of the profiles they make (R31).
+	// The handlers write the tuples of the profiles they make.
 	handlers := rpc.Handlers{
 		Account:  account.New(p.pool, p.rights, p.signin, options...),
 		Module:   cat.Modules(p.pool),

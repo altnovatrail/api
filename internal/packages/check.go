@@ -14,19 +14,19 @@ import (
 // Withdrawals.
 var (
 	// ErrOlderRelease is a release older than the one main pins: a withdrawal is
-	// marked only in the indexes of the releases after it (R63 spec).
+	// marked only in the indexes of the releases after it.
 	ErrOlderRelease = errors.New("packages: the release is older than the one main pins")
 	// ErrLostVersion is a module that has a current version on main and would have
-	// none, other than by a withdrawal (R07).
+	// none, other than by a withdrawal.
 	ErrLostVersion = errors.New("packages: a module would lose its current version")
 	// ErrNewestIndex is a file of the newest release of modules that is no module
-	// index (R61).
+	// index.
 	ErrNewestIndex = errors.New("packages: the newest release gives no module index")
 )
 
 // Current is the version of a module that a new attempt gets by an index: the
-// newest in api's window that the index does not mark withdrawn, by module-kit
-// (R07), or none.
+// newest in api's window that the index does not mark withdrawn, by module-kit,
+// or none.
 type Current struct {
 	ID      formatv0.ModuleID
 	Version formatv0.ModuleVersion
@@ -35,11 +35,11 @@ type Current struct {
 }
 
 // Check is the check of CI of a modules.json, cfg, whose signature the job has
-// checked by release-verify (R07; R77 spec): index must be the bytes of its
-// index; and against main's — mainCfg and mainIndex, or nil when main pins
-// none — its release must not be older, and no module that has a current version
-// on main may lose it other than by a withdrawal. It gives the current version
-// of each module of either index, so that the author sees what the learners get.
+// checked by release-verify: index must be the bytes of its index; and against
+// main's — mainCfg and mainIndex, or nil when main pins none — its release must
+// not be older, and no module that has a current version on main may lose it
+// other than by a withdrawal. It gives the current version of each module of
+// either index, so that the author sees what the learners get.
 func Check(cfg Config, index []byte, mainCfg *Config, mainIndex []byte) ([]Current, error) {
 	idx, err := checkIndex(index, cfg.Index)
 	if err != nil {
@@ -78,7 +78,7 @@ func Check(cfg Config, index []byte, mainCfg *Config, mainIndex []byte) ([]Curre
 
 // Withdrawal is a version that the pinned release gives and the newest release
 // withdraws: until modules.json pins a release that marks it, it stays given,
-// and new attempts take it when it is the current version (R07; R61).
+// and new attempts take it when it is the current version.
 type Withdrawal struct {
 	ID      formatv0.ModuleID
 	Version formatv0.ModuleVersion
@@ -87,14 +87,14 @@ type Withdrawal struct {
 	Current bool
 }
 
-// Withdrawals is the check of the scheduled job Withdrawals (R61): index must be
-// the bytes of the index cfg pins, and latest the index of the newest release
-// of modules, whose signature the job has checked by release-verify (R77 spec).
-// It gives each version that the pinned index gives — in api's window, and not
-// withdrawn — and that latest withdraws, by module ID and then by version, each
-// in the order of its bytes. Only the newest index knows of every withdrawal so
-// far, and module-kit joins them to the pinned index (moduleindex.WithLatest):
-// an index that does not keep every entry of the pinned one, as one of an older
+// Withdrawals is the check of the scheduled job Withdrawals: index must be the
+// bytes of the index cfg pins, and latest the index of the newest release of
+// modules, whose signature the job has checked by release-verify. It gives each
+// version that the pinned index gives — in api's window, and not withdrawn —
+// and that latest withdraws, by module ID and then by version, each in the
+// order of its bytes. Only the newest index knows of every withdrawal so far,
+// and module-kit joins them to the pinned index (moduleindex.WithLatest): an
+// index that does not keep every entry of the pinned one, as one of an older
 // release, gives an error that is moduleindex.ErrLatest.
 func Withdrawals(cfg Config, index, latest []byte) ([]Withdrawal, error) {
 	pinned, err := checkIndex(index, cfg.Index)

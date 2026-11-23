@@ -542,10 +542,10 @@ func TestTheTeachersOfAnAnchorSkillAreTheCurrentVersionsThatSuit(t *testing.T) {
 	}
 }
 
-// The deployment's list narrows what the set offers (R150 spec): a module it
-// leaves out has no package to offer and teaches nothing, but keeps its current
-// version, for the runs open on it. An ID the index does not hold is refused,
-// with the set as it was, and no list offers the whole index again.
+// The deployment's list narrows what the set offers: a module it leaves out has
+// no package to offer and teaches nothing, but keeps its current version, for
+// the runs open on it. An ID the index does not hold is refused, with the set
+// as it was, and no list offers the whole index again.
 func TestTheListOfTheDeploymentNarrowsWhatTheSetOffers(t *testing.T) {
 	t.Parallel()
 

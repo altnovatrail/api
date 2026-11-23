@@ -1,18 +1,18 @@
 // Package admission is the function of admission to AI as api asks it before
-// an attempt (R25, R45): the admission table of the release of spec that tutor
-// reads, the facts the deployment declares in its file, and the least stage of
-// tutor's rule of admission of models. What a task that AI checks may be given
-// is what tutor chooses for the call it will make, by the call's prompt
-// (Tutor.ChooseCall), and tutor asks the same before its call (R54).
+// an attempt: the admission table of the release of spec that tutor reads, the
+// facts the deployment declares in its file, and the least stage of tutor's
+// rule of admission of models. What a task that AI checks may be given is what
+// tutor chooses for the call it will make, by the call's prompt
+// (Tutor.ChooseCall), and tutor asks the same before its call.
 //
 // tutor calls a provider only through an adapter the service gives it, and api
 // gives only Anthropic's: the admission table admits no model of another
-// provider, and an adapter api does not give is an SDK its binary does not hold
-// (R54).
+// provider, and an adapter api does not give is an SDK its binary does not
+// hold.
 //
 // The file of facts and the stage are the deployment's, not the image's: with
 // no file no fact holds, and the table closes platform AI while it leaves an
-// adult's own key open; with no stage it is "full", closed by default (R25).
+// adult's own key open; with no stage it is "full", closed by default.
 // No model has passed the stage full, so there no reading is admitted at all,
 // by an own key either: the first app passes "author". A fact or a
 // provider the table does not name is a refusal of the configuration, since a
@@ -42,8 +42,8 @@ import (
 	"github.com/altnovatrail/api/internal/config"
 )
 
-// Adapters are the adapters of the providers api gives tutor: Anthropic's alone
-// (R54). Each call makes the map anew, so that no caller changes what a later
+// Adapters are the adapters of the providers api gives tutor: Anthropic's
+// alone. Each call makes the map anew, so that no caller changes what a later
 // gate gives.
 func Adapters() map[admissionv0.Provider]provider.Dial {
 	return map[admissionv0.Provider]provider.Dial{"anthropic": claude.Dial}
@@ -56,7 +56,7 @@ func Adapters() map[admissionv0.Provider]provider.Dial {
 type Gate struct {
 	tutor *tutor.Tutor
 	// reading is the mode tutor reads handwriting by, which says how many
-	// observations a reading gives (R88).
+	// observations a reading gives.
 	reading tutor.Reading
 	// providers are the providers of the table, in its order.
 	providers []Provider
@@ -70,11 +70,11 @@ type Provider struct {
 }
 
 // ownKeyCalls are the kinds of call of tutor that api makes: the reading of a
-// sheet, the hint without the work and the words with it (R54, R68) — the
-// hint before the words, whose choice asks the hint's too —, and the words
-// after a correct answer (R76), the reading of a workbook page (R81), and the
-// reading of an essay and its assessment by the rubric (R82). An own key is
-// open when tutor admits it for one of them at least (R72).
+// sheet, the hint without the work and the words with it — the hint before
+// the words, whose choice asks the hint's too —, and the words after a correct
+// answer, the reading of a workbook page, and the reading of an essay and its
+// assessment by the rubric. An own key is open when tutor admits it for one of
+// them at least.
 var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect, tutor.CallWorkbook,
 	tutor.CallEssay, tutor.CallRubric}
 
@@ -88,33 +88,33 @@ type Report struct {
 	RungSet      bool
 	// PlatformKeys is how many providers the platform holds a key of.
 	PlatformKeys int
-	// Stub says whether tutor's calls go to the stub of the dev mode (R66).
+	// Stub says whether tutor's calls go to the stub of the dev mode.
 	Stub bool
-	// Reading is the mode of reading handwriting, pair or single (R88).
+	// Reading is the mode of reading handwriting, pair or single.
 	Reading string
 	// Debug says whether the run serves the debug mode to an account with its
-	// right: tutor has its own adapters, with the key of Anthropic (R97).
+	// right: tutor has its own adapters, with the key of Anthropic.
 	Debug bool
 	// DebugEvery says whether API_DEBUG_MODELS gives every account of the run
-	// that right, on a local run (R97).
+	// that right, on a local run.
 	DebugEvery bool
 }
 
 // stubKey stands for the platform's key of Anthropic in the dev mode's stub,
 // so that tutor's choice takes the route of platform AI: the stub's adapter
-// takes no key, and this one goes nowhere (R66).
+// takes no key, and this one goes nowhere.
 const stubKey = "stub"
 
 // errStub is what the stub's adapter answers a call: it calls no provider.
 var errStub = errors.New("admission: the stub of tutor calls no provider")
 
-// StubAdapters are the adapters of the dev mode's stub (R66): Anthropic's, by
-// the client of its catalog made with no key, whose names and prices tutor
-// reads for the choice and the price as it does from any adapter, while the
-// calls are refused before any network. So tutor admits, chooses and prices on
-// the real table, and nothing of it reaches a provider. The check of an own
-// key answers by how the key ends (stubModel.Check), so that Tutor.CheckKey
-// gives every end of a check with no call.
+// StubAdapters are the adapters of the dev mode's stub: Anthropic's, by the
+// client of its catalog made with no key, whose names and prices tutor reads
+// for the choice and the price as it does from any adapter, while the calls
+// are refused before any network. So tutor admits, chooses and prices on the
+// real table, and nothing of it reaches a provider. The check of an own key
+// answers by how the key ends (stubModel.Check), so that Tutor.CheckKey gives
+// every end of a check with no call.
 func StubAdapters() map[admissionv0.Provider]provider.Dial {
 	return map[admissionv0.Provider]provider.Dial{"anthropic": func(id, key string) (provider.Model, error) {
 		m, err := claude.Dial(id, "")
@@ -125,10 +125,10 @@ func StubAdapters() map[admissionv0.Provider]provider.Dial {
 	}}
 }
 
-// The endings of a synthetic key that the stub's check of a key reads (R66);
-// a key that ends in none of them is accepted, those by which the stub refuses
-// a call of AI too (tutorstub.KeyRefused and the endings beside it). docs/build.md
-// names them for app.
+// The endings of a synthetic key that the stub's check of a key reads; a key
+// that ends in none of them is accepted, those by which the stub refuses a
+// call of AI too (tutorstub.KeyRefused and the endings beside it).
+// docs/build.md names them for app.
 const (
 	StubKeyInvalid = "-invalid"
 	StubKeyNoPerm  = "-noperm"
@@ -190,11 +190,10 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 		keys[admissionv0.Provider(p)] = key.Reveal()
 	}
 	adapters := Adapters()
-	// The debug mode offers the models of Claude, which the stub never calls
-	// (R97).
+	// The debug mode offers the models of Claude, which the stub never calls.
 	debug := !cfg.Stub && cfg.Keys.Anthropic.Reveal() != ""
 	if cfg.Stub {
-		// The configuration holds no platform key beside the stub (R66).
+		// The configuration holds no platform key beside the stub.
 		adapters, keys = StubAdapters(), map[admissionv0.Provider]string{"anthropic": stubKey}
 	}
 	// A configuration that names no mode of reading is the pair, as tutor takes
@@ -262,8 +261,8 @@ func readProviders(data []byte) ([]Provider, error) {
 
 // OwnKeyOpen says whether the own key of provider is open at a learner of
 // category: whether tutor chooses, on the route of that key, an entry for one
-// of the kinds of call api makes at least (R72). A provider api gives no
-// adapter of, or the table does not know, is closed; so is none. The list of
+// of the kinds of call api makes at least. A provider api gives no adapter of,
+// or the table does not know, is closed; so is none. The list of
 // ListOwnKeyProviders and the check of a key ask it alike, so that a provider
 // out of the list is closed to the check with no call.
 func (g *Gate) OwnKeyOpen(category formatv0.AgeCategory, provider string) bool {
@@ -292,12 +291,12 @@ var ErrTooLittleTime = errors.New("admission: too little time to check the key")
 
 // CheckKey checks the own key of provider at a learner of category through
 // tutor, which checks it for every model it would call with it, each by a
-// request with nothing of a learner's (Tutor.CheckKey; R84 spec, R96 tutor).
-// A provider closed to the key (OwnKeyOpen) is KeyProviderClosed with no call,
-// so that the check and the list of ListOwnKeyProviders do not part (R72). The
-// check ends checkReserve before ctx's deadline, and with less than twice that
-// left it does not begin: KeyUnanswered and ErrTooLittleTime. The error says
-// what failed, for the log, and never holds the key.
+// request with nothing of a learner's (Tutor.CheckKey). A provider closed to
+// the key (OwnKeyOpen) is KeyProviderClosed with no call, so that the check and
+// the list of ListOwnKeyProviders do not part. The check ends checkReserve
+// before ctx's deadline, and with less than twice that left it does not begin:
+// KeyUnanswered and ErrTooLittleTime. The error says what failed, for the log,
+// and never holds the key.
 func (g *Gate) CheckKey(ctx context.Context, category formatv0.AgeCategory, provider, key string) (tutor.KeyCheck, error) {
 	if !g.OwnKeyOpen(category, provider) {
 		return tutor.KeyProviderClosed, nil
@@ -330,31 +329,29 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 // Reads says whether the reading of handwriting by the call of the kind — of a
 // sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
 // essay, CallEssay, or its assessment, CallRubric, or the finding of the tasks
-// on the photo of a page, CallFinding (R162 spec), is admitted for a learner of
-// category: by platform AI, or, when ownKeyProvider names one, by
-// the own key of that provider alone. It is admitted when tutor chooses, for
-// the call, an entry all of whose models the table admits at the deployment's
-// stage or above. On platform AI only the providers the platform holds a key
-// of serve, and on either route only those api gives an adapter of; the
-// reading asks again (R46, R81, R82).
+// on the photo of a page, CallFinding, is admitted for a learner of category:
+// by platform AI, or, when ownKeyProvider names one, by the own key of that
+// provider alone. It is admitted when tutor chooses, for the call, an entry
+// all of whose models the table admits at the deployment's stage or above. On
+// platform AI only the providers the platform holds a key of serve, and on
+// either route only those api gives an adapter of; the reading asks again.
 func (g *Gate) Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return g.chooses(call, g.route(category, ownKeyProvider))
 }
 
 // Words says whether the tutor's words are admitted for a learner of category,
-// on the route Reads takes: the hint of a rung by the call of the hint
-// without the work, and, with the work, the call of words, which serves the
-// analysis of its steps and the hint at once, and which tutor admits only with
-// the hint on the model of the analysis (R84 spec; R106, R111 tutor). tutor
-// asks again, of the very model.
+// on the route Reads takes: the hint of a rung by the call of the hint without
+// the work, and, with the work, the call of words, which serves the analysis
+// of its steps and the hint at once, and which tutor admits only with the hint
+// on the model of the analysis. tutor asks again, of the very model.
 func (g *Gate) Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return g.chooses(WordsCall(withWork), g.route(category, ownKeyProvider))
 }
 
 // WordsCall is tutor's kind of call of the words of a rung: the words with the
 // work, which analyse its steps too, or the hint without it — "explain
-// differently" and a task a tap checks (R106 tutor). The gate admits, and the
-// quota reserves, by it.
+// differently" and a task a tap checks. The gate admits, and the quota
+// reserves, by it.
 func WordsCall(withWork bool) tutor.Call {
 	if withWork {
 		return tutor.CallWords
@@ -363,10 +360,10 @@ func WordsCall(withWork bool) tutor.Call {
 }
 
 // PaperWords says whether the tutor's words of a task from paper are admitted
-// for a learner of category, on the route Reads takes: those of a rung, with the
-// work, by the call that serves the analysis of its steps and the hint, and the
-// opening question and a rung put another way by the hint alone, which tutor
-// asks the same way as Words (R82 spec).
+// for a learner of category, on the route Reads takes: those of a rung, with
+// the work, by the call that serves the analysis of its steps and the hint, and
+// the opening question and a rung put another way by the hint alone, which
+// tutor asks the same way as Words.
 func (g *Gate) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return g.chooses(PaperWordsCall(withWork), g.route(category, ownKeyProvider))
 }
@@ -382,9 +379,9 @@ func PaperWordsCall(withWork bool) tutor.Call {
 }
 
 // CorrectWords says whether the tutor's words after a correct answer are
-// admitted for a learner of category, on the route Reads takes: whether
-// tutor chooses an entry for their call, CallCorrect, one kind with the work and
-// without it (R112 tutor; R76). tutor asks again, of the very model.
+// admitted for a learner of category, on the route Reads takes: whether tutor
+// chooses an entry for their call, CallCorrect, one kind with the work and
+// without it. tutor asks again, of the very model.
 func (g *Gate) CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool {
 	return g.chooses(tutor.CallCorrect, g.route(category, ownKeyProvider))
 }
@@ -401,55 +398,55 @@ func (g *Gate) route(category formatv0.AgeCategory, ownKeyProvider string) tutor
 }
 
 // ReadSheet reads the work of a handwriting sheet by tutor's readers, the pair
-// or one reader by the mode of reading (R88): the observation of each, or the
+// or one reader by the mode of reading: the observation of each, or the
 // outcome of a call that gave none.
 func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead {
 	return g.tutor.ReadSheet(ctx, r)
 }
 
 // ReadWorkbook reads the filled boxes of a workbook page by tutor's readers,
-// the pair or one by the mode of reading (R88): the observation of each over
-// every box of the page, or the outcome of a call that gave none (R81).
+// the pair or one by the mode of reading: the observation of each over every
+// box of the page, or the outcome of a call that gave none.
 func (g *Gate) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead {
 	return g.tutor.ReadWorkbook(ctx, r)
 }
 
 // ReadEssay reads the essay of a task with a rubric by tutor's one reader: the
 // observation of its answer slot bound sheet — the text, or unreadable — or the
-// outcome of a call that gave none (R82).
+// outcome of a call that gave none.
 func (g *Gate) ReadEssay(ctx context.Context, r tutor.EssayReading) tutor.EssayRead {
 	return g.tutor.ReadEssay(ctx, r)
 }
 
 // AssessEssay assesses the text of an essay by the criteria of its rubric: a
 // mark of each criterion and one feedback, which api checks before it reaches
-// the learner, or the outcome of a call that gave none (R82).
+// the learner, or the outcome of a call that gave none.
 func (g *Gate) AssessEssay(ctx context.Context, r tutor.RubricAssessment) tutor.RubricAssessed {
 	return g.tutor.AssessEssay(ctx, r)
 }
 
 // FindTasks finds the tasks on the photo of a page by tutor's model of the
-// finding: their frames, or the outcome of a call that gave none (R162 spec).
+// finding: their frames, or the outcome of a call that gave none.
 func (g *Gate) FindTasks(ctx context.Context, f tutor.TaskFinding) tutor.TasksFound {
 	return g.tutor.FindTasks(ctx, f)
 }
 
 // ReadStatement reads the statement of a task from paper into its tasks by
 // tutor's model of the statement: each with its statement and formula, empty
-// when it is none, or the outcome of a call that gave none (R162 spec).
+// when it is none, or the outcome of a call that gave none.
 func (g *Gate) ReadStatement(ctx context.Context, p tutor.PaperTask) tutor.StatementRead {
 	return g.tutor.ReadStatement(ctx, p)
 }
 
 // SolveTask solves the tasks of a crop from paper it names by tutor's model of
 // the solution: the answer of each, none when it has no one answer, or the
-// outcome of a call that gave none (R162 spec).
+// outcome of a call that gave none.
 func (g *Gate) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve) tutor.TasksSolved {
 	return g.tutor.SolveTask(ctx, p, tasks)
 }
 
 // ReadPaper reads the work written on a task from paper as ReadSheet reads a
-// sheet, by the pair or one reader (R162 spec).
+// sheet, by the pair or one reader.
 func (g *Gate) ReadPaper(ctx context.Context, r tutor.PaperReading) tutor.SheetRead {
 	return g.tutor.ReadPaper(ctx, r)
 }
@@ -471,16 +468,16 @@ func (g *Gate) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest) tu
 // TellCorrectWords asks tutor for the words after a correct answer: the praise
 // of a step and a question on the technique that helped, or the outcome of a
 // call that gave none. api checks them for leaks and their form before they
-// reach the learner (R112 tutor).
+// reach the learner.
 func (g *Gate) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest) tutor.CorrectAnswer {
 	return g.tutor.CorrectAnswerWords(ctx, c)
 }
 
 // Price is what tutor expects a call of the kind to cost on the route, by the
-// models it would choose for it and their prices (Tutor.Price; R94 tutor): the
-// quota reserves by it before the call (R12). A route tutor admits no model for,
-// or a price it cannot give, is no price — CallPrice's Expected is false — and
-// the quota reserves its own value of the kind then.
+// models it would choose for it and their prices (Tutor.Price): the quota
+// reserves by it before the call. A route tutor admits no model for, or a
+// price it cannot give, is no price — CallPrice's Expected is false — and the
+// quota reserves its own value of the kind then.
 func (g *Gate) Price(call tutor.Call, route tutor.Route) tutor.CallPrice {
 	price, answer, err := g.tutor.Price(call, route)
 	if err != nil || !answer.Admitted {
@@ -498,7 +495,7 @@ func (g *Gate) chooses(call tutor.Call, route tutor.Route) bool {
 
 // Admitted are the models tutor's list gives the call for an adult on platform
 // AI, in the order of the attempts of its cascade, what the debug mode shows of
-// a call it leaves to the list (R97); none where the list admits no model.
+// a call it leaves to the list; none where the list admits no model.
 func (g *Gate) Admitted(call tutor.Call) []table.Model {
 	entry, answer, err := g.tutor.ChooseCall(call, g.route(formatv0.AgeCategoryAdult, ""))
 	if err != nil || !answer.Admitted {
@@ -509,5 +506,5 @@ func (g *Gate) Admitted(call tutor.Call) []table.Model {
 
 // Reading is the mode tutor reads the handwriting of a sheet and of a workbook
 // page by, and so how many observations its reading gives: two of the pair, or
-// one of the one reader (R88).
+// one of the one reader.
 func (g *Gate) Reading() tutor.Reading { return g.reading }

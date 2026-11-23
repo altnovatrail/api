@@ -19,8 +19,8 @@ import (
 	"github.com/altnovatrail/api/internal/packages/packagestest"
 )
 
-// Whatever the path of a request for a file names as its package, FromName
-// does not panic, and what it reads is a digest whose Name is that name (R42).
+// Whatever the path of a request for a file names as its package, FromName does
+// not panic, and what it reads is a digest whose Name is that name.
 func FuzzFromName(f *testing.F) {
 	f.Add(packages.Name(packagestest.Built(f, "smallest").Digest))
 	for _, seed := range []string{
@@ -48,12 +48,12 @@ func FuzzFromName(f *testing.F) {
 	})
 }
 
-// releaseForm is a tag vX.Y.Z with no leading zeros, as R41 pins one.
+// releaseForm is a tag vX.Y.Z with no leading zeros, as modules.json pins one.
 var releaseForm = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 // Whatever modules.json holds — a pull request may change it, and the check of
-// CI reads it —, ParseConfig does not panic, and what it reads is a release
-// and a digest of their form, which read back from themselves (R41).
+// CI reads it —, ParseConfig does not panic, and what it reads is a release and
+// a digest of their form, which read back from themselves.
 func FuzzParseConfig(f *testing.F) {
 	digest := "sha256:" + strings.Repeat("a", 64)
 	for _, seed := range []string{
@@ -92,11 +92,11 @@ func FuzzParseConfig(f *testing.F) {
 }
 
 // Whatever an archive of a release holds, Unpack does not panic, and what it
-// takes is regular files of the parts of a package alone, by clean paths in
-// its folder, of no more bytes than the tar holds; an archive with a link is
-// refused (R41). The fuzzer varies the tar, which the test gzips: the gzip is
-// the standard library's, and the rules are api's. testdata/fuzz/FuzzUnpack
-// holds a sparse file of PAX, which the reader would unfold to 500 MB.
+// takes is regular files of the parts of a package alone, by clean paths in its
+// folder, of no more bytes than the tar holds; an archive with a link is
+// refused. The fuzzer varies the tar, which the test gzips: the gzip is the
+// standard library's, and the rules are api's. testdata/fuzz/FuzzUnpack holds a
+// sparse file of PAX, which the reader would unfold to 500 MB.
 func FuzzUnpack(f *testing.F) {
 	smallest := packagestest.Built(f, "smallest")
 	media := packagestest.Built(f, "with-media-and-notice")

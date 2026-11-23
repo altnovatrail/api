@@ -1,7 +1,7 @@
 // Package packagestest builds, for the tests, what package packages lays and
 // reads: the packages of the vectors of spec's format, their archives, an index
 // of them and a release of modules that serves them, and a folder laid from
-// them, read as serve reads it (R41). The tests run without the network.
+// them, read as serve reads it. The tests run without the network.
 //
 // The vectors of packages hold no answer slot bound choice, so the package
 // holds modules of its own too, synthetic, under modules/: choices, whose tasks
@@ -289,9 +289,9 @@ func Index(t testing.TB, entries ...Entry) []byte {
 	return data
 }
 
-// teachesOf is the anchor skills the skills of view's graph teach, each once, in
-// the order of their bytes, which for IDs of ASCII is the order of UTF-16 code
-// units a release of modules writes the teaches of its entry in (R63 spec).
+// teachesOf is the anchor skills the skills of view's graph teach, each once,
+// in the order of their bytes, which for IDs of ASCII is the order of UTF-16
+// code units a release of modules writes the teaches of its entry in.
 func teachesOf(view formatv0.CanonicalView) []string {
 	if view.SkillGraph == nil {
 		return nil

@@ -53,7 +53,7 @@ func TestInvitePrintsACodeTheDatabaseKeepsOnlyTheHashOf(t *testing.T) {
 }
 
 // Each run is a code of its own, with the tariff it is given: off a deployment,
-// the tariff of dev-check too (R55).
+// the tariff of dev-check too.
 func TestEachInviteIsANewCodeWithItsTariff(t *testing.T) {
 	t.Parallel()
 

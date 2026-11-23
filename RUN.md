@@ -88,7 +88,7 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T126 | Ссылки по R171 spec: план, CLAUDE.md, правила частей, `docs/README.md`, `docs/build.md`, комментарии вне Go; разбивка на T127–T142 | Claude | да | T125 |
 | [x] | T127 | Ссылки по R171 spec: комментарии `internal/learning` | Claude | — | T126 |
 | [x] | T128 | Ссылки по R171 spec: комментарии `internal/store` с миграциями SQL, `internal/account`, `internal/config` | Claude | — | T126 |
-| [ ] | T129 | Ссылки по R171 spec: комментарии `cmd/api`, `internal/admission`, `rpc`, `sweep`, `packages` | Claude | — | T126 |
+| [x] | T129 | Ссылки по R171 spec: комментарии `cmd/api`, `internal/admission`, `rpc`, `sweep`, `packages` | Claude | — | T126 |
 | [ ] | T130 | Ссылки по R171 spec: комментарии остального Go | Claude | — | T126 |
 | [ ] | T131 | Ссылки по R171 spec: архитектура 1, 2, 3.1–3.4, 4 | Claude | — | T126 |
 | [ ] | T132 | Ссылки по R171 spec: архитектура 3.5–3.8 | Claude | — | T126 |

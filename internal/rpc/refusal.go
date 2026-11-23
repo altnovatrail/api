@@ -11,10 +11,10 @@ import (
 	"github.com/altnovatrail/api/internal/authn"
 )
 
-// Refuse is a refusal of the contract: an error of Connect with its code and the
-// Refusal of its cause as its detail (R17; R97 spec). data, when given, fills
-// the Refusal's data. The message is the cause's name, which holds nothing of
-// the request. The cause goes to the request's line of the log.
+// Refuse is a refusal of the contract: an error of Connect with its code and
+// the Refusal of its cause as its detail. data, when given, fills the Refusal's
+// data. The message is the cause's name, which holds nothing of the request.
+// The cause goes to the request's line of the log.
 func Refuse(ctx context.Context, code connect.Code, cause v1.Cause, data ...func(*v1.Refusal)) error {
 	refusal := &v1.Refusal{Cause: cause}
 	for _, fill := range data {
@@ -28,7 +28,7 @@ func Refuse(ctx context.Context, code connect.Code, cause v1.Cause, data ...func
 }
 
 // AccountGone is the account marked "deleting" or deleted: the checks give it,
-// and so does a handler that finds the account gone after them (R20).
+// and so does a handler that finds the account gone after them.
 func AccountGone(ctx context.Context) error {
 	return Refuse(ctx, connect.CodeUnauthenticated, v1.Cause_CAUSE_ACCOUNT_GONE)
 }
@@ -49,12 +49,12 @@ func freshSignInNeeded(ctx context.Context) error {
 }
 
 // signInAgain is a token that will not do, with no cause: the SDK on the device
-// refreshes it, or signs out by itself (R20).
+// refreshes it, or signs out by itself.
 func signInAgain() error { return connect.NewError(connect.CodeUnauthenticated, "") }
 
 // NoteFailure names, in the request's line of the log, a failure that its
 // answer does not show: a deletion done in the database whose rest the job
-// finishes (R21). The line is an error, with the failure's kind.
+// finishes. The line is an error, with the failure's kind.
 func NoteFailure(ctx context.Context, err error) { noteOf(ctx).failure = err }
 
 // Failed is a check or a handler that did not finish — the sign-in service, the
@@ -66,22 +66,21 @@ func Failed(ctx context.Context, err error) error {
 }
 
 // NoteOutcome names, in the request's line of the log, the cause of the outcome
-// of an answer that is no refusal: a call of AI that gave no reading (R46).
+// of an answer that is no refusal: a call of AI that gave no reading.
 func NoteOutcome(ctx context.Context, cause v1.Cause) { noteOf(ctx).outcome = cause.String() }
 
 // NoteWordsCheck names, in the request's line of the log, the check that turned
-// the tutor's words down, in a word of logging.WordsChecks: the learner read the
-// fallback text, and the line says why, without the words (R47).
+// the tutor's words down, in a word of logging.WordsChecks: the learner read
+// the fallback text, and the line says why, without the words.
 func NoteWordsCheck(ctx context.Context, check string) { noteOf(ctx).wordsCheck = check }
 
-// NoteKeyCheck names, in the request's line of the log, how the check of an
-// own key ended, in a word of logging.KeyChecks: never the key or its provider
-// (R73).
+// NoteKeyCheck names, in the request's line of the log, how the check of an own
+// key ended, in a word of logging.KeyChecks: never the key or its provider.
 func NoteKeyCheck(ctx context.Context, check string) { noteOf(ctx).keyCheck = check }
 
-// AICall is a call of AI as the log writes it (R12, R46): how it ended, in one
-// word of logging.AIOutcomes, how long it took, and what each model of it took —
-// no content, no key, no identifier.
+// AICall is a call of AI as the log writes it: how it ended, in one word of
+// logging.AIOutcomes, how long it took, and what each model of it took — no
+// content, no key, no identifier.
 type AICall struct {
 	Outcome  string
 	Duration time.Duration
@@ -90,15 +89,15 @@ type AICall struct {
 
 // AIUsage is what one call of a model took: its provider and model, its tokens
 // — the input without the cache, written to the cache and read from it, which
-// add up to its input, the output and the thinking (R94) — and what they cost,
-// and how long it took at tutor, how many times its SDK sent it again and when
-// its first text came (R107 tutor).
+// add up to its input, the output and the thinking — and what they cost, and
+// how long it took at tutor, how many times its SDK sent it again and when its
+// first text came.
 type AIUsage struct {
 	Provider, Model                                string
 	InputTokens, CacheWriteTokens, CacheReadTokens int64
 	OutputTokens, ThinkingTokens                   int64
 	// CostMicroUSD is what it cost by tutor's prices, at its worst when Billed is
-	// false: its tokens are not its whole bill (R12).
+	// false: its tokens are not its whole bill.
 	CostMicroUSD int64
 	Billed       bool
 	// Took is the model's own time, its retries counted in; FirstToken, 0 where
@@ -116,12 +115,12 @@ func NoteAICall(ctx context.Context, c AICall) {
 }
 
 // NoteQuotaSpent names, in the request's log, a call of platform AI that the
-// quota did not hold, by the cap it met, in a word of quota.Spent: a line of its
-// own beside the request's, with the method and no ID, which the unit economics
-// count by the day (R12).
+// quota did not hold, by the cap it met, in a word of quota.Spent: a line of
+// its own beside the request's, with the method and no ID, which the unit
+// economics count by the day.
 func NoteQuotaSpent(ctx context.Context, spent string) { noteOf(ctx).quotaSpent = spent }
 
 // NotePlatformLimit names, in the request's log, the refusal of the provider by
 // its limit on the platform's key that closed platform AI to all: a line of its
-// own, with the method and no ID, which is the operator's signal (R11).
+// own, with the method and no ID, which is the operator's signal.
 func NotePlatformLimit(ctx context.Context) { noteOf(ctx).platformLimit = true }

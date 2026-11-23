@@ -90,7 +90,7 @@ func timeLeft(t *testing.T, timeout, paper time.Duration, procedure string) time
 
 // No time limit given is the default one, not none and not one already out:
 // 30 s, and 90 s for the methods of a task from paper that ask up to three
-// models in turn (R98).
+// models in turn.
 func TestNoTimeLimitIsTheDefault(t *testing.T) {
 	t.Parallel()
 

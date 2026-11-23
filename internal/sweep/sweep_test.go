@@ -273,7 +273,7 @@ func TestAPassDeletesWhatIsPastItsTermAndNothingElse(t *testing.T) {
 	}
 
 	// Counters of the quota whose day ended 25 hours ago, which go, and 23 hours
-	// ago, which stay for the requests over midnight (R12).
+	// ago, which stay for the requests over midnight.
 	for _, ended := range []string{"25 hours", "23 hours"} {
 		for table, owner := range map[string]string{"account_quota (account_id": active, "profile_quota (profile_id": newProfile} {
 			if _, err := w.pool.Exec(t.Context(), `INSERT INTO `+table+`, day_start, day_end)

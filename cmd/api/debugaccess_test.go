@@ -23,7 +23,7 @@ func debugRight(t *testing.T, url, uid string) bool {
 
 // debug-access gives the account of a UID the right of the debug mode and takes
 // it, says which, and neither its output nor its log names the UID; another
-// account keeps its own (R97).
+// account keeps its own.
 func TestDebugAccessGivesAndTakesTheRight(t *testing.T) {
 	t.Parallel()
 

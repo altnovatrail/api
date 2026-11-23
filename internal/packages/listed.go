@@ -12,8 +12,8 @@ import (
 )
 
 // ErrNotListed is an ID of the deployment's list of modules that the pinned
-// index does not hold (R150 spec): a typo would hide a module without a word,
-// so it is a failed start, as a fact the admission table does not name is.
+// index does not hold: a typo would hide a module without a word, so it is a
+// failed start, as a fact the admission table does not name is.
 var ErrNotListed = errors.New("packages: a module of the catalog's list is not in the pinned index")
 
 // NotInIndex refuses each of ids that index does not hold, naming them in their
@@ -31,14 +31,14 @@ func NotInIndex(index formatv0.ModuleIndex, ids []formatv0.ModuleID) error {
 	return nil
 }
 
-// List narrows what the set offers to the modules ids, the deployment's list
-// (R150 spec): the catalog gives no other module, and the engine chooses none of
-// its lessons and tasks, as of a module with no current version. Their packages
-// stay in the set, so an attempt or a lesson run open on one goes on to its end
-// on its package (R13). An ID the index does not hold is refused, and the set is
-// left as it was; with no list — ids nil — the set offers the whole index. It is
-// called before the set is served, as serve calls it at its start: the handlers
-// read the list with no lock.
+// List narrows what the set offers to the modules ids, the deployment's list:
+// the catalog gives no other module, and the engine chooses none of its lessons
+// and tasks, as of a module with no current version. Their packages stay in the
+// set, so an attempt or a lesson run open on one goes on to its end on its
+// package. An ID the index does not hold is refused, and the set is left as it
+// was; with no list — ids nil — the set offers the whole index. It is called
+// before the set is served, as serve calls it at its start: the handlers read
+// the list with no lock.
 func (s *Set) List(ids []formatv0.ModuleID) error {
 	if err := NotInIndex(s.Index, ids); err != nil {
 		return err
@@ -61,7 +61,7 @@ func (s *Set) Listed(id formatv0.ModuleID) bool {
 }
 
 // OfferedFor is CurrentFor of a module the deployment's list names: the package
-// a new attempt, a new lesson run, the catalog and the engine take (R150 spec).
+// a new attempt, a new lesson run, the catalog and the engine take.
 func (s *Set) OfferedFor(id formatv0.ModuleID, category formatv0.AgeCategory) (*modulepackage.Package, bool) {
 	if !s.Listed(id) {
 		return nil, false

@@ -10,10 +10,10 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// migrate applies the migrations of the database api and of the database openfga
-// that they have not had, over the direct connections, makes the store of the
-// rights and writes its model when it must, and exits (R29, R31). A deployment
-// runs it before a new revision takes requests (R51); here it is run by hand.
+// migrate applies the migrations of the database api and of the database
+// openfga that they have not had, over the direct connections, makes the store
+// of the rights and writes its model when it must, and exits. A deployment runs
+// it before a new revision takes requests; here it is run by hand.
 func migrate(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	if err := flags("migrate", args, stderr); err != nil {
 		return err

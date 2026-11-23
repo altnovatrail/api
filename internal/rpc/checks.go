@@ -41,8 +41,8 @@ type Caller struct {
 	// AccountID is the account of the UID; empty only on CreateAccount, for a UID
 	// with no account yet.
 	AccountID string
-	// DebugModels says the account has the right of the debug mode, as its row
-	// had it when the request came (R97).
+	// DebugModels says the account has the right of the debug mode, as its row had
+	// it when the request came.
 	DebugModels bool
 }
 
@@ -54,16 +54,15 @@ func CallerFrom(ctx context.Context) (Caller, bool) {
 	return caller, ok
 }
 
-// checks runs the checks in this order, before the handler (R20, R33): the
-// class of the token, the mark "deleting", the account, the right on the
-// profile — on its message, before anything is read by its ID — and the fresh
-// sign-in, last.
+// checks runs the checks in this order, before the handler: the class of the
+// token, the mark "deleting", the account, the right on the profile — on its
+// message, before anything is read by its ID — and the fresh sign-in, last.
 type checks struct {
 	signin authn.Port
 	db     DB
 	rights Rights
 	// userGone is called for a user the sign-in service no longer has, whose
-	// account is not marked: deleted past api, in the project's console (R20).
+	// account is not marked: deleted past api, in the project's console.
 	userGone func(ctx context.Context, accountID, uid string) error
 	now      func() time.Time
 }
@@ -120,7 +119,7 @@ func (c *checks) intercept(next connect.ServerFunc) connect.ServerFunc {
 	}
 }
 
-// refused answers a token the sign-in service refused, by its class (R20).
+// refused answers a token the sign-in service refused, by its class.
 func (c *checks) refused(ctx context.Context, err error) error {
 	var refusal *authn.Refusal
 	if !errors.As(err, &refusal) {
@@ -144,11 +143,10 @@ func (c *checks) refused(ctx context.Context, err error) error {
 		case err != nil:
 			return Failed(ctx, err)
 		case !account.Deleting:
-			// The user was deleted past api: the account goes too, by the same
-			// path as DeleteAccount, with no fresh sign-in, in this request (R20,
-			// R21). Its user is gone already; what else does not finish after the
-			// mark, the daily job does. A mark that did not go is a failure, and a
-			// repeat marks it.
+			// The user was deleted past api: the account goes too, by the same path as
+			// DeleteAccount, with no fresh sign-in, in this request. Its user is gone
+			// already; what else does not finish after the mark, the daily job does. A
+			// mark that did not go is a failure, and a repeat marks it.
 			err := c.userGone(ctx, account.ID, refusal.UID)
 			var unfinished *deletion.Unfinished
 			switch {
@@ -204,7 +202,7 @@ func (s *checked) Receive(msg any) error {
 		return noProfile(s.ctx)
 	}
 	// Read after the right, never before: a tuple whose profile is gone — a
-	// dangling one (R21) — gives a right to nothing.
+	// dangling one — gives a right to nothing.
 	there, activeOn, err := store.ProfileOf(s.ctx, s.checks.db, s.caller.AccountID, profileID)
 	if err != nil {
 		return Failed(s.ctx, err)
@@ -222,7 +220,7 @@ func (s *checked) Receive(msg any) error {
 		return freshSignInNeeded(s.ctx)
 	}
 	// A request on the profile that passed every check is its activity, written
-	// once a day (П-9; R36).
+	// once a day (П-9).
 	if !store.TodayByUTC(activeOn, s.checks.now()) {
 		if err := store.TouchProfile(s.ctx, s.checks.db, profileID); err != nil {
 			return Failed(s.ctx, err)
@@ -232,13 +230,12 @@ func (s *checked) Receive(msg any) error {
 }
 
 // Learner is the check of consent, for the handlers of the learning requests:
-// the profile's consent is confirmed, or the request is refused "no consent"
-// (R116 spec), and its age is not to be given again, or it is refused "age
-// needed": its country raised its age of digital consent above the one its
-// category was given by (R134 spec). It gives the profile's age category, read
-// with the consent in one query, by which a module and a task suit the learner
-// (R07). It runs after the checks, on the profile they let through: one gone
-// meanwhile is "no profile".
+// the profile's consent is confirmed, or the request is refused "no consent",
+// and its age is not to be given again, or it is refused "age needed": its
+// country raised its age of digital consent above the one its category was
+// given by. It gives the profile's age category, read with the consent in one
+// query, by which a module and a task suit the learner. It runs after the
+// checks, on the profile they let through: one gone meanwhile is "no profile".
 func Learner(ctx context.Context, db store.Querier, profileID string) (string, error) {
 	caller, _ := CallerFrom(ctx)
 	l, err := store.LearnerOf(ctx, db, caller.AccountID, profileID)

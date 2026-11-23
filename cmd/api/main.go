@@ -2,13 +2,12 @@
 // each thing it is run for: serve, migrate, invite, tariff, reopen, countries,
 // sweep, packages, check, after, consents, reports, debug-access and version.
 // The image it runs in has no shell, so whatever an operator or its build runs
-// — the migrations as a job, an invite code from a terminal of their own (R34), a
-// tariff changed by it (R11) and platform AI opened again (R59), the list of
-// countries (R36), the daily job (R38), the packages of modules laid into the
-// image (R41), the check of the configuration before the migrations (R45), the
-// job after a rollout (R51), the check of the parents' forms and the reading of
-// the problem reports (R52), the right of the debug mode given and taken
-// (R97) — is a command of this binary too (R105 spec).
+// — the migrations as a job, an invite code from a terminal of their own, a
+// tariff changed by it and platform AI opened again, the list of countries,
+// the daily job, the packages of modules laid into the image, the check of the
+// configuration before the migrations, the job after a rollout, the check of
+// the parents' forms and the reading of the problem reports, the right of the
+// debug mode given and taken — is a command of this binary too.
 package main
 
 import (

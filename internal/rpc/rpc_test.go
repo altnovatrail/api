@@ -263,7 +263,7 @@ func TestAnOwnersRequestReachesItsHandler(t *testing.T) {
 	}
 }
 
-// Each class of a refused token is its answer (R20).
+// Each class of a refused token is its answer.
 func TestEachClassOfATokenIsItsAnswer(t *testing.T) {
 	w := newWorld(t, time.Second)
 	marked := w.person(t, "uid-marked")
@@ -305,7 +305,7 @@ func TestEachClassOfATokenIsItsAnswer(t *testing.T) {
 }
 
 // A user deleted past api takes its account with it, by the path of
-// DeleteAccount, in the request that finds it gone (R20, R21).
+// DeleteAccount, in the request that finds it gone.
 func TestAUserGonePastAPIDeletesTheAccount(t *testing.T) {
 	w := newWorld(t, time.Second)
 	p := w.person(t, "uid-gone")
@@ -456,7 +456,7 @@ func TestARequestEndsAtItsTimeLimit(t *testing.T) {
 	refusedAs(t, err, connect.CodeDeadlineExceeded, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
-// JSON is taken and written with the protobuf names (R18).
+// JSON is taken and written with the protobuf names.
 func TestJSONHasTheProtobufNames(t *testing.T) {
 	w := newWorld(t, time.Second)
 	p := w.person(t, "uid-json")
@@ -572,7 +572,7 @@ func TestALearningRequestNeedsItsConsent(t *testing.T) {
 		t.Errorf("Learner with a confirmed consent = %q, %v; want adult", category, err)
 	}
 	// A learner who consents themselves in a country whose age rose above the one
-	// the category was given by gives the age again first (R134 spec).
+	// the category was given by gives the age again first.
 	if _, err := w.pool.Exec(t.Context(), `UPDATE profiles SET age_category = 'from_consent_to_18', country = 'AT', owner = false, ask_before_showing = true
 		WHERE id = $1`, p.profileID); err != nil {
 		t.Fatal(err)
@@ -700,7 +700,7 @@ func TestADanglingTupleIsNotDroppedWithoutAFreshSignIn(t *testing.T) {
 }
 
 // A message larger than MaxMessage is refused resource_exhausted before it is
-// decoded, whatever its method, with no Refusal (R46).
+// decoded, whatever its method, with no Refusal.
 func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -715,10 +715,9 @@ func TestAMessageLargerThanTheLimitIsRefused(t *testing.T) {
 	refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_UNSPECIFIED)
 }
 
-// A request that called AI names the cause of its outcome in its line, and
-// each model of each call has a line of its usage, with its own time, retries
-// and first text (R107 tutor) — or, when no model answered, one line of how the
-// call ended (R46).
+// A request that called AI names the cause of its outcome in its line, and each
+// model of each call has a line of its usage, with its own time, retries and
+// first text — or, when no model answered, one line of how the call ended.
 func TestTheCallsOfAIAreLoggedBesideTheirRequest(t *testing.T) {
 	t.Parallel()
 

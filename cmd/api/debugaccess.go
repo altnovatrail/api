@@ -23,9 +23,9 @@ refused.
 const maxUID = 128
 
 // setDebugAccess gives the account of a sign-in UID the right of the debug
-// mode, or takes it (R97). The operator names the account by the UID the
-// sign-in service shows; neither the output nor the log names it. stdout says
-// whether the account has the right now.
+// mode, or takes it. The operator names the account by the UID the sign-in
+// service shows; neither the output nor the log names it. stdout says whether
+// the account has the right now.
 func setDebugAccess(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	action, uid, err := operatorArgs("debug-access", debugAccessUsage, args, stderr, func(rest []string) (string, string, error) {
 		switch {

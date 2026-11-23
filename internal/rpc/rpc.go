@@ -1,8 +1,7 @@
-// Package rpc is api's server of the contract novatrail.api.v1, on Connect v2
-// (R17, R18, R33): the methods of the contract, its codecs, and the interceptors
-// every request goes through — its line of the log, its time limit and the
-// checks, which run before any handler. A method with no handler answers
-// unimplemented.
+// Package rpc is api's server of the contract novatrail.api.v1, on Connect v2:
+// the methods of the contract, its codecs, and the interceptors every request
+// goes through — its line of the log, its time limit and the checks, which run
+// before any handler. A method with no handler answers unimplemented.
 package rpc
 
 import (
@@ -24,18 +23,17 @@ import (
 
 // Deps is what the server runs on.
 type Deps struct {
-	// Signin is the sign-in service (R32).
+	// Signin is the sign-in service.
 	Signin authn.Port
-	// DB is the pool of the database api (R29).
+	// DB is the pool of the database api.
 	DB DB
-	// Rights is api's rights in OpenFGA (R31).
+	// Rights is api's rights in OpenFGA.
 	Rights Rights
 	// Log is the service's log.
 	Log *slog.Logger
-	// RequestTimeout is the longest a request may run (R33).
+	// RequestTimeout is the longest a request may run.
 	RequestTimeout time.Duration
-	// PaperRequestTimeout is the longest a request of paperMethods may run
-	// (R98).
+	// PaperRequestTimeout is the longest a request of paperMethods may run.
 	PaperRequestTimeout time.Duration
 }
 
@@ -52,7 +50,7 @@ type Handlers struct {
 	Work     apiv1connect.WorkServiceHandler
 	Paper    apiv1connect.PaperServiceHandler
 	// Debug is the debug mode, set on a run whose tutor has its own adapters with
-	// the key of Anthropic; unset, each method answers unimplemented (R97).
+	// the key of Anthropic; unset, each method answers unimplemented.
 	Debug apiv1connect.DebugServiceHandler
 }
 
@@ -89,8 +87,8 @@ func or[H any](set, unimplemented H) H {
 }
 
 // Mount puts the server's methods on mux, with the contract's codecs: binary
-// protobuf, and JSON for debugging, written with the protobuf names (R18). The
-// JSON codec of Connect discards unknown fields already. A message larger than
+// protobuf, and JSON for debugging, written with the protobuf names. The JSON
+// codec of Connect discards unknown fields already. A message larger than
 // MaxMessage is refused resource_exhausted before it is decoded.
 func Mount(mux *http.ServeMux, server *connect.Server) {
 	json := connectproto.NewJSONCodec()
@@ -99,19 +97,19 @@ func Mount(mux *http.ServeMux, server *connect.Server) {
 		connecthttp.WithReadMaxBytes(MaxMessage))
 }
 
-// MaxMessage is the largest message of a request the server reads, in bytes
-// (R33, R46, R52): 11 MiB. The largest message of the contract is the scan of a
-// parent's form of consent, up to 10 MiB by the contract, with the rest of its
-// request; a stored work is at most 4 MiB, and the crop of a handwriting sheet,
-// at most 1568 px a side in grey of 8 bits, is under 2.5 MB even if PNG
-// compressed nothing. The JSON of debugging writes the scan in
-// base64, a third larger, and is no way to send one.
+// MaxMessage is the largest message of a request the server reads, in bytes:
+// 11 MiB. The largest message of the contract is the scan of a parent's form
+// of consent, up to 10 MiB by the contract, with the rest of its request; a
+// stored work is at most 4 MiB, and the crop of a handwriting sheet, at most
+// 1568 px a side in grey of 8 bits, is under 2.5 MB even if PNG compressed
+// nothing. The JSON of debugging writes the scan in base64, a third larger,
+// and is no way to send one.
 const MaxMessage = 11 << 20
 
 // paperMethods are the methods whose calls of a task from paper ask up to three
 // models in turn, and so run for the time limit of paper: the finding of the
 // tasks, the reading of a statement, and the submission of a work, a task of a
-// module's among them (R98).
+// module's among them.
 var paperMethods = map[string]bool{
 	apiv1connect.PaperServiceFindTasksProcedure:       true,
 	apiv1connect.AttemptServiceReadStatementProcedure: true,
@@ -119,9 +117,9 @@ var paperMethods = map[string]bool{
 }
 
 // limited cuts a request short at its time limit, that of paper for
-// paperMethods; a shorter Connect-Timeout-Ms of the client's still holds (R33).
-// No limit given is the default one, never none, and never one that has run
-// out before the request began.
+// paperMethods; a shorter Connect-Timeout-Ms of the client's still holds. No
+// limit given is the default one, never none, and never one that has run out
+// before the request began.
 func limited(timeout, paper time.Duration) connect.ServerInterceptor {
 	if timeout <= 0 {
 		timeout = config.DefaultRequestTimeout
@@ -147,14 +145,14 @@ type note struct {
 	cause   string
 	class   authn.Class
 	failure error
-	// outcome is the cause of the outcome of an answer that was no refusal: a
-	// call of AI that gave no reading (R46).
+	// outcome is the cause of the outcome of an answer that was no refusal: a call
+	// of AI that gave no reading.
 	outcome string
-	// wordsCheck is the check that turned the tutor's words down (R47).
+	// wordsCheck is the check that turned the tutor's words down.
 	wordsCheck string
-	// keyCheck is how the check of an own key ended (R73).
+	// keyCheck is how the check of an own key ended.
 	keyCheck string
-	// quotaSpent is the cap a call of platform AI met, which made no call (R12).
+	// quotaSpent is the cap a call of platform AI met, which made no call.
 	quotaSpent string
 	// platformLimit says the request closed platform AI for its provider's limit.
 	platformLimit bool
@@ -173,7 +171,7 @@ func noteOf(ctx context.Context) *note {
 }
 
 // logged writes the request's line: its method, code, cause, token class, time
-// and the kind of its failure — nothing of the request itself (R18, R33).
+// and the kind of its failure — nothing of the request itself.
 func logged(log *slog.Logger) connect.ServerInterceptor {
 	return func(next connect.ServerFunc) connect.ServerFunc {
 		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {

@@ -6,7 +6,7 @@ import (
 	"github.com/altnovatrail/api/internal/authz"
 )
 
-// rule is what the checks ask of a method before its handler runs (R33).
+// rule is what the checks ask of a method before its handler runs.
 type rule struct {
 	// open is a method that goes with no token: an open view of a package, and
 	// the legal texts.
@@ -17,11 +17,11 @@ type rule struct {
 	// right is the right on the request's profile, checked before anything is
 	// read by its ID; empty, the method acts on the token's account.
 	right authz.Right
-	// fresh is an irreversible action, which waits for a fresh sign-in (R20).
+	// fresh is an irreversible action, which waits for a fresh sign-in.
 	fresh bool
 	// dropsDangling is the deletion of a profile: a tuple whose profile is gone —
 	// a deletion before it that left the tuple — is deleted by its repeat, which
-	// is told "no profile" all the same (R21).
+	// is told "no profile" all the same.
 	dropsDangling bool
 }
 
@@ -111,13 +111,13 @@ var methods = map[string]rule{
 
 	apiv1connect.LegalServiceGetLegalTextsProcedure: openView,
 
-	// The stored works (R70).
+	// The stored works.
 	apiv1connect.WorkServicePutWorkProcedure:    toLearn,
 	apiv1connect.WorkServiceListWorksProcedure:  toLearn,
 	apiv1connect.WorkServiceGetWorkProcedure:    toLearn,
 	apiv1connect.WorkServiceDeleteWorkProcedure: toLearn,
 
-	// A task from paper (R10).
+	// A task from paper.
 	apiv1connect.PaperServiceFindTasksProcedure:          toLearn,
 	apiv1connect.PaperServiceBeginPaperAttemptsProcedure: toLearn,
 	apiv1connect.DebugServiceGetDebugProcedure:           ofAccount,

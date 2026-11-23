@@ -38,10 +38,10 @@ reviewed, which keeps it a year more.
 // Crockford's base32.
 var requestCodeForm = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$`)
 
-// judgeConsents is the operator's check of the parents' signed forms (R116
-// spec): it lists the forms sent, confirms a consent whose scan the operator
-// matched to its code, or rejects one. What it prints goes to the operator's
-// terminal, and the log names no code.
+// judgeConsents is the operator's check of the parents' signed forms: it lists
+// the forms sent, confirms a consent whose scan the operator matched to its
+// code, or rejects one. What it prints goes to the operator's terminal, and the
+// log names no code.
 func judgeConsents(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	action, code, err := operatorArgs("consents", consentsUsage, args, stderr, func(rest []string) (string, string, error) {
 		switch {
@@ -86,8 +86,8 @@ func judgeConsents(ctx context.Context, args, environ []string, stdout, stderr i
 	return nil
 }
 
-// reviewReports is the operator's reading of the problem reports (R123 spec):
-// it lists those not reviewed, with what each says, or marks one reviewed.
+// reviewReports is the operator's reading of the problem reports: it lists
+// those not reviewed, with what each says, or marks one reviewed.
 func reviewReports(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	action, id, err := operatorArgs("reports", reportsUsage, args, stderr, func(rest []string) (string, string, error) {
 		switch {

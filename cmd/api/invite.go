@@ -16,9 +16,9 @@ import (
 )
 
 // createInvite makes one invite code with a tariff, keeps its SHA-256 in the
-// database api, and prints the code, once: nothing keeps it after (R04, R34).
-// stdout carries the code alone, so that it can be passed on as it is; the log
-// goes to stderr.
+// database api, and prints the code, once: nothing keeps it after. stdout
+// carries the code alone, so that it can be passed on as it is; the log goes to
+// stderr.
 func createInvite(ctx context.Context, args, environ []string, stdout, stderr io.Writer) error {
 	set := flag.NewFlagSet("api invite", flag.ContinueOnError)
 	set.SetOutput(stderr)
@@ -62,7 +62,7 @@ func createInvite(ctx context.Context, args, environ []string, stdout, stderr io
 }
 
 // devOnly refuses a tariff of the dev projects alone to the command named by
-// command when it runs deployed, by the variable Cloud Run sets (R55). From an
+// command when it runs deployed, by the variable Cloud Run sets. From an
 // operator's own terminal no variable tells the database of a deployment, so
 // serve deployed reads such a tariff as one with no caps besides.
 func devOnly(command, tariff string, cfg *config.Operator, stderr io.Writer) error {
