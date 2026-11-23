@@ -93,7 +93,7 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T131 | Ссылки по R171 spec: архитектура 1, 2, 3.1–3.4, 4 | Claude | — | T126 |
 | [x] | T132 | Ссылки по R171 spec: архитектура 3.5–3.8 | Claude | — | T126 |
 | [x] | T133 | Ссылки по R171 spec: архитектура 3.9–3.11 | Claude | — | T126 |
-| [ ] | T134 | Ссылки по R171 spec: `docs/sources.md` и `docs/measurements.md` | Claude | — | T126 |
+| [x] | T134 | Ссылки по R171 spec: `docs/sources.md` и `docs/measurements.md` | Claude | — | T126 |
 | [ ] | T135 | Ссылки по R171 spec: журнал: вводная и разделы от «The `spec` tag» до «Database and learner model» | Claude | — | T126 |
 | [ ] | T136 | Ссылки по R171 spec: журнал: от «Module versions» до «The `spec` tag: v0.6.6» | Claude | — | T126 |
 | [ ] | T137 | Ссылки по R171 spec: журнал: от «Protocol `app` ↔ `api`» до «Database and migrations» | Claude | — | T126 |
