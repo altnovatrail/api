@@ -96,7 +96,7 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T134 | Ссылки по R171 spec: `docs/sources.md` и `docs/measurements.md` | Claude | — | T126 |
 | [x] | T135 | Ссылки по R171 spec: журнал: вводная и разделы от «The `spec` tag» до «Database and learner model» | Claude | — | T126 |
 | [x] | T136 | Ссылки по R171 spec: журнал: от «Module versions» до «The `spec` tag: v0.6.6» | Claude | — | T126 |
-| [ ] | T137 | Ссылки по R171 spec: журнал: от «Protocol `app` ↔ `api`» до «Database and migrations» | Claude | — | T126 |
+| [x] | T137 | Ссылки по R171 spec: журнал: от «Protocol `app` ↔ `api`» до «Database and migrations» | Claude | — | T126 |
 | [ ] | T138 | Ссылки по R171 spec: журнал: от «Devcontainer» до «The database of E3 in code» | Claude | — | T126 |
 | [ ] | T139 | Ссылки по R171 spec: журнал: от «Attempt without AI in code» до «The learner model in code» | Claude | — | T126 |
 | [ ] | T140 | Ссылки по R171 spec: журнал: от «The engine choice in code» до «Withdrawal on a schedule» | Claude | — | T126 |
