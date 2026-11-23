@@ -12,7 +12,7 @@
     },
     "remoteUser": "vscode",
     // Closing the window leaves the container running, and docker stop ends it: the orchestrator's
-    // executor runs in it by docker exec, with no window (R156 spec).
+    // executor runs in it by docker exec, with no window.
     "shutdownAction": "none",
     // Runs on the host before the container starts, in this folder: gives it a network whose MTU
     // is the host's own, so a tunnel on the host does not silently truncate large downloads here,
@@ -47,7 +47,7 @@
         "source=novatrail-vscode-extensions-${devcontainerId},target=/home/vscode/.vscode-server/extensions,type=volume",
         // The clones of the tasks across repositories, .epics/<epic>/<repo> beside the host's clones:
         // every NovaTrail container mounts this one folder of the host, at one path, and nothing
-        // else beside the clones (R166 spec).
+        // else beside the clones.
         "source=${localWorkspaceFolder}/../.epics,target=/workspaces/.epics,type=bind",
         // api's own: the configuration of the dev projects — a service account's key and the
         // connection strings — outside the repository and any git working tree, kept across
@@ -67,7 +67,7 @@
         // Claude Code loads the plugins of spec's claude-plugins/ that this repository's kind names in
         // every session here, from this container's own path: a marketplace would be recorded in the
         // ~/.claude that the containers share, by the path of one of them, and the sessions of the
-        // others would lose it (R143 spec).
+        // others would lose it.
         "CLAUDE_CODE_PLUGIN_DIRS": "${containerWorkspaceFolder}/spec/claude-plugins/gopls-lsp"
     },
     // spec is a submodule: a clone made without --recurse-submodules gets it here.

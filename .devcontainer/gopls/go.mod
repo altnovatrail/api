@@ -1,5 +1,5 @@
 // The lock file of gopls for the devcontainer image, which the go kind of spec's repo-template
-// gives every Go repository (R102 spec). go.mod names gopls as a tool at an exact version, and
+// gives every Go repository. go.mod names gopls as a tool at an exact version, and
 // go.sum holds the hash of every module its build takes. spec raises it, with
 // `go get -tool golang.org/x/tools/gopls@vX.Y.Z` and GOPLS_VERSION in the Dockerfile beside it,
 // and a repository takes it with its next move to a tag of spec.
