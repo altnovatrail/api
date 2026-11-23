@@ -26,4 +26,4 @@ A component of [NovaTrail](https://github.com/altnovatrail/spec), a universal op
 - AI providers are reached only through tutor, which sees the work but not whose it is;
 - the modules come from a pinned release of modules, whose packages api holds and whose device files it serves to app.
 
-Its card is [architecture 3.5 of spec](https://github.com/altnovatrail/spec/blob/main/docs/architecture.md#35-api--the-platforms-service); the detail, the decisions and how to build and run it are in [docs/](docs/README.md).
+Its card is the one named `api` in spec's [docs/architecture.md](https://github.com/altnovatrail/spec/blob/main/docs/architecture.md#35-api--the-platforms-service); the detail, the decisions and how to build and run it are in [docs/](docs/README.md).

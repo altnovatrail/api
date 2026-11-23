@@ -1,4 +1,4 @@
-# The image of api in production (R105 spec). NovaTrail publishes no image: a
+# The image of api in production. NovaTrail publishes no image: a
 # release of api carries its signed binaries and this file, and whoever deploys builds the image
 # around the binary that release-verify accepted, by --target release:
 #

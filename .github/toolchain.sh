@@ -6,7 +6,7 @@
 # modules.json without its test need. The jobs Image and Modules of ci.yml restore the file of
 # docker save that the shared workflows of .github save on main for that stage, by the same key
 # and path, and name it in TOOLCHAIN_TAR; the file holds the image novatrail-toolchain, the name
-# spec's toolchain.sh gives whichever the stage (R47 .github). The Dockerfile pins
+# spec's toolchain.sh gives whichever the stage. The Dockerfile pins
 # everything it installs, so the image from the file is the one it would build. With no file, as
 # in withdrawals.yml, or one that does not load as the image novatrail-toolchain, the image is
 # built from the Dockerfile: the cache costs a run its speed, never its verdict. The file is deleted once read, so that nothing of it is left on the runner.
