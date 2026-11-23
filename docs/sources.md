@@ -81,6 +81,10 @@ For the local build of `app` beside `api`. Read 2026-11-13, [Volumes](https://do
 - the option `readonly` of `--mount`: "If present, causes the volume to be mounted into the container as read-only.";
 - "If you start a container which creates a new volume, and the container has files or directories in the directory to be mounted such as `/app/`, Docker copies the directory's contents into the volume." Whether the owner and the mode of the directory itself pass to the volume, the page does not say.
 
+### 2.8. OWASP on the parameters of argon2id, 2026-11-23
+
+For the hash of the PIN. The [Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) of OWASP, no date on the page, read 2026-11-23: "Use Argon2id with a minimum configuration of 19 MiB of memory, an iteration count of 2, and 1 degree of parallelism.", and among the minimum configurations "m=19456 (19 MiB), t=2, p=1 (Do not use with Argon2i)".
+
 ## 3. Database and learner model
 
 Neon and the rejected Cloud SQL and the profile on Drive, the database of the tests and the migrations.
@@ -335,6 +339,10 @@ For the routes of `serve`. Read 2026-11-13 in the sources of the module, through
 For the check of an own key. Read 2026-11-14, by the `.md` versions of the pages, before the real check that calls `count_tokens` with the author's dev key:
 - [Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting), its section "Pricing and rate limits": "Token counting is **free to use** but subject to requests per minute rate limits based on your [usage tier]", the table — "| Start | 5,000 |", "| Build | 10,000 |", "| Scale | 20,000 |" requests per minute —, and "Token counting and message creation have separate and independent rate limits. Usage of one does not count against the limits of the other." The same words as sources 1.16 `tutor` read 2026-11-11;
 - [Errors](https://platform.claude.com/docs/en/api/errors): "401 - `authentication_error`: There’s an issue with your [API key] (for example, it’s malformed, revoked, or expired …)"; "403 - `permission_error`: Your API key does not have permission to use the specified resource."; and on a limit one sets oneself: "The API also returns a 400 when usage reaches an organization or workspace [spend limit you set]". Whether `count_tokens` meets this 400 the page does not say. `claude.Refusal` of `tutor` v0.1.33 reads a 400 `invalid_request_error` of the owner's or the workspace's limit as a limit, and `Tutor.CheckKey` takes a limit for a key accepted — a conclusion from the code, not tried against the provider.
+
+### 10.8. The paths Cloud Run keeps, 2026-11-23
+
+For the path of the health check. [Cloud Run known issues](https://docs.cloud.google.com/run/docs/known-issues), "Reserved URL paths", no date on the page, read 2026-11-23: "You can't use the following URL paths: Paths starting with /_ah/; Some paths ending with z. To prevent conflicts with reserved paths, we recommend avoiding all paths that end in z".
 
 ## 11. Deletion and export
 

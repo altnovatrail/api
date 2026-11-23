@@ -26,7 +26,7 @@ var redirect = reflect.TypeOf(http.RedirectHandler("/", http.StatusTemporaryRedi
 func Routes(log *slog.Logger, appOrigin string, mount func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 	// GET /health answers HEAD too. The path does not end in z: Cloud Run's
-	// front end keeps paths that do for itself.
+	// front end keeps some paths that do for itself (sources 10.8).
 	mux.HandleFunc("GET /health", health)
 	if mount != nil {
 		mount(mux)

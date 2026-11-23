@@ -17,7 +17,7 @@ import (
 )
 
 // The parameters: the minimum OWASP's Password Storage Cheat Sheet recommends,
-// "m=19456 (19 MiB), t=2, p=1" (read 2026-11-09).
+// "m=19456 (19 MiB), t=2, p=1" (sources 2.8).
 const (
 	memoryKiB = 19456
 	passes    = 2
