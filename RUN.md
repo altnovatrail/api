@@ -100,7 +100,7 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T138 | Ссылки по R171 spec: журнал: от «Devcontainer» до «The database of E3 in code» | Claude | — | T126 |
 | [x] | T139 | Ссылки по R171 spec: журнал: от «Attempt without AI in code» до «The learner model in code» | Claude | — | T126 |
 | [x] | T140 | Ссылки по R171 spec: журнал: от «The engine choice in code» до «Withdrawal on a schedule» | Claude | — | T126 |
-| [ ] | T141 | Ссылки по R171 spec: журнал: от «The `spec` tag: v0.16.3» до «The board module» | Claude | — | T126 |
+| [x] | T141 | Ссылки по R171 spec: журнал: от «The `spec` tag: v0.16.3» до «The board module» | Claude | — | T126 |
 | [ ] | T142 | Ссылки по R171 spec: журнал: от «The providers of the own key» до конца; ключ `"citations": true` | Claude | — | T127–T141, T144; релиз `learner-model` и тег `spec` с `.proto` без ссылок |
 | [x] | T143 | Переход на тег `spec` v0.19.12 | Claude | — | — |
 | [x] | T144 | Ссылки по строгому правилу R171 spec: проход по первой части | Claude | — | T143 |
