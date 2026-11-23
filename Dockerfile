@@ -33,7 +33,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false \
 # The runtime holds the binary and nothing of its own beyond certificates, tzdata and /tmp: no
 # shell, no package manager, and the user nonroot, uid 65532. Every job of the operator is a
 # command of the same binary, so the image serves by default and runs any other command named.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329 AS runtime
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5 AS runtime
 
 EXPOSE 8080
 ENTRYPOINT ["/api"]
