@@ -2,6 +2,7 @@ package learning_test
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/jpeg"
 	"slices"
@@ -93,6 +94,40 @@ func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 	// The key of the finding is the finding's alone.
 	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: key, Tasks: 1})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_ALREADY_USED)
+}
+
+// turning is the stub of tutor whose finding says it turned the photo by turn,
+// with frames or without.
+type turning struct {
+	*tutorstub.Stub
+	turn int
+}
+
+func (s turning) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) tutor.TasksFound {
+	found := s.Stub.FindTasks(ctx, f, own)
+	found.Turn = s.turn
+	return found
+}
+
+// The turn tutor gave the photo goes with its frames (R162 spec): none without
+// frames, and none in a repeat, whose record keeps no frame.
+func TestTheTurnGoesWithTheFrames(t *testing.T) {
+	t.Parallel()
+
+	g := stubGate(t)
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(turning{Stub: tutorstub.New(g), turn: -90})})
+	l := w.learner(t)
+	key := uuid.NewString()
+	found, err := w.findTasks(l, l.adult, photoOf(t, 300, 400), key)
+	if err != nil || len(found.GetFrames()) != 5 || found.GetTurnDegrees() != -90 {
+		t.Fatalf("a page turned = %v (%v), want five frames turned by -90", found, err)
+	}
+	if again, err := w.findTasks(l, l.adult, photoOf(t, 300, 400), key); err != nil || !again.GetRepeated() || again.GetTurnDegrees() != 0 {
+		t.Errorf("the repeat = %v (%v), want no turn", again, err)
+	}
+	if none, err := w.findTasks(l, l.adult, photoOf(t, 400, 300), uuid.NewString()); err != nil || len(none.GetFrames()) != 0 || none.GetTurnDegrees() != 0 {
+		t.Errorf("no frames = %v (%v), want no turn", none, err)
+	}
 }
 
 // The learner's request finds the page anew (R99; R165 spec): the stub gives

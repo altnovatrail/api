@@ -63,14 +63,15 @@ type finding struct {
 
 // FindTasks finds the tasks on the photo of a page, under its idempotency key,
 // by one call of AI between two transactions (rpc.Across): their frames, in the
-// order of the page. It makes no call without the admission of the finding on
-// the request's route, nor on platform AI without the reserve of the quota:
-// either is a refusal, and the family day the request wrote stays. A call that
-// gives no frames is an outcome, and the learner frames the tasks by hand. The
-// photo goes no further than the call, and the record of the key holds the
-// outcome alone: a repeat gets an answer "repeated" without frames. With the
-// learner's request the call gets it and the frames on the page, which go no
-// further either (R99).
+// order of the page, on the photo turned by the turn tutor gave, which goes with
+// them (R162 spec). It makes no call without the admission of the finding on the
+// request's route, nor on platform AI without the reserve of the quota: either
+// is a refusal, and the family day the request wrote stays. A call that gives no
+// frames is an outcome, and the learner frames the tasks by hand. The photo goes
+// no further than the call, and the record of the key holds the outcome alone: a
+// repeat gets an answer "repeated" without frames or turn. With the learner's
+// request the call gets it and the frames on the page, which go no further
+// either (R99).
 func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) (*v1.FindTasksResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -130,10 +131,13 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 				for _, box := range f.found.Frames {
 					answer.Frames = append(answer.Frames, &v1.TaskFrame{Box: box})
 				}
+				if len(answer.Frames) > 0 {
+					answer.TurnDegrees = int32(f.found.Turn)
+				}
 			} else {
 				answer.Outcome = outcomeOf(f.found.Outcome, route.AI)
 			}
-			// An answer of the contract always marshals; the record keeps no frame.
+			// An answer of the contract always marshals; the record keeps no frame and no turn.
 			written, _ := proto.Marshal(&v1.FindTasksResponse{Outcome: answer.GetOutcome()})
 			return answer, store.KeyTarget{ProfileID: profileID, Response: written}, nil
 		},

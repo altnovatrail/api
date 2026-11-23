@@ -483,8 +483,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		if a := s.AssessEssay(t.Context(), assessed, key); a.Outcome.Kind != tutor.Answered || a.Feedback == "" {
 			t.Errorf("AssessEssay on %q = %+v, want marks and feedback", key, a)
 		}
-		if f := s.FindTasks(t.Context(), photographed, key); f.Outcome.Kind != tutor.Answered || len(f.Frames) == 0 {
-			t.Errorf("FindTasks on %q = %+v, want frames", key, f)
+		if f := s.FindTasks(t.Context(), photographed, key); f.Outcome.Kind != tutor.Answered || len(f.Frames) == 0 || f.Turn != 0 {
+			t.Errorf("FindTasks on %q = %+v, want frames on the photo unturned", key, f)
 		}
 	}
 }
