@@ -33,29 +33,28 @@ import (
 // before the request's deadline.
 const finishReserve = 3 * time.Second
 
-// SubmitWork checks a submission of a task with a verdict, under its idempotency
-// key: the verdict of every item and answer slot, by module-kit, on the options
-// tapped and on what tutor's readers — the pair, or one reader (R88) — read of
-// the crop of a handwriting sheet (R46) or of the crops of a workbook page's
-// filled boxes (R81). A submission with an answer slot "not_yet" is a wrong
-// answer; "unreadable" and "unchecked" are none (R09). One whose every item is
-// correct closes the attempt "correct", and its answer holds the task solved,
-// its keys and its solution (R05 spec). A call of AI that gives no reading is no
-// refusal: the slots AI reads get "unchecked", and the answer names the
-// outcome. The submission is recorded with its answer and, when AI read, the
-// observation of what it read; the key's record names it, and the crop lives in
-// the request's memory alone (R15).
+// SubmitWork checks a submission of a task with a verdict, under its
+// idempotency key: the verdict of every item and answer slot, by module-kit, on
+// the options tapped and on what tutor's readers — the pair, or one reader —
+// read of the crop of a handwriting sheet or of the crops of a workbook page's
+// filled boxes. A submission with an answer slot "not_yet" is a wrong answer;
+// "unreadable" and "unchecked" are none. One whose every item is correct closes
+// the attempt "correct", and its answer holds the task solved, its keys and its
+// solution. A call of AI that gives no reading is no refusal: the slots AI
+// reads get "unchecked", and the answer names the outcome. The submission is
+// recorded with its answer and, when AI read, the observation of what it read;
+// the key's record names it, and the crop lives in the request's memory alone.
 //
 // A task tapped alone is checked in one transaction (rpc.Once). One that AI
 // reads runs in three parts (rpc.Across): the checks of the attempt and the
 // work, and the key's record going, in one transaction; the reading, in none;
-// and the attempt held again with the verdict and the record done, in a
-// second. An attempt closed meanwhile — by another device that began another —
-// is "closed", and nothing is written. An answer that closes the attempt says
-// what comes next in a lesson: the next segment, or that none is left (R48);
-// outside a lesson, the engine's choice (R50), on the route of the own key's
-// provider, or of own_key_provider when the submission sends neither work nor
-// own key — beside either it is malformed —, or else platform AI (R65).
+// and the attempt held again with the verdict and the record done, in a second.
+// An attempt closed meanwhile — by another device that began another — is
+// "closed", and nothing is written. An answer that closes the attempt says what
+// comes next in a lesson: the next segment, or that none is left; outside a
+// lesson, the engine's choice, on the route of the own key's provider, or of
+// own_key_provider when the submission sends neither work nor own key — beside
+// either it is malformed —, or else platform AI.
 func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkRequest) (*v1.SubmitWorkResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -73,7 +72,7 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 		return nil, rpc.Malformed("own_key_provider")
 	}
 	// The route of the engine's choice in next: the provider of the own key, or
-	// the one named without the key by a submission AI does not read (R65).
+	// the one named without the key by a submission AI does not read.
 	ownKey := req.GetOwnKey().GetProvider()
 	if ownKey == "" {
 		ownKey = req.GetOwnKeyProvider()
@@ -119,9 +118,9 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			Prepare: func(tx pgx.Tx, _ string) (sending, store.KeyTarget, error) {
 				h, out, err := prepare(tx)
 				if err == nil && out.ai {
-					// The reading takes its reserve here, beside the record going, and
-					// settles it after the call (R58): a workbook page by its crops, and a
-					// page left blank, which goes to no model, none (R81).
+					// The reading takes its reserve here, beside the record going, and settles
+					// it after the call: a workbook page by its crops, and a page left blank,
+					// which goes to no model, none.
 					if out.day, err = s.familyDay(ctx, tx, out.route, req.ClockOffsetMinutes); err == nil && !out.blank() {
 						out.reserve, err = s.reserveFor(ctx, tx, profileID, out.route, out.call, out.crops(), out.day)
 					}
@@ -234,8 +233,8 @@ type sending struct {
 	crop  []byte
 	boxes []tutor.BoxCrop
 	route tutor.Route
-	// day is the family day of the account on platform AI (R11), and reserve
-	// what the reading took of its quota (R58).
+	// day is the family day of the account on platform AI, and reserve what the
+	// reading took of its quota.
 	day     quota.Day
 	reserve reserve
 	// read is what the reading came to: of a sheet, or of a workbook page, whose
@@ -248,7 +247,7 @@ type sending struct {
 func (out sending) blank() bool { return out.call == tutor.CallWorkbook && len(out.boxes) == 0 }
 
 // crops is how many crops the reading shows: a sheet's one, or a workbook
-// page's filled boxes, by which the quota reserves (R58).
+// page's filled boxes, by which the quota reserves.
 func (out sending) crops() int {
 	if out.call == tutor.CallWorkbook {
 		return len(out.boxes)
@@ -357,12 +356,12 @@ var aiOutcomes = map[tutor.Kind]string{
 
 // verdict is the verdict of the submission out on the attempt h, in the
 // contract's words, and the observation the submission keeps: the readings of
-// the two readers joined, or the one reader's (R88), valid as module-kit takes
-// it, from which the same release gives the verdict again with the options
-// tapped — which the answer holds as the values of their slots. None when AI
-// read nothing. A reading that gave no observation, or two that module-kit
-// cannot join, or one it does not take, leaves the slots AI reads "unchecked",
-// with the outcome's cause.
+// the two readers joined, or the one reader's, valid as module-kit takes it,
+// from which the same release gives the verdict again with the options tapped —
+// which the answer holds as the values of their slots. None when AI read
+// nothing. A reading that gave no observation, or two that module-kit cannot
+// join, or one it does not take, leaves the slots AI reads "unchecked", with
+// the outcome's cause.
 func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitWorkResponse, *observationv1.Observation, error) {
 	var joined *observationv1.Observation
 	var outcome *v1.Outcome
@@ -393,14 +392,14 @@ func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitW
 	return answer, joined, nil
 }
 
-// joined is the observation of the reading of out, in the mode of reading of
-// s (R88): by the pair, the observations of the two readers joined by
-// module-kit; by one reader, its one observation as it is, valid as module-kit
-// takes it, which module-kit gives the verdict on and api keeps as it keeps a
-// joined one (R86 spec). Or none, with the outcome that left the slots AI reads
-// unchecked: the quota that did not hold the reading, what the call came to, or
-// a failure of AI for a reading of another number of observations, or of one
-// that module-kit does not take.
+// joined is the observation of the reading of out, in the mode of reading of s:
+// by the pair, the observations of the two readers joined by module-kit; by one
+// reader, its one observation as it is, valid as module-kit takes it, which
+// module-kit gives the verdict on and api keeps as it keeps a joined one. Or
+// none, with the outcome that left the slots AI reads unchecked: the quota that
+// did not hold the reading, what the call came to, or a failure of AI for a
+// reading of another number of observations, or of one that module-kit does not
+// take.
 func (s *Service) joined(task formatv0.Task, out sending) (*observationv1.Observation, *v1.Outcome) {
 	if out.reserve.refused != nil {
 		return nil, out.reserve.refused
@@ -434,9 +433,9 @@ func (s *Service) joinOf(items []formatv0.Item, r tutor.SheetRead, route admissi
 }
 
 // outcomeOf is the outcome of a call of tutor that gave no reading or no words,
-// on the route: a limit is the platform's on platform AI and the key's own on an
-// own key, which names which limit by the reason tutor gives, and when access
-// returns where tutor gives the time, none where it gives zero (R80).
+// on the route: a limit is the platform's on platform AI and the key's own on
+// an own key, which names which limit by the reason tutor gives, and when
+// access returns where tutor gives the time, none where it gives zero.
 func outcomeOf(o tutor.Outcome, route admissionv0.AiRoute) *v1.Outcome {
 	switch o.Kind {
 	case tutor.NotAdmitted:
@@ -467,7 +466,7 @@ var limitCauses = map[tutor.LimitReason]v1.LimitCause{
 
 // BeginStep begins a solving step whose gives gives techniques, by its place:
 // the answer is the IDs of the task's techniques, and the attempt records that
-// they were given at a step, the first time (R82 spec). A repeat gets the same.
+// they were given at a step, the first time. A repeat gets the same.
 func (a *AttemptService) BeginStep(ctx context.Context, req *v1.BeginStepRequest) (*v1.BeginStepResponse, error) {
 	s := a.s
 	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
@@ -499,17 +498,17 @@ func givesTechniques(steps *formatv0.SolvingSteps, place int32) bool {
 	return slices.Contains(steps.Steps[place-1].Gives, formatv0.StepGivesTechniques)
 }
 
-// Done ends an attempt of a task with a rubric by the learner's "Done" (R14):
-// once it has a submission, however that ended, the attempt is closed "done" in
-// one transaction, with no evidence, and the answer is the task solved — the
-// criteria of its rubric and its solution, if it has one (R87 spec) — and what
-// comes next: in a lesson the segment after its own, which "done" ends (R13),
-// and outside a lesson the engine's choice (R50). A task with a verdict takes no
-// "Done", and an attempt with no submission yet is "no submission". It carries
-// no key: a repeat on an attempt closed "done" gets the same answer, by the
-// state of the attempt, with the choice the close gave; one closed otherwise is
-// "closed". A provider named for a learner who is not an adult is refused, as
-// at every request whose answer may give an engine's choice (R65).
+// Done ends an attempt of a task with a rubric by the learner's "Done": once it
+// has a submission, however that ended, the attempt is closed "done" in one
+// transaction, with no evidence, and the answer is the task solved — the
+// criteria of its rubric and its solution, if it has one — and what comes next:
+// in a lesson the segment after its own, which "done" ends, and outside a
+// lesson the engine's choice. A task with a verdict takes no "Done", and an
+// attempt with no submission yet is "no submission". It carries no key: a
+// repeat on an attempt closed "done" gets the same answer, by the state of the
+// attempt, with the choice the close gave; one closed otherwise is "closed". A
+// provider named for a learner who is not an adult is refused, as at every
+// request whose answer may give an engine's choice.
 func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.DoneResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -562,8 +561,8 @@ func (a *AttemptService) Done(ctx context.Context, req *v1.DoneRequest) (*v1.Don
 // doneAgain is the answer of "Done" again on the profile's attempt row, held
 // and closed "done": the task solved, of the package and the instance it went
 // on, and what came next, which the close gave and the engine is not asked
-// again (R14). A package the index does not know is errPackageUnknown, as for
-// a request on an open attempt.
+// again. A package the index does not know is errPackageUnknown, as for a
+// request on an open attempt.
 func (s *Service) doneAgain(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, ownKey string, now time.Time) (*v1.DoneResponse, error) {
 	digest := formatv0.Digest(row.PackageDigest)
 	if s.set.Status(digest) == packages.Unknown {
@@ -613,13 +612,13 @@ const (
 	maxBoxSide = 512
 )
 
-// boxesTaken is the crops of a workbook page's filled boxes as tutor reads them,
-// when they are such: each of an answer slot of the task bound box, by the
-// places of its item and of the slot among the item's, from 1, which are those
-// of the box among the item's boxes; no box twice; no more than maxBoxes; and
-// each crop a PNG that pngTaken takes at maxBoxSide. Their order is the
+// boxesTaken is the crops of a workbook page's filled boxes as tutor reads
+// them, when they are such: each of an answer slot of the task bound box, by
+// the places of its item and of the slot among the item's, from 1, which are
+// those of the box among the item's boxes; no box twice; no more than maxBoxes;
+// and each crop a PNG that pngTaken takes at maxBoxSide. Their order is the
 // request's: tutor reads them in the task's. No box at all is a page left
-// blank, which is no error: its every box is read blank (R81).
+// blank, which is no error: its every box is read blank.
 func boxesTaken(task formatv0.Task, boxes []*v1.BoxCrop) ([]tutor.BoxCrop, bool) {
 	if len(boxes) > maxBoxes {
 		return nil, false

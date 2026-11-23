@@ -26,7 +26,7 @@ import (
 
 // paperChecker reads the statement of a task from paper into its tasks, solves
 // those no formula keys, and reads the work on them, as tutor does; own is as
-// sheetReader has it (R162 spec).
+// sheetReader has it.
 type paperChecker interface {
 	ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead
 	SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, own string) tutor.TasksSolved
@@ -67,7 +67,7 @@ type paperSending struct {
 	derive    bool
 	stated    *paperv1.Reading
 	day       quota.Day
-	// reading, stating and solving are the reserves of the three calls (R58).
+	// reading, stating and solving are the reserves of the three calls.
 	reading, stating, solving reserve
 	read                      tutor.SheetRead
 	// readTasks is how many tasks the reading of the work was given, 0 when no
@@ -75,7 +75,7 @@ type paperSending struct {
 	readTasks int
 	derived   *paperv1.Key
 	noKey     *v1.Outcome
-	// debug is the action of the debug mode, nil without it (R97).
+	// debug is the action of the debug mode, nil without it.
 	debug *debug.Action
 }
 
@@ -89,7 +89,7 @@ func (s *Service) paperAttempt(ctx context.Context, profileID, attemptID string)
 // holdPaper is the profile's open attempt of a task from paper, held in tx and
 // checked as hold checks an attempt of a module: one closed is a closedError,
 // and one that lapsed past 7 days with no action is closed "abandoned" by this
-// check, the refusal keeping the close (R10).
+// check, the refusal keeping the close.
 func (s *Service) holdPaper(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (store.Attempt, error) {
 	row, err := store.HoldAttempt(ctx, tx, profileID, attemptID)
 	if err != nil {
@@ -117,21 +117,21 @@ func (s *Service) paperOpen(ctx context.Context, tx pgx.Tx, profileID string, ro
 // submitPaper checks a submission of a task from paper under its idempotency
 // key, in three parts (rpc.Across), as a task of a module that AI reads: the
 // checks of the attempt and the work, the reserve and the key's record going;
-// the calls, in none; and the attempt held again with the verdict, in a second
-// (R162 spec). The first submission derives the key from the task's crop: the
-// statement read into its tasks, one or each of several framed together — or
-// the reading "Recognise" kept, with no call (R169 spec) —, and the key of
-// each, the solver's on its formula, or, for the tasks with no formula the
-// solver takes, one solution of AI of them all, whose answer of a task is its
-// key once it holds to the rules of one (paper.Key); the work is read beside
-// the solution, given the tasks' statements. The attempt keeps the
-// key, with the statements, until it closes. A task with no answer is
-// unchecked, and with none in any task every submission gets CAUSE_NO_KEY and
-// calls no AI. Calls that derive no key are an outcome, the slots unchecked,
-// and the next submission derives it again. The work is read as a sheet is,
-// each value brought to its task's key, joined and judged by module-kit; every
-// task with a key correct closes the attempt "correct" with an empty solved, no
-// next and no evidence. Taps are none: the task has no slot bound choice.
+// the calls, in none; and the attempt held again with the verdict, in a second.
+// The first submission derives the key from the task's crop: the statement read
+// into its tasks, one or each of several framed together — or the reading
+// "Recognise" kept, with no call —, and the key of each, the solver's on its
+// formula, or, for the tasks with no formula the solver takes, one solution of
+// AI of them all, whose answer of a task is its key once it holds to the rules
+// of one (paper.Key); the work is read beside the solution, given the tasks'
+// statements. The attempt keeps the key, with the statements, until it closes.
+// A task with no answer is unchecked, and with none in any task every
+// submission gets CAUSE_NO_KEY and calls no AI. Calls that derive no key are an
+// outcome, the slots unchecked, and the next submission derives it again. The
+// work is read as a sheet is, each value brought to its task's key, joined and
+// judged by module-kit; every task with a key correct closes the attempt
+// "correct" with an empty solved, no next and no evidence. Taps are none: the
+// task has no slot bound choice.
 func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequest, category formatv0.AgeCategory, key rpc.Key) (*v1.SubmitWorkResponse, error) {
 	s := a.s
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
@@ -140,7 +140,7 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 	work := req.GetWork().GetPaper()
 	// A repeat gives the answer kept: a task from paper has no next. That of the
 	// Check that solved the attempt is the record's own, the solved task alone,
-	// since the close erased its submission (R101).
+	// since the close erased its submission.
 	key.Repeat = func(ctx context.Context, tx pgx.Tx, record store.KeyRecord) (proto.Message, error) {
 		written := record.Response
 		if record.SubmissionID != "" {
@@ -214,10 +214,10 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 				return nil, store.KeyTarget{}, err
 			}
 			if answer.GetSolved() != nil {
-				// No evidence: an attempt of paper gives none, and no engine chooses after it. Its
-				// close keeps none of its submissions, so this one is not written, and a repeat gets
-				// the solved task alone, which the close keeps anyway, and no verdict of a task
-				// (R101).
+				// No evidence: an attempt of paper gives none, and no engine chooses after
+				// it. Its close keeps none of its submissions, so this one is not written,
+				// and a repeat gets the solved task alone, which the close keeps anyway,
+				// and no verdict of a task.
 				if err := store.CloseAttempt(ctx, tx, profileID, row.ID, closeCorrect, now); err != nil {
 					return nil, store.KeyTarget{}, err
 				}
@@ -239,12 +239,12 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 }
 
 // reservePaper reserves the calls of a submission of a task from paper on
-// platform AI by route, as reserveEssay reserves two (R58): the reading of the
-// work, the reading of the statement when state, and the solution when solve —
-// a key derived, from a reading the attempt keeps with no statement's (R169
-// spec) —, one charge which the quota holds whole or not at all, given as the
-// part each call settles by itself. A solution the solver makes needless gives
-// its part back whole. A refusal is the reading's.
+// platform AI by route, as reserveEssay reserves two: the reading of the work,
+// the reading of the statement when state, and the solution when solve — a key
+// derived, from a reading the attempt keeps with no statement's —, one charge
+// which the quota holds whole or not at all, given as the part each call
+// settles by itself. A solution the solver makes needless gives its part back
+// whole. A refusal is the reading's.
 func (s *Service) reservePaper(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, state, solve bool, day quota.Day) (reading, stating, solving reserve, err error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, reserve{}, reserve{}, nil
@@ -335,16 +335,15 @@ func statementsOf(k *paperv1.Key) []string {
 	return out
 }
 
-// deriveKey is the key of a task from paper from its crop (R162 spec): the
-// statement read into its tasks — or the reading the attempt keeps, with no
-// call (R169 spec) —, and the key of each, the solver's on its
-// formula or else that of one solution of AI of all the tasks no formula keys.
-// read starts the reading of the work once the statements are known, beside
-// the solution. A reading of the statement that gave no tasks — a failure, a
-// limit, no admission — stops the chain, and its outcome is the key's: the next
-// submission asks again. A crop on which the statement found no task gets a key
-// of none, CAUSE_NO_KEY. settled notes and settles a call, and with no time
-// gives a reserve back as release does.
+// deriveKey is the key of a task from paper from its crop: the statement read
+// into its tasks — or the reading the attempt keeps, with no call —, and the
+// key of each, the solver's on its formula or else that of one solution of AI
+// of all the tasks no formula keys. read starts the reading of the work once
+// the statements are known, beside the solution. A reading of the statement
+// that gave no tasks — a failure, a limit, no admission — stops the chain, and
+// its outcome is the key's: the next submission asks again. A crop on which the
+// statement found no task gets a key of none, CAUSE_NO_KEY. settled notes and
+// settles a call, and with no time gives a reserve back as release does.
 func (s *Service) deriveKey(ctx context.Context, out paperSending, own string, settled func(reserve, tutor.Outcome, time.Duration), read func([]string)) (*paperv1.Key, *v1.Outcome) {
 	task := tutor.PaperTask{Route: out.route, Statement: out.statement}
 	unused := tutor.Outcome{Kind: tutor.NotAdmitted}
@@ -548,10 +547,10 @@ func boxOf(read []*observationv1.Observation) *observationv1.CropBox {
 	return nil
 }
 
-// joinedPaper is the observation of a reading of the work on a task from
-// paper, by its one reader in any mode of reading (R96), or by the pair of the
-// debug mode's two readers (R97), each value brought to the key first, so that
-// x = 4 is 4; or none, with the outcome that left the slot unchecked.
+// joinedPaper is the observation of a reading of the work on a task from paper,
+// by its one reader in any mode of reading, or by the pair of the debug mode's
+// two readers, each value brought to the key first, so that x = 4 is 4; or
+// none, with the outcome that left the slot unchecked.
 func (s *Service) joinedPaper(items []formatv0.Item, key *paperv1.Answer, r tutor.SheetRead, route admissionv0.AiRoute, act *debug.Action) (*observationv1.Observation, *v1.Outcome) {
 	brought := tutor.SheetRead{Outcome: r.Outcome, Observations: make([]*observationv1.Observation, len(r.Observations))}
 	for i, o := range r.Observations {
@@ -561,8 +560,8 @@ func (s *Service) joinedPaper(items []formatv0.Item, key *paperv1.Answer, r tuto
 }
 
 // readDiffer is whether two readers read some answer slot differently: its
-// value or why it is unreadable, as the join of R68 tells them apart; where
-// each saw the slot does not count.
+// value or why it is unreadable, as the join of the two readings tells them
+// apart; where each saw the slot does not count.
 func readDiffer(a, b *observationv1.Observation) bool {
 	read := func(o *observationv1.Observation) map[[2]int32]string {
 		m := map[[2]int32]string{}
@@ -590,14 +589,14 @@ func readDiffer(a, b *observationv1.Observation) bool {
 
 // debugChosen is whether the caller's account has the right of the debug mode
 // and a first model of it, which takes a call past the admission list: a choice
-// kept from before the right was taken chooses nothing (R97).
+// kept from before the right was taken chooses nothing.
 func (s *Service) debugChosen(ctx context.Context) bool {
 	caller, _ := rpc.CallerFrom(ctx)
 	return s.debug.Open(caller) && s.debug.Chosen(caller.AccountID)
 }
 
 // debugged is the action of the debug mode for a request of the caller's
-// account, nil without the mode or without the account's right (R97).
+// account, nil without the mode or without the account's right.
 func (s *Service) debugged(ctx context.Context, kind v1.DebugActionKind, attemptID string) *debug.Action {
 	caller, _ := rpc.CallerFrom(ctx)
 	if !s.debug.Open(caller) {

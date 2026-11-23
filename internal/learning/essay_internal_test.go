@@ -26,9 +26,9 @@ func TestTheEssayPortsGoToTheGate(t *testing.T) {
 	}
 }
 
-// A task with a rubric solved gives the texts of its criteria in order, with
-// no keys, and its solution when it has one (R87 spec); a task with a verdict
-// gives no criteria.
+// A task with a rubric solved gives the texts of its criteria in order, with no
+// keys, and its solution when it has one; a task with a verdict gives no
+// criteria.
 func TestATaskWithARubricSolvedGivesItsCriteria(t *testing.T) {
 	t.Parallel()
 

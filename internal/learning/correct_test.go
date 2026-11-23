@@ -44,9 +44,8 @@ func (ps *praisers) tell(ctx context.Context, c tutor.CorrectRequest) tutor.Corr
 // say makes the words text, from a model whose usage is recorded.
 func (ps *praisers) say(text string) {
 	ps.give(tutor.CorrectAnswer{Words: text, Outcome: tutor.Outcome{Kind: tutor.Answered,
-		// Two writes to the cache, each kept for its own time — Claude's 5
-		// minutes, a provider's longer one —, beside a read: the log sums the
-		// writes (R94).
+		// Two writes to the cache, each kept for its own time — Claude's 5 minutes, a
+		// provider's longer one —, beside a read: the log sums the writes.
 		Usage: []tutor.Usage{{Provider: "anthropic", Model: "claude-opus-5-5", InputTokens: 300, OutputTokens: 40,
 			CacheWrites:     []provider.CacheWrite{{TTL: 5 * time.Minute, Tokens: 800}, {TTL: time.Hour, Tokens: 150}},
 			CacheReadTokens: 50}}}})
@@ -294,8 +293,8 @@ func TestTheWordsAfterACorrectAnswerBesideAnotherAreGivenOnce(t *testing.T) {
 	}
 }
 
-// The stub words the praise after a correct answer before the day of the
-// policy too: nothing goes to a provider (R66). Its words pass words.Correct.
+// The stub words the praise after a correct answer before the day of the policy
+// too: nothing goes to a provider. Its words pass words.Correct.
 func TestTheStubWordsAfterACorrectAnswerWhateverTheDay(t *testing.T) {
 	t.Parallel()
 
@@ -346,10 +345,10 @@ func returnsAt(limit *v1.OwnKeyLimit, at time.Time) bool {
 // A limit of the own key names which limit ran out, by the reason tutor gives,
 // beside CAUSE_LIMIT_REACHED in every answer whose call may meet it — the
 // reading of a submission, the words of a rung, "explain differently" and the
-// words after a correct answer —, with when access returns where tutor gives the
-// time, as for the ceiling of the tier, and none where it gives zero, as for the
-// owner's own limit (R80); a repeat under the key gets the same. A reason tutor
-// does not name, or none, is unnamed.
+// words after a correct answer —, with when access returns where tutor gives
+// the time, as for the ceiling of the tier, and none where it gives zero, as
+// for the owner's own limit; a repeat under the key gets the same. A reason
+// tutor does not name, or none, is unnamed.
 func TestAnOwnKeysLimitNamesWhichLimitRanOut(t *testing.T) {
 	t.Parallel()
 

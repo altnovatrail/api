@@ -1,17 +1,17 @@
-// Package learning runs attempts of tasks (R44, R46, R47): their beginning, the
-// open attempt, the submission of the work and its verdict by module-kit, on
-// the options tapped and on what tutor read, the submission of an essay and its
-// feedback by the rubric (R82), the techniques a solving step gives, "Done",
-// the hint ladder with the tutor's words and their fallback texts, the showing
-// of the solution, lesson runs with their segments (R48), and the tasks from the
-// learner's paper, found on the photo of a page (R10). It answers the methods of
-// LearningService, AttemptService and PaperService, and keeps the stored works of
-// WorkService too (R70), whose kind is the attempt's task's.
+// Package learning runs attempts of tasks: their beginning, the open attempt,
+// the submission of the work and its verdict by module-kit, on the options
+// tapped and on what tutor read, the submission of an essay and its feedback by
+// the rubric, the techniques a solving step gives, "Done", the hint ladder with
+// the tutor's words and their fallback texts, the showing of the solution,
+// lesson runs with their segments, and the tasks from the learner's paper,
+// found on the photo of a page. It answers the methods of LearningService,
+// AttemptService and PaperService, and keeps the stored works of WorkService
+// too, whose kind is the attempt's task's.
 //
 // Every request is a learning request on a profile, whose right the checks hold
-// before it (R33), and a profile whose consent is not confirmed is refused. An
+// before it, and a profile whose consent is not confirmed is refused. An
 // attempt is read by the pair of its profile and its ID, its row held for the
-// request: one of another profile, or none, is "not found" (R04).
+// request: one of another profile, or none, is "not found".
 package learning
 
 import (
@@ -55,54 +55,50 @@ type Service struct {
 	teller  wordsTeller
 	praiser correctTeller
 	// admits says whether a kind of call that reads the work is admitted, and
-	// workbook reads the work of a workbook page: the gate's tutor (R81).
+	// workbook reads the work of a workbook page: the gate's tutor.
 	admits   admitter
 	workbook workbookReader
-	// essay reads the essay of a task with a rubric, and assessor assesses its text
-	// by the criteria: the gate's tutor (R82).
+	// essay reads the essay of a task with a rubric, and assessor assesses its
+	// text by the criteria: the gate's tutor.
 	essay    essayReader
 	assessor rubricAssessor
-	// finder finds the tasks on the photo of a page from paper: the gate's tutor
-	// (R162 spec).
+	// finder finds the tasks on the photo of a page from paper: the gate's tutor.
 	finder taskFinder
-	// paper reads the statement of a task from paper, solves it and reads the
-	// work on it: the gate's tutor (R162 spec).
+	// paper reads the statement of a task from paper, solves it and reads the work
+	// on it: the gate's tutor.
 	paper paperChecker
-	// paperWords words the tutor's words of a task from paper: the gate's tutor
-	// (R82 spec).
+	// paperWords words the tutor's words of a task from paper: the gate's tutor.
 	paperWords paperTeller
-	// reading is the mode tutor reads handwriting by, the gate's, which says
-	// how many observations a reading gives (R88).
+	// reading is the mode tutor reads handwriting by, the gate's, which says how
+	// many observations a reading gives.
 	reading tutor.Reading
 	// stubbed says the tutor is the dev mode's stub, which sends nothing to a
-	// provider: its words after a correct answer go whatever the day (R66).
+	// provider: its words after a correct answer go whatever the day.
 	stubbed bool
 	// offDeployment says api runs off a deployment, where alone a tariff of the
 	// dev projects has its caps: unset, platform AI is closed to it (quota.CapsOf).
 	offDeployment bool
 	// texts is the legal texts api serves, whose privacy policy in force on the
 	// day of a request says whether the words after a correct answer go to a
-	// provider (R77).
+	// provider.
 	texts *legal.Texts
-	// price is what tutor expects a call to cost, which the quota reserves (R58):
-	// the gate's.
+	// price is what tutor expects a call to cost, which the quota reserves: the
+	// gate's.
 	price func(call tutor.Call, route tutor.Route) tutor.CallPrice
-	// goingFor is the longest a request may run, past which the record of its
-	// key going is of a request that fell (R17, R33).
+	// goingFor is the longest a request may run, past which the record of its key
+	// going is of a request that fell.
 	goingFor time.Duration
-	// paperGoingFor is goingFor of FindTasks, ReadStatement and SubmitWork,
-	// which run for the time limit of paper (R98).
+	// paperGoingFor is goingFor of FindTasks, ReadStatement and SubmitWork, which
+	// run for the time limit of paper.
 	paperGoingFor time.Duration
 	db            rpc.DB
 	now           func() time.Time
 	moduleKit     string
-	// model is the learner model, which a close owes the evidence of the
-	// attempt (R49).
+	// model is the learner model, which a close owes the evidence of the attempt.
 	model *model.Model
-	// engine is the version of engine, which every choice keeps (R50).
+	// engine is the version of engine, which every choice keeps.
 	engine string
-	// debug is the debug mode of the models of a task from paper, nil without it
-	// (R97).
+	// debug is the debug mode of the models of a task from paper, nil without it.
 	debug *debug.Store
 }
 
@@ -112,12 +108,11 @@ type Option func(*Service)
 // WithClock is the clock a Service tells the time of its actions by.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
-// WithRequestTimeout is the longest a request may run, as the server bounds it
-// (R33).
+// WithRequestTimeout is the longest a request may run, as the server bounds it.
 func WithRequestTimeout(d time.Duration) Option { return func(s *Service) { s.goingFor = d } }
 
 // WithPaperRequestTimeout is the longest FindTasks, ReadStatement and
-// SubmitWork may run, as the server bounds them (R98).
+// SubmitWork may run, as the server bounds them.
 func WithPaperRequestTimeout(d time.Duration) Option {
 	return func(s *Service) { s.paperGoingFor = d }
 }
@@ -127,18 +122,17 @@ func WithPaperRequestTimeout(d time.Duration) Option {
 // (quota.CapsOf).
 func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
 
-// WithDebug is the debug mode, whose choice of models serves the calls of a task
-// from paper of an account with its right and whose store keeps what each
-// returned (R97).
+// WithDebug is the debug mode, whose choice of models serves the calls of a
+// task from paper of an account with its right and whose store keeps what each
+// returned.
 func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } }
 
 // WithTutor is what reads the sheets, the workbook pages and the essays,
 // assesses the essays by their rubrics, words the tutor's words, those after a
 // correct answer too, finds the tasks on the photo of a page, checks a task
-// from paper and words its tutor's words, and says which
-// kinds of reading are admitted, in place
-// of the gate's tutor: the dev mode's stub (R66), which calls no provider and
-// admits a workbook page, an essay and its assessment itself.
+// from paper and words its tutor's words, and says which kinds of reading are
+// admitted, in place of the gate's tutor: the dev mode's stub, which calls no
+// provider and admits a workbook page, an essay and its assessment itself.
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
@@ -163,24 +157,24 @@ func WithTexts(texts *legal.Texts) Option { return func(s *Service) { s.texts = 
 
 // sheetReader reads the work of a handwriting sheet, as tutor does. task is the
 // instance, its key with it, which the dev mode's stub alone reads, to read a
-// right value (R66): tutor is given the open view of r alone (R67 spec). own is
-// the value of the request's own key, empty on platform AI, whose ending the
-// stub alone reads, to refuse as a provider would (R66): tutor takes the key
-// from the route, which it alone opens.
+// right value: tutor is given the open view of r alone. own is the value of the
+// request's own key, empty on platform AI, whose ending the stub alone reads,
+// to refuse as a provider would: tutor takes the key from the route, which it
+// alone opens.
 type sheetReader interface {
 	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead
 }
 
 // admitter says whether tutor's call of the kind that reads the work, of a
-// sheet or of a workbook page, is admitted for a learner of category, by the own
-// key of ownKeyProvider when it names one, as the gate says through tutor's
-// choice (R45, R81).
+// sheet or of a workbook page, is admitted for a learner of category, by the
+// own key of ownKeyProvider when it names one, as the gate says through tutor's
+// choice.
 type admitter interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 }
 
 // workbookReader reads the filled boxes of a workbook page, as tutor does; task
-// and own are as sheetReader has them (R81).
+// and own are as sheetReader has them.
 type workbookReader interface {
 	ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead
 }
@@ -305,13 +299,13 @@ type closedError struct {
 func (e *closedError) Error() string { return "learning: the attempt is closed " + e.reason }
 
 // errPackageUnknown is an attempt on a package whose digest the index of the
-// image does not know: a deployment is going on (R07).
+// image does not know: a deployment is going on.
 var errPackageUnknown = errors.New("learning: the index of the image does not know the package")
 
 // lapsed is why the open attempt row cannot go on at now, as the check of a
 // request and the beginning of another attempt close it: "unchecked" on a
-// package the image does not give (R07), "abandoned" past 7 days with no
-// action, as the daily job closes it (R10); empty when it can go on.
+// package the image does not give, "abandoned" past 7 days with no action, as
+// the daily job closes it; empty when it can go on.
 func (s *Service) lapsed(row store.Attempt, now time.Time) string {
 	switch {
 	case s.set.Status(formatv0.Digest(row.PackageDigest)) == packages.NotGiven:
@@ -322,12 +316,13 @@ func (s *Service) lapsed(row store.Attempt, now time.Time) string {
 	return ""
 }
 
-// hold is the profile's open attempt, held in tx. Before anything acts on it, it
-// is checked as every request checks it: one the profile does not have is
+// hold is the profile's open attempt, held in tx. Before anything acts on it,
+// it is checked as every request checks it: one the profile does not have is
 // store.ErrNotFound; one closed, a closedError; one of a task from paper,
-// store.ErrPaper, with its row held, which holdAny goes on with (R96); one on a package the
-// index does not know, errPackageUnknown, with nothing written; and one that lapsed is
-// closed by this check, and the refusal "closed" keeps the close (rpc.Keep).
+// store.ErrPaper, with its row held, which holdAny goes on with; one on a
+// package the index does not know, errPackageUnknown, with nothing written; and
+// one that lapsed is closed by this check, and the refusal "closed" keeps the
+// close (rpc.Keep).
 func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID string, now time.Time) (held, error) {
 	if !store.CanonicalID(attemptID) {
 		return held{}, store.ErrNotFound
@@ -366,7 +361,7 @@ func (s *Service) hold(ctx context.Context, tx pgx.Tx, profileID, attemptID stri
 
 // close closes the profile's attempt with reason at now, and writes the
 // evidence its closed attempts owe — this one's among them — in the same
-// transaction (R49).
+// transaction.
 func (s *Service) close(ctx context.Context, tx pgx.Tx, profileID, attemptID, reason string, now time.Time) error {
 	if err := store.CloseAttempt(ctx, tx, profileID, attemptID, reason, now); err != nil {
 		return err
@@ -374,7 +369,7 @@ func (s *Service) close(ctx context.Context, tx pgx.Tx, profileID, attemptID, re
 	return s.settle(ctx, tx, profileID, now)
 }
 
-// settle writes the evidence the profile's closed attempts owe, in tx (R49).
+// settle writes the evidence the profile's closed attempts owe, in tx.
 func (s *Service) settle(ctx context.Context, tx pgx.Tx, profileID string, now time.Time) error {
 	_, err := s.model.Settle(ctx, tx, profileID, now)
 	return err
@@ -393,9 +388,9 @@ func (s *Service) act(ctx context.Context, profileID, attemptID string, fn func(
 }
 
 // write runs fn, a request with no key, under the caller's account, which a
-// deletion marks (R21), at one time. What a refusal of rpc.Keep keeps — a close
-// or an end by the check of the request — commits, and the request is refused
-// after it, as rpc.Once does for a request with a key.
+// deletion marks, at one time. What a refusal of rpc.Keep keeps — a close or an
+// end by the check of the request — commits, and the request is refused after
+// it, as rpc.Once does for a request with a key.
 func (s *Service) write(ctx context.Context, fn func(tx pgx.Tx, now time.Time) error) error {
 	caller, _ := rpc.CallerFrom(ctx)
 	now := s.clock()
@@ -462,8 +457,7 @@ func refused(ctx context.Context, err error) error {
 	case errors.Is(err, errPackageUnknown):
 		return rpc.Refuse(ctx, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
 	case errors.Is(err, store.ErrPaper):
-		// A task from paper has no steps, no rubric, no open view and no stored work
-		// (R162 spec).
+		// A task from paper has no steps, no rubric, no open view and no stored work.
 		return connect.NewError(connect.CodeInvalidArgument, "an attempt of a task from paper")
 	case errors.Is(err, store.ErrChoiceBegun):
 		return rpc.Refuse(ctx, connect.CodeAlreadyExists, v1.Cause_CAUSE_ALREADY_EXISTS)

@@ -31,13 +31,13 @@ func (w *world) paperRungWords(t *testing.T, l learner, profile, attempt string,
 		WrongAnswers: &wrong, Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))})
 }
 
-// A task from paper has no techniques for "Hint" before its first wrong
-// answer, and the opening question instead (R82 spec): one call, whose words
-// the attempt keeps, so a later request and a repeat get them with no AI. After
-// a wrong answer the opening question is not current, the words of the rung
-// come with the wavy line under the first mistake in the mode "Show where",
-// "Hint" gives them, and "explain differently" words the rung anew; none of the
-// tutor's questions is asked twice.
+// A task from paper has no techniques for "Hint" before its first wrong answer,
+// and the opening question instead: one call, whose words the attempt keeps, so
+// a later request and a repeat get them with no AI. After a wrong answer the
+// opening question is not current, the words of the rung come with the wavy
+// line under the first mistake in the mode "Show where", "Hint" gives them, and
+// "explain differently" words the rung anew; none of the tutor's questions is
+// asked twice.
 func TestATaskFromPaperGetsTheTutorsWords(t *testing.T) {
 	t.Parallel()
 

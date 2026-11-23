@@ -84,7 +84,7 @@ func (d *debugStub) TellPaperWords(ctx context.Context, w tutor.PaperWordsReques
 
 // In the debug mode the tutor's words of a task from paper go by the account's
 // first model, past the list, and the store keeps their call as an action of
-// words (R97).
+// words.
 func TestTheDebugModeRecordsTheTutorsWords(t *testing.T) {
 	t.Parallel()
 
@@ -110,7 +110,7 @@ func TestTheDebugModeRecordsTheTutorsWords(t *testing.T) {
 
 // In the debug mode the calls of a Check of a task from paper go by the
 // account's models, and the store keeps each, the solver's among them, until
-// they are taken, with its cost (R97). A second model reads the work beside the
+// they are taken, with its cost. A second model reads the work beside the
 // first, the two joined as the pair is: a value they read differently is
 // unreadable, and the action says the readers differ; one they agree on is
 // judged.
@@ -187,8 +187,8 @@ func TestTheDebugModeRecordsATaskFromPaper(t *testing.T) {
 
 // Without the flag the debug mode is the account's by the right of its row: an
 // account without it has no action and no model of its choice, which takes no
-// call past the list, and one given it has them from its next request; one whose
-// right is taken again has neither, its choice kept or not (R97).
+// call past the list, and one given it has them from its next request; one
+// whose right is taken again has neither, its choice kept or not.
 func TestTheDebugModeIsAnAccountsByItsRight(t *testing.T) {
 	t.Parallel()
 

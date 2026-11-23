@@ -24,13 +24,13 @@ import (
 )
 
 // essayReader reads the essay of a task with a rubric, as tutor does; task and
-// own are as sheetReader has them (R82).
+// own are as sheetReader has them.
 type essayReader interface {
 	ReadEssay(ctx context.Context, r tutor.EssayReading, task formatv0.Task, own string) tutor.EssayRead
 }
 
 // rubricAssessor assesses the text of an essay by the criteria of its rubric,
-// as tutor does; own is as sheetReader has it (R82).
+// as tutor does; own is as sheetReader has it.
 type rubricAssessor interface {
 	AssessEssay(ctx context.Context, r tutor.RubricAssessment, own string) tutor.RubricAssessed
 }
@@ -60,21 +60,21 @@ type essaying struct {
 }
 
 // SubmitEssay sends the sheet of a task with a rubric for its feedback, under
-// its idempotency key: one request, two calls of tutor (R14, R82). One reader
-// reads the crop, and the text read is assessed by the criteria of the rubric,
-// with the statement as its topic, the style of the learner's category and the
-// module's language of explanations; the feedback goes once it passes the leak
-// check and the rule of feedback, words.Feedback, and without it the answer has
-// none. The submission ends "feedback", "unreadable" — the sheet as a whole
-// cannot be read, and the assessment is not called — or "unchecked", with the
-// outcome of a call that gave nothing, or none when no criterion was assessed.
-// The reserve covers the reading with the assessment (R12), and the calls run
-// between two transactions (rpc.Across). The server records how the submission
-// ended and, beside feedback, the marks and the source of the words, never the
-// text, the evidence or the words (R15). An attempt closed meanwhile by another
-// device is no refusal: the answer comes from the request's memory, names the
-// close, and nothing is recorded. A repeat under the key gets the answer
-// without the text and the words.
+// its idempotency key: one request, two calls of tutor. One reader reads the
+// crop, and the text read is assessed by the criteria of the rubric, with the
+// statement as its topic, the style of the learner's category and the module's
+// language of explanations; the feedback goes once it passes the leak check and
+// the rule of feedback, words.Feedback, and without it the answer has none. The
+// submission ends "feedback", "unreadable" — the sheet as a whole cannot be
+// read, and the assessment is not called — or "unchecked", with the outcome of
+// a call that gave nothing, or none when no criterion was assessed. The reserve
+// covers the reading with the assessment, and the calls run between two
+// transactions (rpc.Across). The server records how the submission ended and,
+// beside feedback, the marks and the source of the words, never the text, the
+// evidence or the words. An attempt closed meanwhile by another device is no
+// refusal: the answer comes from the request's memory, names the close, and
+// nothing is recorded. A repeat under the key gets the answer without the text
+// and the words.
 func (a *AttemptService) SubmitEssay(ctx context.Context, req *v1.SubmitEssayRequest) (*v1.SubmitEssayResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -125,9 +125,9 @@ func (a *AttemptService) SubmitEssay(ctx context.Context, req *v1.SubmitEssayReq
 
 // essayed checks a submission of an essay on the attempt it names, held, before
 // anything is called, and takes the reserve of the reading with the assessment:
-// an open attempt of the profile, of a task with a rubric that tutor reads as an
-// essay, and a crop that is a PNG tutor would read (cropTaken). An attempt
-// closed is "attempt closed", before any call of AI (R14).
+// an open attempt of the profile, of a task with a rubric that tutor reads as
+// an essay, and a crop that is a PNG tutor would read (cropTaken). An attempt
+// closed is "attempt closed", before any call of AI.
 func (s *Service) essayed(ctx context.Context, tx pgx.Tx, req *v1.SubmitEssayRequest, category formatv0.AgeCategory) (essaying, error) {
 	profileID := req.GetProfileId()
 	h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), s.clock())
@@ -242,13 +242,12 @@ func (e essaying) text() (string, bool) {
 var marks = map[bool]string{true: store.MarkMet, false: store.MarkNotMet}
 
 // essayAnswer is the answer of the submission of e and how it ended, as the
-// server keeps it (R14, R15): with the text read when there was reading;
-// feedback once the assessment assessed a criterion at least, with the mark of
-// each criterion by its number and the words, once they pass the leak check
-// and the rule of feedback against the text read, or else none and the source
-// "no feedback", the check named in the request's line; "unchecked" with the
-// outcome of an assessment that gave nothing, or with none when it assessed no
-// criterion.
+// server keeps it: with the text read when there was reading; feedback once the
+// assessment assessed a criterion at least, with the mark of each criterion by
+// its number and the words, once they pass the leak check and the rule of
+// feedback against the text read, or else none and the source "no feedback",
+// the check named in the request's line; "unchecked" with the outcome of an
+// assessment that gave nothing, or with none when it assessed no criterion.
 func essayAnswer(ctx context.Context, e essaying) (*v1.SubmitEssayResponse, store.Essay) {
 	text, answer := e.end()
 	if answer != nil {
@@ -269,7 +268,7 @@ func essayAnswer(ctx context.Context, e essaying) (*v1.SubmitEssayResponse, stor
 		}
 	}
 	if !assessed {
-		// No criterion with an assessment: no check, and no outcome to name (R14).
+		// No criterion with an assessment: no check, and no outcome to name.
 		return answer, store.Essay{End: store.EssayUnchecked}
 	}
 	answer.End = v1.SubmissionEnd_SUBMISSION_END_FEEDBACK
@@ -313,7 +312,7 @@ var criterionMarks = map[string]v1.CriterionMark{
 // marks and the source of the words, with its answer without the text read and
 // the words, which the key's record names. An attempt closed meanwhile records
 // nothing: the answer from the request's memory names its close, and the key's
-// record holds the answer without the text and the words (R14).
+// record holds the answer without the text and the words.
 func (s *Service) essayRecorded(ctx context.Context, tx pgx.Tx, profileID string, e essaying) (*v1.SubmitEssayResponse, store.KeyTarget, error) {
 	answer, kept := essayAnswer(ctx, e)
 	// An answer of the contract always marshals.

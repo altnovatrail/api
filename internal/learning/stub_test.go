@@ -24,9 +24,9 @@ import (
 	"github.com/altnovatrail/api/internal/tutorstub"
 )
 
-// newStubWorld is the world of the dev mode (R66): the gate of the stub, which
-// admits an adult's handwriting and words at the author's stage with no key of
-// the platform, and the stub, which reads and words in place of tutor.
+// newStubWorld is the world of the dev mode: the gate of the stub, which admits
+// an adult's handwriting and words at the author's stage with no key of the
+// platform, and the stub, which reads and words in place of tutor.
 func newStubWorld(t *testing.T) (*world, *admission.Gate) {
 	t.Helper()
 	g := stubGate(t)
@@ -69,13 +69,13 @@ func stubGateOf(t *testing.T, given string, more ...string) *admission.Gate {
 }
 
 // The path of the check, the hint and the words runs on the stub, with no
-// provider (R66): a square crop is illegible, a tall crop reads a wrong value,
-// the rung's words are the stub's and pass the checks, "explain differently"
-// gives other words, and a wide crop reads the right value and solves the task.
-// Each call spends what tutor expects it to cost, the reserve it took, and
-// "explain differently", the hint without the work that tutor expects no price
-// of (R106 tutor), keeps the value of its kind as spent (R12): nothing is left
-// in reserve. The log names the model stub.
+// provider: a square crop is illegible, a tall crop reads a wrong value, the
+// rung's words are the stub's and pass the checks, "explain differently" gives
+// other words, and a wide crop reads the right value and solves the task. Each
+// call spends what tutor expects it to cost, the reserve it took, and "explain
+// differently", the hint without the work that tutor expects no price of, keeps
+// the value of its kind as spent: nothing is left in reserve. The log names the
+// model stub.
 func TestThePathRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 
@@ -131,8 +131,8 @@ func TestThePathRunsOnTheStub(t *testing.T) {
 	}
 }
 
-// On an own key the stub ends each call of AI by how the key ends (R66), which
-// api hands it beside the route: the reading, the words of a rung, "explain
+// On an own key the stub ends each call of AI by how the key ends, which api
+// hands it beside the route: the reading, the words of a rung, "explain
 // differently" and the words after a correct answer are refused — the key
 // refused, or a limit with its cause —, while a key of no such ending is read
 // and worded. Nothing of the quota of platform AI is spent, and the log holds
@@ -282,14 +282,14 @@ func TestTheGateHearsNoEndingOfAnOwnKey(t *testing.T) {
 	}
 }
 
-// A workbook page runs on the stub (R66): the stub admits its reading where the
-// gate admits a sheet's, so the page begins for an adult and enters the pool,
-// but not for a child, whose sheet the facts of an adult do not admit; by the
-// facts of a child it begins for the child too, as dev-check declares them to
-// its server on the stub. A tall crop of the box reads a wrong value, and a
-// wide one the right value, which solves the task and gives its evidence. Each
+// A workbook page runs on the stub: the stub admits its reading where the gate
+// admits a sheet's, so the page begins for an adult and enters the pool, but
+// not for a child, whose sheet the facts of an adult do not admit; by the facts
+// of a child it begins for the child too, as dev-check declares them to its
+// server on the stub. A tall crop of the box reads a wrong value, and a wide
+// one the right value, which solves the task and gives its evidence. Each
 // reading keeps tutor's expected price of a page as spent, the price of the
-// entry the author's word admits (R90), with nothing left in reserve. On an own
+// entry admitted without an eval run, with nothing left in reserve. On an own
 // key the stub refuses the page by the key's ending.
 func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 	t.Parallel()
@@ -354,17 +354,17 @@ func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
 	}
 }
 
-// An essay runs on the stub (R66): the stub admits its reading and its
-// assessment where the gate admits a sheet's, so story begins for an adult and
-// enters the pool, but not for a child, whose sheet the facts of an adult do
-// not admit. On an own key the stub refuses the reading by the key's ending; a
-// square crop reads illegible and a tall one blank, each giving the
-// assessment's reserve back; a wide one reads the stub's text, assessed every
-// criterion met but the last, with the stub's feedback, which passes the leak
-// check and the rule of feedback. "Done" then closes the attempt with story's
-// criteria. Each reading keeps tutor's expected price of the reading as spent,
-// and the assessment its own, the prices of the entries the author's word
-// admits (R90). The log holds neither the text nor the feedback, nor the key.
+// An essay runs on the stub: the stub admits its reading and its assessment
+// where the gate admits a sheet's, so story begins for an adult and enters the
+// pool, but not for a child, whose sheet the facts of an adult do not admit. On
+// an own key the stub refuses the reading by the key's ending; a square crop
+// reads illegible and a tall one blank, each giving the assessment's reserve
+// back; a wide one reads the stub's text, assessed every criterion met but the
+// last, with the stub's feedback, which passes the leak check and the rule of
+// feedback. "Done" then closes the attempt with story's criteria. Each reading
+// keeps tutor's expected price of the reading as spent, and the assessment its
+// own, the prices of the entries admitted without an eval run. The log holds
+// neither the text nor the feedback, nor the key.
 func TestAnEssayRunsOnTheStub(t *testing.T) {
 	t.Parallel()
 
@@ -431,7 +431,7 @@ func TestAnEssayRunsOnTheStub(t *testing.T) {
 }
 
 // At the stage full the stub admits neither a workbook page nor an essay, as
-// tutor admits none of the entries of the author's word there (R90): neither
+// tutor admits there none of the entries admitted without an eval run: neither
 // table nor story begins, nor enters the pool.
 func TestTheStubAtTheStageFullReadsNoWorkbookAndNoEssay(t *testing.T) {
 	t.Parallel()
@@ -450,10 +450,10 @@ func TestTheStubAtTheStageFullReadsNoWorkbookAndNoEssay(t *testing.T) {
 	}
 }
 
-// In the mode single (R88) the stub reads a sheet by one reader, as tutor's
-// Haiku alone: module-kit gives the verdict on the one observation, each
-// reading spends what tutor expects of the one reader, less than the pair, on
-// one line of usage, and nothing is left in reserve.
+// In the mode single the stub reads a sheet by one reader, as tutor's Haiku
+// alone: module-kit gives the verdict on the one observation, each reading
+// spends what tutor expects of the one reader, less than the pair, on one line
+// of usage, and nothing is left in reserve.
 func TestThePathRunsOnTheStubByOneReader(t *testing.T) {
 	t.Parallel()
 

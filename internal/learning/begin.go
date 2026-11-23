@@ -34,26 +34,25 @@ type begun struct {
 }
 
 // BeginAttempt begins an attempt, under its idempotency key: by an engine's
-// choice of a task, or the same task again outside a lesson, each on the current
-// version of its module (R07). It closes the profile's open attempt in the same
-// transaction: "left", or as the check of a request would have closed it (R10).
+// choice of a task, or the same task again outside a lesson, each on the
+// current version of its module. It closes the profile's open attempt in the
+// same transaction: "left", or as the check of a request would have closed it.
 // The module must be connected and have a current version for the learner that
-// holds the task, and the task must suit the age category of the profile (R51
-// spec). A task of handwriting begins when tutor reads its form — a
-// handwriting sheet with one answer slot bound anywhere, or a workbook — and
-// the gate of admission chooses models for its kind of call, by platform AI or
-// the own key named (R45, R46, R81); a task with a rubric, when tutor reads it
-// as an essay and the gate chooses models for its reading and its assessment
-// both (R82). A task segment of a lesson run begins on the run's package, once
-// the run is checked whole and every task segment before it has ended, and it
-// has not; its open attempt is given as it is (R13, R48), and waits, if the
-// quota ran out on it. On platform AI a task that AI checks begins only with
-// room for a typical task left of the family day — of handwriting, or with a
-// rubric —, and while the limit of its provider leaves platform AI open: else
-// "quota", with when the next day begins, or "platform limit" (R11, R59). A
-// refusal of the admission, the quota or the limit leaves the run open. The
-// answer, the attempt with the open view of its task, is what the key's record
-// holds: it names nothing the learner sent.
+// holds the task, and the task must suit the age category of the profile. A
+// task of handwriting begins when tutor reads its form — a handwriting sheet
+// with one answer slot bound anywhere, or a workbook — and the gate of
+// admission chooses models for its kind of call, by platform AI or the own key
+// named; a task with a rubric, when tutor reads it as an essay and the gate
+// chooses models for its reading and its assessment both. A task segment of a
+// lesson run begins on the run's package, once the run is checked whole and
+// every task segment before it has ended, and it has not; its open attempt is
+// given as it is, and waits, if the quota ran out on it. On platform AI a task
+// that AI checks begins only with room for a typical task left of the family
+// day — of handwriting, or with a rubric —, and while the limit of its provider
+// leaves platform AI open: else "quota", with when the next day begins, or
+// "platform limit". A refusal of the admission, the quota or the limit leaves
+// the run open. The answer, the attempt with the open view of its task, is what
+// the key's record holds: it names nothing the learner sent.
 func (l *LearningService) BeginAttempt(ctx context.Context, req *v1.BeginAttemptRequest) (*v1.BeginAttemptResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -167,9 +166,9 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 	}
 	if !byTap(task) && ownKey == "" {
-		// A new task that platform AI checks begins only with room for a typical
-		// task today, of handwriting or with a rubric, and only while the
-		// provider's limit leaves it open (R11, R82).
+		// A new task that platform AI checks begins only with room for a typical task
+		// today, of handwriting or with a rubric, and only while the provider's limit
+		// leaves it open.
 		typical := quota.TypicalHandwriting
 		if rubric(task) {
 			typical = quota.TypicalRubric
@@ -213,8 +212,7 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 
 // packageOf is the package the attempt of b goes on: the run's, whose check
 // held the module and the lesson's tasks already, or the current version of its
-// connected module for the learner (R07), which the deployment's list names
-// (R150 spec).
+// connected module for the learner, which the deployment's list names.
 func (s *Service) packageOf(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, b begun) (*modulepackage.Package, error) {
 	if b.run != nil {
 		return b.run.pkg, nil
@@ -234,8 +232,8 @@ func (s *Service) packageOf(ctx context.Context, tx pgx.Tx, profileID string, ca
 }
 
 // leave closes the profile's open attempt, when it has one, for the attempt
-// that begins: "left", unless it lapsed already and is closed as the check of
-// a request would close it (R07, R10).
+// that begins: "left", unless it lapsed already and is closed as the check of a
+// request would close it.
 func (s *Service) leave(ctx context.Context, tx pgx.Tx, profileID string, now time.Time) error {
 	if err := store.HoldAttemptRun(ctx, tx, profileID, ""); err != nil {
 		return err
@@ -256,8 +254,8 @@ func (s *Service) leave(ctx context.Context, tx pgx.Tx, profileID string, now ti
 // many wrong answers it has, the current rung with the words the attempt keeps
 // for it or its fallback text, and whether "explain differently" was asked for
 // on it, and the techniques given at a step and on request, with the leading
-// question given on request (R47). It reads, and so it is no action on the
-// attempt: its last action stays.
+// question given on request. It reads, and so it is no action on the attempt:
+// its last action stays.
 func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAttemptRequest) (*v1.GetOpenAttemptResponse, error) {
 	s := l.s
 	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
@@ -271,7 +269,7 @@ func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAtt
 		}
 		open = &v1.OpenAttempt{Start: start, WrongAnswers: int32(h.row.WrongAnswers)}
 		if rubric(h.task) {
-			// An essay has no verdict: its submissions, how each ended and when (R15).
+			// An essay has no verdict: its submissions, how each ended and when.
 			essays, err := store.EssaySubmissions(ctx, tx, req.GetProfileId(), []string{h.row.ID})
 			if err != nil {
 				return err
@@ -327,13 +325,13 @@ func startOf(h held) (*v1.AttemptStart, error) {
 
 // admitted says whether this code begins an attempt of the task for a learner
 // of category, by the own key of ownKey when it names a provider: the same rule
-// for a beginning and for the pool the engine chooses from (R50). A task with a
+// for a beginning and for the pool the engine chooses from. A task with a
 // rubric is, when tutor reads it as an essay and both its calls — the reading
-// of the essay and its assessment by the rubric — are admitted (R82); one AI
-// would read in a zone or on the whole sheet is not, as tutor does not read it
-// (R46); nor is one of handwriting whose kind of call, a sheet's or a workbook
-// page's, the table, the facts, the stage and the platform's keys of the
-// deployment do not admit models for (R45, R81).
+// of the essay and its assessment by the rubric — are admitted; one AI would
+// read in a zone or on the whole sheet is not, as tutor does not read it; nor
+// is one of handwriting whose kind of call, a sheet's or a workbook page's, the
+// table, the facts, the stage and the platform's keys of the deployment do not
+// admit models for.
 func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ownKey string) bool {
 	switch {
 	case rubric(task):
@@ -346,11 +344,11 @@ func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ow
 	return ok && s.admits.Reads(call, category, ownKey)
 }
 
-// readsAdmitted says whether AI that reads the work is admitted for a learner of
-// category on the route of ownKey, for one kind of task at least — a sheet's
+// readsAdmitted says whether AI that reads the work is admitted for a learner
+// of category on the route of ownKey, for one kind of task at least — a sheet's
 // call, a workbook page's, or an essay's reading with its assessment, which a
-// task with a rubric needs both of (R82): what closes the pool to the tasks a
-// tap checks when it is not (R50, R81).
+// task with a rubric needs both of: what closes the pool to the tasks a tap
+// checks when it is not.
 func (s *Service) readsAdmitted(category formatv0.AgeCategory, ownKey string) bool {
 	return s.admits.Reads(tutor.CallSheet, category, ownKey) || s.admits.Reads(tutor.CallWorkbook, category, ownKey) ||
 		s.admits.Reads(tutor.CallEssay, category, ownKey) && s.admits.Reads(tutor.CallRubric, category, ownKey)

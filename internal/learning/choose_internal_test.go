@@ -119,13 +119,12 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 	}
 }
 
-// The pool goes by the route the request names (R65): platform AI, which a
-// deployment with no facts closes, leaves the tasks a tap checks and says so,
-// and so does the own key of a provider whose models are not admitted; the
-// adult's own key of Anthropic, which the stage "author" admits, gives the
-// handwriting of a sheet, the workbook page and the lesson of an essay too,
-// whose calls the author's word admits there (R90), and at the stage "full"
-// none of them.
+// The pool goes by the route the request names: platform AI, which a deployment
+// with no facts closes, leaves the tasks a tap checks and says so, and so does
+// the own key of a provider whose models are not admitted; the adult's own key
+// of Anthropic, which the stage "author" admits, gives the handwriting of a
+// sheet, the workbook page and the lesson of an essay too, whose calls tutor
+// admits there without an eval run, and at the stage "full" none of them.
 func TestThePoolGoesByTheRoute(t *testing.T) {
 	t.Parallel()
 

@@ -29,7 +29,7 @@ var runEnds = map[string]v1.RunEndReason{
 }
 
 // runEndedError is a lesson run ended, by its reason, with the engine's choice
-// that the end gave when the request ended it (R50).
+// that the end gave when the request ended it.
 type runEndedError struct {
 	reason string
 	choice *v1.EngineChoice
@@ -68,7 +68,7 @@ type heldRun struct {
 
 // lessonSuits says whether the lesson of pkg suits a learner of category: by
 // its own age categories, or by the module's audience when it names none, and
-// each of its tasks by theirs (R58 spec).
+// each of its tasks by theirs.
 func lessonSuits(pkg *modulepackage.Package, lesson formatv0.Lesson, category formatv0.AgeCategory) bool {
 	categories := lesson.AgeCategories
 	if len(categories) == 0 {
@@ -90,14 +90,14 @@ func lessonSuits(pkg *modulepackage.Package, lesson formatv0.Lesson, category fo
 }
 
 // checkRun checks the profile's run row, held in tx, as every request on it
-// does (R13): one ended is a runEndedError; one on a package the index does not
-// know, errPackageUnknown, with nothing written. A run whose package the image
-// does not give ends "unchecked", one with no action for 30 days "abandoned",
-// and, when full, one whose module is not connected or has no current version
-// for the learner, or whose lesson or a task of it does not suit the learner on
-// the run's package, "not suitable", with its open attempt; the end commits,
-// and the request is refused "run ended" after it. The checks passed, the
-// request is an action on the run.
+// does: one ended is a runEndedError; one on a package the index does not know,
+// errPackageUnknown, with nothing written. A run whose package the image does
+// not give ends "unchecked", one with no action for 30 days "abandoned", and,
+// when full, one whose module is not connected or has no current version for
+// the learner, or whose lesson or a task of it does not suit the learner on the
+// run's package, "not suitable", with its open attempt; the end commits, and
+// the request is refused "run ended" after it. The checks passed, the request
+// is an action on the run.
 func (s *Service) checkRun(ctx context.Context, tx pgx.Tx, profileID string, row store.LessonRun, category formatv0.AgeCategory, ownKey string, now time.Time, full bool) (heldRun, error) {
 	return s.checkRunGiving(ctx, tx, profileID, row, category, ownKey, now, full, true)
 }
@@ -127,8 +127,8 @@ func (s *Service) checkRunGiving(ctx context.Context, tx pgx.Tx, profileID strin
 		if err != nil {
 			return heldRun{}, err
 		}
-		// A module the deployment's list leaves out keeps its current version:
-		// its open run goes on to its end on its package (R150 spec).
+		// A module the deployment's list leaves out keeps its current version: its
+		// open run goes on to its end on its package.
 		_, current := s.set.CurrentFor(module, category)
 		ok = connected && current && lessonSuits(pkg, lesson, category)
 	}
@@ -144,8 +144,8 @@ func (s *Service) checkRunGiving(ctx context.Context, tx pgx.Tx, profileID strin
 // endRun ends the run with reason at now and refuses the request "run ended"
 // after the end commits; when give says the request gives the end, with the
 // engine's choice of what comes next for a learner of category, on the route of
-// ownKey that the request names (R50, R65). Either way the evidence the profile
-// owes is settled: "not suitable" closed the run's open attempt with it.
+// ownKey that the request names. Either way the evidence the profile owes is
+// settled: "not suitable" closed the run's open attempt with it.
 func (s *Service) endRun(ctx context.Context, tx pgx.Tx, profileID, runID, reason string, category formatv0.AgeCategory, ownKey string, now time.Time, give bool) error {
 	if err := store.EndLessonRun(ctx, tx, profileID, runID, reason, now); err != nil {
 		return err
@@ -175,20 +175,19 @@ func (s *Service) holdRun(ctx context.Context, tx pgx.Tx, profileID, runID strin
 	return s.checkRun(ctx, tx, profileID, row, category, ownKey, now, full)
 }
 
-// OpenLesson opens the lesson of an engine's choice (R13): the open run of the
+// OpenLesson opens the lesson of an engine's choice: the open run of the
 // lesson, when the profile has one, or else a new run on the package of the
-// module's current version, which the module connected, its current version
-// for the learner with the lesson, and the lesson and each of its tasks suited
-// to the learner allow. A choice opens one run: once it has ended, the choice
-// gets "run ended". Two openings at once give the one run: the second reads the
+// module's current version, which the module connected, its current version for
+// the learner with the lesson, and the lesson and each of its tasks suited to
+// the learner allow. A choice opens one run: once it has ended, the choice gets
+// "run ended". Two openings at once give the one run: the second reads the
 // first's again. It carries no key and repeats by the state of the run. A
 // segment that this code cannot begin for the learner — a task whose kinds of
 // call the gate does not admit on the route, an essay's or a sheet's or a
-// workbook page's (R50), or one in a zone or on the whole sheet — is not
-// checked here: its attempt is "not admitted", and the run stays open (R48).
-// The segment of a task with a rubric ends once its attempt is closed "done"
-// (R13). The choice an end of its run gives goes by the route own_key_provider
-// names (R65).
+// workbook page's, or one in a zone or on the whole sheet — is not checked
+// here: its attempt is "not admitted", and the run stays open. The segment of a
+// task with a rubric ends once its attempt is closed "done". The choice an end
+// of its run gives goes by the route own_key_provider names.
 func (l *LearningService) OpenLesson(ctx context.Context, req *v1.OpenLessonRequest) (*v1.OpenLessonResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -348,12 +347,12 @@ func (l *LearningService) GetLessonRun(ctx context.Context, req *v1.GetLessonRun
 }
 
 // CompleteLesson is "lesson done": it ends the run "passed" once every task
-// segment of the lesson has ended, and earlier refuses "segments not ended" with
-// the places of those that have. A run that ended "passed" gets the same answer
-// again, the engine's choice that the end gave with it (R50); one that ended
-// otherwise, "run ended". The choice goes by the route the request names (R65).
-// It is no check of the lesson: only of its package and its term (R13). It
-// repeats by the state of the run.
+// segment of the lesson has ended, and earlier refuses "segments not ended"
+// with the places of those that have. A run that ended "passed" gets the same
+// answer again, the engine's choice that the end gave with it; one that ended
+// otherwise, "run ended". The choice goes by the route the request names. It is
+// no check of the lesson: only of its package and its term. It repeats by the
+// state of the run.
 func (l *LearningService) CompleteLesson(ctx context.Context, req *v1.CompleteLessonRequest) (*v1.CompleteLessonResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -407,7 +406,7 @@ func (l *LearningService) CompleteLesson(ctx context.Context, req *v1.CompleteLe
 }
 
 // segmentBegun checks the beginning of an attempt on the task segment at place
-// of the profile's run (R13): the run held and checked whole, the place a task
+// of the profile's run: the run held and checked whole, the place a task
 // segment of its lesson, every task segment before it ended, and it not. The
 // open attempt of the segment, when it has one, is what the beginning gives.
 func (s *Service) segmentBegun(ctx context.Context, tx pgx.Tx, profileID, runID string, place int, category formatv0.AgeCategory, ownKey string, now time.Time) (begun, error) {
@@ -472,9 +471,8 @@ func (s *Service) nextOf(ctx context.Context, db store.Querier, profileID string
 // nextAfter is what comes next once the attempt row is closed by a correct
 // answer, by the solution shown or by "Done", for a learner of category at now:
 // in a lesson as nextOf gives it; outside a lesson, the engine's choice, which
-// the close gave on the route of ownKey (R50, R65). A repeat gives the choice
-// the close gave — nothing to give, when it gave none — and asks the engine
-// nothing.
+// the close gave on the route of ownKey. A repeat gives the choice the close
+// gave — nothing to give, when it gave none — and asks the engine nothing.
 func (s *Service) nextAfter(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, category formatv0.AgeCategory, ownKey string, now time.Time, repeat bool) (*v1.Next, error) {
 	if row.LessonRunID != nil {
 		return s.nextOf(ctx, tx, profileID, row)

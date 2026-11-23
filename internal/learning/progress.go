@@ -29,10 +29,10 @@ var _ apiv1connect.ProgressServiceHandler = (*ProgressService)(nil)
 // progressPage is how many attempts a page of the progress holds.
 const progressPage = 50
 
-// ProgressService is what the learner model and the history of a profile show
-// (R49): the skill map and the adult's progress, and the adult's correction of
-// a module's level (R89). Each writes first the evidence the profile's closed
-// attempts owe, so that it reads the journal whole.
+// ProgressService is what the learner model and the history of a profile show:
+// the skill map and the adult's progress, and the adult's correction of a
+// module's level. Each writes first the evidence the profile's closed attempts
+// owe, so that it reads the journal whole.
 type ProgressService struct {
 	apiv1connect.UnimplementedProgressServiceHandler
 	s      *Service
@@ -51,8 +51,8 @@ func (s *Service) Progress(db rpc.DB, rights canner) *ProgressService {
 // right can_view, which the handler checks — the checks before it hold
 // can_learn alone. A module not connected is "not found", and one with no
 // current version for the learner says so, as one the deployment's list leaves
-// out does (R150 spec). Each anchor skill has the modules of the index that
-// teach it, suit the learner, are on the list and are not connected (R63 spec).
+// out does. Each anchor skill has the modules of the index that teach it, suit
+// the learner, are on the list and are not connected.
 func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRequest) (*v1.GetSkillMapResponse, error) {
 	s := p.s
 	profileID := req.GetProfileId()
@@ -120,8 +120,7 @@ func (p *ProgressService) GetSkillMap(ctx context.Context, req *v1.GetSkillMapRe
 }
 
 // offered gives, of an anchor skill, the modules of teachers that teach it and
-// are not connected, in their order: those the skill map offers beside it
-// (R63 spec).
+// are not connected, in their order: those the skill map offers beside it.
 func offered(teachers map[formatv0.AnchorSkillID][]formatv0.ModuleID, connected []store.ConnectedModule) func(anchor string) []string {
 	ids := map[string]bool{}
 	for _, c := range connected {
@@ -235,14 +234,13 @@ func anchorState(a learnermodel.AnchorReadout, offered []string) *v1.AnchorSkill
 }
 
 // GetProgress is the progress of a profile, which an adult views with the right
-// can_view, which the checks hold (R49): its attempts, newest first, a page at a
+// can_view, which the checks hold: its attempts, newest first, a page at a
 // time, and, on the first page, the traps that repeat in its closed attempts
-// and the adult's last correction of the level of each module that has one
-// (R89).
+// and the adult's last correction of the level of each module that has one.
 // Each attempt has when the engine chose its task, or its run's lesson, and why
-// — but one begun again (R50) —, and an attempt with a rubric each of its
+// — but one begun again —, and an attempt with a rubric each of its
 // submissions, how it ended and, once the attempt is closed, the marks of its
-// feedback (R15, R82).
+// feedback.
 func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRequest) (*v1.GetProgressResponse, error) {
 	s := p.s
 	profileID := req.GetProfileId()
@@ -310,14 +308,13 @@ func (p *ProgressService) GetProgress(ctx context.Context, req *v1.GetProgressRe
 	return answer, nil
 }
 
-// solvedBy is the close reasons of an attempt solved: those whose progress names
-// the skills its task trains (R99 spec).
+// solvedBy is the close reasons of an attempt solved: those whose progress
+// names the skills its task trains.
 var solvedBy = map[string]bool{closeCorrect: true, closeShown: true, closeDone: true}
 
 // attemptRecord is the attempt r in the progress, with the titles of pkg, the
 // package it went on: of its lesson, and of the skills of its task once it is
-// solved. pkg is nil when the image does not hold it, and the titles are
-// empty (R99 spec).
+// solved. pkg is nil when the image does not hold it, and the titles are empty.
 func attemptRecord(r store.Record, pkg *modulepackage.Package) *v1.AttemptRecord {
 	out := &v1.AttemptRecord{
 		Task: model.TaskID(formatv0.ModuleID(r.ModuleID), formatv0.TaskID(r.TaskID)), ModuleVersion: r.ModuleVersion,
@@ -348,8 +345,7 @@ func attemptRecord(r store.Record, pkg *modulepackage.Package) *v1.AttemptRecord
 
 // skillTitles is the titles in graph of the skills the task trains: the primary
 // skills of its items, each item's own or else the task's, each once, in the
-// order of the items and of their lists — not primarySkills, which sorts
-// them (R99 spec).
+// order of the items and of their lists — not primarySkills, which sorts them.
 func skillTitles(graph *formatv0.SkillGraph, task formatv0.Task) []string {
 	if graph == nil {
 		return nil
@@ -408,8 +404,8 @@ func cursorOf(token string) (*store.Cursor, error) {
 
 // essayRecords is the submissions of an essay in the progress, in order: how
 // each ended, and beside feedback the mark of each criterion by its number,
-// once the attempt is closed — the essay finished, or its rewriting abandoned —,
-// since an adult reads the marks then (R15).
+// once the attempt is closed — the essay finished, or its rewriting abandoned
+// —, since an adult reads the marks then.
 func essayRecords(essays []store.EssaySubmission, closed bool) []*v1.EssayRecord {
 	var out []*v1.EssayRecord
 	for _, e := range essays {

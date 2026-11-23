@@ -21,19 +21,19 @@ import (
 )
 
 // lastRung is the hint ladder's last rung: from the fourth wrong answer on, no
-// rung is new, and the ladder speaks as its third (R09).
+// rung is new, and the ladder speaks as its third.
 const lastRung = 3
 
 // rungOf is the rung that wrong answers give: the k-th gives the rung k, up to
 // the last; none before the first.
 func rungOf(wrongAnswers int) int { return min(wrongAnswers, lastRung) }
 
-// spot is the answer slot a rung speaks of (R10): the first "not_yet" in order
-// in the submission that gave the rung — items by place, slots by order in an
-// item — with the slot and the trap value its value matched, if any. It is not
-// kept: the verdicts of the submission give it again. An item below 0 is no
-// slot found, which a rung of a submission this code wrote always has: the rung
-// then speaks as its template, and the open attempt stays readable.
+// spot is the answer slot a rung speaks of: the first "not_yet" in order in the
+// submission that gave the rung — items by place, slots by order in an item —
+// with the slot and the trap value its value matched, if any. It is not kept:
+// the verdicts of the submission give it again. An item below 0 is no slot
+// found, which a rung of a submission this code wrote always has: the rung then
+// speaks as its template, and the open attempt stays readable.
 type spot struct {
 	item int
 	slot verdict.AnswerSlot
@@ -84,9 +84,9 @@ func spotAt(ctx context.Context, task formatv0.Task, s *v1.AnswerSlotVerdict) (s
 }
 
 // fallback is the rung's fallback text on the answer slot at, by the chain of
-// the format (R57 spec): at rungs 1 and 2, the text of the trap value the wrong
-// value matched, then the advice of its trap, then the module's template of the
-// rung; at rung 3, the simpler case of the slot's item, then what rung 2 gives.
+// the format: at rungs 1 and 2, the text of the trap value the wrong value
+// matched, then the advice of its trap, then the module's template of the rung;
+// at rung 3, the simpler case of the slot's item, then what rung 2 gives.
 func fallback(pkg *modulepackage.Package, task formatv0.Task, rung int, at spot) string {
 	if rung == lastRung {
 		if c := simplerCase(task, at); c != nil {
@@ -124,12 +124,11 @@ func simplerCase(task formatv0.Task, at spot) *formatv0.Text {
 type form func(text, language, statement string) []words.Breach
 
 // turnedDown is the check that turns the tutor's words down, in a word of
-// logging.WordsChecks, or none when they may reach the learner (R70 spec):
-// empty words; the leak check of module-kit, which finds a key or a leak phrase
-// of the task in them, on the instance the attempt got — or cannot be made for
-// the task, and then no words pass; or their form, by tutor's words. A hint
-// turned down gives way to the fallback text, and the words after a correct
-// answer to none.
+// logging.WordsChecks, or none when they may reach the learner: empty words;
+// the leak check of module-kit, which finds a key or a leak phrase of the task
+// in them, on the instance the attempt got — or cannot be made for the task,
+// and then no words pass; or their form, by tutor's words. A hint turned down
+// gives way to the fallback text, and the words after a correct answer to none.
 func turnedDown(pkg *modulepackage.Package, task formatv0.Task, text string, of form) string {
 	if strings.TrimSpace(text) == "" {
 		return logging.WordsCheckEmpty
@@ -160,7 +159,7 @@ func statementOf(task formatv0.Task) string {
 }
 
 // styles is what of the presentation style changes the tutor's words, by the
-// learner's age category: the profile holds nothing else that goes to AI (R47).
+// learner's age category: the profile holds nothing else that goes to AI.
 var styles = map[formatv0.AgeCategory]string{
 	formatv0.AgeCategoryUnder13:         "a child in primary school; use short, simple, everyday words",
 	formatv0.AgeCategoryFrom13ToConsent: "a teenager; use plain words",
@@ -170,9 +169,9 @@ var styles = map[formatv0.AgeCategory]string{
 
 // wordsAsked is the call of words of rung on the answer slot at of the attempt
 // h, by the route, with the crop when the work went, and the tutor's questions
-// asked so far (R47): the task's key of the slot and its solution, which the
-// model sees here alone, its traps that AI may name with the one the program
-// found, and its techniques.
+// asked so far: the task's key of the slot and its solution, which the model
+// sees here alone, its traps that AI may name with the one the program found,
+// and its techniques.
 func wordsAsked(h held, route tutor.Route, rung int, at spot, crop []byte, asked []string) (tutor.WordsRequest, error) {
 	view, err := openview.Task(h.task)
 	if err != nil {
@@ -240,10 +239,9 @@ func keysOf(task formatv0.Task) string {
 }
 
 // correctAsked is the call of the words after a correct answer on the task of
-// pkg, by the route, with the crop when the work went (R112 tutor): the keys of
-// the task and its solution, which the model sees here alone, its techniques,
-// and the module's language of explanations, with the style of the learner's
-// category.
+// pkg, by the route, with the crop when the work went: the keys of the task and
+// its solution, which the model sees here alone, its techniques, and the
+// module's language of explanations, with the style of the learner's category.
 func correctAsked(pkg *modulepackage.Package, task formatv0.Task, route tutor.Route, crop []byte) (tutor.CorrectRequest, error) {
 	view, err := openview.Task(task)
 	if err != nil {

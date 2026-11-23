@@ -35,7 +35,7 @@ type after struct {
 
 // engineModules is the modules of the engine for a learner of category: those
 // connected to the profile that have a current version for the learner, with
-// that version (R07), and which the deployment's list names (R150 spec).
+// that version, and which the deployment's list names.
 func (s *Service) engineModules(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory) ([]*modulepackage.Package, error) {
 	connected, err := store.ConnectedModules(ctx, tx, profileID)
 	if err != nil {
@@ -80,13 +80,13 @@ func (e *errNoChoice) Error() string { return "learning: no choice: " + e.err.Er
 func (e *errNoChoice) Unwrap() error { return e.err }
 
 // choose asks the engine what comes next for the profile, a learner of
-// category, on the route to AI the request names — the own key of ownKey when it
-// names a provider, or platform AI —, on the modules of the engine pkgs, at now,
-// with the skill chosen on the skill map when there is one, and writes the
-// choice with all a replay needs, nothing to give too (R50). The engine gets
-// only the tasks and lessons the learner may begin by that route. Nothing to
-// give says why when AI that is not admitted or closed left a task out of the
-// pool or kept an open run waiting, and nothing for another reason.
+// category, on the route to AI the request names — the own key of ownKey when
+// it names a provider, or platform AI —, on the modules of the engine pkgs, at
+// now, with the skill chosen on the skill map when there is one, and writes the
+// choice with all a replay needs, nothing to give too. The engine gets only the
+// tasks and lessons the learner may begin by that route. Nothing to give says
+// why when AI that is not admitted or closed left a task out of the pool or
+// kept an open run waiting, and nothing for another reason.
 func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, pkgs []*modulepackage.Package, mapSkill string, now time.Time, by after) (*v1.EngineChoice, error) {
 	settled, err := s.model.Settle(ctx, tx, profileID, now)
 	if err != nil {
@@ -103,12 +103,12 @@ func (s *Service) choose(ctx context.Context, tx pgx.Tx, profileID string, categ
 		return nil, &errNoChoice{err}
 	}
 	// The AI that checks the tasks is closed to a new task by the admission of the
-	// route, or on platform AI by its provider's limit or a family day with no room
-	// left for a typical task (R11, R59) — the larger of one with handwriting and
-	// one with a rubric, so that the engine gives no task its start refuses by the
+	// route, or on platform AI by its provider's limit or a family day with no
+	// room left for a typical task — the larger of one with handwriting and one
+	// with a rubric, so that the engine gives no task its start refuses by the
 	// quota —: the pool is then of the tasks a tap checks. Neither the quota nor
 	// the limit closes an own key, so on it nothing to give says "not admitted"
-	// alone (R65).
+	// alone.
 	admitted := s.readsAdmitted(category, ownKey)
 	var closed *v1.Outcome
 	if admitted && ownKey == "" {
@@ -158,13 +158,13 @@ var choiceKinds = map[string]v1.ChoiceKind{
 }
 
 // candidates is the module of pkg as the engine gets it: the graph of its
-// current version, its pool — the tasks that suit the learner and that this code
-// begins by the route of ownKey, each with the traps of its items' checks — and
-// its lessons that suit the learner whole and whose every task segment this code
-// begins by that route, so that the engine gives nothing a beginning by the same
-// route refuses (R65). It says too whether a task was left out of the pool only
-// for AI that is not admitted or closed to read it; an open run that waits says
-// so in history.
+// current version, its pool — the tasks that suit the learner and that this
+// code begins by the route of ownKey, each with the traps of its items' checks
+// — and its lessons that suit the learner whole and whose every task segment
+// this code begins by that route, so that the engine gives nothing a beginning
+// by the same route refuses. It says too whether a task was left out of the
+// pool only for AI that is not admitted or closed to read it; an open run that
+// waits says so in history.
 func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Graph, category formatv0.AgeCategory, ownKey string, aiOpen bool) (engine.Module, bool, error) {
 	m := engine.Module{Graph: graph}
 	narrowed := false
@@ -213,16 +213,15 @@ func (s *Service) candidates(pkg *modulepackage.Package, graph learnermodel.Grap
 // begins says whether this code begins the task of pkg for a learner of
 // category now, by the own key of ownKey when it names a provider, as a
 // beginning by that route would: one that suits the learner and that AI may
-// check, and, while the AI is closed to a new task, only one a tap checks (R11,
-// R59). The pool, the lessons and the open runs the engine gets all go by it
-// (R50, R65).
+// check, and, while the AI is closed to a new task, only one a tap checks. The
+// pool, the lessons and the open runs the engine gets all go by it.
 func (s *Service) begins(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory, ownKey string, aiOpen bool) bool {
 	return suits(pkg, task, category) && s.admitted(task, category, ownKey) && (aiOpen || byTap(task))
 }
 
 // forAI says whether a task that does not begin is left out only for AI that is
 // not admitted or closed to read it: one that suits the learner, on a sheet, a
-// workbook page or an essay tutor reads (R81, R82).
+// workbook page or an essay tutor reads.
 func forAI(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory) bool {
 	if rubric(task) {
 		return suits(pkg, task, category) && essayRead(task)
@@ -270,7 +269,7 @@ func (s *Service) waits(ctx context.Context, tx pgx.Tx, profileID, runID string,
 // withoutLesson leaves the lesson of a run that waits out of the lessons the
 // engine gets, so that it gives the lesson by none of its branches: one on the
 // current version whose every segment begins would give the run that waits, on
-// a package before, again (R13). Out of the lessons, it holds back none of the
+// a package before, again. Out of the lessons, it holds back none of the
 // author's order that come after it, as the engine reads them: the run on a
 // package before is a rare case, and its lesson waits with it.
 func withoutLesson(in *engine.Input, lesson string) {
@@ -308,8 +307,8 @@ func skillsOf(module formatv0.ModuleID, ids []formatv0.SkillID) []string {
 
 // translated is the skills of a module of the engine as the graph of its
 // current version names them: a skill it retired goes to those that replaced
-// it, and one it does not know to none (R08) — the skills of a run or an
-// attempt on a package before.
+// it, and one it does not know to none — the skills of a run or an attempt on a
+// package before.
 func translated(graphs learnermodel.Graphs, skills []string) []string {
 	var out []string
 	for _, skill := range skills {
@@ -341,18 +340,18 @@ var runEndsOf = map[string]engine.RunEnd{
 // history fills in what the engine reads of the profile's records, in the
 // modules of the engine ids: its lesson runs, the attempts of tasks with a
 // rubric closed "Done", its last closed attempt, and the summary of what was
-// handed out (R104, R107 spec). Skills of a package before are named as the
-// current versions name them, and a run whose package left the image takes its
-// lesson's skills from the current version, which holds the lesson by its ID.
+// handed out. Skills of a package before are named as the current versions name
+// them, and a run whose package left the image takes its lesson's skills from
+// the current version, which holds the lesson by its ID.
 //
 // An open run whose next task segment this code does not begin now, for a
 // learner of category on the route of ownKey with the AI open or not (begins),
 // waits: the engine gets neither it nor its lesson, which it would give by its
-// first branch however the lessons it got leave it out (R59). Once the segment
-// begins again, the engine gets the run again. A run on a package the image
-// does not give is no such run: opened, it ends "unchecked". history says too
-// whether a run waits only for AI that is not admitted or closed, so that
-// nothing to give says why.
+// first branch however the lessons it got leave it out. Once the segment begins
+// again, the engine gets the run again. A run on a package the image does not
+// give is no such run: opened, it ends "unchecked". history says too whether a
+// run waits only for AI that is not admitted or closed, so that nothing to give
+// says why.
 func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, aiOpen bool, current map[string]*modulepackage.Package, graphs learnermodel.Graphs, in *engine.Input) (bool, error) {
 	runs, err := store.ProfileRuns(ctx, tx, profileID)
 	if err != nil {
@@ -376,7 +375,7 @@ func (s *Service) history(ctx context.Context, tx pgx.Tx, profileID string, cate
 			run.End, run.EndedAt = runEndsOf[*r.EndReason], r.EndedAt.Unix()
 		} else if s.set.Status(formatv0.Digest(r.PackageDigest)) == packages.Given {
 			// A run on a package the image does not give goes to the engine as it is:
-			// opened, it ends "unchecked" (R13).
+			// opened, it ends "unchecked".
 			wait, byAI, err := s.waits(ctx, tx, profileID, r.ID, pkg, lesson, category, ownKey, aiOpen)
 			if err != nil {
 				return false, err
@@ -498,9 +497,9 @@ func (s *Service) results(a store.ClosedAttempt, graphs learnermodel.Graphs) []e
 }
 
 // choiceRow is the row of the engine's choice c, made on the modules of the
-// engine pkgs and the settled state, with what a replay needs (R06, R50): of a
-// task or a lesson, its module, package and what it hands out; of nothing to
-// give, none of them.
+// engine pkgs and the settled state, with what a replay needs: of a task or a
+// lesson, its module, package and what it hands out; of nothing to give, none
+// of them.
 func (s *Service) choiceRow(c engine.Choice, pkgs []*modulepackage.Package, settled model.Settled, category formatv0.AgeCategory, mapSkill string, limited bool, by after) (store.NewChoice, error) {
 	row := store.NewChoice{
 		Kind: "nothing", ReasonCode: int(c.Reason), MapSkill: mapSkill, AgeCategory: string(category), PoolLimited: limited,
@@ -558,10 +557,10 @@ func primarySkills(module formatv0.ModuleID, task formatv0.Task) []string {
 }
 
 // nextChoice is the engine's choice that comes next after a close or the end of
-// a run, with the skill the profile's last choice holds (R107 spec), on the
-// route to AI of ownKey that the request names (R65): a choice the engine could
-// not make of its input gives none, and app asks "something else", so that the
-// answer that closes is not refused for it.
+// a run, with the skill the profile's last choice holds, on the route to AI of
+// ownKey that the request names: a choice the engine could not make of its
+// input gives none, and app asks "something else", so that the answer that
+// closes is not refused for it.
 func (s *Service) nextChoice(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory, ownKey string, now time.Time, by after) (*v1.EngineChoice, error) {
 	held, err := store.HeldMapSkill(ctx, tx, profileID)
 	if err != nil {
@@ -594,15 +593,14 @@ func madeChoice(c store.MadeChoice, found bool) *v1.EngineChoice {
 	return &v1.EngineChoice{ChoiceId: c.ID, Kind: choiceKinds[c.Kind]}
 }
 
-// ChooseNext is "something else", under its idempotency key (R50): the open
-// attempt is closed "left" — or as the check of a request would close it — and
-// the engine chooses what comes next, with the skill the learner chose on the
-// skill map, or, with none, as it leads, on the route to AI the request names by
-// own_key_provider, as BeginAttempt by the same route would begin a task (R65).
-// A skill that no module of the engine has is "not found", and nothing is
-// closed; a provider named for a learner who is not an adult is refused. The
-// answer, the choice, is what the key's record holds: a repeat gets the same
-// choice.
+// ChooseNext is "something else", under its idempotency key: the open attempt
+// is closed "left" — or as the check of a request would close it — and the
+// engine chooses what comes next, with the skill the learner chose on the skill
+// map, or, with none, as it leads, on the route to AI the request names by
+// own_key_provider, as BeginAttempt by the same route would begin a task. A
+// skill that no module of the engine has is "not found", and nothing is closed;
+// a provider named for a learner who is not an adult is refused. The answer,
+// the choice, is what the key's record holds: a repeat gets the same choice.
 func (l *LearningService) ChooseNext(ctx context.Context, req *v1.ChooseNextRequest) (*v1.ChooseNextResponse, error) {
 	s := l.s
 	category, err := s.learner(ctx, req.GetProfileId())

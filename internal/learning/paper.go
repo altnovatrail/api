@@ -26,9 +26,9 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// The bounds of a page from paper, the contract's (R162 spec): the photo, a JPEG
-// or a PNG, and how many attempts it begins; and of the learner's request about
-// it, in code points, and of the frames that go with it (R165 spec).
+// The bounds of a page from paper, the contract's: the photo, a JPEG or a PNG,
+// and how many attempts it begins; and of the learner's request about it, in
+// code points, and of the frames that go with it.
 const (
 	maxPhoto      = 4 << 20
 	maxPaperTasks = 20
@@ -36,9 +36,9 @@ const (
 	maxDrawn      = 40
 )
 
-// PaperService is the requests of a task from the learner's paper (R10; R162
-// spec): the finding of the tasks on the photo of a page, and the beginning of
-// the attempts of the tasks picked, which AttemptService then checks.
+// PaperService is the requests of a task from the learner's paper: the finding
+// of the tasks on the photo of a page, and the beginning of the attempts of the
+// tasks picked, which AttemptService then checks.
 type PaperService struct {
 	apiv1connect.UnimplementedPaperServiceHandler
 	s *Service
@@ -63,15 +63,15 @@ type finding struct {
 
 // FindTasks finds the tasks on the photo of a page, under its idempotency key,
 // by one call of AI between two transactions (rpc.Across): their frames, in the
-// order of the page, on the photo turned by the turn tutor gave, which goes with
-// them (R162 spec). It makes no call without the admission of the finding on the
+// order of the page, on the photo turned by the turn tutor gave, which goes
+// with them. It makes no call without the admission of the finding on the
 // request's route, nor on platform AI without the reserve of the quota: either
-// is a refusal, and the family day the request wrote stays. A call that gives no
-// frames is an outcome, and the learner frames the tasks by hand. The photo goes
-// no further than the call, and the record of the key holds the outcome alone: a
-// repeat gets an answer "repeated" without frames or turn. With the learner's
-// request the call gets it and the frames on the page, which go no further
-// either (R99).
+// is a refusal, and the family day the request wrote stays. A call that gives
+// no frames is an outcome, and the learner frames the tasks by hand. The photo
+// goes no further than the call, and the record of the key holds the outcome
+// alone: a repeat gets an answer "repeated" without frames or turn. With the
+// learner's request the call gets it and the frames on the page, which go no
+// further either.
 func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) (*v1.FindTasksResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -103,7 +103,7 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_FIND_TASKS, "")
 	defer act.End()
 	route := act.Route(routeOf(category, req.GetOwnKey()))
-	// A first model of the debug mode takes the call past the list, as tutor does (R97).
+	// A first model of the debug mode takes the call past the list, as tutor does.
 	admitted := act.Chosen() || s.admits.Reads(tutor.CallFinding, category, req.GetOwnKey().GetProvider())
 	answer, err := rpc.Across(ctx, s.db, key, req, rpc.Phases[finding, *v1.FindTasksResponse]{
 		Prepare: func(tx pgx.Tx, _ string) (finding, store.KeyTarget, error) {
@@ -166,10 +166,10 @@ func (s *Service) find(ctx context.Context, f finding, own string) finding {
 }
 
 // requestTaken is the field of the learner's request about the page that the
-// contract refuses, or "" when it takes them (R165 spec): the request, at most
-// maxRequest code points of UTF-8, no control character, not blank; the frames
-// only with it, at most 20 found and maxDrawn drawn, each a rectangle in
-// thousandths of the photo.
+// contract refuses, or "" when it takes them: the request, at most maxRequest
+// code points of UTF-8, no control character, not blank; the frames only with
+// it, at most 20 found and maxDrawn drawn, each a rectangle in thousandths of
+// the photo.
 func requestTaken(req *v1.FindTasksRequest) string {
 	text := req.GetRequest()
 	switch {
@@ -221,20 +221,19 @@ func photoTaken(photo []byte) bool {
 }
 
 // pageID is the ID app gives a page, which names its file of the export: one
-// part of a path (R162 spec).
+// part of a path.
 var pageID = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$`)
 
 // BeginPaperAttempts begins the attempts of the tasks picked on a page, under
 // its idempotency key, one for each, their IDs in the order of the tasks. It
 // closes the profile's open attempts of another page "left", those of the page
-// named staying for a Start again after "Add" (R101), and leaves its
-// open attempt of a module as it is (R10). The attempts begin when the gate
-// admits, on the route of ownKey, the calls without which no Check gives a
-// verdict — the reading of the statement and that of the work; the solution
-// serves only the tasks no formula keys (R96) —, and on platform AI only with
-// room for a typical task of handwriting left of the family day, while the
-// limit of its provider leaves platform AI open, as BeginAttempt begins a task
-// of a module (R11, R59).
+// named staying for a Start again after "Add", and leaves its open attempt of a
+// module as it is. The attempts begin when the gate admits, on the route of
+// ownKey, the calls without which no Check gives a verdict — the reading of the
+// statement and that of the work; the solution serves only the tasks no formula
+// keys —, and on platform AI only with room for a typical task of handwriting
+// left of the family day, while the limit of its provider leaves platform AI
+// open, as BeginAttempt begins a task of a module.
 func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPaperAttemptsRequest) (*v1.BeginPaperAttemptsResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())

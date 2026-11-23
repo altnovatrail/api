@@ -201,7 +201,7 @@ func TestAWorkbookPageTheTaskDoesNotTakeIsRefused(t *testing.T) {
 
 // The reading of a workbook page reserves the value of a page's kind for each
 // of its filled boxes when tutor expects no price, and a page left blank, which
-// goes to no model, reserves and spends nothing (R81).
+// goes to no model, reserves and spends nothing.
 func TestAWorkbookPageReservesByItsBoxes(t *testing.T) {
 	t.Parallel()
 
@@ -348,13 +348,13 @@ func TestTheGateTutorReadsAWorkbookPage(t *testing.T) {
 		t.Error("the gate's adapter admits otherwise than the gate: the sheet and the workbook page")
 	}
 	if full := learning.GateTutor(gate(t, adultFacts, config.RungFull)); full.Reads(tutor.CallWorkbook, formatv0.AgeCategoryAdult, "") {
-		t.Error("the gate's adapter admits a workbook page at the stage full, which admits none (R90)")
+		t.Error("the gate's adapter admits a workbook page at the stage full, which admits none")
 	}
 }
 
-// In the mode single a workbook page is read by one reader (R88): each box's
-// verdict is module-kit's on its one observation, which the submission keeps,
-// and two observations are a failure of AI.
+// In the mode single a workbook page is read by one reader: each box's verdict
+// is module-kit's on its one observation, which the submission keeps, and two
+// observations are a failure of AI.
 func TestAWorkbookPageIsReadByOneReaderInTheModeSingle(t *testing.T) {
 	t.Parallel()
 

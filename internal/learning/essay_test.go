@@ -168,11 +168,11 @@ func deref(p *string) string {
 }
 
 // An essay is read and its text assessed, and the submission ends feedback,
-// unreadable or unchecked (R14): feedback with the text and the model's words
-// once they keep the rule of feedback, and without the words otherwise; the
-// marks are kept by the numbers of the criteria with the source of the words,
-// never the text or the words. Each submission goes on the same attempt, which
-// stays open for rewriting, and the open attempt says how each ended.
+// unreadable or unchecked: feedback with the text and the model's words once
+// they keep the rule of feedback, and without the words otherwise; the marks
+// are kept by the numbers of the criteria with the source of the words, never
+// the text or the words. Each submission goes on the same attempt, which stays
+// open for rewriting, and the open attempt says how each ended.
 func TestAnEssayEndsInFeedbackUnreadableOrUnchecked(t *testing.T) {
 	t.Parallel()
 
@@ -251,7 +251,7 @@ func TestAnEssayEndsInFeedbackUnreadableOrUnchecked(t *testing.T) {
 				t.Errorf("SubmitEssay gave %q and %q, want the text read and the model's words", res.GetText(), res.GetFeedback())
 			}
 			// The balance is the assessment's limit, with no time, and the tier the
-			// reading's, with when access returns (R80).
+			// reading's, with when access returns.
 			if limit := res.GetOutcome().GetOwnKeyLimit(); tc.cause == v1.Cause_CAUSE_LIMIT_REACHED &&
 				!(limit.GetCause() == v1.LimitCause_LIMIT_CAUSE_BALANCE && returnsAt(limit, time.Time{}) ||
 					limit.GetCause() == v1.LimitCause_LIMIT_CAUSE_TIER && returnsAt(limit, nextMonth)) {
@@ -424,10 +424,10 @@ func TestAnEssayThatCannotGoIsRefused(t *testing.T) {
 }
 
 // The reading of an essay reserves with its assessment, by the values of
-// internal/quota when tutor has no price (R12, R82): an essay read and assessed
-// settles both by what they cost, one that cannot be read gives the
-// assessment's part back, and a day whose quota does not hold both calls
-// nothing and ends unchecked with "quota".
+// internal/quota when tutor has no price: an essay read and assessed settles
+// both by what they cost, one that cannot be read gives the assessment's part
+// back, and a day whose quota does not hold both calls nothing and ends
+// unchecked with "quota".
 func TestAnEssayReservesItsReadingWithItsAssessment(t *testing.T) {
 	t.Parallel()
 
@@ -520,7 +520,7 @@ func TestATaskWithARubricBeginsWhereBothItsCallsAreAdmitted(t *testing.T) {
 }
 
 // The progress gives each submission of an essay, how it ended, and the marks
-// of its feedback once the attempt is closed: an adult reads them then (R15).
+// of its feedback once the attempt is closed: an adult reads them then.
 func TestTheProgressGivesTheMarksOfAClosedEssay(t *testing.T) {
 	t.Parallel()
 

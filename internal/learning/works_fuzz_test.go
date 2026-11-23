@@ -54,8 +54,8 @@ func workSchema(tb testing.TB) *jsonschema.Schema {
 // Whatever work the check of PutWork lets through, the file of the export that
 // app writes of it, as GetWork gives it, passes its schema and reads back as it
 // was put: its history and the context of its submission the same JSON, its
-// count of events, and its picture in base64 (R70; R151 spec). The check is
-// what lets the export hold a work that a device sent.
+// count of events, and its picture in base64. The check is what lets the export
+// hold a work that a device sent.
 func FuzzWorkExported(f *testing.F) {
 	schema := workSchema(f)
 	const png = "\x89PNG\r\n\x1a\n"

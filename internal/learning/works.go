@@ -23,7 +23,7 @@ import (
 )
 
 // MaxWork is the largest stored work, as StoredWork counts it: the bytes of its
-// history, of the contexts of its submissions and of its picture (R113 spec).
+// history, of the contexts of its submissions and of its picture.
 const MaxWork = 4 << 20
 
 // pngSignature is what the picture of a work begins with (RFC 2083).
@@ -41,11 +41,10 @@ var workKinds = map[string]v1.WorkKind{
 // tell its kind.
 var errNoKind = errors.New("learning: the image no longer holds the package of the attempt")
 
-// WorkService is the stored works of the profiles (R70): each work of a profile
-// as the device holds it, which api keeps while the storage of the profile's
-// works is on, reads no more of than its form, and gives to no AI provider
-// (R113 spec). Each request repeats by the state of the profile's works, with
-// no idempotency key.
+// WorkService is the stored works of the profiles: each work of a profile as
+// the device holds it, which api keeps while the storage of the profile's works
+// is on, reads no more of than its form, and gives to no AI provider. Each
+// request repeats by the state of the profile's works, with no idempotency key.
 type WorkService struct {
 	apiv1connect.UnimplementedWorkServiceHandler
 	s      *Service
@@ -190,11 +189,10 @@ func (w *WorkService) DeleteWork(ctx context.Context, req *v1.DeleteWorkRequest)
 }
 
 // reader checks the action of a request on the profile's works: a learning
-// request as every one is, but for the consent and the age — ListWorks,
-// GetWork and DeleteWork go while the profile waits for its consent or its
-// age, as the learner's ExportProfile goes, since app builds the export by them
-// (R113 spec, R84) —, and an adult's by can_manage, which the checks before it
-// do not hold.
+// request as every one is, but for the consent and the age — ListWorks, GetWork
+// and DeleteWork go while the profile waits for its consent or its age, as the
+// learner's ExportProfile goes, since app builds the export by them —, and an
+// adult's by can_manage, which the checks before it do not hold.
 func (w *WorkService) reader(ctx context.Context, profileID string, action v1.Action) error {
 	switch action {
 	case v1.Action_ACTION_LEARNING:

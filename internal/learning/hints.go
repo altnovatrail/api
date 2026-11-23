@@ -25,21 +25,21 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// closeShown is the close of an attempt by the solution shown (R09).
+// closeShown is the close of an attempt by the solution shown.
 const closeShown = "solution_shown"
 
 // ladderPassed is the wrong answers from which a child is shown the solution:
-// the fourth, past the ladder's three rungs (R09).
+// the fourth, past the ladder's three rungs.
 const ladderPassed = lastRung + 1
 
-// GetHint is a hint the learner asks for, with no AI and no work (R10): before
-// the first wrong answer, and on a task with a rubric, the IDs of the task's
+// GetHint is a hint the learner asks for, with no AI and no work: before the
+// first wrong answer, and on a task with a rubric, the IDs of the task's
 // techniques and its leading question, of the instance the attempt got, when it
-// has one — which the attempt records as given, each only when the task has
-// it, and which is an action on the attempt, as a step is —, none on a task from
-// paper, which has GetOpeningWords; after it, the words of the current rung that
-// the attempt keeps, or its fallback text, with no question (R47; R108 spec). It
-// repeats by the attempt's state.
+// has one — which the attempt records as given, each only when the task has it,
+// and which is an action on the attempt, as a step is —, none on a task from
+// paper, which has GetOpeningWords; after it, the words of the current rung
+// that the attempt keeps, or its fallback text, with no question. It repeats by
+// the attempt's state.
 func (a *AttemptService) GetHint(ctx context.Context, req *v1.GetHintRequest) (*v1.GetHintResponse, error) {
 	s := a.s
 	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
@@ -119,8 +119,7 @@ type wordsTeller interface {
 
 // correctTeller words the tutor's words after a correct answer, as the gate of
 // admission does through tutor: whether they are admitted for a learner, by
-// their kind of call, CallCorrect, and the call (R112 tutor; R76). own is as
-// wordsTeller has it.
+// their kind of call, CallCorrect, and the call. own is as wordsTeller has it.
 type correctTeller interface {
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	TellCorrectWords(ctx context.Context, c tutor.CorrectRequest, own string) tutor.CorrectAnswer
@@ -134,24 +133,23 @@ type telling struct {
 	at      spot
 	read    store.Words
 	request tutor.WordsRequest
-	// paper is the words of a task from paper in place of at and request, nil on
-	// a task of a module (R82 spec).
+	// paper is the words of a task from paper in place of at and request, nil on a
+	// task of a module.
 	paper  *paperTelling
 	answer tutor.WordsAnswer
 	// ready is an answer with no call: the words the attempt keeps.
 	ready proto.Message
 	// called says whether the words were called, between two transactions.
 	called bool
-	// day is the family day of the account on platform AI (R11), and reserve
-	// what the call took of its quota (R58).
+	// day is the family day of the account on platform AI, and reserve what the
+	// call took of its quota.
 	day     quota.Day
 	reserve reserve
 }
 
 // wordsCall is the kind of call the words of t make, by the request they will
-// send: the words with the work when the crop goes, the hint without it else
-// (R106 tutor), as tutor picks it, and so of a task from paper. The quota
-// reserves by it.
+// send: the words with the work when the crop goes, the hint without it else,
+// as tutor picks it, and so of a task from paper. The quota reserves by it.
 func wordsCall(t telling) tutor.Call {
 	if p := t.paper; p != nil {
 		return admission.PaperWordsCall(p.request.Ask == tutor.PaperRung)
@@ -199,7 +197,7 @@ func finishing(ctx context.Context) (context.Context, context.CancelFunc) {
 }
 
 // noteCall notes a call of AI in the request's log, with what each model it
-// asked spent (R12).
+// asked spent.
 func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 	call := rpc.AICall{Outcome: aiOutcomes[o.Kind], Duration: took}
 	for _, u := range o.Usage {
@@ -219,7 +217,7 @@ func noteCall(ctx context.Context, o tutor.Outcome, took time.Duration) {
 // question, when it passed the leak check and the form check, or the rung's
 // fallback text, with the outcome of a call that gave no words — or that the
 // quota did not hold, and made none; none when the words came and failed a
-// check, which goes to the request's line of the log (R47).
+// check, which goes to the request's line of the log.
 func worded(ctx context.Context, t telling) (store.Words, *v1.Outcome) {
 	if t.answer.Outcome.Kind == tutor.Answered {
 		var check string
@@ -266,7 +264,7 @@ func routeOf(category formatv0.AgeCategory, own *v1.OwnKey) tutor.Route {
 
 // notCurrent refuses a request that names a wrong answer that is not the
 // attempt's last, with how many there are, so that the words never speak of a
-// work the learner has written over (R97 spec).
+// work the learner has written over.
 func notCurrent(ctx context.Context, wrong int) error {
 	return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_CURRENT, func(r *v1.Refusal) {
 		r.Data = &v1.Refusal_WrongAnswers{WrongAnswers: int32(wrong)}
@@ -276,7 +274,7 @@ func notCurrent(ctx context.Context, wrong int) error {
 // current says whether a request that names named wrong answers is for the
 // words of the attempt's last, of wrong: the same count, or, for "explain
 // differently" (thirdOn), any count from the third on — from the fourth wrong
-// answer on no rung is new, and the learner reads the third's words still (R09).
+// answer on no rung is new, and the learner reads the third's words still.
 func current(named, wrong int, thirdOn bool) bool {
 	return named == wrong || (thirdOn && named >= lastRung && named <= wrong)
 }
@@ -324,7 +322,7 @@ func (s *Service) keptWords(ctx context.Context, tx pgx.Tx, profileID, attemptID
 
 // ownKeyFits refuses an own key, or its provider alone, that a request sends
 // for a learner who is not an adult: only the owner's own profile goes by its
-// key (R04).
+// key.
 func ownKeyFits(ctx context.Context, category formatv0.AgeCategory, sent bool) error {
 	if sent && category != formatv0.AgeCategoryAdult {
 		return rpc.Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
@@ -335,8 +333,7 @@ func ownKeyFits(ctx context.Context, category formatv0.AgeCategory, sent bool) e
 // ownKeySent is ownKeyFits of a request that sends an own key whole, and
 // refuses one with no provider or no key, a form the contract refuses with no
 // Refusal: the gate asks the route of the key's provider, and the call takes
-// the key too, so a key short of either would pass the one and fail the other
-// (R54).
+// the key too, so a key short of either would pass the one and fail the other.
 func ownKeySent(ctx context.Context, category formatv0.AgeCategory, own *v1.OwnKey) error {
 	if own != nil && (own.GetProvider() == "" || own.GetKey() == "") {
 		return rpc.Malformed("own_key")
@@ -346,14 +343,14 @@ func ownKeySent(ctx context.Context, category formatv0.AgeCategory, own *v1.OwnK
 
 // GetRungWords gives the words of the rung a wrong answer gave, which the
 // request names by the count of wrong answers of its submission's answer and
-// sends the work of again (R10, R47): the tutor's question, once it passed the
-// leak check and the form check, with the box of the first mistake as a mark
-// (markOf), or the rung's fallback text. The attempt keeps them until it closes. Words
-// that do not come are no refusal: the fallback text comes with the outcome.
-// From the fourth wrong answer on no rung is new, and the words of the same
-// wrong answer asked again, or a repeat under the key, are the words the
-// attempt keeps, with no AI and no marks. When the deployment admits the words,
-// the call runs between two transactions, as the reading does (rpc.Across).
+// sends the work of again: the tutor's question, once it passed the leak check
+// and the form check, with the box of the first mistake as a mark (markOf), or
+// the rung's fallback text. The attempt keeps them until it closes. Words that
+// do not come are no refusal: the fallback text comes with the outcome. From
+// the fourth wrong answer on no rung is new, and the words of the same wrong
+// answer asked again, or a repeat under the key, are the words the attempt
+// keeps, with no AI and no marks. When the deployment admits the words, the
+// call runs between two transactions, as the reading does (rpc.Across).
 func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsRequest) (*v1.GetRungWordsResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -381,14 +378,14 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 	var admitted bool
 	task, paper, known := s.attemptOf(ctx, profileID, attemptID)
 	if paper {
-		// The words of a task from paper go to the debug mode's log (R97).
+		// The words of a task from paper go to the debug mode's log.
 		act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
 		defer act.End()
 		route = act.Route(route)
 		admitted = s.paperAdmitted(ctx, true, category, req.GetOwnKey().GetProvider())
 	} else {
 		// The words take the work of a sheet alone: a workbook page asks them as a
-		// task a tap checks, with no work (R81).
+		// task a tap checks, with no work.
 		admitted = s.teller.Words(known && sheetRead(task), category, req.GetOwnKey().GetProvider())
 	}
 	prepare := func(tx pgx.Tx) (telling, error) {
@@ -442,9 +439,9 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 // rungAsked checks a request for the words of a rung on the attempt h, before
 // anything is called: the wrong answer it names, a rung that is new, and the
 // work, which goes when AI reads the task as a sheet or from paper, and only
-// then, as its crop: a workbook page asks as a task a tap checks, with no work
-// (R81). The rung whose words the attempt keeps already is answered with them,
-// with no call.
+// then, as its crop: a workbook page asks as a task a tap checks, with no work.
+// The rung whose words the attempt keeps already is answered with them, with no
+// call.
 func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetRungWordsRequest, route tutor.Route, admitted bool) (telling, error) {
 	if err := named(ctx, h, req.WrongAnswers, false); err != nil {
 		return telling{h: h}, err
@@ -566,7 +563,7 @@ func (s *Service) rungTold(ctx context.Context, tx pgx.Tx, profileID string, t t
 // markOf is the kind of the mark of the box of the first mistake that the
 // model's words of t come with: the frame on a task of a module, and on a task
 // from paper the wavy line in the hint mode "Show where" and none in "Questions
-// only" (R82 spec).
+// only".
 func markOf(t telling) v1.MarkKind {
 	switch p := t.paper; {
 	case p == nil:
@@ -577,18 +574,18 @@ func markOf(t telling) v1.MarkKind {
 	return v1.MarkKind_MARK_KIND_UNSPECIFIED
 }
 
-// ExplainDifferently words the current rung anew, without the work (R10, R47):
-// one call of AI on a rung, for the wrong answer the request names, with the
-// tutor's questions asked so far. Its words, once they passed the leak check and
-// the form check, or the rung's fallback text, are what the learner reads on
-// the rung from then on; when they are the words the learner reads already,
-// the outcome says so, and the right is spent all the same, as it is once the
-// call went. On platform AI a deployment that admits no model for the words
-// makes no call and refuses "not admitted", and the right stays; on an own key
-// that is an outcome. From the fourth wrong answer on it words the third rung,
-// if it was not asked for there already, for the count of any wrong answer from
-// the third on. A repeat under the key gets the words the attempt keeps, with
-// the outcome it got, and no AI.
+// ExplainDifferently words the current rung anew, without the work: one call of
+// AI on a rung, for the wrong answer the request names, with the tutor's
+// questions asked so far. Its words, once they passed the leak check and the
+// form check, or the rung's fallback text, are what the learner reads on the
+// rung from then on; when they are the words the learner reads already, the
+// outcome says so, and the right is spent all the same, as it is once the call
+// went. On platform AI a deployment that admits no model for the words makes no
+// call and refuses "not admitted", and the right stays; on an own key that is
+// an outcome. From the fourth wrong answer on it words the third rung, if it
+// was not asked for there already, for the count of any wrong answer from the
+// third on. A repeat under the key gets the words the attempt keeps, with the
+// outcome it got, and no AI.
 func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.ExplainDifferentlyRequest) (*v1.ExplainDifferentlyResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -750,7 +747,7 @@ func (s *Service) otherTold(ctx context.Context, tx pgx.Tx, profileID string, t 
 
 // correctPolicy is the version of the privacy policy from which the words after
 // a correct answer go to a provider: the first that names what goes to AI for
-// them — the key, the solution and the techniques of the task (R77).
+// them — the key, the solution and the techniques of the task.
 const correctPolicy = 3
 
 // praising is a request for the words after a correct answer between the parts
@@ -763,8 +760,8 @@ type praising struct {
 	answer  tutor.CorrectAnswer
 	// called says whether the words were called, between two transactions.
 	called bool
-	// day is the family day of the account on platform AI (R11), and reserve
-	// what the call took of its quota (R58).
+	// day is the family day of the account on platform AI, and reserve what the
+	// call took of its quota.
 	day     quota.Day
 	reserve reserve
 }
@@ -772,7 +769,7 @@ type praising struct {
 // policyCovers says whether the words after a correct answer may go on the day
 // of at, in UTC: on the stub always, since nothing reaches a provider; to a
 // provider once the privacy policy in force on that day of the texts api serves
-// is of version correctPolicy or later (R77).
+// is of version correctPolicy or later.
 func (s *Service) policyCovers(at time.Time) bool {
 	if s.stubbed {
 		return true
@@ -783,16 +780,16 @@ func (s *Service) policyCovers(at time.Time) bool {
 
 // GetCorrectAnswerWords gives the tutor's words after a correct answer, once,
 // on the attempt that the answer has just closed, while the profile has begun
-// no other (R09, R77): an attempt closed otherwise, or open, one the profile left
-// for another, and one whose words were given already get "no more words". The
+// no other: an attempt closed otherwise, or open, one the profile left for
+// another, and one whose words were given already get "no more words". The
 // words are the model's praise and its question on the technique that helped,
 // once they passed the leak check and the form check of tutor's words.Correct;
 // words that fail a check, or a call that gives none, leave the answer without
 // words, with the outcome of a call that gave none, and the right stays: a
-// later request may ask again. The work goes when AI read the task, as the
-// crop of a sheet, and only to the call. When the deployment admits the words
-// and the privacy policy in force on the day covers them, the call runs between
-// two transactions (rpc.Across); otherwise the answer holds no words, with the
+// later request may ask again. The work goes when AI read the task, as the crop
+// of a sheet, and only to the call. When the deployment admits the words and
+// the privacy policy in force on the day covers them, the call runs between two
+// transactions (rpc.Across); otherwise the answer holds no words, with the
 // outcome "not admitted", and nothing is spent. A repeat under the key gets the
 // answer without words: the server keeps none.
 func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetCorrectAnswerWordsRequest) (*v1.GetCorrectAnswerWordsResponse, error) {
@@ -866,8 +863,8 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 // attempt it names, held, before anything is called: an attempt the profile
 // has, whose words may still be given, on a package the index knows, and the
 // work, which goes when AI reads the task as a sheet, and only then, as its
-// crop: a workbook page asks as a task a tap checks, with no work (R81). When
-// the words are admitted, it gives their call.
+// crop: a workbook page asks as a task a tap checks, with no work. When the
+// words are admitted, it gives their call.
 func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrectAnswerWordsRequest, route tutor.Route, admitted bool) (praising, error) {
 	profileID := req.GetProfileId()
 	if !store.CanonicalID(req.GetAttemptId()) {
@@ -912,8 +909,7 @@ func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrect
 
 // praisable refuses the words after a correct answer on the attempt row, held,
 // with "no more words": an attempt no correct answer closed, or open, one the
-// profile has begun another after, and one whose words were given already
-// (R09).
+// profile has begun another after, and one whose words were given already.
 func praisable(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt) error {
 	last, err := store.LastAttempt(ctx, tx, profileID, row.ID)
 	switch {
@@ -984,17 +980,16 @@ type canner interface {
 	Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error)
 }
 
-// ShowSolution shows the solution and closes the attempt "solution shown"
-// (R09), under its idempotency key, by a learning action or by an action of an
-// adult, whose right can_manage the handler checks: the checks before it hold
-// can_learn alone. A task with a rubric has nothing to show this way; a child is
-// shown it from the fourth wrong answer on, by either kind of action, and,
+// ShowSolution shows the solution and closes the attempt "solution shown",
+// under its idempotency key, by a learning action or by an action of an adult,
+// whose right can_manage the handler checks: the checks before it hold
+// can_learn alone. A task with a rubric has nothing to show this way; a child
+// is shown it from the fourth wrong answer on, by either kind of action, and,
 // while the child's setting "ask before showing" is on, by an adult's alone; a
-// learner of the category adult from the beginning. The close deletes the
-// words of the rungs (R05). The answer, the task solved, is what the key's
-// record holds, with what comes next: in a lesson, the next segment (R48);
-// outside a lesson, the engine's choice (R50), on the route own_key_provider
-// names (R65).
+// learner of the category adult from the beginning. The close deletes the words
+// of the rungs. The answer, the task solved, is what the key's record holds,
+// with what comes next: in a lesson, the next segment; outside a lesson, the
+// engine's choice, on the route own_key_provider names.
 func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionRequest) (*v1.ShowSolutionResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -1024,7 +1019,7 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 			now := s.clock()
 			h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), now)
 			if errors.Is(err, store.ErrPaper) {
-				// The solution of a task from paper is never shown (R162 spec).
+				// The solution of a task from paper is never shown.
 				err = rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
 			}
 			if err != nil {
@@ -1053,7 +1048,7 @@ func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionR
 }
 
 // showable checks that the solution of the attempt h may be shown to a learner
-// of category by action (R09).
+// of category by action.
 func (s *Service) showable(ctx context.Context, tx pgx.Tx, profileID string, h held, category formatv0.AgeCategory, action v1.Action) error {
 	if rubric(h.task) {
 		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
