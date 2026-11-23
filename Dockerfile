@@ -1,4 +1,4 @@
-# The image of api in production (R105 spec, R106 spec; R28). NovaTrail publishes no image: a
+# The image of api in production (R105 spec). NovaTrail publishes no image: a
 # release of api carries its signed binaries and this file, and whoever deploys builds the image
 # around the binary that release-verify accepted, by --target release:
 #
@@ -12,7 +12,7 @@ FROM golang:1.27.4-trixie@sha256:b54b2639de8c1bfe538ec5ffc45f29b1932235ac5f6d63c
 
 WORKDIR /src
 
-# The whole context, then the build: modules.json, which the binary embeds, comes with it (R41).
+# The whole context, then the build: modules.json, which the binary embeds, comes with it.
 # The modules the binary is built from are fetched by the build itself, as go.sum pins them.
 COPY . .
 
@@ -39,7 +39,7 @@ EXPOSE 8080
 ENTRYPOINT ["/api"]
 CMD ["serve"]
 
-# The packages of modules the image holds (R07, R41): the binary lays them itself, by its command
+# The packages of modules the image holds: the binary lays them itself, by its command
 # packages, from the release of modules that the modules.json embedded in it pins — the index by
 # its digest, each package by module-kit by the chain from it — so the build needs the network,
 # and no file of the main context. The runtime has no shell, so the RUN is of the exec form; it

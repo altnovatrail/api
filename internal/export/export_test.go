@@ -238,7 +238,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		if err := store.SetPaperKey(ctx, tx, profile, page[0], key); err != nil {
 			return err
 		}
-		reading, _ := proto.Marshal(&paperv1.Reading{Tasks: []*paperv1.ReadTask{{Statement: "9 - 6 = □", Formula: "9-6"}}})
+		reading, _ := proto.Marshal(&paperv1.Reading{Tasks: []*paperv1.ReadTask{{Statement: "9 - 6 = □", Formula: "x=9-6"}}})
 		if err := store.SetPaperReading(ctx, tx, profile, page[1], reading); err != nil {
 			return err
 		}
@@ -298,8 +298,9 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		t.Error("the profile's file holds the seed of an attempt")
 	}
 	// The key of a task from paper and the reading of its statement never reach
-	// the device, and a closed attempt of paper is not kept (R05 spec; R101).
-	if strings.Contains(text, "3 + 4") || strings.Contains(text, "9 - 6") || strings.Contains(text, "9-6") || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
+	// the device, and a closed attempt of paper is not kept (R05 spec; R101). The
+	// formula holds letters no UUID has, so that no random ID matches it.
+	if strings.Contains(text, "3 + 4") || strings.Contains(text, "9 - 6") || strings.Contains(text, "x=9-6") || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
 		t.Error("the profile's file holds a key or a reading of a task from paper, or its closed attempt, or key sources before a check")
 	}
 	// The works are named without their bytes: app reads each by GetWork (R151 spec).

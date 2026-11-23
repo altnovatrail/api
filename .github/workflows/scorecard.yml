@@ -1,4 +1,4 @@
-# OpenSSF Scorecard (R09 .github), pinned to a release of .github. Like the shared file, it has no
+# OpenSSF Scorecard, pinned to a release of .github. Like the shared file, it has no
 # env or defaults and only read permission at the top, as the Scorecard server asks of a workflow
 # that publishes.
 name: Scorecard

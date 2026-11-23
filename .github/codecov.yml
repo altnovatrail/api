@@ -1,18 +1,18 @@
 # What Codecov does with the coverage of the tests, which the coverage job of .github's shared
-# go.yml uploads (R48 spec; R16 .github; R27): the Go profile ci-test writes in coverage/go.out. A
+# go.yml uploads: the Go profile ci-test writes in coverage/go.out. A
 # Go profile names a file by its import path, which Codecov cuts down to the path in the repository
 # by a default rule of its own.
 
 coverage:
   status:
-    # New and changed lines are covered at 90 % at least (R48 spec). The ruleset of main
-    # requires this check once a pull request has shown that it comes (R30 spec). A pull
+    # New and changed lines are covered at 90 % at least. The ruleset of main
+    # requires this check once a pull request has shown that it comes. A pull
     # request that changes no line of the report, the documents alone, passes as "Coverage not
     # affected".
     patch:
       default:
         target: 90%
-    # On the plan Codecov gives a public repository, it sets no project status (R48 spec).
+    # On the plan Codecov gives a public repository, it sets no project status.
     # Should it ever set one, it only informs: the badge shows the coverage of the whole.
     project:
       default:
@@ -23,7 +23,7 @@ comment:
   layout: "condensed_header, diff, files"
   require_changes: true
 
-# The test helpers of the database (R29) and of the packages (R42) run the tests' environment: the
+# The test helpers of the database and of the packages run the tests' environment: the
 # branches they do not cover are failures of that environment — no go to build the supervisor
 # with, a PostgreSQL that does not start, a vector of spec that does not build — which no test can
 # cause. What they do is covered by the tests that use them.
