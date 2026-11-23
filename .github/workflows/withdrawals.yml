@@ -1,4 +1,4 @@
-# The watch over withdrawals (R61; R07): once a day, whether the newest release of modules
+# The watch over withdrawals: once a day, whether the newest release of modules
 # withdraws a version that the release modules.json pins gives. A withdrawal reaches the learners
 # only with the pull request that pins a release that marks it, and no such pull request opens by
 # itself; so the job fails, on every run, until modules.json pins one. The failure is the
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   # The check is the recipe ci-withdrawals in the stage toolchain-core, which modules.sh names: it
-  # runs release-verify and cmd/modules-check, and no test (R30). spec/ is checked out for
+  # runs release-verify and cmd/modules-check, and no test. spec/ is checked out for
   # release-verify.
   withdrawals:
     name: Withdrawals
@@ -33,7 +33,7 @@ jobs:
 
       # The image of the stage toolchain-core from the cache, as in the job Image of ci.yml: a
       # schedule runs on main, which reads the entry "Go / toolchain" and "Documents" save there;
-      # read only (R27).
+      # read only.
       - name: Toolchain image from the cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

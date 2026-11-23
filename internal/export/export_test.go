@@ -298,8 +298,9 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		t.Error("the profile's file holds the seed of an attempt")
 	}
 	// The key of a task from paper and the reading of its statement never reach
-	// the device, and a closed attempt of paper is not kept (R05 spec; R101).
-	if strings.Contains(text, "3 + 4") || strings.Contains(text, "9 - 6") || strings.Contains(text, "9-6") || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
+	// the device, and a closed attempt of paper is not kept (R05 spec; R101). The
+	// formula is matched as a JSON string: bare, "9-6" occurs in random UUIDs.
+	if strings.Contains(text, "3 + 4") || strings.Contains(text, "9 - 6") || strings.Contains(text, `"9-6"`) || strings.Contains(text, page[2]) || strings.Count(text, `"key_sources"`) != 1 {
 		t.Error("the profile's file holds a key or a reading of a task from paper, or its closed attempt, or key sources before a check")
 	}
 	// The works are named without their bytes: app reads each by GetWork (R151 spec).

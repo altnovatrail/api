@@ -8,7 +8,7 @@ MODULE := "github.com/altnovatrail/api"
 SYMBOLS := MODULE + "/internal/version"
 
 # The tools only the checks need, at exact versions, as spec's justfile pins
-# them (R30 spec). Each is a Go program run straight from its module, so
+# them. Each is a Go program run straight from its module, so
 # nothing is installed for it: the Go module proxy serves that version and the
 # checksum database vouches for it. Dependabot does not see them, so they are
 # raised by hand.
@@ -22,7 +22,7 @@ default:
 # The build's identity: a build between tags says how far past one it is, a
 # tree with changes says so, and a repository with no tag yet names the commit.
 # The binary is static, without cgo and without the paths of this machine, as a production image
-# needs it (R105 spec).
+# needs it.
 # Build the binary into bin/api.
 build:
     #!/usr/bin/env bash
@@ -45,10 +45,10 @@ migrate:
     go run ./cmd/api migrate
 
 # What .github's shared release.yml runs to build a release, in the stage toolchain-core of the
-# commit it releases, from that commit's tree with no git in it, and then signs every file (R28;
-# R18 .github, R47 .github). dist/ is made afresh and holds plain files alone: the binary for each
+# commit it releases, from that commit's tree with no git in it, and then signs every file (R28).
+# dist/ is made afresh and holds plain files alone: the binary for each
 # platform below, static and named api_<version>_<os>_<arch>; the Dockerfile a deployment builds
-# the image by (R105 spec, R106 spec); the licenses a binary has to come with; and SHA256SUMS over
+# the image by; the licenses a binary has to come with; and SHA256SUMS over
 # the rest. The commit and its time come from internal/version/archive.txt, which git archive
 # writes, so a build of the same commit gives the same bytes wherever it runs.
 # Build a release's files into dist/, for a version such as v0.1.0.
@@ -91,11 +91,10 @@ release-files version:
 
 # The modules besides the standard library that the binary is built from, each with the name its
 # license takes in a release: LICENSE-<name>, and NOTICE-<name> beside it when the module has a
-# NOTICE, as module-kit names them (R38 module-kit): pgx and goose (R29), OpenFGA and the modules
-# they take (R31), the Admin SDK for Go and the modules it takes (R32), Connect and spec's module
-# of contracts (R33), module-kit and spec's own module (R41), tutor (R45), the SDK of the one
-# adapter api gives it, Anthropic's, with the modules it takes (R46, R54), learner-model (R49) and
-# engine (R50). A module the binary takes beyond these fails release-licenses, and ci-lint with it,
+# NOTICE, as module-kit names them: pgx and goose, OpenFGA and the modules they take, the Admin
+# SDK for Go and the modules it takes, Connect and spec's module of contracts, module-kit and
+# spec's own module, tutor, the SDK of the one adapter api gives it, Anthropic's, with the modules
+# it takes, learner-model and engine. A module the binary takes beyond these fails release-licenses, and ci-lint with it,
 # until it is named here.
 # Each entry is <module path>=<name>, one a line, the name the path without its host, its slashes
 # dashes; where that name would read as a license the release has of its own — go, Go's, and api,
@@ -286,11 +285,11 @@ release-licenses folder:
 
 # The ci- recipes are what .github's shared go.yml runs, one job each, in a
 # stage of .devcontainer/Dockerfile: "Go / test" in toolchain, "Go / lint",
-# "Go / vuln" and "Go / licenses" in toolchain-core (R30 spec; R47 .github).
+# "Go / vuln" and "Go / licenses" in toolchain-core.
 # The job checks out no submodule, so none of them reads spec/.
 
 # The code takes spec's files from its Go modules, and the documents from the submodule spec/,
-# and the two move together, to one tag (R64 spec; R27): the commit the index records for the
+# and the two move together, to one tag: the commit the index records for the
 # submodule is the one the Go module proxy names as the origin of each module's version, and the
 # contracts carry the number of spec's tag. The versions are the ones the build selects, so a
 # library that requires a newer spec fails here too, and the fix is the move to that tag. The
@@ -309,7 +308,7 @@ ci-lint:
         exit 1
     fi
     go vet ./...
-    # The modules the binary is built from are the ones whose licenses a release carries (R28).
+    # The modules the binary is built from are the ones whose licenses a release carries.
     licenses="$(mktemp -d)"
     trap 'rm -rf "$licenses"' EXIT
     {{ quote(just_executable()) }} release-licenses "$licenses"
@@ -334,7 +333,7 @@ ci-lint:
     fi
 
 # The profile goes to coverage/go.out, one profile with one mode line, which
-# the job coverage of go.yml sends to Codecov (R48 spec). A package that no test
+# the job coverage of go.yml sends to Codecov. A package that no test
 # runs is in it too, its statements at zero.
 # Run the tests, with the race detector, and write their coverage.
 ci-test:
@@ -345,7 +344,7 @@ ci-test:
 # ci-test runs each fuzz test on its seeds and on testdata/fuzz/ alone; this recipe fuzzes. Go
 # fuzzes one test of one package at a time, so each test is run in turn, for fuzztime. An input
 # that fails a test is written to testdata/fuzz/ of its package, stays in the corpus, and fails
-# ci-test until the code is fixed (R27). A new input is minimized for 2 s, not Go's 60: the
+# ci-test until the code is fixed. A new input is minimized for 2 s, not Go's 60: the
 # minimizing stops the fuzzing.
 # Fuzz the fuzz tests of the readers of foreign input, or the one named, for fuzztime each.
 fuzz fuzztime="1m" test="":
@@ -367,7 +366,7 @@ ci-vuln:
 
 # The list is ALLOWED_LICENSES, SPDX identifiers separated by commas, which
 # go.yml sets from spec's list; without it, as on this machine, the recipe takes
-# that list from spec itself, as its licenses-allowed prints it (R12 spec).
+# that list from spec itself, as its licenses-allowed prints it.
 # Fail if a package the module is built from carries a license outside that list.
 ci-licenses:
     #!/usr/bin/env bash
@@ -382,15 +381,14 @@ ci-licenses:
     fi
     go run {{GO_LICENSES}} check ./... --allowed_licenses="$allowed"
 
-# The check of modules.json (R07, R41), which the job Modules of ci.yml runs in the toolchain
+# The check of modules.json, which the job Modules of ci.yml runs in the toolchain
 # stage, with the network, on every pull request and push: the index of the pinned release and its
 # signature, fetched by the public address with no token; release-verify, which accepts only the
-# shared release.yml of .github, v0.1.7 or later, at the tag's commit (R77 spec); then
+# shared release.yml of .github, v0.1.7 or later, at the tag's commit; then
 # cmd/modules-check, against main's modules.json when main has one: the index by its digest, a
 # release no older than main's, no current version lost but by a withdrawal, and each module's
-# current version printed; then the packages laid, and the test of the first app's path on them
-# (R53).
-# Check modules.json: the signature of its index and the rules of R07.
+# current version printed; then the packages laid, and the test of the first app's path on them.
+# Check modules.json: the signature of its index and its rules against main's.
 ci-modules:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -418,7 +416,7 @@ ci-modules:
     fi
     go run ./cmd/modules-check -config modules.json -index "$work/current/module-index.json" "${main[@]}"
     # The packages of the pinned release, laid as the image's build lays them, and the path of the
-    # first app on them, which ci-test skips with no folder named (R53).
+    # first app on them, which ci-test skips with no folder named.
     go run ./cmd/api packages "$work/packages"
     # -v and the line of its pass: a test renamed would leave go test with nothing to run, and green.
     API_RELEASE_PACKAGES="$work/packages" go test -count=1 -v -run '^TestThePinnedReleaseIsLearnedOn$' ./internal/learning \
@@ -426,16 +424,15 @@ ci-modules:
     grep -q '^--- PASS: TestThePinnedReleaseIsLearnedOn ' "$work/release-test.log" \
         || { echo "ci-modules: the test of the pinned release did not pass" >&2; exit 1; }
     # The .proto files of learner-model that the export carries are those of its release file,
-    # which release-verify accepts (R52; R135 spec).
+    # which release-verify accepts.
     {{ quote(just_executable()) }} learner-model-proto check
 
-# The check of the scheduled job Withdrawals of withdrawals.yml (R61), in the stage
+# The check of the scheduled job Withdrawals of withdrawals.yml, in the stage
 # toolchain-core, with the network: the newest release of modules is the one the public address
 # releases/latest leads to, with no token; its index and its signature, which release-verify
 # checks on every run, even when it is the pinned release; the pinned release's index, which its
-# digest holds (R77 spec); then cmd/modules-check with -latest, which fails while the newest index
-# withdraws a version that the pinned one gives, until modules.json pins a release that marks it
-# (R07).
+# digest holds; then cmd/modules-check with -latest, which fails while the newest index
+# withdraws a version that the pinned one gives, until modules.json pins a release that marks it.
 # Fail when the newest release of modules withdraws a version modules.json's release gives.
 ci-withdrawals:
     #!/usr/bin/env bash
@@ -471,7 +468,7 @@ ci-withdrawals:
     fi
     go run ./cmd/modules-check -config modules.json -index "$work/pinned/module-index.json" -latest "$work/newest/module-index.json"
 
-# The .proto files of learner-model that the export of a profile carries (R52; R135 spec): those of
+# The .proto files of learner-model that the export of a profile carries: those of
 # the release file of the version go.mod names, which release-verify accepts. "lay" lays them in
 # internal/export/proto/, with the descriptors built of them; "check" refuses files or descriptors
 # that differ from the release's.
@@ -504,7 +501,7 @@ learner-model-proto action="lay":
         check) cmp "$work/learnermodel.binpb" internal/export/learnermodel.binpb || { echo "learner-model-proto: internal/export/learnermodel.binpb is not built of the files: run just learner-model-proto" >&2; exit 1; } ;;
     esac
 
-# The packages of modules for the first app (R07, R41): the command the image's build runs,
+# The packages of modules for the first app: the command the image's build runs,
 # into a folder outside any git working tree, which serve then takes as API_PACKAGES_DIR. The
 # folder must be empty or not there.
 # Lay the packages of the pinned release of modules into a folder outside git.
@@ -530,27 +527,27 @@ packages dir="/home/vscode/.novatrail-dev/packages":
     go run ./cmd/api packages "$dir"
 
 # The configuration is a file outside any git working tree, API_DEV_CONFIG, by default
-# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts (R39). Nothing of it
+# /home/vscode/.novatrail-dev/dev.env in the volume the devcontainer mounts. Nothing of it
 # is printed.
 # Run a command of api on the dev projects, as `just dev migrate` or `just dev serve`: on the stub
 # of tutor, which calls no provider and costs nothing; the dev file's key of platform AI is not
-# passed (R66).
+# passed.
 [positional-arguments]
 dev *args:
     bash scripts/dev.sh run "$@"
 
 # The same on the models, with the dev file's key of platform AI: only for a task that checks the
-# words of a model, under the cap its text names (R66; R146 spec).
+# words of a model, under the cap its text names.
 [positional-arguments]
 dev-ai *args:
     bash scripts/dev.sh run-ai "$@"
 
-# The account of the dev project is a test one, dev-author, signed in by a custom token (R39).
+# The account of the dev project is a test one, dev-author, signed in by a custom token.
 # Go the whole way on the dev projects and check the answers and the log.
 dev-check:
     bash scripts/dev.sh check
 
-# The account of the local build of app is a test one, dev-app, apart from dev-check's (R67).
+# The account of the local build of app is a test one, dev-app, apart from dev-check's.
 # Keep api up for app until Ctrl-C: the server on the stub of tutor on port 8080, the account with
 # its owner's profile, and a custom token of it, laid anew every half hour, in the volume
 # novatrail-dev-token that the devcontainers of api and app share.

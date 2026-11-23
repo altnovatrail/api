@@ -15,7 +15,7 @@
 # a volume the two devcontainers share (R67).
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
-# volume the devcontainer mounts (R39): its lines are read as they are, never run, only names of
+# volume the devcontainer mounts: its lines are read as they are, never run, only names of
 # api's own, API_*, are taken, and no value of it is printed. What the binary does not read — the
 # Web API key, the UID of the dev account — has names of the recipe's own, API_DEV_*, which the
 # binary ignores. No secret goes on a command line, where any process could read it: they go
@@ -28,13 +28,13 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 config=${API_DEV_CONFIG:-/home/vscode/.novatrail-dev/dev.env}
-# The account of the dev project is a test one, by a UID of its own (R39).
+# The account of the dev project is a test one, by a UID of its own.
 uid_default=dev-author
 # The account the local build of app signs in as, a test one of its own, apart from the check's, so
-# that the runs of app spend neither its quota nor its data (R67).
+# that the runs of app spend neither its quota nor its data.
 app_uid_default=dev-app
 # The folder of the volume the devcontainers of api and app share, where app finds the custom token
-# of its account (R67). A custom token lasts an hour at most, so it is laid anew every half hour, and
+# of its account. A custom token lasts an hour at most, so it is laid anew every half hour, and
 # the one in the folder always has half an hour left.
 token_dir_default=/home/vscode/.novatrail-token
 token_every=1800
@@ -46,20 +46,20 @@ country=US
 binary=bin/api
 # The key of platform AI the check's server has instead of the dev file's: one Anthropic refuses,
 # so that a reading of handwriting goes to the provider and back, free, before any model reads it,
-# and no call of the check costs anything (R39).
+# and no call of the check costs anything.
 refused_key=sk-ant-dev-check-refused
 # The own key the check sends to the stub of tutor: a synthetic one, whose ending has the stub refuse
-# the reading for the limit of the provider's tier (R66). The platform's key above ends in -refused
+# the reading for the limit of the provider's tier. The platform's key above ends in -refused
 # too, but it is the first server's own and never reaches the stub.
 limit_key=sk-ant-dev-check-limit-tier
 # The work the check sends to be read: a synthetic PNG of one white pixel.
 pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQJnLD7dAAAAAElFTkSuQmCC
 # The work the check sends to the stub of tutor: a synthetic PNG of two white pixels, wider than
-# tall, which the stub reads as the right value (R66).
+# tall, which the stub reads as the right value.
 wide=iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAAAAADRSSBWAAAAEElEQVR4nAADAPz/BP8AAwACDQEEd5QFkQAAAABJRU5ErkJggg==
 # The facts the check's server on the stub of tutor and the server of `just dev-app` declare instead
 # of the dev file's: Anthropic's for an adult and for a child under 13 too, so that the stub admits a
-# child's workbook page (R66, R67). On the stub nothing reaches a provider, and these facts govern
+# child's workbook page. On the stub nothing reaches a provider, and these facts govern
 # its admission alone; the dev file, `api check` and the check's first server keep the facts the
 # author declared.
 child_facts='anthropic:
@@ -69,7 +69,7 @@ child_facts='anthropic:
 '
 # The pseudonym of the synthetic child of the check, by which a profile an earlier run left is found.
 child_name="Dev child"
-# The module whose essay the check sends on the stub of tutor (R82): its essays are for every age.
+# The module whose essay the check sends on the stub of tutor: its essays are for every age.
 essays=novatrail/english-essays
 
 die() {
@@ -105,7 +105,7 @@ load() {
     done < "$config"
 }
 
-# stubbed puts the run on the stub of tutor (R66): no key of platform AI from the dev file reaches
+# stubbed puts the run on the stub of tutor: no key of platform AI from the dev file reaches
 # the process, and every call of AI is the stub's, which costs nothing. `just dev` runs so.
 stubbed() {
     unset API_ANTHROPIC_KEY API_ANTHROPIC_KEY_FILE API_DEBUG_MODELS
@@ -113,13 +113,13 @@ stubbed() {
 }
 
 # modelled puts the run on the models, with the dev file's key: `just dev-ai`, for a task that checks
-# the words of a model under the cap its text names (R66; R146 spec).
+# the words of a model under the cap its text names.
 modelled() {
     unset API_TUTOR_STUB API_DEBUG_MODELS
 }
 
 # debugged gives every account of a local run on the models the right of the debug mode: app chooses
-# the models of a task from paper and shows what each call returned and cost (R97). `just dev-ai`
+# the models of a task from paper and shows what each call returned and cost. `just dev-ai`
 # and `just dev-app` with API_DEV_APP_AI=1 run so; `just dev-check` does not.
 debugged() {
     export API_DEBUG_MODELS=1
@@ -137,7 +137,7 @@ signing_key() {
 
 # custom_token prints a custom token of the account $2 of the dev project, signed by RS256 with the
 # service account's key in the file $1: the claims are Firebase's for a custom token made with a JWT
-# library (R39). The key reaches openssl through a pipe.
+# library. The key reaches openssl through a pipe.
 custom_token() {
     local email now header payload unsigned signature
     email=$(jq -er .client_email "$1") || die "the key has no client_email"
@@ -153,7 +153,7 @@ custom_token() {
     printf '%s.%s\n' "$unsigned" "$signature"
 }
 
-# exchange prints the ID token the sign-in service gives for the custom token on stdin (R39). The
+# exchange prints the ID token the sign-in service gives for the custom token on stdin. The
 # Web API key reaches curl through its configuration on stdin, the custom token through the
 # environment and a pipe.
 exchange() {
@@ -167,7 +167,7 @@ exchange() {
 }
 
 # id_token prints an ID token of the account $1 of the dev project: its custom token exchanged at the
-# sign-in service (R39).
+# sign-in service.
 id_token() {
     local key custom
     key=$(signing_key)
@@ -182,7 +182,7 @@ token_folder() {
 }
 
 # lay_token lays a custom token of the account $2 in the folder $1 as custom-token, readable by its
-# owner alone, by a rename, so that app never reads half a token (R67).
+# owner alone, by a rename, so that app never reads half a token.
 lay_token() {
     local dir=$1 key token next
     token_folder "$dir"
@@ -221,7 +221,7 @@ secret() {
 
 # clean fails the check unless the log $1 is JSON, line by line, and holds none of what the logs
 # must not: the UID — $2, or the check's —, an email, a connection string, the Web API key, the
-# token (R09 spec).
+# token.
 clean() {
     jq -e . "$1" > /dev/null || die "a line of $(basename "$1") is not JSON"
     ! grep -qF -- "${2:-${API_DEV_UID:-$uid_default}}" "$1" || die "$(basename "$1") names the UID"
@@ -244,12 +244,12 @@ handwritten() {
 }
 
 # counted prints what the export's file $1 holds of the quota of platform AI, over all its family
-# days: the micro-dollars spent and those in reserve, "0 0" when it holds no counter (R57).
+# days: the micro-dollars spent and those in reserve, "0 0" when it holds no counter.
 counted() {
     jq -er '.quota_counters // [] | "\(map(.spent_micro_usd) | add // 0) \(map(.reserved_micro_usd) | add // 0)"' "$1"
 }
 
-# exported unpacks the account's export into the folder $1 (R52).
+# exported unpacks the account's export into the folder $1.
 exported() {
     call ExportAccount <<< '{}'
     expect ExportAccount
@@ -258,20 +258,20 @@ exported() {
     unzip -q -o "$1.zip" -d "$1" || die "ExportAccount gave a part that is not a zip"
 }
 
-# on_workbook says whether the attempt $1, an AttemptStart as JSON, is on a workbook page (R81).
+# on_workbook says whether the attempt $1, an AttemptStart as JSON, is on a workbook page.
 on_workbook() {
     jq -e '.task.json | @base64d | fromjson | .canvas.kind == "workbook"' "$1" > /dev/null
 }
 
 # on_essay says whether the attempt $1, an AttemptStart as JSON, is on an essay: a task with an
-# answer slot bound to the whole sheet (R82).
+# answer slot bound to the whole sheet.
 on_essay() {
     jq -e '.task.json | @base64d | fromjson | any(.. | objects; .binding? == "sheet")' "$1" > /dev/null
 }
 
 # page prints the boxes of the workbook page of the attempt $1, an AttemptStart as JSON, as
 # WorkbookWork's boxes, each with the crop $2: every box of each item's line, by the places of the
-# item and of the box among its boxes, from 1 (R81).
+# item and of the box among its boxes, from 1.
 page() {
     CROP=$2 jq -c '[.task.json | @base64d | fromjson | .items | to_entries[] | .key as $item |
         [.value.line[]? | select(.binding? == "box")] | to_entries[] |
@@ -300,12 +300,12 @@ handwriting() {
             call LearningService/OpenLesson < <(PROFILE=$profile CHOICE=$choice jq -cn '{profile_id: env.PROFILE, choice_id: env.CHOICE}')
             expect OpenLesson
             run=$(jq -r .run.lesson_run_id "$work/answer.json")
-            # Segments begin in their order: the first task segment the run has not ended (R48).
+            # Segments begin in their order: the first task segment the run has not ended.
             segment=$(jq -r '(.run.ended_segments // []) as $ended | .run.lesson.json | @base64d | fromjson |
                 [.segments | to_entries[] | select(.value.task != null) | .key + 1 | select(. as $p | $ended | index($p) | not)] |
                 first // empty' "$work/answer.json")
             # A run whose task segments have all ended, which an earlier run of the check left
-            # open, is passed, or the engine would give it again at every choice (R13, R50).
+            # open, is passed, or the engine would give it again at every choice.
             if [[ -z $segment ]]; then
                 call LearningService/CompleteLesson < <(PROFILE=$profile RUN=$run jq -cn '{profile_id: env.PROFILE, lesson_run_id: env.RUN}')
                 expect CompleteLesson
@@ -346,7 +346,7 @@ migrated() {
 }
 
 # packaged lays the packages of the pinned release into $work/packages, afresh for this run, as the
-# image's build lays them (R41): a folder of the dev file stays as the author laid it, and the server
+# image's build lays them: a folder of the dev file stays as the author laid it, and the server
 # of the run starts on these whatever release that folder holds.
 packaged() {
     echo "$who: packages"
@@ -354,7 +354,7 @@ packaged() {
     clean "$work/packages.log"
 }
 
-# reopened runs the operator's command that opens platform AI again (R59), before the server: a flag
+# reopened runs the operator's command that opens platform AI again, before the server: a flag
 # the provider's limit left set would answer a reading "platform limit" with no call.
 reopened() {
     echo "$who: reopen"
@@ -377,7 +377,7 @@ started() {
 }
 
 # legal_texts asks for the legal texts, which go with no token, and keeps them in $work/texts.json: a
-# new account names the current versions of the policy and the terms (R52; R130 spec, R136 spec).
+# new account names the current versions of the policy and the terms.
 legal_texts() {
     call LegalService/GetLegalTexts <<< '{}'
     expect GetLegalTexts
@@ -394,7 +394,7 @@ legal_texts() {
 # GetAccount's answer is left in $work/answer.json.
 owner_account() {
     call GetAccount <<< '{}'
-    # A UID with no account is refused as permission_denied, CAUSE_NO_ACCESS (R04).
+    # A UID with no account is refused as permission_denied, CAUSE_NO_ACCESS.
     if [[ $status == 403 ]] && [[ $(jq -r .code "$work/answer.json") == permission_denied ]]; then
         echo "$who: no account yet: an invite code of the tariff $1 and CreateAccount"
         local code
@@ -427,12 +427,12 @@ keep_code() {
     echo "$who: the code of the new account is kept in $2"
 }
 
-# check_account makes sure the account of the check is there on the tariff dev_check (R55), with
+# check_account makes sure the account of the check is there on the tariff dev_check, with
 # its owner's profile, as owner_account does. The invite code of the account of each UID is kept in
 # <UID>.code beside the dev file, where it really lies, outside any working tree. An account whose
 # code the file keeps gets the tariff by `api tariff`; one with no code kept, made before the tariff,
 # is deleted by the fresh sign-in of its custom token and made anew by a code of the tariff, which
-# the file keeps. The code is redeemed and opens no account again (R34), so it may go on the command
+# the file keeps. The code is redeemed and opens no account again, so it may go on the command
 # line of `api tariff`.
 check_account() {
     local uid=${API_DEV_UID:-$uid_default} file
@@ -449,7 +449,7 @@ check_account() {
             expect DeleteAccount
             token=$(id_token "$uid")
             # A deletion the sign-in service did not finish keeps the account marked, and its UID is
-            # refused "account gone", not "no access", until the daily job finishes it (R33).
+            # refused "account gone", not "no access", until the daily job finishes it.
             call GetAccount <<< '{}'
             [[ $status == 403 ]] || die "the deletion of the account is not finished, GetAccount answers $status: \`just dev sweep\` finishes it, then run the check again"
         fi
@@ -458,7 +458,7 @@ check_account() {
 }
 
 # consented asks a parent's consent for a synthetic child of 9 and sends the scan of its form, a
-# synthetic one, to the folder of the forms (R52; R116 spec), leaving the consent's ID in $consent
+# synthetic one, to the folder of the forms, leaving the consent's ID in $consent
 # and the code of its request in $request; with "confirm" the operator's command confirms the form
 # too, as the operator who matched the scan to its code would.
 consented() {
@@ -489,7 +489,7 @@ child_profile() {
 
 # taken_back takes back every consent with no profile that the account of GetAccount's answer in the
 # file $1 holds, waiting or confirmed: one an earlier run left between its request and its profile,
-# so that such consents do not pile up to the most an account may have waiting (R52).
+# so that such consents do not pile up to the most an account may have waiting.
 taken_back() {
     local left
     for left in $(jq -r '.account.child_consents[]?.consent_id' "$1"); do
@@ -501,7 +501,7 @@ taken_back() {
 
 # app_child makes sure the account of the token has a synthetic child under 13 of the pseudonym
 # child_name who learns, with no consent waiting, whom the workbook pages of the pinned release are
-# for (R67): the first one GetAccount gives, or, when there is none, one child_profile makes, after
+# for: the first one GetAccount gives, or, when there is none, one child_profile makes, after
 # the consents with no profile are taken back, so that a repeat makes none. A child of the pseudonym
 # who has since turned 13, or waits for a consent again, is not taken. It prints the child's profile
 # ID either way and leaves it in $child.
@@ -520,7 +520,7 @@ app_child() {
 }
 
 check() {
-    # The check calls the provider with the key it refuses, not the stub (R39).
+    # The check calls the provider with the key it refuses, not the stub.
     who=dev-check
     modelled
     work=$(mktemp -d)
@@ -529,7 +529,7 @@ check() {
     build
 
     # What the dev file declares for admission, checked before the migrations as the rollout of
-    # infra checks a deployment's (R45).
+    # infra checks a deployment's.
     echo "$who: check"
     "$binary" check > "$work/check.log" 2>&1 || die "check failed: $(cat "$work/check.log")"
     clean "$work/check.log"
@@ -555,7 +555,7 @@ check() {
     check_account
 
     # The progress of the owner's profile settles its evidence first, under the lock of its row of
-    # the cache, on the database itself (R49).
+    # the cache, on the database itself.
     local owner
     owner=$(jq -r '.account.profiles[] | select(.owner) | .profile_id' "$work/answer.json")
     call ProgressService/GetProgress < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
@@ -568,9 +568,9 @@ check() {
     call ModuleService/DisconnectModule < <(PROFILE=$owner MODULE=$essays jq -cn '{profile_id: env.PROFILE, module_id: env.MODULE}')
     expect DisconnectModule
 
-    # The module of the first app on the pinned release (R53): in the owner's catalog, connected —
+    # The module of the first app on the pinned release: in the owner's catalog, connected —
     # a repeat answers by the profile's state —, a file of its package's part for the device, and
-    # "something else", which asks the engine on the database itself (R50), gives a lesson or a task.
+    # "something else", which asks the engine on the database itself, gives a lesson or a task.
     call ModuleService/ListCatalog < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
     expect ListCatalog
     local digest
@@ -588,7 +588,7 @@ check() {
         die "ChooseNext gave $(jq -c .choice "$work/answer.json"), want a lesson or a task"
     echo "$who: olympiad-math is connected, and the engine gives a $(jq -r '.choice.kind | ltrimstr("CHOICE_KIND_") | ascii_downcase' "$work/answer.json")"
 
-    # The providers of the own key by tutor's admission (R72): at the stage author the dev file
+    # The providers of the own key by tutor's admission: at the stage author the dev file
     # declares, the owner's own key of Anthropic alone, by the table's code and name. No call goes.
     call ListOwnKeyProviders < <(PROFILE=$owner jq -cn '{profile_id: env.PROFILE}')
     expect ListOwnKeyProviders
@@ -596,7 +596,7 @@ check() {
         die "ListOwnKeyProviders gave $(jq -c .providers "$work/answer.json"), want Anthropic alone"
     echo "$who: the own key's providers are Anthropic alone"
 
-    # The check of an own key through tutor (R73): the key Anthropic refuses, as the owner's own,
+    # The check of an own key through tutor: the key Anthropic refuses, as the owner's own,
     # goes to count_tokens, which is free, and comes back not valid; OpenAI's is closed, with no call.
     call CheckOwnKey < <(PROFILE=$owner KEY=$refused_key \
         jq -cn '{profile_id: env.PROFILE, own_key: {provider: "anthropic", key: env.KEY}}')
@@ -609,9 +609,9 @@ check() {
         die "CheckOwnKey of OpenAI gave $(jq -c . "$work/answer.json"), want OWN_KEY_CHECK_PROVIDER_CLOSED"
     echo "$who: the refused key is not valid, and OpenAI's provider is closed"
 
-    # The quota of platform AI on the database itself (R58): a reading of handwriting takes its
+    # The quota of platform AI on the database itself: a reading of handwriting takes its
     # reserve before the call and settles it after. The provider refuses the key, the answer has no
-    # record of usage, and the reserve is kept as spent (R12): the export shows more spent and the
+    # record of usage, and the reserve is kept as spent: the export shows more spent and the
     # same in reserve.
     local before after attempt spent_before reserved_before spent_after reserved_after
     exported "$work/before"
@@ -638,10 +638,10 @@ check() {
         die "the account's counters went from spent and reserved $before to $after, want more spent and the same reserved"
     echo "$who: a reading of handwriting takes its reserve and settles it, on both counters"
 
-    # The stored works on the database itself (R70): the storage switched on to the current
+    # The stored works on the database itself: the storage switched on to the current
     # storage-consent, a synthetic work of the attempt put, listed, read back and named in the
-    # export without its bytes (R84), erased, put again, and gone with the storage switched off,
-    # so that nothing of it is left (R113 spec).
+    # export without its bytes, erased, put again, and gone with the storage switched off,
+    # so that nothing of it is left.
     call SetWorkStorage < <(PROFILE=$owner jq -c '{profile_id: env.PROFILE, action: "ACTION_ADULT", enabled: true,
         text: (.texts[] | select(.id == "storage-consent") | {id, version})}' "$work/texts.json")
     expect SetWorkStorage
@@ -682,7 +682,7 @@ check() {
 
     # A parent's consent for a synthetic child of 9: its request by a code, the scan of its form in
     # the folder of the forms, the form among those the operator checks, then the consent taken back,
-    # so that nothing of it is left (R52; R116 spec).
+    # so that nothing of it is left.
     local consent request
     consented
     local scans=("$work/forms/$consent"-*)
@@ -702,7 +702,7 @@ check() {
     ! jq -se 'any(.[]; .message == "ai_usage" and .ai_outcome == "answered")' "$work/serve.log" > /dev/null ||
         die "a model answered a call of the check"
 
-    # The words after a correct answer on the stub of tutor (R66; R77), by a server of its own with
+    # The words after a correct answer on the stub of tutor, by a server of its own with
     # no key of platform AI: the stub reads the wide crop as the right value, which solves the task,
     # and words a praise with its question last on any day, since nothing goes to a provider. Its
     # log holds no words. Its facts are the check's own, which admit a child's reading too.
@@ -718,7 +718,7 @@ check() {
     base="http://127.0.0.1:$port"
     handwriting "$owner"
     attempt=$(jq -r .attempt_id "$work/attempt.json")
-    # The stub refuses a call on an own key by its ending (R66): on -limit-tier the reading is the
+    # The stub refuses a call on an own key by its ending: on -limit-tier the reading is the
     # limit of the provider's tier, which own_key_limit names with when access returns, 00:00 UTC on
     # the first of the next month, and nothing is checked.
     call AttemptService/SubmitWork < <(PROFILE=$owner ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
@@ -745,15 +745,14 @@ check() {
     [[ $praise == *"?" ]] || die "GetCorrectAnswerWords on the stub gave the outcome $(jq -c .outcome "$work/answer.json"), want words with the question last"
     echo "$who: the stub words the praise after a correct answer"
 
-    # A workbook page on the stub (R66; R81), which tutor admits as it admits a sheet (R90). The
+    # A workbook page on the stub, which tutor admits as it admits a sheet. The
     # workbook pages of the pinned release, novatrail/grade-3-math, are for a child under 13 alone,
     # so a synthetic child of 9 gets a parent's consent by its form, which the operator's command
-    # confirms (R52; R116 spec), and a profile, by a fresh sign-in; a profile of its pseudonym an
+    # confirms, and a profile, by a fresh sign-in; a profile of its pseudonym an
     # earlier run left is deleted first, and a consent with no profile one left is taken back — the
     # consent step above takes its own back, so any here is an earlier run's. A wide crop in every
     # box of the page reads its right value, which solves the task and gives its evidence. Then the
-    # child's profile is deleted, which withdraws the consent and leaves its minimal record alone
-    # (R117 spec).
+    # child's profile is deleted, which withdraws the consent and leaves its minimal record alone.
     local signed=$token
     token=$(id_token "${API_DEV_UID:-$uid_default}")
     call GetAccount <<< '{}'
@@ -777,7 +776,7 @@ check() {
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY,
             work: {workbook: {boxes: (env.BOXES | fromjson)}}, clock_offset_minutes: 0}')
     expect SubmitWork
-    # A page keeps tutor's expected price of a page of the account's family day as spent (R81, R90),
+    # A page keeps tutor's expected price of a page of the account's family day as spent,
     # about 30,000 micro-dollars by the pair, and the child's deletion gives none of it back:
     # the account's quota is named apart, not taken for a fault of the stub.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
@@ -795,7 +794,7 @@ check() {
         die "GetAccount still holds the child's profile after DeleteProfile"
     echo "$who: a child's workbook page of $(jq length <<< "$boxes") boxes is read and solved on the stub, with its evidence, and the child is deleted"
 
-    # An essay on the stub (R66; R82, R83), which tutor admits as it admits a sheet (R90): the
+    # An essay on the stub, which tutor admits as it admits a sheet: the
     # owner connects novatrail/english-essays, whose essays are for every age, and the engine's choice
     # on its skill of paragraphs, which only essays teach, gives one. A wide crop of the sheet reads
     # the stub's text, assessed every criterion met but the last, with the stub's feedback, which
@@ -810,7 +809,7 @@ check() {
         jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, crop: env.PIXEL, clock_offset_minutes: 0}')
     expect SubmitEssay
     # An essay keeps tutor's expected prices of the account's family day as spent, the reading's and
-    # the assessment's, under 1,000 micro-dollars (R82, R90): the account's quota is named apart, as
+    # the assessment's, under 1,000 micro-dollars: the account's quota is named apart, as
     # for the page above.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
         die "the quota of platform AI of the account's family day has no room left for an essay: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
@@ -829,7 +828,7 @@ check() {
     expect DisconnectModule
     echo "$who: an essay is read, assessed with its feedback and done on the stub, with its $criteria criteria"
     # What the account's counters hold, over their family days, by the export: of two runs one after
-    # the other, the difference is what the second spent (R55).
+    # the other, the difference is what the second spent.
     exported "$work/end"
     read -r spent_after reserved_after <<< "$(counted "$work/end/account.json")"
     echo "$who: the account's counters of the quota hold $spent_after micro-dollars spent and $reserved_after in reserve"
@@ -842,7 +841,7 @@ check() {
     ! grep -qF -- "$signed" "$work/stub.log" || die "stub.log holds the token of the first sign-in"
     echo "$who: the stub's log holds neither the praise, the essay nor the code of the request"
 
-    # The job after a rollout, on the database itself (R51): it asks what is open on the versions
+    # The job after a rollout, on the database itself: it asks what is open on the versions
     # the image no longer gives, of the pinned release, and closes it.
     echo "$who: after"
     API_PACKAGES_DIR="$work/packages" "$binary" after > "$work/after.log" 2>&1 || die "after failed: $(cat "$work/after.log")"
@@ -878,7 +877,7 @@ app_done() {
 # app_mode puts the run for app on the stub of tutor, with the facts of a child written to $1 —
 # nothing reaches a provider on the stub —, or, with API_DEV_APP_AI=1, on the models with the dev
 # file's key and facts, for the author's check by hand of a task that checks a model, under the cap
-# its text names (R67). app_on names the mode.
+# its text names. app_on names the mode.
 app_mode() {
     if [[ ${API_DEV_APP_AI:-} == 1 ]]; then
         modelled
@@ -892,8 +891,8 @@ app_mode() {
     app_on="on the stub of tutor"
 }
 
-# app keeps api up for the local build of app, whose container cannot run this script
-# (R67; R146 spec): the server on the stub of tutor on port 8080, or on the models by app_mode, on
+# app keeps api up for the local build of app, whose container cannot run this script:
+# the server on the stub of tutor on port 8080, or on the models by app_mode, on
 # the packages of the pinned release and the facts of a child, the account dev-app with its owner's profile and a synthetic
 # child of 9 by a parent's consent confirmed, whose profile ID it prints, and a custom token of that
 # account laid anew every half hour in the folder of the volume both devcontainers mount, until the
@@ -916,7 +915,7 @@ app() {
 
     # The server's log goes to the terminal as well, as `just dev serve` shows it. On the stub its facts
     # are the check's own for its server on the stub, which admit a child's reading too, so that app
-    # walks a workbook page of the synthetic child (R67): nothing reaches a provider on the stub. On
+    # walks a workbook page of the synthetic child: nothing reaches a provider on the stub. On
     # the models they are the dev file's (app_mode). The scans of
     # parents' forms go to a folder of this run, as the check's do, and none stays behind it.
     echo "dev-app: serve, $app_on"

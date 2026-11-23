@@ -26,7 +26,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 9. When done: table 1 `[ ]` → `[x]`; append to the body «Сделано (дата)» — one line, what was done and its pull request, which says how it was checked; where the author commits after review, the report says it. What stays open is rows, not text: a question for the author, of [run/QUESTIONS.md](run/QUESTIONS.md); what is put off, of [run/DEBT.md](run/DEBT.md) (R160 spec).
    - Then move the body verbatim, relative links fixed, to the epic archive `docs/plan/<epic>.md`, with a gist sentence — an unheaded list item at the start of the receiving section: «T01 — сделана <дата>: <итог одной фразой>». Neither stays here, and a search by heading finds one body, in the archive (R153 spec).
    - A task outside an epic's plan — a move to a tag of `spec`, an analysis by the threshold of R145 spec — is a row of table 1, and its body is in `run/TASKS.md` (R155 spec). Done, it goes to the current epic's archive; between epics, table 1 holds such rows alone, and they go to the archive of the epic that comes into table 1 next (R63; R85).
-10. Language (R14 spec, R42 spec, R143 spec, R154 spec): this plan and `run/` in English, the bodies of tasks, the epic archives `docs/plan/` and the reports in Russian; `docs/` in English; README, CLAUDE.md, AGENTS.md, code, comments, schema descriptions, prompts and normative texts for authors in English; commit messages and a pull request's title and description in English and terse, for the session, never a copy of the report.
+10. Language (RULES.md spec, Hard rules; R154 spec): this plan and `run/` in English, the bodies of tasks, the epic archives `docs/plan/` and the reports in Russian; `docs/` in English; README, CLAUDE.md, AGENTS.md, code, comments, schema descriptions, prompts and normative texts for authors in English; commit messages and a pull request's title and description in English and terse, for the session, never a copy of the report.
 11. A task larger than one review (≈ 30–60 minutes of reading): propose a split before starting.
 12. Before a new task, close the findings on the previous one (R30 spec); an allowed departure from rule 1. SonarCloud sees merged code: its verdict on the previous task is in [New Code](https://sonarcloud.io/summary/new_code?id=altnovatrail_api); CodeQL and Scorecard — the Security tab, `gh api 'repos/altnovatrail/api/code-scanning/alerts?state=open'`. Fix in code first; "false positive" is the last resort, with the reason in words; what a change cannot close stays open — shared reasons in R33 spec, own ones in the log. Never skip silently. Report these fixes in a separate paragraph: the author commits them apart from the task.
 
@@ -38,7 +38,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 
 **Task body** (Russian): «Цель», «Сделать», «Как проверить», «Разделы»; as needed «Не делать», «Решить при планировании», «Мой шаг», «Стоимость», «Риски»; from planning «Почему», «Решено автором (дата)», «Выяснилось при планировании»; when done «Сделано (дата)» (rule 9).
 
-**Citations.** Own sections — `architecture 2`, own decisions — `R03`; spec's sections and decisions — «architecture 3.5 spec», «R18 spec», its open questions — «Т-22», «П-7», «О-2»: the repository keeps no registers; other NovaTrail repositories' decisions — «R03 tutor»; MathTrail's — «R44 canvas-api», «R163 standalone», in a list «canvas-api: R44, R59». Each log numbers its own: «R19 spec» and `R19` of this log differ. A task — «T03», from another repository «T03 api»; one not here is in `run/TASKS.md` or an archive: `grep -n '^#### T03\.' RUN.md run/TASKS.md docs/plan/*.md`. Task numbers are global and never reused: take the one free when writing it down.
+**Citations** — RULES.md spec, Citations: a task's number stands only here, in `run/` and in `docs/plan/` (R171 spec). Own sections — `architecture 2`, own decisions — `R03`; spec's sections and decisions — «architecture 3.5 spec», «R18 spec», its open questions — «Т-22», «П-7», «О-2»: the repository keeps no registers; other NovaTrail repositories' decisions — «R03 tutor»; MathTrail's — «R44 canvas-api», «R163 standalone», in a list «canvas-api: R44, R59». Each log numbers its own: «R19 spec» and `R19` of this log differ. A task — «T03», from another repository «T03 api»; one not here is in `run/TASKS.md` or an archive: `grep -n '^#### T03\.' RUN.md run/TASKS.md docs/plan/*.md`. Task numbers are global and never reused: take the one free when writing it down.
 
 ## Epics
 
@@ -85,3 +85,20 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T123 | `"comments": true` с релизом `learner-model` по R160 spec | Claude | — | T114; релиз `learner-model` строки 7.29 |
 | [x] | T124 | Переход на тег `spec` v0.19.4 | Claude | — | — |
 | [x] | T125 | Переход на тег `spec` v0.19.11 | Claude | — | — |
+| [x] | T126 | Ссылки по R171 spec: план, CLAUDE.md, правила частей, `docs/README.md`, `docs/build.md`, комментарии вне Go; разбивка на T127–T142 | Claude | да | T125 |
+| [ ] | T127 | Ссылки по R171 spec: комментарии `internal/learning` | Claude | — | T126 |
+| [ ] | T128 | Ссылки по R171 spec: комментарии `internal/store` с миграциями SQL, `internal/account`, `internal/config` | Claude | — | T126 |
+| [ ] | T129 | Ссылки по R171 spec: комментарии `cmd/api`, `internal/admission`, `rpc`, `sweep`, `packages` | Claude | — | T126 |
+| [ ] | T130 | Ссылки по R171 spec: комментарии остального Go | Claude | — | T126 |
+| [ ] | T131 | Ссылки по R171 spec: архитектура 1, 2, 3.1–3.4, 4 | Claude | — | T126 |
+| [ ] | T132 | Ссылки по R171 spec: архитектура 3.5–3.8 | Claude | — | T126 |
+| [ ] | T133 | Ссылки по R171 spec: архитектура 3.9–3.11 | Claude | — | T126 |
+| [ ] | T134 | Ссылки по R171 spec: `docs/sources.md` и `docs/measurements.md` | Claude | — | T126 |
+| [ ] | T135 | Ссылки по R171 spec: журнал: вводная и разделы от «The `spec` tag» до «Database and learner model» | Claude | — | T126 |
+| [ ] | T136 | Ссылки по R171 spec: журнал: от «Module versions» до «The `spec` tag: v0.6.6» | Claude | — | T126 |
+| [ ] | T137 | Ссылки по R171 spec: журнал: от «Protocol `app` ↔ `api`» до «Database and migrations» | Claude | — | T126 |
+| [ ] | T138 | Ссылки по R171 spec: журнал: от «Devcontainer» до «The database of E3 in code» | Claude | — | T126 |
+| [ ] | T139 | Ссылки по R171 spec: журнал: от «Attempt without AI in code» до «The learner model in code» | Claude | — | T126 |
+| [ ] | T140 | Ссылки по R171 spec: журнал: от «The engine choice in code» до «Withdrawal on a schedule» | Claude | — | T126 |
+| [ ] | T141 | Ссылки по R171 spec: журнал: от «The `spec` tag: v0.16.3» до «The board module» | Claude | — | T126 |
+| [ ] | T142 | Ссылки по R171 spec: журнал: от «The providers of the own key» до конца; ключ `"citations": true` | Claude | — | T127–T141 |

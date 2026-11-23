@@ -1,7 +1,7 @@
-# NovaTrail's shared release (R18 .github), pinned to a release of .github by SHA with its version
+# NovaTrail's shared release, pinned to a release of .github by SHA with its version
 # beside it. RELEASE_LINE is the line the releases are numbered in; paths, what they are built from.
 # A release of api is its binaries and the Dockerfile a deployment builds the image by, each
-# signed (R105 spec, R106 spec; R28). Nobody tags by hand: the shared workflow tags the commit it
+# signed. Nobody tags by hand: the shared workflow tags the commit it
 # releases.
 name: Release
 
@@ -29,7 +29,7 @@ jobs:
     # The go kind's list, and what api's release takes beyond it: the Dockerfile it carries, the
     # file git archive writes the commit into, with the attributes that make it do so, and
     # modules.json, which the binary embeds, so that a pull request that pins another release of
-    # modules makes a release (R41). The programs the tests build, under testdata/, are no part of
+    # modules makes a release. The programs the tests build, under testdata/, are no part of
     # it.
     with:
       paths: |

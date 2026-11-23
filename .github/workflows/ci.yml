@@ -1,4 +1,4 @@
-# NovaTrail's shared checks (R03 .github), pinned to a release of .github by SHA with its version
+# NovaTrail's shared checks, pinned to a release of .github by SHA with its version
 # beside it; Dependabot moves both. The repository's own jobs go beside them.
 name: CI
 
@@ -31,7 +31,7 @@ jobs:
     uses: altnovatrail/.github/.github/workflows/documents.yml@f1c7e9e6f8245fdbdbc23c4091f3c26350e3a44e # v0.1.33
 
   # The repository's Go code, by its own ci- recipes in its toolchain stage, and the coverage of
-  # its tests, which the shared workflow sends to Codecov (R16 .github; R27). id-token: write is
+  # its tests, which the shared workflow sends to Codecov. id-token: write is
   # for its coverage job alone, which asks for an OIDC token: a called workflow can only lower
   # what this job gives it.
   go:
@@ -42,7 +42,7 @@ jobs:
     uses: altnovatrail/.github/.github/workflows/go.yml@f1c7e9e6f8245fdbdbc23c4091f3c26350e3a44e # v0.1.33
 
   # api's image, as a deployment builds it from a release and as it builds from the source, on the
-  # runner, which has Docker where the devcontainer has none (R28). The script is the whole check.
+  # runner, which has Docker where the devcontainer has none. The script is the whole check.
   image:
     name: Image
     runs-on: ubuntu-24.04
@@ -54,8 +54,8 @@ jobs:
 
       # The image of the stage toolchain-core from the cache, by the key and the path "Go /
       # toolchain" and "Documents" save it under on main, so the entry is theirs; read only, as no
-      # job here saves it (R27). release-files needs Node, just and Go alone, so image.sh takes the
-      # core, without the apt of nss_wrapper, as the release does (R28).
+      # job here saves it. release-files needs Node, just and Go alone, so image.sh takes the
+      # core, without the apt of nss_wrapper, as the release does.
       - name: Toolchain image from the cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -67,11 +67,11 @@ jobs:
           TOOLCHAIN_TAR: ${{ runner.temp }}/novatrail-toolchain-core.tar
         run: .github/image.sh
 
-  # The check of modules.json (R07, R41): the signature of the pinned release's index by
+  # The check of modules.json: the signature of the pinned release's index by
   # release-verify, its digest, and the rules against main's — on every pull request and push, with
   # no filter of paths, since a new tag of spec may raise what release-verify accepts. It reads
   # main's modules.json from the history, and spec/justfile from the submodule. Then it lays the
-  # release's packages and runs the test of the first app's path on them (R53): the test's build,
+  # release's packages and runs the test of the first app's path on them: the test's build,
   # with no cache in the toolchain stage, is why the job has 25 minutes.
   modules:
     name: Modules
@@ -85,7 +85,7 @@ jobs:
           fetch-depth: 0
 
       # As in the job Image, but of the stage toolchain: the test of the first app's path starts
-      # PostgreSQL, which needs the nss_wrapper of that stage under the runner's uid (R30), and
+      # PostgreSQL, which needs the nss_wrapper of that stage under the runner's uid, and
       # "Go / toolchain" saves that entry on main for "Go / test".
       - name: Toolchain image from the cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
