@@ -8,7 +8,7 @@
 
 ## 1. How to keep it
 
-- **Topics** 2–11 follow the parts of the service in the order [architecture.md](architecture.md) describes them, and topic 12 is a reading that several parts rest on at once; a topic for another part or for several at once goes at the end of the file.
+- **Topics** 2–11 follow the parts of the service in the order [architecture.md](architecture.md) describes them; a topic for another part or for several at once goes at the end of the file.
 - **What was not read in the primary source** — a copy, a retelling, a page that did not open — the record names as such.
 - **From another repository** a record is cited with the repository's name: `sources 7.1 api`.
 - **A citation inside a quote** — of a decision, a section, a document or a task of the source — is left out as «[…]»: the quote is found in its source by its words.
@@ -124,15 +124,12 @@ For the quota in dollars and its reserve. Read 2026-11-02:
 
 ## 10. Protocol
 
-Connect, protobuf, buf, Fetch and CORS, the check time of `tutor` and the channel of canvas-api.
+Connect, protobuf, buf, Fetch and CORS, the check of an own key at Anthropic and the paths Cloud Run keeps.
 
 ### 10.1. Connect, protobuf and buf, 2026-11-02
 
-For the protocol and what goes on the wire. Read 2026-11-02 — the source code at the latest releases, cloned into the session's temporary folder, and the pages of documentation, checked against their source code:
+For the protocol and what goes on the wire. Read 2026-11-02:
 
-- connect-es [v2.3.0](https://github.com/connectrpc/connect-es/tree/v2.3.0) of 2026-10-27 — the latest, commit 6b7c593: `packages/connect-web/src/connect-transport.ts` — "By default, connect-web clients use the JSON format" and `const useBinaryFormat = options.useBinaryFormat ?? false;`, and `useHttpGet` has "Controls whether or not Connect GET requests should be used when available, on side-effect free methods. Defaults to false"; `packages/connect/src/protocol/serialization.ts` — "In connect-es, unknown JSON fields are ignored by default" and `o.ignoreUnknownFields ??= true;`. `connect-node`, by contrast, has "By default, connect-node clients use the binary format";
-- protobuf-es [v2.16.0](https://github.com/bufbuild/protobuf-es/tree/v2.16.0) of 2026-09-29 — the latest, commit b3b232f: `packages/protobuf/src/from-json.ts` — `ignoreUnknownFields` has "This option ignores unknown fields in parsing, as well as unrecognized enum string representations"; the reference of the generated code — "Open enums can contain numeric values that are not declared in the generated TypeScript enum, so code that receives data from newer schemas should handle unknown enum numbers"; `bytes` in JSON — "JSON value will be the data encoded as a string using standard base64 encoding with paddings"; `useProtoFieldName` defaults to `false`;
-- connect-go [v2.0.2](https://github.com/connectrpc/connect-go/tree/v2.0.2) of 2026-10-21 — the latest, commit 8f69fe4, the module `connectrpc.com/connect/v2`: the JSON codec in `connectproto/connectproto.go` — `MarshalOptions: protojson.MarshalOptions{Resolver: resolved.resolver}` without `UseProtoNames` and `DiscardUnknown: true, // Ensure difference schema versions unmarshal.`, and "Other settings can be configured by mutating the exported fields before use"; `connecthttp/protocol_connect.go` — GET is allowed only for `StreamTypeUnary` with `IdempotencyNoSideEffects`; `WithHTTPGet` has "Note, however, that servers don't automatically set any cache headers";
 - [the Connect protocol](https://connectrpc.com/docs/protocol), no date on the page: on GET — "These requests do not require any special HTTP headers, and can be viewed in a browser tab. They are designed to be easy to make and easy to cache in browsers, proxies, and CDNs"; the error detail — "the "value" field contains unpadded, base64-encoded binary Protobuf data"; the codes — `invalid_argument` and `failed_precondition` — 400, `not_found` — 404, `permission_denied` — 403, `unauthenticated` — 401, `resource_exhausted` — 429, `unavailable` — 503, `unimplemented` — 501, and "there are no user-defined codes";
 - [Connect, CORS](https://connectrpc.com/docs/cors/), no date: "For side-effect-free RPCs such as simple queries, Connect supports GET requests that do not require CORS preflights", if "No request headers must be set"; "If your application uses custom request headers, you must explicitly allow them. This includes commonly used headers such as Authorization";
 - [ProtoJSON](https://protobuf.dev/programming-guides/json/), no date: "Adding values to an enum is safe if the "Emit enum values as integers" is set on all relevant clients"; [the behaviour of enums](https://protobuf.dev/programming-guides/enum/), no date: "Proto3 and editions use *open* enums specifically because of the unexpected behavior that *closed* enums cause";
@@ -143,42 +140,13 @@ For the protocol and what goes on the wire. Read 2026-11-02 — the source code 
 For the token in a header and what goes on the wire. Read 2026-11-02:
 
 - [Fetch Standard](https://fetch.spec.whatwg.org/), "Last Updated 19 October 2026": a request's cache mode — "Unless stated otherwise, it is "default"", and ""default": Fetch will inspect the HTTP cache on the way to the network"; `fetch()` without its own `cache` does not change the mode. `Authorization` is not in the safelist of request headers, and "A CORS non-wildcard request-header name is a header name that is a byte-case-insensitive match for `Authorization`". `Access-Control-Max-Age` — "Indicates the number of seconds (5 by default)", and an entry of the preflight cache holds the URL, and a match requires that "entry's URL equals request's current URL";
-- [HTML Standard, "Updating the image data"](https://html.spec.whatwg.org/multipage/images.html#updating-the-image-data), "Last Updated 30 October 2026": the request for an image — "the result of creating a potential-CORS request given urlString, "image", and the current state of element's crossorigin content attribute", and the page's headers are not in it;
-- Chromium, [`services/network/cors/preflight_result.cc`](https://github.com/chromium/chromium/blob/98b9eab7ac9e36a7228c5143db756f699c8ec4e1/services/network/cors/preflight_result.cc), commit 98b9eab: "constexpr base::TimeDelta kMaxTimeout = base::Hours(2);"; `preflight_cache.h` — "static constexpr size_t kMaxEntriesPerTopFrameSite = 32u;". Firefox, [`netwerk/protocol/http/nsCORSListenerProxy.cpp`](https://github.com/mozilla-firefox/firefox/blob/abbeff4fd9e02e3f6195153493fc0825eafe5d6d/netwerk/protocol/http/nsCORSListenerProxy.cpp), commit abbeff4: "// Cap at 24 hours.".
-
-### 10.3. The check time of `tutor`, 2026-11-02
-
-For the real-time channel. [altnovatrail/tutor](https://github.com/altnovatrail/tutor/tree/be607e5), commit be607e5 — the latest on `main` on 2026-11-02, `docs/architecture.md`, read at the same time through `git`:
-
-- «Итог замера подсказок»: in the column «p50, с» — «| Opus 5.5 · `high` | … | 5,1 | $0,0152 |»;
-- in the same place, «Итог двух вызовов сочинений»: «| Opus 5.5 · `high` | 0 из 198 | 0 из 197 | 1,00 | 2 из 45 | $0,030 | 11,9 |», the last column — «Время p50, с»;
-- the documents have no time for the reading call and the pair of readers: the reading report counts «**время** p50 и p95 и цена вызова», but the runs lie outside git, and the pair is counted by the logs of the separate readers — coverage and errors. The documents do not name the order in which the readers of the pair go in the product;
-- the judge with the key is the same call with the picture of the work: the series of the judge with the key, the medians — «Opus 5.5 · `high` | 4 | 4 из 4 | 2,5 с» and «Haiku 5.5 · `low` | 9 | 7 из 8 | 2,7 с»; the measurements of the check — «**Время ответа**, p50: Opus — 2,5–3,2 с, Haiku · `low` — 2,2–2,8 с» and «Вызов Opus — $0,012 в форме A и $0,020 в форме D, p50 — 3,0–3,9 с»;
-- on the order of the calls: «Вердикт ждёт только вызова чтения, без ключа, а сильная модель — разбор и подсказка, с ключом — идёт только после «пока нет»».
-
-### 10.4. canvas-api on the channel, 2026-11-02
-
-For the real-time channel. [mathtrail/canvas-api, `docs/decisions.md`](https://github.com/mathtrail/canvas-api/blob/0901af0/docs/decisions.md), commit 0901af0 — the latest on `main`, read 2026-11-02 through `gh api`: the decision on the processor of Cloud Run — «При оплате Cloud Run за запросы CPU выделяется только на время обработки запроса, и фоновая работа после ответа почти не получает процессора. Поэтому всё остаётся внутри запроса», and its later text — «Всё по-прежнему делается внутри запроса — довод о процессоре после ответа в силе»; the decision on Centrifugo and OpenFGA — «Centrifugo и OpenFGA из стека не уходят: … они приходят в E15. В E2 их нет не потому, что «проверка — один запрос и один ответ», — этот довод … отверг, — а потому, что в E2 нет беты».
-
-### 10.5. Connect v2, 2026-11-09
-
-For Connect v2 in `serve`. Read 2026-11-09:
-
-- the module of contracts `contracts/v0.9.11`, and `contracts/v0.12.0` after it, where `go.mod` and `apiv1connect/account.connect.go` are the same: `go.mod` requires `connectrpc.com/connect/v2 v2.0.2`, and `apiv1connect/account.connect.go` has `func RegisterAccountServiceHandler(server *connect.Server, svc AccountServiceHandler)`, each method has `if err := stream.Receive(&req); err != nil { return err }` before calling the handler, and `UnimplementedAccountServiceHandler` has `connect.NewError(connect.CodeUnimplemented, …)`;
-- `connectrpc.com/connect/v2` [v2.0.2](https://github.com/connectrpc/connect-go/tree/v2.0.2) — `go 1.26.0`, license Apache-2.0, from the module through `go mod download`; `docs/v2-guide.md`: "an interceptor can reject a call using only its headers, before any payload work, which is what makes authn be able to be an interceptor in v2 rather than HTTP middleware"; "an interceptor can observe individual messages by wrapping the stream before calling `next`"; "only a locally authored `*connect.Error` is serialized to the wire. Any other error reaches the client as a bare code with no message"; "`Mount` installs one `http.Handler` per registered procedure onto a mux"; `connectproto/connectproto.go`: `NewJSONCodec` has `DiscardUnknown: true, // Ensure difference schema versions unmarshal.`, and `MarshalOptions` is a field that can be set "before use".
-
-### 10.6. Redirects of the standard library's mux, 2026-11-13
-
-For the routes of `serve`. Read 2026-11-13 in the sources of the module, through `go list -m -f '{{.Dir}}'` and `go env GOROOT`:
-
-- Go 1.27.4, `src/net/http/server.go`, the comment of `ServeMux`, "Trailing-slash redirection": "If the ServeMux receives a request for the subtree root without a trailing slash, it redirects the request by adding the trailing slash"; the comment of `ServeMux.Handler`: "If the path is not in its canonical form, the handler will be an internally-generated handler that redirects to the canonical path". The comment does not name the trailing slash there; the code does: `findHandler` returns `RedirectHandler(u.String(), StatusTemporaryRedirect)` for both, and for the clean path `u` keeps `r.URL.RawQuery`. This is a conclusion from the code, which the fuzz test `FuzzRoutes` of `internal/server` holds;
-- `connectrpc.com/connect/v2` v2.0.2, `connecthttp/connecthttp.go`, `Mount`: `mux.Handle(spec.Procedure, …)` for each method, and beside them `// "/package.Service/Method" -> subtree pattern "/package.Service/".` with `mux.Handle(service, newUnknownMethodHandler(server, &opts))`; `newUnknownMethodHandler` "routes RPC-shaped POST requests through [connect.Server.Call] and 404s everything else", by `http.NotFound(responseWriter, request)`, whose body in `server.go` of Go is "404 page not found".
+- [HTML Standard, "Updating the image data"](https://html.spec.whatwg.org/multipage/images.html#updating-the-image-data), "Last Updated 30 October 2026": the request for an image — "the result of creating a potential-CORS request given urlString, "image", and the current state of element's crossorigin content attribute", and the page's headers are not in it.
 
 ### 10.7. The check of an own key at Anthropic, 2026-11-14
 
 For the check of an own key. Read 2026-11-14, by the `.md` versions of the pages, before the real check that calls `count_tokens` with the author's dev key:
-- [Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting), its section "Pricing and rate limits": "Token counting is **free to use** but subject to requests per minute rate limits based on your [usage tier]", the table — "| Start | 5,000 |", "| Build | 10,000 |", "| Scale | 20,000 |" requests per minute —, and "Token counting and message creation have separate and independent rate limits. Usage of one does not count against the limits of the other." The same words as sources 1.16 `tutor` read 2026-11-11;
-- [Errors](https://platform.claude.com/docs/en/api/errors): "401 - `authentication_error`: There’s an issue with your [API key] (for example, it’s malformed, revoked, or expired …)"; "403 - `permission_error`: Your API key does not have permission to use the specified resource."; and on a limit one sets oneself: "The API also returns a 400 when usage reaches an organization or workspace [spend limit you set]". Whether `count_tokens` meets this 400 the page does not say. `claude.Refusal` of `tutor` v0.1.33 reads a 400 `invalid_request_error` of the owner's or the workspace's limit as a limit, and `Tutor.CheckKey` takes a limit for a key accepted — a conclusion from the code, not tried against the provider.
+- [Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting), its section "Pricing and rate limits": "Token counting is **free to use** but subject to requests per minute rate limits based on your [usage tier]", the table — "| Start | 5,000 |", "| Build | 10,000 |", "| Scale | 20,000 |" requests per minute —, and "Token counting and message creation have separate and independent rate limits. Usage of one does not count against the limits of the other.";
+- [Errors](https://platform.claude.com/docs/en/api/errors): "401 - `authentication_error`: There’s an issue with your [API key] (for example, it’s malformed, revoked, or expired …)"; "403 - `permission_error`: Your API key does not have permission to use the specified resource."; and on a limit one sets oneself: "The API also returns a 400 when usage reaches an organization or workspace [spend limit you set]". Whether `count_tokens` meets this 400 the page does not say.
 
 ### 10.8. The paths Cloud Run keeps, 2026-11-23
 
@@ -186,26 +154,12 @@ For the path of the health check. [Cloud Run known issues](https://docs.cloud.go
 
 ## 11. Deletion and export
 
-The sign-in service on deletion and fresh sign-in, RFC 9470, the codes of Connect, canvas-api and `app`, Cloud Run jobs and the `changelog` of OpenFGA.
+The sign-in service on deletion and fresh sign-in, RFC 9470, the codes of Connect, Cloud Run jobs and the size of a response of Cloud Run.
 
 ### 11.1. Firebase Auth on deletion and fresh sign-in, 2026-11-02
 
 For the fresh sign-in and the deletion of a profile. Read 2026-11-02:
 
-- the Admin SDK for Go [v4.22.0](https://github.com/firebase/firebase-admin-go/tree/v4.22.0) — the latest release, commit 66a72c3, the sources through `gh api`:
-  - `auth/auth.go`: `Token` has ``AuthTime int64 `json:"auth_time"` ``; `VerifyIDTokenAndCheckRevoked` "verifies the provided ID token, and additionally checks that the token has not been revoked or disabled" and on each refusal returns `nil, err`; `checkRevokedOrDisabled` calls `GetUser` and compares `token.IssuedAt*1000 < user.TokensValidAfterMillis`; `hasAuthErrorCode` — `fe, ok := err.(*internal.FirebaseError)`, without `errors.As`;
-  - `auth/token_verifier.go`: `clockSkewSeconds = 300`, and `IsIDTokenInvalid` — "An ID token is considered invalid when it is malformed (i.e. contains incorrect data), expired or revoked", without "no such user";
-  - `auth/user_mgt.go`: a user that does not exist — "no user exists with the …" with the code `USER_NOT_FOUND`, and `IsUserNotFound` recognizes it; `RevokeRefreshTokens` "updates the user's TokensValidAfterMillis to the current UTC second", and "existing ID tokens may remain active until their natural expiration (one hour)"; `UserMetadata` — "Timestamps are in milliseconds since epoch", and `LastRefreshTimestamp` — "The time at which the user was last active (ID token refreshed), or 0 if the user was never active";
-  - `auth/export_users.go`: `Users(ctx, nextPageToken)` iterates over the project's users;
-  - `integration/auth/user_mgt_test.go`: `TestDeleteNonExistingUser` — `DeleteUser` of a user that does not exist answers with an error that `IsUserNotFound` recognizes; `integration/auth/auth_test.go`: "If a token was issued, and then in the same second tokens were revoked, the token will have the same timestamp as the tokensValidAfterMillis, and will therefore not be considered revoked";
-- the Firebase SDK for the web, `@firebase/auth` [1.13.8](https://github.com/firebase/firebase-js-sdk/tree/@firebase/auth@1.13.8) — commit cc7ead4, the same as `firebase` 13.1.0, the sources through `gh api`:
-  - `packages/auth/src/api/errors.ts`: `[ServerError.USER_NOT_FOUND]: AuthErrorCode.TOKEN_EXPIRED`;
-  - `packages/auth/src/core/errors.ts`: `TOKEN_EXPIRED = 'user-token-expired'` and "The user's credential is no longer valid. The user must sign in again.";
-  - `packages/auth/src/core/user/invalidation.ts`: on `auth/user-disabled` and `auth/user-token-expired` the SDK calls `signOut()` and throws the error on;
-  - `packages/auth/src/core/user/reauthenticate.ts`: re-sign-in checks `user.uid === localId`, otherwise `auth/user-mismatch`, and turns `auth/user-not-found` into the same;
-  - `packages/auth/src/model/public_types.ts`: `authTime` — "This is the time the user authenticated (signed in) and not the time the token was refreshed".
-
-  That re-sign-in sets a new `auth_time` is said directly nowhere: it is a conclusion from `reauthenticateWithPopup` being a new sign-in at the sign-in service. On the dev project on 2026-11-12 a sign-out and a new sign-in by a popup changed the user's last sign-in time at the sign-in service — an indirect check, not the token itself;
 - [the Firebase Auth REST API](https://firebase.google.com/docs/reference/rest/auth), updated 2026-10-20, exchanging a refresh token for an ID token: "USER_NOT_FOUND: The user corresponding to the refresh token was not found. It is likely the user was deleted.";
 - [managing users](https://firebase.google.com/docs/auth/web/manage-users), updated 2026-10-21: "Some security-sensitive actions—such as deleting an account, setting a primary email address, and changing a password—require that the user has recently signed in";
 - [session cookies](https://firebase.google.com/docs/auth/admin/manage-cookies), updated 2026-10-20: "For sensitive applications, the auth_time should be checked before issuing the session cookie", and in the sample — `new Date().getTime() / 1000 - decodedIdToken.auth_time < 5 * 60`, otherwise 401;
@@ -220,21 +174,6 @@ For the fresh sign-in. [OAuth 2.0 Step Up Authentication Challenge Protocol](htt
 
 For the fresh sign-in. [the Connect protocol](https://connectrpc.com/docs/protocol), no date on the page, read 2026-11-02: `unauthenticated` — "Caller doesn't have valid authentication credentials for the operation", and "use `unauthenticated` if the user can't be identified or presents invalid credentials"; `failed_precondition` — "if the client must explicitly fix the system state before retrying".
 
-### 11.4. Deletion in canvas-api, 2026-11-02
-
-For the deletion of a profile. [mathtrail/canvas-api, `docs/`](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), commit 0901af0, read 2026-11-02 through `gh api`:
-
-- the decision on deletion: «Удаление: сначала Neon, потом кортежи OpenFGA; повтор идемпотентен», «Кортежи удаляются пачками до 100, отсутствующие пропускаются», «Аккаунт удаляется в порядке «дети → `parents` → отзыв токенов и `DeleteUser`»»;
-- the specification, on deleting an account: «Повтор после сбоя на `DeleteUser` видит, что строки `parents` уже нет, и просто доводит удаление в Firebase»; «Другие устройства родителя стирают черновики, когда там откроется SPA и узнает об удалении»;
-- the specification, on the fresh sign-in: «Иначе ответ `REAUTH_REQUIRED`», and in the table of codes — «`REAUTH_REQUIRED` | 401 | нужен свежий вход: `auth_time` старше 5 минут»;
-- the privacy document, on deletion: «Удаление требует свежего входа: PIN не подходит, ребёнок может его знать». Its open question П-7 — «Хранить ли доказательство согласия после удаления аккаунта», and «решает юрист».
-
-There is neither a job that completes the deletion nor an answer to the other devices there: the retry was led by the client.
-
-### 11.5. `app` on erasing on the device, 2026-11-02
-
-For the fresh sign-in. [altnovatrail/app, `docs/architecture.md`](https://github.com/altnovatrail/app/blob/375a09b/docs/architecture.md), commit 375a09b, read 2026-11-02 through `gh api`. In «Когда что стирается»: «выход владельца аккаунта — всё аккаунта: базы всех профилей, общий кеш, реестр и сессия»; «вход другого аккаунта — если в реестре другой ID аккаунта, `app` стирает всё прежнее раньше, чем что-либо откроет … Так бывает, когда прежний вход кончился без выхода»; «удаление аккаунта — `api` отвечает, что аккаунта больше нет, и `app` стирает всё аккаунта и выходит».
-
 ### 11.6. Cloud Run jobs, 2026-11-09
 
 For the daily retention job. Read 2026-11-09:
@@ -242,49 +181,9 @@ For the daily retention job. Read 2026-11-09:
 - [the container contract](https://docs.cloud.google.com/run/docs/container-contract), no date: for a Cloud Run job it sets `CLOUD_RUN_JOB` — "The name of the Cloud Run job being run", and for a service `K_SERVICE`, "The name of the Cloud Run service being run";
 - [the task timeout](https://docs.cloud.google.com/run/docs/configuring/task-timeout), no date: "By default, each task runs for a maximum of 10 minutes", and the largest — "up to 168 hours (7 days)"; "If the task attempt does not complete within this time, it will be stopped".
 
-### 11.7. The `changelog` of OpenFGA, 2026-11-09
-
-For the daily retention job. `assets/migrations/postgres/001_initialize_schema.sql` in [openfga/openfga v1.22.1](https://github.com/openfga/openfga/blob/v1.22.1/assets/migrations/postgres/001_initialize_schema.sql), read 2026-11-09: `CREATE TABLE changelog` with the fields `store`, `object_type`, `object_id`, `relation`, `_user`, `operation`, `ulid`, `inserted_at TIMESTAMPTZ NOT NULL` and the key `PRIMARY KEY (store, ulid, object_type)`; there is no index by time.
-
 ### 11.8. The size of a response of Cloud Run, 2026-11-14
 
 For the export and the stored works. [Cloud Run quotas and limits](https://docs.cloud.google.com/run/quotas), read 2026-11-14: "Maximum HTTP/1 response size: 32 MiB per response. Limit applies if not using Transfer-Encoding: chunked or streaming". The export of `api` is one unary response of Connect, whose `api.zip` holds the profile's stored works, each up to 4 MiB.
-
-## 12. canvas-api: decisions and specification
-
-A reading that several parts of the service rest on at once: sign-in and permissions, the database, the quota, the protocol, deletion.
-
-### 12.1. The decisions and specification of canvas-api, 2026-10-19
-
-[mathtrail/canvas-api, `docs/`](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), the branch `main`, commit 0901af0, read 2026-10-19. The repository was cloned into the session's temporary folder, not into a NovaTrail repository. The quotes are word for word:
-
-- the decision on OpenFGA: «OpenFGA работает сайдкар-контейнером в сервисе canvas-api», «хранилище OpenFGA — отдельная база в том же проекте Neon»;
-- the decision on the token check: «Все запросы, кроме горячего пути — выдачи токенов Centrifugo, — проверяют токен с отзывом (`VerifyIDTokenAndCheckRevoked`)»; «Перед `DeleteUser` вызывается `RevokeRefreshTokens`»; «Необратимые действия требуют свежего входа (`auth_time` ≤ 5 минут)»;
-- the specification, on the fresh sign-in: «**Свежий вход** — `auth_time` не старше 5 минут — нужен для удаления профиля ребёнка, удаления аккаунта и смены забытого PIN. Иначе ответ `REAUTH_REQUIRED`, и SPA просит войти заново»;
-- the specification, on the PIN: «PIN — барьер интерфейса, а не граница безопасности»; «Поэтому необратимые действия требуют свежего входа, а не PIN»;
-- the decision on deletion: «Удаление: сначала Neon, потом кортежи OpenFGA; повтор идемпотентен»;
-- the specification, on deleting a profile: «Дневные счётчики родителя остаются: иначе удаление и новый профиль снимали бы потолок трат»;
-- the decision on access to the beta: «Доступ в бету — по одноразовым инвайт-кодам», «Email canvas-api не читает»;
-- the decision on the daily limit: «Исчерпанный дневной лимит не прерывает занятие: ребёнок решает дальше сам, без проверки»; «Сделанный вызов засчитывается, даже если он не удался или вышел по тайм-ауту»;
-- the decision on the HTTP response: «HTTP-ответ приходит последним и повторяет все события на случай разрыва WebSocket»;
-- the decision on the early verdict: «Разбор черновика идёт секунды, поэтому ранний `verdict` по WebSocket по-прежнему нужен»; rejected — «убрать Centrifugo и Upstash и отдавать всё в HTTP-ответе», «убрать OpenFGA и проверять права кодом в Postgres»; «Довод «проверка теперь — один запрос и один ответ» без новых фактов повторно не предлагать».
-- read 2026-11-02 for sign-in and permissions, the same commit, through `gh api`:
-  - the decision on the OpenFGA model: «Модель OpenFGA заранее описывает учителя и класс, но кортежей для них MVP не пишет»;
-  - the decision on the subject of access: «Субъект доступа — всегда родитель: запросы идут с его Firebase ID token, профиль ребёнка передаётся параметром»;
-  - the decision on the stack: «система сразу готова к realtime и B2B»;
-  - the decision on the status `verified`: «Статус `verified` ставит оператор командой `cmd/admin` после того, как получил подписанную форму (П-1)»; «До `verified` профили детей и холсты не создаются»;
-  - the decision on the OpenFGA store: «Сервис находит или создаёт store `canvas`, сравнивает последнюю модель со встроенной и при расхождении записывает новую»;
-  - the specification, on the tuple: «пишется внутри транзакции Neon, до `COMMIT`» — about the OpenFGA tuple; «Он безвреден: права на пустой объект ничего не дают. Его удаляет ежедневная очистка» — about a "dangling" tuple;
-  - the specification, on sign-in: «Firebase Auth, провайдеры Google и Apple. Для Apple нужно членство в Apple Developer Program»;
-  - the specification, on the PIN: «не больше 5 попыток за 15 минут»; «На сервере хранится только хеш argon2id»; «меняется после свежего входа, без старого PIN» — about a forgotten PIN.
-- read 2026-11-02 for the database, the same commit, through `gh api`:
-  - the decision on the stack: in the stack — «Neon Postgres, Upstash Redis»; rejected — «Firestore вместо Postgres»;
-  - the decision on the region: «Neon: `aws-us-east-1` — та же агломерация, задержка до базы около 1–2 мс. У Neon регионы только в AWS (документация Neon, прочитана 2026-10-14)» — about the pairing with Cloud Run in `us-east4`; rejected — `us-central1`: «ближайший Neon — `aws-us-east-2` (Огайо), около 15–20 мс на каждый запрос к базе»;
-  - the decision on deletion: «`changelog` OpenFGA сам не чистится и хранил бы связи «uid ↔ ребёнок» бессрочно»; «Ежедневная очистка удаляет «висящие» кортежи и таблицу `changelog` OpenFGA старше суток»;
-  - the specification, on the stack: migrations — «`github.com/pressly/goose/v3` | v3.28.0»; on the migration job: «Она запускается как Cloud Run job с образом нового релиза до выкладки сервиса»; on changing the schema: migrations — «по схеме «сначала добавить, потом убрать»»;
-  - the specification, on the plans of services: «Neon | Free | 0,5 ГБ на проект, 100 CU-часов в месяц, автопауза через 5 мин (не отключается), восстановление на момент времени — 6 часов»;
-  - the privacy document, on deletion: the database `canvas` is deleted «сразу; из истории восстановления (PITR) — через 6 часов», and in the database `openfga` «`changelog` — ежедневной очисткой, до суток; из PITR — через 6 часов после этого»;
-  - the privacy document, on retention: a child's profile with no activity for 12 months «удаляется автоматически, без отдельного уведомления. Этот срок заранее указан в уведомлении при согласии: email у нас нет, писать некуда (П-6)».
 
 ## 13. Checks of the code
 
