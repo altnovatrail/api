@@ -549,18 +549,22 @@ func (s *Stub) PaperWords(category formatv0.AgeCategory, ownKeyProvider string) 
 }
 
 // TellPaperWords words "explain differently" on a task from paper with a
-// question of the stub's own in the language of w, as TellWords does. Of
+// question of the stub's own in the language of w, as TellWords does, and
+// answers a learner's question with words of its own in that language, which
+// name no number, so that app walks the conversation without a model. Of
 // tutor's checks before its call the stub keeps those of the request's form:
-// another kind of words, no style or a task not in the frame fails with no
-// usage. Past them an own key of an ending of the stub's, own being its value,
-// is refused by it.
+// another kind of words, a question with no words, no style or a task not in
+// the frame fails with no usage. Past them an own key of an ending of the
+// stub's, own being its value, is refused by it.
 func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer {
 	fail := func(err error) tutor.WordsAnswer {
 		return tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	}
 	switch {
-	case w.Ask != tutor.PaperAgain:
+	case w.Ask != tutor.PaperAgain && w.Ask != tutor.PaperQuestion:
 		return fail(fmt.Errorf("tutorstub: no kind of words of paper %d", w.Ask))
+	case w.Ask == tutor.PaperQuestion && strings.TrimSpace(w.Question) == "":
+		return fail(errors.New("tutorstub: the question has no words"))
 	case strings.TrimSpace(w.Style) == "":
 		return fail(errors.New("tutorstub: the words have no style of presentation"))
 	case w.Task < 1 || w.Task > len(w.Tasks):
@@ -568,6 +572,14 @@ func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, ow
 	}
 	if o, refused := refusal(ctx, own); refused {
 		return tutor.WordsAnswer{Outcome: o}
+	}
+	if w.Ask == tutor.PaperQuestion {
+		said := answers["en"]
+		if a, ok := answers[base(w.Language)]; ok {
+			said = a
+		}
+		return tutor.WordsAnswer{Question: said[len(w.Turns)/2%len(said)], Outcome: tutor.Outcome{Kind: tutor.Answered,
+			Usage: s.usage(tutor.CallPaperHint, w.Route, 1)}}
 	}
 	list := questions["en"]
 	if l, ok := questions[base(w.Language)]; ok {
@@ -596,6 +608,20 @@ var questions = map[string][]string{
 		"Какой шаг своего решения ты проверишь первым?",
 		"Что нужно найти в этой задаче?",
 		"Что дано в задаче, если сказать своими словами?",
+	},
+}
+
+// answers are the stub's answers to a learner's question, by language, each
+// the next by the turns before it: one question each, without a number, as the
+// form check and the leak check take them.
+var answers = map[string][]string{
+	"en": {
+		"What did you do in the last line of your work?",
+		"Which part of the task is still unclear to you?",
+	},
+	"ru": {
+		"Что происходит в последней строке твоего решения?",
+		"Какая часть задачи тебе ещё непонятна?",
 	},
 }
 

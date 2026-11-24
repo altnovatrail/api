@@ -109,12 +109,14 @@ const MaxMessage = 11 << 20
 // paperMethods are the methods whose calls of a task from paper ask up to three
 // models in turn, and so run for the time limit of paper: the finding of the
 // tasks, the reading of a statement, the submission of a work, a task of a
-// module's among them, and the opening words, which check the work as it stands.
+// module's among them, the opening words, which check the work as it stands, and
+// a question to the tutor, which checks it too while the attempt keeps no Check.
 var paperMethods = map[string]bool{
 	apiv1connect.PaperServiceFindTasksProcedure:         true,
 	apiv1connect.AttemptServiceReadStatementProcedure:   true,
 	apiv1connect.AttemptServiceSubmitWorkProcedure:      true,
 	apiv1connect.AttemptServiceGetOpeningWordsProcedure: true,
+	apiv1connect.AttemptServiceAskTutorProcedure:        true,
 }
 
 // limited cuts a request short at its time limit, that of paper for

@@ -12,8 +12,8 @@ import (
 
 // An adult reports a problem with a reply of the tutor on an attempt, open or
 // closed, which is kept with its words and text to be reviewed in 3 days; a
-// repeat is the same report, an opening question is reported on a task from
-// paper alone, and the deletion of the profile keeps it with no ID.
+// repeat is the same report, an opening question and an answer to a question
+// are reported on a task from paper alone, and the deletion of the profile keeps it with no ID.
 func TestAProblemIsReported(t *testing.T) {
 	t.Parallel()
 
@@ -58,12 +58,20 @@ func TestAProblemIsReported(t *testing.T) {
 	_, err = report("k-4", &v1.ReportProblemRequest{Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "Where do you begin?",
 		Kind: v1.ProblemKind_PROBLEM_KIND_UNCLEAR})
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+	if _, err := report("k-5", &v1.ReportProblemRequest{AttemptId: paper, Reply: v1.TutorReply_TUTOR_REPLY_ANSWER, Words: "Look at the tens.",
+		Kind: v1.ProblemKind_PROBLEM_KIND_WRONG}); err != nil {
+		t.Errorf("a report on an answer to a question = %v", err)
+	}
+	_, err = report("k-6", &v1.ReportProblemRequest{Reply: v1.TutorReply_TUTOR_REPLY_ANSWER, Words: "Look at the tens.",
+		Kind: v1.ProblemKind_PROBLEM_KIND_WRONG})
+	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
 	for _, bad := range []*v1.ReportProblemRequest{
 		{Reply: v1.TutorReply_TUTOR_REPLY_UNSPECIFIED, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_RUNG, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_UNSPECIFIED, Rung: 1},
 		{Reply: v1.TutorReply_TUTOR_REPLY_RUNG, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG, Rung: 2},
 		{Reply: v1.TutorReply_TUTOR_REPLY_OPENING, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG, Rung: 1},
+		{Reply: v1.TutorReply_TUTOR_REPLY_ANSWER, Words: "w", Kind: v1.ProblemKind_PROBLEM_KIND_WRONG, Rung: 1},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Words: strings.Repeat("w", 4001), Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},
 		{Reply: v1.TutorReply_TUTOR_REPLY_CORRECT_ANSWER, Words: "w", Text: strings.Repeat("t", 1001), Kind: v1.ProblemKind_PROBLEM_KIND_WRONG},

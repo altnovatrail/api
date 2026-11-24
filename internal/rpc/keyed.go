@@ -51,8 +51,9 @@ func Kept(err error) (refusal error, ok bool) {
 type Key struct {
 	// Method is the procedure of the contract.
 	Method string
-	// Slow is a fingerprint by argon2id, of a request that carries a PIN or an
-	// age; SHA-256 otherwise.
+	// Slow is a fingerprint by argon2id, of a request that carries a PIN, an
+	// age or a learner's own question, short enough to be guessed from its
+	// SHA-256; SHA-256 otherwise.
 	Slow bool
 	// Repeat is the answer of a repeat, read in the repeat's transaction, when the
 	// record does not hold the answer itself: the submission it names, or the

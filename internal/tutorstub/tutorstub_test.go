@@ -270,12 +270,26 @@ func TestTheStubWordsATaskFromPaper(t *testing.T) {
 	for name, w := range map[string]tutor.PaperWordsRequest{
 		"no style":       {Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 1, Rung: 1, Language: "en"},
 		"no task":        {Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 3, Rung: 1, Language: "en", Style: "s"},
-		"another kind":   {Route: adult, Ask: tutor.PaperAgain + 1, Tasks: tasks, Task: 1, Rung: 1, Language: "en", Style: "s"},
+		"another kind":   {Route: adult, Ask: 99, Tasks: tasks, Task: 1, Rung: 1, Language: "en", Style: "s"},
+		"no question":    {Route: adult, Ask: tutor.PaperQuestion, Question: " \n", Tasks: tasks, Task: 1, Language: "en", Style: "s"},
 		"no task at all": {Route: adult, Ask: tutor.PaperAgain, Task: 1, Rung: 1, Language: "en", Style: "s"},
 	} {
 		if got := s.TellPaperWords(t.Context(), w, ""); got.Outcome.Kind != tutor.Failed || len(got.Outcome.Usage) != 0 {
 			t.Errorf("%s: %+v, want a failure before the call", name, got)
 		}
+	}
+	question := tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperQuestion, Question: "Why is it wrong?", Tasks: tasks, Task: 1,
+		Language: "ru", Style: "a child"}
+	answered := s.TellPaperWords(t.Context(), question, "")
+	question.Turns = []tutor.PaperTurn{{Learner: true, Text: "Why?"}, {Text: answered.Question}}
+	next := s.TellPaperWords(t.Context(), question, "")
+	for _, a := range []tutor.WordsAnswer{answered, next} {
+		if a.Outcome.Kind != tutor.Answered || tutor.PaperBreach(a.Question, "ru", tasks) != "" || len(a.Outcome.Usage) != 1 {
+			t.Errorf("the answer to a question = %+v, want Russian words that pass the checks, at the price of the call", a)
+		}
+	}
+	if next.Question == answered.Question {
+		t.Errorf("the answer after a turn = %q, want another", next.Question)
 	}
 	if !s.PaperWords(formatv0.AgeCategoryAdult, "") || tutorstub.New(gate{}).PaperWords(formatv0.AgeCategoryAdult, "") {
 		t.Error("PaperWords is not the gate's admission")

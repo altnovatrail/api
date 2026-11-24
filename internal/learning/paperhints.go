@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/langtag"
 	"github.com/altnovatrail/api/internal/logging"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -38,8 +39,8 @@ func (g gateTutor) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest
 // task from paper, which a Check that gave no ladder leaves.
 const openingRung = 0
 
-// wordsLanguage is the language of the words of a task from paper of a profile
-// with no language of its interface.
+// wordsLanguage is the language of the words of a task from paper when the
+// request names none and the profile has no language of its interface.
 const wordsLanguage = "en"
 
 // paperTelling is what "explain differently" on a task from paper adds to its
@@ -77,10 +78,32 @@ func (s *Service) holdAny(ctx context.Context, tx pgx.Tx, profileID, attemptID s
 }
 
 // paperLanguage is the language of the words of a task from paper of the
-// profile, and whether its hint mode shows where.
+// profile — the one the request names (askedLanguage), else the profile's
+// interface's, else English — and whether its hint mode shows where.
 func paperLanguage(ctx context.Context, tx pgx.Tx, profileID string) (string, bool, error) {
 	language, showWhere, err := store.PaperWordsOf(ctx, tx, profileID)
-	return cmp.Or(language, wordsLanguage), showWhere, err
+	asked, _ := ctx.Value(wordsKey{}).(string)
+	return cmp.Or(asked, language, wordsLanguage), showWhere, err
+}
+
+// wordsKey holds, in the context of a request that gives words on a task from
+// paper, the language of the screens app shows the learner. The words and the
+// voice that says them are then in the language the learner reads, whatever
+// the profile keeps.
+type wordsKey struct{}
+
+// askedLanguage is ctx with the request's words_language, a well-formed tag,
+// which the words of a task from paper are written in; an empty one leaves the
+// profile's language. The tag reaches a model as text, so a malformed one is
+// refused.
+func askedLanguage(ctx context.Context, tag string) (context.Context, error) {
+	if tag == "" {
+		return ctx, nil
+	}
+	if !langtag.WellFormed(tag) {
+		return ctx, rpc.Malformed("words_language")
+	}
+	return context.WithValue(ctx, wordsKey{}, tag), nil
 }
 
 // paperTold is what "explain differently" on rung of the attempt h of a task
@@ -102,21 +125,31 @@ func paperTold(ctx context.Context, tx pgx.Tx, profileID string, h held, rung in
 	if err != nil {
 		return nil, err
 	}
-	statements := readStatements(reading)
 	p := &paperTelling{language: language, rung: ladderRung(check, rung, language)}
-	for i, slot := range check.GetSlots() {
+	p.tasks, p.task = framed(check, readStatements(reading))
+	return p, nil
+}
+
+// framed is the tasks of the frame as the Check c gave them, each with its
+// statement where "Recognise" read as many statements as the Check gave tasks,
+// the hidden answer of a task not yet correct alone; and the number of the
+// first task not correct, from 1, or 0 when every task is.
+func framed(c *paperv1.Check, statements []string) ([]tutor.PaperWordsTask, int) {
+	var tasks []tutor.PaperWordsTask
+	first := 0
+	for i, slot := range c.GetSlots() {
 		t := tutor.PaperWordsTask{Solution: slot.GetSolution(), Answer: slot.GetAnswer(), Read: slot.GetRead()}
-		if len(statements) == len(check.GetSlots()) {
+		if len(statements) == len(c.GetSlots()) {
 			t.Statement = statements[i]
 		}
 		if slot.GetVerdict() == checkCorrect {
 			t.Answer = ""
-		} else if p.task == 0 {
-			p.task = i + 1
+		} else if first == 0 {
+			first = i + 1
 		}
-		p.tasks = append(p.tasks, t)
+		tasks = append(tasks, t)
 	}
-	return p, nil
+	return tasks, first
 }
 
 // ladderRung is the words of rung of the ladder of the Check c, the last rung
@@ -270,6 +303,9 @@ func (a *AttemptService) GetOpeningWords(ctx context.Context, req *v1.GetOpening
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
 	if err != nil {
+		return nil, err
+	}
+	if ctx, err = askedLanguage(ctx, req.GetWordsLanguage()); err != nil {
 		return nil, err
 	}
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
