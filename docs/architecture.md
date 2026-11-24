@@ -718,7 +718,7 @@ In the code: the migration `0015` — the tables `account_quota` and `profile_qu
 
 **Check against the privacy document of `spec`:**
 - the counters and the offset are pseudonymous data about when and how much the family learns. They do not go to AI, and the logs have neither IDs nor the offset. What goes to AI in each call the quota does not change;
-- the offset is a coarse location, and the privacy document of `spec` promises, by the UK Age Appropriate Design Code, that there is no geolocation. The clock offset does not fall under this promise: it names a time zone, not the street and city that COPPA §312.2 calls geolocation, — it is data of the account, which the policy speaks of (П-23 closed);
+- the offset is a coarse location, and the privacy document of `spec` promises, by the UK Age Appropriate Design Code, that there is no geolocation. The clock offset does not fall under this promise: it names a time zone, not the street and city that COPPA §312.2 calls geolocation (sources 3.1 spec), — it is data of the account, which the policy speaks of (П-23 closed);
 - the privacy document of `spec` names the tariff, the clock offset and the end of the day in the account, and the fields of the account of `api` and the quota counters by a reference to this document;
 - the period of the counters is no longer than 2 days after the end of their day, as П-9 holds.
 
@@ -731,7 +731,7 @@ In the code: the migration `0015` — the tables `account_quota` and `profile_qu
 | stage 3 | tariffs beyond the "closed slice", payment and subscription, the cap with open sign-in (Д10) |
 
 **What the neighbours hold:**
-- О-14 and П-9 hold the rule of the quota of stage 2, the estimate of spending and the period of the counters, and `spec` holds that the clock offset is no geolocation. A free quota for children and grants are the question О-5;
+- О-14 and П-9 hold the rule of the quota of stage 2, the estimate of spending and the period of the counters. A free quota for children and grants are the question О-5;
 - `tutor` — the worst price of each kind of call and the expected price of the kinds it has measured, the limited `MaxOutputTokens` of each kind of product call and the cause of the outcome "limit reached";
 - `engine` — a pool that may be limited and empty, and what the engine gives on an empty one. What the engine gets about lessons and when it is called is set by its card in `spec`, and the design is that of the lesson, below.
 

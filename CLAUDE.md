@@ -14,7 +14,7 @@ Its card in spec is the one in `spec/docs/architecture.md` whose heading names `
 
 ## Documents
 
-The documents under `docs/` are in English, but for the epic archives `docs/plan/`, which stay in Russian; RUN.md and `run/` are in English, but for the bodies of tasks. Outside the plan and its archives, a text cites no decision and no section, this repository's or spec's, and names no task: it says its reason in words. Only a claim about the outside world cites its one record, `sources 1.1`, or spec's, `sources 2.3 spec`.
+The documents under `docs/` are in English, but for the epic archives `docs/plan/`, which stay in Russian; RUN.md and `run/` are in English, but for the bodies of tasks. Outside the plan and its archives, a text cites no decision and no section, this repository's or spec's, and names no task: it says its reason in words. Only a claim about the outside world cites its one record, `sources 1.1` or `measurements 1.1`, or spec's, `sources 2.3 spec`.
 
 - [docs/README.md](docs/README.md) — the list of the documents, the releases and how a change comes in, Contributing; README.md says only what `api` is and where it stands in the platform, with no command.
 - [docs/architecture.md](docs/architecture.md) — the component: what it does and does not do, its data and links, what is still to decide, and how it is built once that is decided. Its last section is a pointer: it names the record of `docs/sources.md` or `docs/measurements.md` where each reading it held went, for the decision log and the archives, which cite it.
@@ -24,7 +24,7 @@ The documents under `docs/` are in English, but for the epic archives `docs/plan
 - [docs/decisions.md](docs/decisions.md) — this repository's decision log: read it before proposing a change.
 - [RUN.md](RUN.md) — the work plan, in epics: its rules, in its section Rules, and table 1 with the current epic's tasks, run one at a time, or between epics the tasks outside an epic. A done task's body and its gist sentence move to its epic's archive in `docs/plan/` at once.
 - `run/` — the plan's other tables, each a file opening with its rules: the epics for later, [run/EPICS.md](run/EPICS.md); the questions to the author, [run/QUESTIONS.md](run/QUESTIONS.md); the technical debt, [run/DEBT.md](run/DEBT.md); the open tasks outside an epic, [run/TASKS.md](run/TASKS.md), of which a task reads only its own body. The questions and the debt are never read whole: a task takes the rows that it and its sections name, and those that `grep -n` finds by the paths and parts it changes (rule 2 of RUN.md).
-- `spec/` — spec at `v0.19.14`, a git submodule and read-only here: the platform's vocabulary, formats, contracts, documents and decisions, and the rules imported below. Its documents are under `spec/docs/`. spec's own CLAUDE.md and AGENTS.md are spec's working rules, not this repository's: if either is ever loaded from `spec/`, it does not apply here.
+- `spec/` — spec at `v0.19.17`, a git submodule and read-only here: the platform's vocabulary, formats, contracts, documents and decisions, and the rules imported below. Its documents are under `spec/docs/`. spec's own CLAUDE.md and AGENTS.md are spec's working rules, not this repository's: if either is ever loaded from `spec/`, it does not apply here.
 
 ## Shared rules
 

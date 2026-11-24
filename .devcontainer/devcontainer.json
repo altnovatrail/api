@@ -90,18 +90,18 @@
             },
             // Exact versions; the Claude Code extension matches CLAUDE_CODE_VERSION.
             "extensions": [
-                "anthropic.claude-code@2.1.280",
+                "anthropic.claude-code@2.1.331",
                 // OpenAI's coding agent, signed in with a ChatGPT plan. The extension brings
                 // its own CLI and sandbox, so the image installs nothing for it.
-                "openai.chatgpt@26.1007.21434",
-                "redhat.vscode-yaml@1.24.0",
+                "openai.chatgpt@26.1117.41037",
+                "redhat.vscode-yaml@2.0.0",
                 // Starts just-lsp, which the image installs at JUST_LSP_VERSION.
                 "nefrob.vscode-just-syntax@0.10.2",
                 // Mermaid in the Markdown preview: the prerequisite DAG and the data flows.
                 "bierner.markdown-mermaid@1.32.1",
-                "eamodio.gitlens@19.2.0",
+                "eamodio.gitlens@19.6.1",
                 // The extensions of this repository's kind.
-                "golang.go@0.56.1"
+                "golang.go@0.58.0"
             ]
         }
     }

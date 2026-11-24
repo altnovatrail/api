@@ -146,7 +146,7 @@ ARG GH_VERSION=2.101.0
 # warns on every justfile it opens when it is missing.
 ARG JUST_LSP_VERSION=0.10.0
 # Claude Code CLI. The VS Code extension in devcontainer.json must have the same version.
-ARG CLAUDE_CODE_VERSION=2.1.280
+ARG CLAUDE_CODE_VERSION=2.1.331
 # The sums, as above: gh_<version>_checksums.txt of the gh release, SHA256SUMS of just-lsp's.
 # The helper below repeats toolchain-core's rather than leaving it in that image as a script: the
 # checks run in the toolchain images, and nothing there needs it.

@@ -8,8 +8,8 @@ require (
 	github.com/altnovatrail/engine v0.1.8
 	github.com/altnovatrail/learner-model v0.1.19
 	github.com/altnovatrail/module-kit v0.3.16
-	github.com/altnovatrail/spec v0.19.14
-	github.com/altnovatrail/spec/contracts v0.19.14
+	github.com/altnovatrail/spec v0.19.17
+	github.com/altnovatrail/spec/contracts v0.19.17
 	github.com/altnovatrail/tutor v0.1.61
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
