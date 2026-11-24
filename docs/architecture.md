@@ -4,7 +4,7 @@
 >
 > What the component does, what it does not do and what is still to be decided about it. These are the details of its card, the one in `spec/docs/architecture.md` whose heading names `api`. The card stays the summary: if the details change what it says, it is changed in `spec` by the same route as the questions into its registers, a row of [run/QUESTIONS.md](../run/QUESTIONS.md) opening with the mark «В реестр spec».
 >
-> Why it was decided so and not otherwise is in [decisions.md](decisions.md); the work plan is in [RUN.md](../RUN.md). The external facts the document stands on are the records of [sources.md](sources.md), and the results of measurements are [measurements.md](measurements.md). The terms are those of the glossary, `spec/docs/concepts.md`; the documents and decisions of `spec` lie in `spec/docs/`.
+> Why it was decided so and not otherwise is in [decisions.md](decisions.md); the work plan is in [RUN.md](../RUN.md). A fact no run of ours checks — a provider's terms, a price, a law, a page with no version — is a record of [sources.md](sources.md), and a claim here cites the record; a library's documentation or code at a version or commit is a link beside the claim, a test or a measurement its evidence, and the results of measurements are [measurements.md](measurements.md). The terms are those of the glossary, `spec/docs/concepts.md`; the documents and decisions of `spec` lie in `spec/docs/`.
 
 ## 1. Purpose and bounds
 
@@ -120,12 +120,12 @@ How the component is built by the items above. The first ten subsections are the
 
 ### 3.1. Sign-in and permissions
 
-The facts about the services are in the records sources 2.1–2.3, 10.2 and 12.1, and for the code in 2.4–2.6.
+The facts about the services are in the records sources 2.1, 2.2, 10.2 and 12.1, and the pages for the code in 2.4 and 2.6.
 
 **The sign-in service:**
 - Firebase Auth. The dev project of `api` is without the upgrade to Identity Platform, and the platform's production project works with Identity Platform: `infra` upgrades and configures it by code — the authorized domains `<project>.firebaseapp.com` and `<project>.web.app`, sign-in only by the Google window, email, phone and anonymous sign-in off, the activity log off, and only `api` deletes a user. The service account of `api` gets the role `signInUsers` — `firebaseauth.users.get`, `.update` and `.delete` — exactly for the four calls of Identity Toolkit that the Admin SDK of `api` makes: `accounts:lookup` — the revocation check of each ID token, `accounts:batchGet` — iterating over users in `api sweep`, `accounts:update` — revoking tokens, `accounts:delete` — deleting a user (the source files `auth/auth.go`, `auth/user_mgt.go` and `auth/export_users.go` of SDK v4.22.0, read 2026-11-09). [build.md](build.md) names them for `infra`, which grants the role, and a new call comes as a row «в реестр spec» before the release that makes it. Sign-in is through Google alone; Apple waits for Т-41 (Д3). There is no email and password, no email links and no phone.
 - `api` calls the sign-in service through a narrow port of the Admin SDK for Go, `firebase.google.com/go/v4`. The port does four things: it checks the token and gives the UID of the sign-in service, `auth_time` and the refusal class, revokes tokens, deletes a user, and iterates over users with the time of the last sign-in and of the token refresh — for the operator's job. The subject of the permissions is the account ID in `api`, and the UID of the sign-in service lies only in the account's record: another sign-in service changes the adapter, not the permissions and the data. There is no shared OIDC adapter for self-hosting in the first slice (Д4).
-- The port is the package `internal/authn`, the adapter is the Admin SDK for Go, at the version of `go.mod`. Revoking tokens and deleting a user are one operation of the port, `RemoveUser`. The adapter's tests run on the real SDK against a fake Google, without an emulator, and the adapter makes the binary about one and a half times larger (measurements 1.2). The service account key is the secret `API_FIREBASE_CREDENTIALS`, only of the type `service_account` and only outside a deployment, and in Cloud Run the service's credentials are used, without a key (sources 2.5).
+- The port is the package `internal/authn`, the adapter is the Admin SDK for Go, at the version of `go.mod`. Revoking tokens and deleting a user are one operation of the port, `RemoveUser`. The adapter's tests run on the real SDK against a fake Google, without an emulator, and the adapter makes the binary about one and a half times larger (measurements 1.2). The service account key is the secret `API_FIREBASE_CREDENTIALS`, only of the type `service_account` and only outside a deployment, and in Cloud Run the service's credentials are used, without a key ([`auth/auth.go`](https://github.com/firebase/firebase-admin-go/blob/v4.22.0/auth/auth.go) of the Admin SDK v4.22.0; [`option/option.go`](https://github.com/googleapis/google-api-go-client/blob/v0.279.0/option/option.go) of google-api-go-client v0.279.0).
 - The app reads the parameters of the sign-in service from the deployment configuration — this is an item of the card of `app`.
 
 **The token check:**
@@ -163,7 +163,7 @@ type learner
 - `can_learn` — learning requests, `can_manage` — an adult's actions on a profile, `can_view` — reading progress: at stage 5 also by the teacher of a class.
 - `classroom` and `teacher` are for stage 5: the model describes them in advance, and the first slice writes no tuples for them.
 - Attempts, lessons and everything else about a profile are rows of the database with the profile's ID, not objects of OpenFGA: `api` checks the permission on the profile and reads the row with this ID.
-- OpenFGA works as a library in the process of `api`, not as a sidecar. The store is Postgres, a separate database `openfga` in the same Neon project as the database of `api`. The store's migrations are OpenFGA's own files, `assets`, which the command `api migrate` runs by the same goose with a session lock as the migrations of the database of `api`; `RunMigrations` does not fit: it is without a lock, and its package brings into the binary a MySQL driver under MPL-2.0 (sources 2.4, 3.5). OpenFGA makes the binary almost three times larger (measurements 1.1). The store of `api` and the model are also created by `migrate`, under its lock, and `serve` at start only finds the store and, among its models, the built-in one: if there is none, it does not start. The model, like the schema, changes by the rule "first add, then remove". The model is the file `internal/authz/model.fga`, this block verbatim, and a test holds one to the other. The version of OpenFGA is exact, in `go.mod`.
+- OpenFGA works as a library in the process of `api`, not as a sidecar. The store is Postgres, a separate database `openfga` in the same Neon project as the database of `api`. The store's migrations are OpenFGA's own files, `assets`, which the command `api migrate` runs by the same goose with a session lock as the migrations of the database of `api`; `RunMigrations` does not fit: it is without a lock, and its package brings into the binary a MySQL driver under MPL-2.0 (sources 2.4; [`migrate.go`](https://github.com/openfga/openfga/blob/v1.22.1/pkg/storage/migrate/migrate.go) of OpenFGA v1.22.1). OpenFGA makes the binary almost three times larger (measurements 1.1). The store of `api` and the model are also created by `migrate`, under its lock, and `serve` at start only finds the store and, among its models, the built-in one: if there is none, it does not start. The model, like the schema, changes by the rule "first add, then remove". The model is the file `internal/authz/model.fga`, this block verbatim, and a test holds one to the other. The version of OpenFGA is exact, in `go.mod`.
 - The tuple is written in a transaction of the database, before `COMMIT`: OpenFGA has its own database, so the tuple is written from inside the open transaction of the database of `api`, after the profile's rows. If it was not written, the transaction rolls back; if it was written and `COMMIT` did not go through, a "dangling" tuple remains of a profile that is not in the database. It gives permissions to nothing, and the operator's daily job removes it.
 
 **Actions of an adult and of a learner.** On a shared device there is one token — the account owner's —, and the server does not know who holds the device. So kinds of actions are distinguished:
@@ -242,17 +242,17 @@ Creating a profile is an action on the account, and it goes like this:
 
 ### 3.2. Database and learner model
 
-The facts about Neon and about the precedents are in the records sources 3.1–3.3 and 12.1, and those about the test database and migrations in 3.4 and 3.5.
+The facts about Neon and about the precedents are in the records sources 3.1, 3.2, 3.5 and 12.1.
 
 **Database:**
 - Neon Postgres, as in canvas-api. There is one project, and it has two databases: `api` — the data of `api` — and `openfga` — the OpenFGA store. They share the region and the history window.
 - Neon scales to zero, as `spec` requires of the platform's database: compute goes to sleep after 5 minutes idle and wakes up on the next request, usually within a few hundred milliseconds. On the Launch plan this can be turned off.
 - The region is the USA: Neon `aws-us-east-1`, Cloud Run `us-east4`. The Neon dev project of `api` is also in `aws-us-east-1`. Neon works only in AWS: it no longer creates projects in Azure, and Google Cloud is not on its list (sources 3.1). So the database's region is a Neon region near the Cloud Run region, like the pair `aws-us-east-1` and `us-east4` of canvas-api.
 - Connections are only over TLS: Neon accepts no others. The requests of `serve` go through Neon's pooler — PgBouncer in transaction mode, without `SET`, `LISTEN`, `PREPARE` at the SQL level and session locks, but with the protocol's prepared statements, which is what pgx uses, — and migrations go directly: goose holds a session lock. So there are two connection strings per database: for `api`, `API_DATABASE_URL` of the pooler and the direct `API_MIGRATE_DATABASE_URL`, for `openfga`, `API_OPENFGA_DATABASE_URL` and `API_MIGRATE_OPENFGA_DATABASE_URL`, all of them secrets and all with `sslmode=verify-full`: in pgx `require` does not check the certificate.
-- The migrations of both databases are the operator's migrations job. The tool is goose v3, the driver pgx v5, and the migrations are the command `api migrate`, embedded in the binary and only forward: the schema changes by the rule "add first, then remove", and only a migration with the mark `-- contract:` removes (sources 3.5). A deployment runs it before the revision takes requests ([build.md](build.md)).
+- The migrations of both databases are the operator's migrations job. The tool is goose v3, the driver pgx v5, and the migrations are the command `api migrate`, embedded in the binary and only forward: the schema changes by the rule "add first, then remove", and only a migration with the mark `-- contract:` removes ([README](https://github.com/pressly/goose/blob/v3.29.0/README.md) of goose v3.29.0). A deployment runs it before the revision takes requests ([build.md](build.md)).
 - Backups are Neon's history window: within it the database can be restored to any moment, and what was deleted lives in the history until it leaves the window. On Free the window is 6 hours, on Launch a day by default, and at most 7 days. `api` makes no snapshots of the database: a snapshot would keep what was deleted after the window too. A snapshot with a term of its own comes only by a change of this decision on the database. The deployment is on the Launch plan with a window of 1 day: what was deleted leaves the history within a day.
 - The first app — a Neon dev project on the Free plan, which the author creates. The connection strings lie outside the repository, not in the folder `/workspaces/api`: `api` takes them from a variable or from a file whose path is named by a variable with the suffix `_FILE`.
-- Tests of code with the database — `embedded-postgres` v2: a real Postgres 17 without Docker, the same in the container and in CI, and the Neon dev project runs the same major version, — one server per test package and a database of its own for each test, a copy of a template database through which the migrations went once (sources 3.4, 3.5). The library checks Postgres against the sums of its manifest, and `go.sum` holds the manifest. The supervisor is built by the tests from the module's source files and passed through `Config.Supervisor`: a downloaded one the library would check against `checksums.txt` of the same release at run time.
+- Tests of code with the database — `embedded-postgres` v2: a real Postgres 17 without Docker, the same in the container and in CI, and the Neon dev project runs the same major version, — one server per test package and a database of its own for each test, a copy of a template database through which the migrations went once ([README](https://github.com/fergusstrange/embedded-postgres/blob/v2.0.1/README.md) of embedded-postgres v2.0.1). The library checks Postgres against the sums of its manifest, and `go.sum` holds the manifest. The supervisor is built by the tests from the module's source files and passed through `Config.Supervisor`: a downloaded one the library would check against `checksums.txt` of the same release at run time.
 
 **Learner model:**
 - It lives in the database of `api`, is kept as an append-only evidence log, and the skills' state is a cache (П-7, Т-22).
@@ -300,7 +300,7 @@ The facts about Neon and about the precedents are in the records sources 3.1–3
 | idempotency keys: the account, the key — in the account's space, — the method, the profile ID, the target — an attempt, a run or, for "something else", the profile; for a request of the account itself — the PIN, child consent — the account itself, — the request's fingerprint, a reference to what was recorded — a submission or a choice — or an answer without content, as for the PIN, the state "in progress" or "done", and the time. The fingerprint is SHA-256 of the request without the key, and for a request with the PIN or an age, argon2id with the record's salt: a fast hash would give them away | the database of `api` | "in progress" — no longer than the request time limit, 30 s; records older than a day are deleted by the operator's daily retention job: no longer than 2 days. They are deleted with the profile, and the records of the account's own requests with the account | no: a service field |
 | the list of countries before the DPIA: the country code and the time when the operator opened it | the database of `api` | until the operator removes the country | no: a service record, it holds no learner data |
 | OpenFGA tuples "account — profile" | the database `openfga` | deleted with the profile, after the database transaction; a "dangling" one is removed by the daily job | no: this is the account's list of profiles, and it goes with the profiles |
-| OpenFGA's `changelog` — the history of tuple writes | the database `openfga` | no longer than two days: OpenFGA does not clean it itself, and the operator's daily job deletes records older than a day (sources 2.3, 11.7) | no |
+| OpenFGA's `changelog` — the history of tuple writes | the database `openfga` | no longer than two days: OpenFGA does not clean it itself, and the operator's daily job deletes records older than a day ([`.config-schema.json`](https://github.com/openfga/openfga/blob/v1.22.1/.config-schema.json) of OpenFGA v1.22.1; sources 11.7) | no |
 | Neon's history — everything listed, as it was at a moment in the past | Neon, both databases | the history window: in the deployment, 1 day, on the Launch plan; in the dev project on Free, 6 hours | no |
 
 In code the rows of attempts, runs, the log, the cache and the choices are tables of migration `0005`, as a skeleton: keys, links to the profile, the constraints "one open" and the fields of the row's life; their other fields come by the migrations the table above names, and among them `0006` gives the attempt the number of wrong answers and the time the technique was given at a step, and the choice of a task the module and the task. The log holds append-only by a trigger, and the cache row is created by the creation of a profile. A submission with a verdict is a row of `submissions`: its answer — the verdicts, what was read and the solved task, — and the record of the submission's key refers to it rather than holds the answer.
@@ -328,7 +328,7 @@ In code the record of a choice is a row of `engine_choices` with the fields of m
 
 ### 3.3. Module versions and packages in the image
 
-The facts about `modules` and `module-kit` the design rests on are in the record sources 4.1, and those about the CI checks, embedding the file and the scheduled job in 4.2–4.4.
+The facts about the CI checks and the scheduled job the design rests on are in the records sources 4.2 and 4.4.
 
 **What the decision starts from:**
 - an attempt stores the digest of its package — the digest of its inventory, — the module format version, the version of `module-kit` and the seed, and the verdict is repeated from the stored observation without AI. A module runs by the format version that its module manifest names, and a new format version does not change its verdict until the author moves the module to it;
@@ -393,7 +393,7 @@ A rollback to the previous major is an extreme case. A withdrawn newest major is
 
 - `release` is the tag of a release of `modules`, `vX.Y.Z`, as any NovaTrail repository numbers its releases. `index` is the digest of the bytes of the file `module-index.json` of this release: `sha256:` and 64 lowercase characters, like a digest in the format (the text of the module format, [spec/format/README.md](../spec/format/README.md)). The index is a canonical text, so this is also the digest of its canonical text.
 - The file lists no modules: a learner has access to the modules of the index that suit them by audience, and a module is not selected by explanation language: the profile has no languages of the learner. It holds no package digests: the index names them, and the chain from it holds each file.
-- `api` embeds the file in the binary by a Go package at the root of the module, beside the file: a `//go:embed` pattern is read from the folder of its own package and does not accept `..` (Go documentation, sources 4.3). There is no copy of the file: CI checks the same file that is embedded, and the image build reads that same file. It is changed by a pull request of the author.
+- `api` embeds the file in the binary by a Go package at the root of the module, beside the file: a `//go:embed` pattern is read from the folder of its own package and does not accept `..` ([`embed`](https://pkg.go.dev/embed@go1.27.3) of Go 1.27.3). There is no copy of the file: CI checks the same file that is embedded, and the image build reads that same file. It is changed by a pull request of the author.
 
 **Check in CI** — a job of its own in `.github/workflows/ci.yml`, beside the shared ones, in the stage `toolchain` of the container, with network:
 1. takes from the release of `altnovatrail/modules` with the tag `release` the files `module-index.json` and `module-index.json.sigstore.json` — by the public address, without a token, as the shared release takes the previous index for a release of `modules`;
@@ -431,11 +431,11 @@ Any mismatch is a build refusal. The build needs network. In code this is the co
 - tests of code run without network, on the package and index vectors of `spec` — `format/vectors/packages/` and `format/vectors/indexes/`, — which the Go code takes from the Go module `spec`, `spec.Format`, of the format's current version;
 - which modules the pinned release holds, and their current versions, the job "Modules" prints: among them `english-essays`, with tasks with a rubric, `grade-3-math`, on a workbook whose cells the code does not begin yet (Д24), and `check-board`, the tasks of `tutor`'s board on a handwriting sheet, for adults, which a deployment at the rung `full` refuses "not admitted". The test of the job "Modules" walks the path of the first app on the packages, and the owner's path on the board module in the dev mode. The recipe is `just packages`, by default into the folder `/home/vscode/.novatrail-dev/packages` of the dev volume, and `serve` takes it as `API_PACKAGES_DIR`.
 
-**What `api` expects from `module-kit`:** reading packages of the format's current version and checking them by the chain from the index that a pull request of `api` pinned. These are the Go packages of `module-kit` at the version of `go.mod`: `modulepackage` reads a package by the chain of digests, `moduleindex` reads the index and the version of a new attempt, and `observation` does the reading join and the verdict (sources 4.1). The newest version that is not withdrawn, for a new attempt, is chosen by a function of the `module-kit` library — its command `open` uses the same one, — and the rules of version comparison are in the text of the module format, [spec/format/README.md](../spec/format/README.md): in 0.y.z, y plays the major, and while the format is v0, a module's move to a new module format version is a major change.
+**What `api` expects from `module-kit`:** reading packages of the format's current version and checking them by the chain from the index that a pull request of `api` pinned. These are the Go packages of `module-kit` at the version of `go.mod`: `modulepackage` reads a package by the chain of digests, `moduleindex` reads the index and the version of a new attempt, and `observation` does the reading join and the verdict. The newest version that is not withdrawn, for a new attempt, is chosen by a function of the `module-kit` library — its command `open` uses the same one, — and the rules of version comparison are in the text of the module format, [spec/format/README.md](../spec/format/README.md): in 0.y.z, y plays the major, and while the format is v0, a module's move to a new module format version is a major change.
 
 ### 3.4. Carrying progress over after a major version of a module
 
-The facts about `learner-model` and `module-kit` the design rests on are in the record sources 5.1.
+The facts about `learner-model` and `module-kit` the design rests on are in their plans, [RUN.md](https://github.com/altnovatrail/learner-model/blob/9f338ae/RUN.md) and [docs/architecture.md](https://github.com/altnovatrail/learner-model/blob/9f338ae/docs/architecture.md) of `learner-model` at 9f338ae and [RUN.md of `module-kit`](https://github.com/altnovatrail/module-kit/blob/1a54028/RUN.md) at 1a54028.
 
 **What the decision rests on:**
 - a published skill ID never names another skill: a skill whose meaning changed gets a new ID. Skill IDs lie in the publisher's namespace, and outside a module a skill is named by its full ID — the module, the kind and the local ID (the text of the module format, [spec/format/README.md](../spec/format/README.md));
@@ -1469,24 +1469,24 @@ A summary of the design above for whoever builds `api`: what parts it consists o
 
 ## 4. Sources
 
-The records of sources — the external facts this document rests on, with the address, the date read and the quote — are [sources.md](sources.md), and the results of measurements [measurements.md](measurements.md); a claim above cites its record: `sources 7.1`, `measurements 2.1`. This section is a pointer for the decision log and the archives of `docs/plan/`, which cite this section by its number: the table names the record of each reading, by its name here. The measurements it held — the size of the binary with OpenFGA and with the port of the Admin SDK — are measurements 1.1 and 1.2, the size of the image is measurements 1.3, and the measurements of the first app, of the quota and of the protocol, are measurements 2.1 and 2.2.
+The records of sources — the facts no run checks that this document rests on, with the address, the date read and the quote — are [sources.md](sources.md), and the results of measurements [measurements.md](measurements.md); a claim above cites its record: `sources 7.1`, `measurements 2.1`. This section is a pointer for the decision log and the archives of `docs/plan/`, which cite this section by its number: the table names the record of each reading, by its name here, or the library or repository at its version or commit where the reading needs no record. The measurements it held — the size of the binary with OpenFGA and with the port of the Admin SDK — are measurements 1.1 and 1.2, the size of the image is measurements 1.3, and the measurements of the first app, of the quota and of the protocol, are measurements 2.1 and 2.2.
 
 | Reading held here | Record |
 |---|---|
 | Decisions and specification of canvas-api | sources 12.1 |
 | Firebase Auth | sources 2.1 |
 | Apple Developer Program (Д3; Т-41) | sources 2.2 |
-| OpenFGA | sources 2.3 |
+| OpenFGA | [openfga/openfga v1.22.1](https://github.com/openfga/openfga/tree/v1.22.1) |
 | OpenFGA as a library | sources 2.4 |
 | Neon | sources 3.1 |
 | Cloud SQL for PostgreSQL, rejected | sources 3.2 |
-| mathtrail-standalone, rejected | sources 3.3 |
-| embedded-postgres (Д6) | sources 3.4 |
-| Database and migrations | sources 3.5 |
-| `modules` and `module-kit` | sources 4.1 |
-| `learner-model` and `module-kit` on carrying progress over | sources 5.1 |
+| mathtrail-standalone, rejected | [mathtrail-standalone at c6cbeb2](https://github.com/mathtrail/mathtrail-standalone/tree/c6cbeb2/docs/architecture) |
+| embedded-postgres (Д6) | [embedded-postgres v2.0.1](https://github.com/fergusstrange/embedded-postgres/tree/v2.0.1) |
+| Database and migrations | sources 3.5; [pgx v5.12.0](https://github.com/jackc/pgx/tree/v5.12.0), [goose v3.29.0](https://github.com/pressly/goose/tree/v3.29.0) |
+| `modules` and `module-kit` | [`modules` at 105fa72](https://github.com/altnovatrail/modules/tree/105fa72), [`module-kit` at e069943](https://github.com/altnovatrail/module-kit/tree/e069943) |
+| `learner-model` and `module-kit` on carrying progress over | [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/tree/9f338ae), [`module-kit` at 1a54028](https://github.com/altnovatrail/module-kit/tree/1a54028) |
 | Required checks and the path filter | sources 4.2 |
-| Embedding a file in Go | sources 4.3 |
+| Embedding a file in Go | [`embed` of Go 1.27.3](https://pkg.go.dev/embed@go1.27.3) |
 | Showing the solution and hints in MathTrail | sources 6.1 |
 | Neighbouring repositories on showing the solution and the hint | sources 6.2 |
 | Platform AI quota | sources 7.1 |
@@ -1497,7 +1497,7 @@ The records of sources — the external facts this document rests on, with the a
 | Check time at `tutor` | sources 10.3 |
 | canvas-api on the channel | sources 10.4 |
 | Firebase Auth on deletion and the fresh sign-in | sources 11.1 |
-| The Admin SDK for Go and its tests | sources 2.5 |
+| The Admin SDK for Go and its tests | [firebase-admin-go v4.22.0](https://github.com/firebase/firebase-admin-go/tree/v4.22.0) |
 | Connect v2 | sources 10.5 |
 | RFC 9470 | sources 11.2 |
 | Connect codes | sources 11.3 |

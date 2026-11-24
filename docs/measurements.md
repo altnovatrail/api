@@ -2,17 +2,17 @@
 
 > The results of the measurements of `api`: what was measured, how, on what, and the numbers that came out. The document that describes how it is built, [architecture.md](architecture.md), refers here and holds no numbers of measurements itself, only what follows from them. A measurement is cited by its section, as any document is: `measurements 2.1`, and from another repository `measurements 2.1 api`.
 >
-> An external fact a measurement rests on is a record of [sources.md](sources.md). A new measurement is a new section or subsection at the end, and a section's number does not change. A section's heading names what was measured and the date, not a task.
+> A fact no run checks that a measurement rests on is a record of [sources.md](sources.md); a library's documentation or code at a version or commit is a link beside it. A new measurement is a new section or subsection at the end, and a section's number does not change. A section's heading names what was measured and the date, not a task.
 
 ## 1. Size of the binary and the image
 
 ### 1.1. The binary with OpenFGA, 2026-11-08
 
-For OpenFGA embedded as a library (sources 2.4). The `api` binary with OpenFGA, `CGO_ENABLED=0 -trimpath -s -w`, is 33,816,736 bytes against 11,915,424 for v0.1.1: measured 2026-11-08.
+For OpenFGA embedded as a library ([`server.go`](https://github.com/openfga/openfga/blob/v1.22.1/pkg/server/server.go) of OpenFGA v1.22.1). The `api` binary with OpenFGA, `CGO_ENABLED=0 -trimpath -s -w`, is 33,816,736 bytes against 11,915,424 for v0.1.1: measured 2026-11-08.
 
 ### 1.2. The binary with the Admin SDK port, 2026-11-09
 
-For the port of the sign-in service (sources 2.5). A trial in a copy of the module outside the repository: `cmd/api`, which imports the port of the sign-in service on the Admin SDK for Go. The `linux/amd64` binary with `-trimpath` and `-s -w` is 51,765,408 bytes against 33,804,448 without the port.
+For the port of the sign-in service ([firebase-admin-go v4.22.0](https://github.com/firebase/firebase-admin-go/tree/v4.22.0)). A trial in a copy of the module outside the repository: `cmd/api`, which imports the port of the sign-in service on the Admin SDK for Go. The `linux/amd64` binary with `-trimpath` and `-s -w` is 51,765,408 bytes against 33,804,448 without the port. The port pulls in 32 new modules — `cloud.google.com/go` with `firestore`, `storage`, `monitoring`, `auth` and `iam`, `google.golang.org/api`, `golang.org/x/oauth2`, otel, s2a-go, go-jose and others; each one's LICENSE is Apache-2.0, MIT or BSD-3, and none has a NOTICE. `go-licenses check` by the allowed list passed with no refusals, and govulncheck v1.9.0 said: "Your code is affected by 0 vulnerabilities".
 
 ### 1.3. The image, 2026-11-09 and 2026-11-11
 
@@ -141,7 +141,7 @@ For the fuzz tests of the Go code. `just fuzz 5m` in the devcontainer, 20 worker
 | `FuzzUnpack` | `internal/packages` | 31,940 before the refusal of sparse files, 302,342 after |
 | `FuzzRoutes` | `internal/server` | 11,324,242 |
 
-`FuzzUnpack` stood for tens of seconds at 0 executions a second. One cause was an entry of PAX sparse, which the reader of `archive/tar` unfolds into zeros up to the limit of 512 MB (sources 4.5); once `unpack` refused it, the run made ten times as many executions. Its remaining stops are the minimization of new inputs, up to 60 s each by default: a minute with `-fuzzminimizetime 2s` made 79,353 executions against 39,520 without it.
+`FuzzUnpack` stood for tens of seconds at 0 executions a second. One cause was an entry of PAX sparse, which the reader of `archive/tar` unfolds into zeros up to the limit of 512 MB (`readGNUSparsePAXHeaders` of [`reader.go`](https://github.com/golang/go/blob/go1.27.4/src/archive/tar/reader.go) of Go 1.27.4; the input `internal/packages/testdata/fuzz/FuzzUnpack/sparse-file`): a tar of 3,584 bytes, 193 after gzip, with the records `GNU.sparse.major=1`, `minor=0`, `name=inventory.json` and `realsize=500000000`, was unpacked by `unpack` to a file of 500,000,000 bytes; once `unpack` refused it, the run made ten times as many executions. Its remaining stops are the minimization of new inputs, up to 60 s each by default: a minute with `-fuzzminimizetime 2s` made 79,353 executions against 39,520 without it.
 
 The refusal does not bound the memory of the build; the limit on the size of an unpacked package does: 500,000,000 zero bytes gzip to 485,269 bytes (`head -c 500000000 /dev/zero | gzip -c | wc -c`, the default level), and a regular file of them unpacks as far as the limit allows.
 
