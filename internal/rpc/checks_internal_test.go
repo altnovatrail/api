@@ -97,7 +97,7 @@ func TestNoTimeLimitIsTheDefault(t *testing.T) {
 	if left := timeLeft(t, 0, 0, ""); left < 29*time.Second || left > 30*time.Second {
 		t.Errorf("the time left under no limit given = %v, want the default 30s", left)
 	}
-	for _, p := range []string{apiv1connect.PaperServiceFindTasksProcedure, apiv1connect.AttemptServiceReadStatementProcedure, apiv1connect.AttemptServiceSubmitWorkProcedure} {
+	for _, p := range []string{apiv1connect.PaperServiceFindTasksProcedure, apiv1connect.AttemptServiceReadStatementProcedure, apiv1connect.AttemptServiceSubmitWorkProcedure, apiv1connect.AttemptServiceGetOpeningWordsProcedure} {
 		if left := timeLeft(t, 0, 0, p); left < 89*time.Second || left > 90*time.Second {
 			t.Errorf("the time left of %s under no limit given = %v, want the default 90s", p, left)
 		}
