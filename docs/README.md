@@ -6,7 +6,7 @@ What the documents of `api` are, how to work on it and how a change comes in. Th
 
 - [architecture.md](architecture.md) — the component: what it does and does not do, its data and links, what was decided and how the service is built.
 - [build.md](build.md) — how api is built, checked, released, configured and run: its commands and variables, the sign-in it expects in production, and its run on the dev projects and with app.
-- [sources.md](sources.md) — the external facts the documents rest on: each source with its address, the date it was read and a quote.
+- [sources.md](sources.md) — the records of the facts no run checks that the documents rest on, each with its address, the date read and a quote.
 - [measurements.md](measurements.md) — the results of measurements: what was measured, how, and the numbers.
 - [decisions.md](decisions.md) — the decision log: what was decided, why, and what was rejected.
 - [plan/](plan/) — the archives of the done epics.

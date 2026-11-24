@@ -17,7 +17,7 @@ A task starts with «Выполни задачу T01 из RUN.md» in a new sess
 4. Outside this repository — editing `spec` or other repositories, their settings, anything that costs money — only after a warning (what, where, cost) and the author's confirmation. `spec/` is read only here; a task of its own moves it to a new tag.
    - Exception, no confirmation: the task's checks by R146 spec — browser: Playwright in the devcontainer, custom-token sign-in of a stand-in user on the dev project; AI: the `tutor` stub in `api` dev mode. A real AI call only where the task checks the model's words: dev key under the author's spend limit at the provider, within the task's ceiling, or with confirmation where it has none; «Сделано» names the provider, the calls and the cost.
    - Nothing on devices: engines are Chromium, WebKit and Firefox in CI; what only a device shows — pen, device voices, VoiceOver and TalkBack, the home screen — stays a row of [run/DEBT.md](run/DEBT.md) until the author decides otherwise.
-5. Facts on AI providers, laws, prices and other platforms — from the primary source, a record of `docs/sources.md` with quote and date read (RULES.md). What is not confirmed is not stated: it becomes an open question.
+5. A fact no run checks — a law, terms, a price, a page with no version — from the primary source, with quote and date read, as a record of [docs/sources.md](docs/sources.md), kept by its opening (RULES.md); documentation or code at a version or commit — a link beside the claim; NovaTrail's and MathTrail's files — git at a commit. What is not confirmed is not stated: it becomes an open question.
 6. End with the checks of what the task changed: each part's checks are its rule, `.claude/rules/<part>.md` (CLAUDE.md, Environment); documents — `just -f spec/justfile docs-check-repo` (R32 spec, R145 spec).
 
    Then `/code-review high`, one round: fix the findings, do not rerun. A small change may skip the review even if «Как проверить» names it.
@@ -106,3 +106,6 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T144 | Ссылки по строгому правилу R171 spec: проход по первой части | Claude | — | T143 |
 | [x] | T145 | Ключ `"citations": true` с релизом `learner-model` и тегом `spec`, чьи `.proto` без ссылок | Claude | — | T142; релиз `learner-model` и тег `spec` с `.proto` без ссылок |
 | [x] | T146 | Переход на тег `spec` v0.19.17 | Claude | — | — |
+| [x] | T147 | `docs/sources.md` по правилу записей: вводные и темы 2–5 | Claude | да | — |
+| [ ] | T148 | `docs/sources.md` по правилу записей: темы 6–9 | Claude | — | T147 |
+| [ ] | T149 | `docs/sources.md` по правилу записей: темы 10–13 | Claude | — | T148 |

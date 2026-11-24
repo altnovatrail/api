@@ -1,19 +1,22 @@
 # api — sources
 
-> The external facts the documents of `docs/` rest on: a provider's terms, a price, a standard, the documentation of a library or a service, and the texts of other NovaTrail and MathTrail repositories at named commits. Their records lie here — the address, the version or date of the page, the date read and a quote in the source's language — and [architecture.md](architecture.md) and the decision log hold the claim and a citation of its one record by its number, `sources 2.1`. A record's heading names its topic and date, not a task.
+> The facts of the outside world the repository's documents under `docs/` rest on and no run of ours checks: a law, a regulator, a standard's normative text, a provider's terms and policies, a price, a license, a page that changes in place with no version, a text outside the repositories. Here are their records — the address, the date it was read and a quote in the source's language — and [architecture.md](architecture.md) and the decision log hold the claim and a citation of its one record by its number, `sources 1.1`, not a chain. A record's heading names its topic, not a task.
+>
+> No record is needed for a library's documentation or code at a version or commit — a link beside the claim —, for a behaviour a test or a measurement checks — they are its evidence —, or for spec's tags and the files of NovaTrail's and MathTrail's repositories — git, at a commit.
+>
+> A record is a subsection "N.M" of a topic: one source, or one reading of several sources for one decision. A record's number never changes and is never given again: a new one goes at the end of its topic, a new topic at the end of the file, and a record removed leaves a gap. A source read again with the same text changes the record's date; with another text, the claims and decisions on it are rewritten in the same change and the record holds the new reading alone — where a decision waits on the author, an open question, and both readings stand until it is closed. The model is `spec/docs/sources.md`. The results of measurements are not here but in [measurements.md](measurements.md).
 
 ## 1. How to keep it
 
-- **A record** is a subsection "N.M" of a topic: one reading of one or several sources for the sake of one decision. It holds the address, the version or date of the page, the date read and a quote in the source's language. What was not read in the primary source — a copy, a retelling, a page that did not open, a conclusion from code, a trial by a build — the record names as such.
-- **Topics** 2–11 follow the parts of the service in the order [architecture.md](architecture.md) describes them, and topic 12 is a reading that several parts rest on at once. A new reading for a part that already has a topic is a new record at its end; a topic for another part or for several at once goes at the end of the file, and the order of the parts is broken by this, but the numbers are not.
-- **Reference.** A document's claim refers to a record by its number, as to a section of any document: `(sources 7.1)`, and from another repository — `sources 7.1 api`. A record's number does not change: a new record goes at the end of its topic, a new topic at the end of the file.
-- **A source read again** — an item with its own date is added to the record, and the earlier text is not edited: the decisions of its day rest on it. If the source has changed and the claim has diverged from it, that is a change of the decision or a question to the author, not an edit of the record.
-- **A citation inside a quote** — of a decision, a section, a document or a task of the source — is left out as «[…]»: the quote is found in its source by its words, at the commit the record names.
-- **What is not here:** quotes that an entry of the decision log gives itself — they stay in the entry; the results of measurements — they are in [measurements.md](measurements.md).
+- **Topics** 2–11 follow the parts of the service in the order [architecture.md](architecture.md) describes them, and topic 12 is a reading that several parts rest on at once; a topic for another part or for several at once goes at the end of the file.
+- **What was not read in the primary source** — a copy, a retelling, a page that did not open — the record names as such.
+- **From another repository** a record is cited with the repository's name: `sources 7.1 api`.
+- **A citation inside a quote** — of a decision, a section, a document or a task of the source — is left out as «[…]»: the quote is found in its source by its words.
+- **What is not here:** quotes that an entry of the decision log gives itself — they stay in the entry.
 
 ## 2. Sign-in and permissions
 
-The sign-in service, its Admin SDK and ID token, permissions and OpenFGA.
+The sign-in service and its ID token, Apple's program, OpenFGA, a shared volume and the hash of the PIN.
 
 ### 2.1. Firebase Auth, 2026-11-02
 
@@ -24,47 +27,21 @@ For the choice of the sign-in service. Read 2026-11-02:
 - [Firebase pricing](https://firebase.google.com/pricing), no date on the page: the row "Other Authentication services" is marked for both the Spark plan and Blaze, with no price. The rows of active users stand under "With Identity Platform": on Blaze — "No-cost up to 50K MAUs", "Then Google Cloud pricing";
 - [verifying an ID token](https://firebase.google.com/docs/auth/admin/verify-id-tokens), updated 2026-10-20: `auth_time` — "Must be in the past. The time when the user authenticated";
 - [user sessions](https://firebase.google.com/docs/auth/admin/manage-sessions), updated 2026-10-20: the revocation check on the server — "an expensive operation, requiring an extra network round trip";
-- the Admin SDK for Go, [v4.22.0](https://github.com/firebase/firebase-admin-go/releases/tag/v4.22.0) of 2026-09-23 — the latest release; the comments on the functions in `auth/auth.go` and `auth/user_mgt.go`: on `VerifyIDToken` — "In non-emulator mode, this function does not make any RPC calls most of the time"; on `VerifyIDTokenAndCheckRevoked` — "this function must make an RPC call to perform the revocation check"; on `RevokeRefreshTokens` — "existing ID tokens may remain active until their natural expiration (one hour)";
-- [the Authentication emulator](https://firebase.google.com/docs/emulator-suite/connect_auth), no date: "For security reasons, the Authentication emulator issues unsigned ID tokens"; "Please make sure not to set the environment variable in production". `firebase-tools` [v15.0.0](https://github.com/firebase/firebase-tools/releases/tag/v15.0.0) of 2025-12-10: "Removed support for running emulators with Java versions prior to 21";
+- [the Authentication emulator](https://firebase.google.com/docs/emulator-suite/connect_auth), no date: "For security reasons, the Authentication emulator issues unsigned ID tokens"; "Please make sure not to set the environment variable in production";
 - [sign-in with Apple](https://firebase.google.com/docs/auth/web/apple), no date: "Sign In with Apple can only be configured by members of the Apple Developer Program".
 
 ### 2.2. Apple Developer Program, 2026-11-02
 
 For sign-in with Apple; Д3. [the enrollment terms](https://developer.apple.com/programs/enroll/), no date, read 2026-11-02: "The Apple Developer Program is 99 USD per membership year".
 
-This record is a reading of 2026-11-02, not a fact a decision of `api` rests on now: Т-41 of `spec`, at `spec` v0.17.9, says "on 2026-11-14 Apple's pages of the program did not give the price", and that the price and terms are read from Apple, into a record of sources, when the question is decided. `api` has not read Apple's pages again.
-
-### 2.3. OpenFGA, 2026-11-02
-
-For permissions as a library in the process. [openfga/openfga](https://github.com/openfga/openfga/tree/v1.22.1), release v1.22.1 of 2026-10-28 — the latest, commit 44054f5, license Apache-2.0, read 2026-11-02:
-
-- README: "Can also be embedded as a Go library";
-- `pkg/storage/migrate/migrate.go`, the comment on `RunMigrations`: "This function is exposed to allow embedding openFGA into applications and manage OpenFGA's database schema migrations directly"; the stores in `pkg/storage` — `postgres`, `mysql`, `sqlite` and `memory`;
-- `.config-schema.json` — `changelog` has one setting, `changelogHorizonOffset`: "Changes that occur after this offset will not be included in the response of ReadChanges". There is no retention period for the records of `changelog` there.
+This record is a reading of 2026-11-02, not a fact a decision of `api` rests on now: Т-41 of `spec` says "Apple's pages of the program did not give the price, read 2026-11-14", and that the price and terms are read from Apple, into a record of sources, when the question is decided. `api` has not read Apple's pages again.
 
 ### 2.4. OpenFGA as a library, 2026-11-08
 
-For OpenFGA in the process of `api`. Read 2026-11-08, by v1.22.1 — still the latest release:
+For OpenFGA in the process of `api`. Read 2026-11-08:
 
-- [`pkg/server/server.go`](https://github.com/openfga/openfga/blob/v1.22.1/pkg/server/server.go): `NewServerWithOpts` — "You must call Close on it after you are done using it", and `Close` closes the storage too; the methods `Check`, `Write`, `Read`, `ListStores`, `CreateStore` and `WriteAuthorizationModel` are called directly, with `openfgav1` requests, and validate them themselves;
-- [`pkg/storage/migrate/migrate.go`](https://github.com/openfga/openfga/blob/v1.22.1/pkg/storage/migrate/migrate.go) imports `github.com/go-sql-driver/mysql`, and [go-sql-driver/mysql v1.10.1](https://github.com/go-sql-driver/mysql/blob/v1.10.1/LICENSE) has "Mozilla Public License Version 2.0"; the migration files — `assets.EmbedMigrations`, `PostgresMigrationDir = "migrations/postgres"`;
-- [on consistency](https://openfga.dev/docs/interacting/consistency): "caching is disabled by default. When caching is disabled, all queries will have strong consistency regardless of the consistency mode specified";
-- [openfga/language `pkg/go` v0.3.2](https://github.com/openfga/language/tree/pkg/go/v0.3.2/pkg/go), license Apache-2.0: `transformer.TransformDSLToProto`;
-- the size of the `api` binary with OpenFGA — a measurement, measurements 1.1.
-
-### 2.5. The Admin SDK for Go and its tests, 2026-11-09
-
-For the port of the sign-in service and its tests. Read 2026-11-09:
-
-- the Admin SDK for Go, [v4.22.0](https://github.com/firebase/firebase-admin-go/tree/v4.22.0) of 2026-09-23 — still the latest release, commit 66a72c3, `go 1.25.0`, Apache-2.0; the sources through `gh api`:
-  - `firebase.go`: the root package imports `cloud.google.com/go/firestore`, `firebase.google.com/go/v4/storage`, `db`, `messaging` and others; `NewApp` with a given configuration returns no error — only when it reads `FIREBASE_CONFIG`; `App.Auth` calls `auth.NewClient(ctx, &internal.AuthConfig{…})`, and `NewClient` has "This function can only be invoked from within the SDK";
-  - `auth/auth.go`: `verifyIDToken` checks revocation when `if c.isEmulator || checkRevokedOrDisabled`, so in emulator mode — `FIREBASE_AUTH_EMULATOR_HOST` — `VerifyIDToken` checks it too, and Identity Toolkit is `fmt.Sprintf("http://%s/identitytoolkit.googleapis.com", authEmulatorHost)`; without a key the SDK signs with `newIAMSigner`, which asks the metadata server for the service account's email only when signing;
-  - `auth/token_verifier.go`: the keys — by `idTokenCertURL`, «https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com», with the client `transport.NewHTTPClient(ctx, option.WithoutAuthentication())`; `verifyTimestamps` checks `iat` and `exp` with `clockSkewSeconds = 300`, and checks `auth_time` nowhere; in emulator mode — "skip signature verification"; keys that cannot be fetched are the code `CERTIFICATE_FETCH_FAILED`, not `idTokenInvalid`;
-  - `auth/user_mgt.go`: the error text names the UID — `fmt.Sprintf("no user exists with the %s", query.description())`;
-  - `internal/internal.go`: `FirebaseScopes` — "the set of OAuth2 scopes used by the Admin SDK": `cloud-platform`, `datastore`, `devstorage.full_control`, `firebase`, `identitytoolkit` and `userinfo.email` from `https://www.googleapis.com/auth/`;
-  - `internal/http_client.go`: `WithDefaultRetryConfig` — `MaxRetries: 4`, retries on network errors and 503, `MaxDelay` — two minutes;
-- `google.golang.org/api` [v0.279.0](https://github.com/googleapis/google-api-go-client/tree/v0.279.0), which the SDK requires, the source code through `gh api`: `transport/http/dial.go` — `defaultBaseTransport` "Copy http.DefaultTransport except for MaxIdleConnsPerHost setting", through `clonedTransport(http.DefaultTransport)`; `option/option.go` — `WithCredentialsFile` and `WithCredentialsJSON` have "Deprecated: This function is being deprecated because of a potential security risk", and "you can use [WithAuthCredentialsFile] with [ServiceAccount]";
-- a trial in a copy of the module outside the repository. `cmd/api`, which imports the port, pulls in 32 new modules — `cloud.google.com/go` with `firestore`, `storage`, `monitoring`, `auth` and `iam`, `google.golang.org/api`, `golang.org/x/oauth2`, otel, s2a-go, go-jose and others. Each one's LICENSE is Apache-2.0, MIT or BSD-3, and none has a NOTICE. `go-licenses check` by the allowed list passed with no refusals, and govulncheck v1.9.0 said: "Your code is affected by 0 vulnerabilities". The size of the binary with the port — a measurement, measurements 1.2. The real SDK against a fake Google: a live token passes with no refusal; `IsIDTokenRevoked`, `IsUserDisabled` and `IsUserNotFound` are told apart; a 500 response is recognized by none of the helpers `Is…`; a signature with a foreign key gives `IsIDTokenInvalid` without `IsIDTokenExpired`; `VerifyIDToken` returns the UID of a revoked token without a request.
+- [on consistency](https://openfga.dev/docs/interacting/consistency), no date: "caching is disabled by default. When caching is disabled, all queries will have strong consistency regardless of the consistency mode specified";
+- the license of the MySQL driver that OpenFGA's package of migrations imports: [go-sql-driver/mysql v1.10.1](https://github.com/go-sql-driver/mysql/blob/v1.10.1/LICENSE) has "Mozilla Public License Version 2.0".
 
 ### 2.6. An ID token without `app`, 2026-11-09
 
@@ -87,7 +64,7 @@ For the hash of the PIN. The [Password Storage Cheat Sheet](https://cheatsheetse
 
 ## 3. Database and learner model
 
-Neon and the rejected Cloud SQL and the profile on Drive, the database of the tests and the migrations.
+Neon, its pooler and the rejected Cloud SQL.
 
 ### 3.1. Neon, 2026-11-02
 
@@ -98,7 +75,6 @@ For the choice of the database. Read 2026-11-02:
 - [the history window](https://neon.com/docs/postgres/backup-restore/history-window), no date: the window "sets how long that change history is kept, which defines how far back instant restore and the other features can reach"; the default and the largest — "Free 6 hours 6 hours (capped at 1 GB of history) Launch 1 day 7 days Scale 1 day 30 days";
 - [how to reduce costs](https://neon.com/docs/introduction/cost-optimization), no date: "Be aware that delete operations generate WAL records that temporarily add to your instant restore storage until they age out of your history window";
 - [databases](https://neon.com/docs/manage/databases), no date: "In the Neon object model, a database exists within a branch of a project. There is a limit of 500 databases per branch";
-- [connection pooling](https://neon.com/docs/connect/connection-pooling), no date: "Neon uses PgBouncer in transaction mode ( pool_mode=transaction )"; "Not supported with pooled connections: SET / RESET (session variables) LISTEN / NOTIFY WITH HOLD CURSOR PREPARE / DEALLOCATE (SQL-level prepared statements)", and also "Session-level advisory locks";
 - [security](https://neon.com/docs/security/security-overview), no date: "Neon requires that all connections use SSL/TLS encryption";
 - [compliance](https://neon.com/docs/security/compliance), no date: "We have completed audits for SOC 2 Type 1 and Type 2, SOC 3, ISO 27001, and ISO 27701, and we adhere to GDPR and CCPA regulations";
 - [Neon's terms](https://neon.com/platform-terms) — the address `neon.com/dpa` leads here, "Last Updated: October 14, 2026": "This Product Specific Schedule (Neon) … is entered into as of the Effective Date between Databricks, Inc., the parent company of Neon, LLC ("Databricks"), and Customer"; the schedule changes sections of the Databricks DPA. It says nothing about children or minors;
@@ -112,48 +88,17 @@ For the choice of the database — the option it rejected. Read 2026-11-02:
 - [starting and stopping](https://docs.cloud.google.com/sql/docs/postgres/start-stop-restart-instance), "Last updated 2026-10-26 UTC": "If you are not using your instance, you can set its activation policy to NEVER to avoid instance charges" — that is, stopping by hand, not when idle;
 - [the free trial instance](https://docs.cloud.google.com/sql/docs/postgres/free-trial-instance), "Last updated 2026-10-26 UTC": "A Cloud SQL free trial instance lets you test the majority of Cloud SQL features for up to 30 days without any financial commitment".
 
-### 3.3. mathtrail-standalone, 2026-11-02
+### 3.5. Neon's pooler, 2026-11-08
 
-For where the learner model lives — the option it rejected. [docs/architecture/](https://github.com/mathtrail/mathtrail-standalone/tree/c6cbeb2/docs/architecture), commit c6cbeb2, read 2026-11-02 through `gh api`:
-
-- `04-profile.md`: "everything the service knows sits in a JSON file in a visible folder of the parent's Drive (О-5). The service keeps nothing of its own between requests, so this file is not a cache of some server-side truth — it **is** the truth"; `recent` — "the last **20** entries"; the choice rule is computed "from the summary and the window alone — never from the full history, which we do not keep";
-- `05-storage.md`: "**There is no conditional write.** … Whoever uploads last wins, silently"; "If the parent empties the Drive bin, the profile is gone — no server-side copy exists, by design".
-
-### 3.4. embedded-postgres, 2026-11-02
-
-For Д6. [fergusstrange/embedded-postgres](https://github.com/fergusstrange/embedded-postgres), release v2.0.1 of 2026-10-19 — the latest, license MIT, read 2026-11-02. README: "Run real PostgreSQL in your tests"; "The first start downloads PostgreSQL and the matching supervisor; later starts reuse the cache"; "Requires Go 1.26 or newer"; "Root callers must select an existing non-root Unix identity". In `internal/binaries/manifest.json` of v2.0.1 each Postgres archive has a `sha256` and an address in the releases of `theseus-rs/postgresql-binaries`. In `supervisor_binary.go` the downloaded supervisor is checked against `checksums.txt` of the same release, which `cacheSupervisor` downloads at start-up, and without a published version the library asks for "Config.Supervisor(path) or EP_SUPERVISOR". The devcontainer's user is `vscode`, not root.
-
-### 3.5. Database and migrations, 2026-11-08
-
-For the driver of the database and the migrations. Read 2026-11-08:
-
-- [`embedded-postgres` v2.0.1](https://github.com/fergusstrange/embedded-postgres/tree/v2.0.1) — still the latest release; the module's `go.mod` has no requirements, and README: "The production Go packages have zero third-party dependencies". In `config.go` — `V17 PostgresVersion = "17.11.1"`, and `Supervisor(path)` and `Port(0)` are builders of `Config`. README: "An independent supervisor watches a dedicated owner pipe. An unrecovered panic, `os.Exit`, or forced owner termination closes that pipe and triggers PostgreSQL shutdown";
-- [pgx v5.12.0](https://github.com/jackc/pgx/blob/v5.12.0/CHANGELOG.md), license MIT: CHANGELOG closes GHSA-95fj-3fxw-g62g — in v5.9.0–v5.11.0 `require_auth` and `channel_binding=require` were bypassed without `sslmode=verify-full`; in `pgconn/config.go` `sslmode=require` without `sslrootcert` sets `InsecureSkipVerify`. On the default query mode `ConnConfig.DefaultQueryExecMode` it says: "may be incompatible with proxies such as PgBouncer unless they are configured to support protocol-level prepared statements";
-- [goose v3.29.0](https://github.com/pressly/goose/tree/v3.29.0), license MIT: `NewProvider` with `WithSessionLocker` and `WithDisableGlobalRegistry`; `lock/postgres.go` — `pg_try_advisory_lock`, a session lock; README: "By default, all migrations are run within a transaction";
-- [Neon, connection pooling](https://neon.com/docs/connect/connection-pooling), updated 2026-10-19: "pool_mode=transaction", "max_prepared_statements=1000 … Maximum protocol-level prepared statements per connection"; among what the pooler does not hold — "Session-level advisory locks"; in the table of choice — "Schema migrations \| Direct \| Tools may not support transaction pooling";
-- [OpenFGA v1.22.1](https://github.com/openfga/openfga/blob/v1.22.1/pkg/storage/postgres/postgres.go): the Postgres store opens `pgxpool.ParseConfig(uri)` and sets no query mode, and the store's migrations go through goose without a lock (`pkg/storage/migrate/migrate.go`).
-- [tern v2.4.3](https://github.com/jackc/tern/blob/v2.4.3/migrate/migrate.go), license MIT: the package `migrate` imports `github.com/Masterminds/sprig/v3`; [golang-migrate v4.20.1](https://github.com/golang-migrate/migrate/blob/v4.20.1/go.mod), license MIT: the root `go.mod` requires drivers of many databases and cloud SDKs — Spanner, Cloud Storage, AWS, MongoDB, Snowflake.
+For the driver of the database and the migrations. [Connection pooling](https://neon.com/docs/connect/connection-pooling) of Neon, updated 2026-10-19, read 2026-11-08: "Neon uses PgBouncer in transaction mode ( pool_mode=transaction )"; "max_prepared_statements=1000 … Maximum protocol-level prepared statements per connection"; "Not supported with pooled connections: SET / RESET (session variables) LISTEN / NOTIFY WITH HOLD CURSOR PREPARE / DEALLOCATE (SQL-level prepared statements)", and also "Session-level advisory locks"; in the table of choice — "Schema migrations \| Direct \| Tools may not support transaction pooling".
 
 ## 4. Module versions and packages in the image
 
-`modules` and `module-kit`, the checks of CI, embedding a file and a scheduled job of GitHub Actions.
-
-### 4.1. `modules` and `module-kit`, 2026-11-02
-
-For the version a new attempt gets. Read 2026-11-02 through `gh`:
-
-- [altnovatrail/modules](https://github.com/altnovatrail/modules/tree/105fa72), commit 105fa72 on `main`: `gh release list -R altnovatrail/modules` — empty, no tags, so there is no `module-index.json` in any release. In RUN.md the task «Раскладка модулей в репозитории» is `[ ]`, and it says: «индекс модулей один на все модули: как его собирает релиз одного модуля, чтобы индекс называл и пакеты остальных. На этапе 2 `api` берёт дайджесты из индекса релиза […]»;
-- [altnovatrail/module-kit](https://github.com/altnovatrail/module-kit/tree/1a54028), commit 1a54028 on `main`: in `docs/architecture.md` — «Пока он отвечает только на `--version`; проверка модуля, сборка пакета и индекса придут с форматом v0». The only release is v0.1.0 of 2026-10-21; it was signed by the shared `release.yml` of `.github` v0.1.4, and `release-verify` rejects it.
-- read 2026-11-07 for the move to `spec` v0.9.4: [altnovatrail/module-kit, `docs/architecture.md`](https://github.com/altnovatrail/module-kit/blob/e069943/docs/architecture.md), commit e069943 on `main`, the latest release — `v0.2.3`; the first release with the code of the format that others take is `v0.2.0` (row 3.3 of the closed rows of `COORDINATION.md` of `spec` v0.9.4). The table of Go packages: `modulepackage` — «канонический вид, сборка пакета, чтение по цепочке дайджестов — с `device/` и без», called by `api` too; `moduleindex` — «сборка и чтение индекса, версия новой попытки», called by the CLI and `api`; `observation` — «годность наблюдения, сведение двух чтений, вердикт по наблюдению с выбором касанием, исход сочинения», called by `api`.
-- read and built 2026-11-09 for the move to `spec` v0.12.0: the latest releases — `module-kit` [`v0.2.6`](https://github.com/altnovatrail/module-kit/tree/v0.2.6) of 2026-11-08, its `go.mod` — `github.com/altnovatrail/spec v0.9.9`; `modules` [`v0.1.4`](https://github.com/altnovatrail/modules/releases/tag/v0.1.4) of 2026-11-09; `tutor` [`v0.1.21`](https://github.com/altnovatrail/tutor/tree/v0.1.21) of 2026-11-09, its `go.mod` — `module-kit v0.2.3` and `spec v0.9.16`. `module/check.go` of `v0.2.6`: "const FormatVersion = "0.3"". An empty module in a temporary folder with `module-kit` `v0.2.6` and `spec` v0.12.0 — `go build` of the package `modulepackage`: "module/tasks.go:236:14: cannot use part.Picture (variable of type *formatv0.TaskPicturePath) as *formatv0.PicturePath value in assignment" and "module/tasks.go:290:11: formatv0.ExplanationPart does not satisfy formatv0.StatementPart | formatv0.DemoPart". By package: `observation`, `verdict` and `openview` build, `moduleindex` and `moduleversion` do not. An empty module with `tutor` `v0.1.21` and `spec` v0.12.0 — the packages `tutor`, `tutor/admission`, `tutor/words` and `observation` with `verdict` of `module-kit` build;
+The checks of CI and a scheduled job of GitHub Actions.
 
 ### 4.2. Required checks and the path filter, 2026-11-02
 
 For the checks of CI on the module packages. [GitHub Actions workflow syntax](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions), no date on the page, read 2026-11-02: "If a workflow is skipped due to path filtering, branch filtering, or a commit message, then checks associated with that workflow will remain in a 'Pending' state. A pull request that requires those checks to be successful will be blocked from merging".
-
-### 4.3. Embedding a file in Go, 2026-11-02
-
-For the module packages in the image. [the package `embed`](https://pkg.go.dev/embed), documentation for go1.27.3, read 2026-11-02: "Patterns may not contain '.' or '..' or empty path elements, nor may they begin or end with a slash"; "The patterns are interpreted relative to the package directory containing the source file".
 
 ### 4.4. The scheduled workflow and its signal, 2026-11-12
 
@@ -164,23 +109,6 @@ For the job that notices a withdrawn version. Read 2026-11-12, no date on the pa
 - [the repository's Actions settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository): "You can choose to allow or prevent GitHub Actions workflows from creating or approving pull requests". `api` has `default_workflow_permissions: read` and `can_approve_pull_request_reviews: false` (`gh api repos/altnovatrail/api/actions/permissions/workflow`);
 - [the latest release](https://docs.github.com/en/rest/releases/releases#get-the-latest-release): "The latest release is the most recent non-prerelease, non-draft release, sorted by the created_at attribute"; when creating a release, `make_latest` defaults to `true`; the public `https://github.com/altnovatrail/modules/releases/latest` redirects to `…/releases/tag/v0.2.5` (`curl -sI`);
 - [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions): "The following usage remains free independently and does not reduce the included compute usage: Standard GitHub-hosted runners in public repositories".
-
-### 4.5. Sparse files in `archive/tar`, 2026-11-13
-
-For unpacking the module packages. Read 2026-11-13 in `src/archive/tar/` of Go 1.27.4, through `go env GOROOT`, and tried by a test:
-
-- `common.go`: `// Type 'S' indicates a sparse file in the GNU format.` and `paxGNUSparse = "GNU.sparse."`, the prefix of the keywords of a sparse file in a PAX extended header;
-- `reader.go`: `readGNUSparsePAXHeaders` — "checks the PAX headers for GNU sparse headers. If they are found, then this function reads the sparse map and returns it", and the size of the entry becomes `GNU.sparse.size` or `GNU.sparse.realsize`; the old GNU format keeps its type `S`, and `Next` gives an entry of PAX sparse with the type of a regular file. Reading it gives the zeros of its holes;
-- the trial, a conclusion from the code that a test confirmed: a tar of 3,584 bytes, 193 after gzip, with the records `GNU.sparse.major=1`, `minor=0`, `name=inventory.json` and `realsize=500000000`, was unpacked by `unpack` of `internal/packages` to a file of 500,000,000 bytes, before `unpack` was made to refuse such an entry. The input is `testdata/fuzz/FuzzUnpack/sparse-file`.
-
-## 5. Carrying progress over
-
-### 5.1. `learner-model` and `module-kit` on carrying progress over, 2026-11-02
-
-For carrying progress over in each computation. Read 2026-11-02 through `gh api`:
-
-- [altnovatrail/learner-model](https://github.com/altnovatrail/learner-model/tree/9f338ae), commit 9f338ae on `main`, the `spec` submodule at v0.2.9. In RUN.md the task «Журнал свидетельств (Т-22)» is `[ ]`, and it says: «перенос по таблице соответствия старых ID навыков новым […]: что делает библиотека, а что `api` — перенос есть в обеих карточках […]». In `docs/architecture.md`, in the subsection «Журнал свидетельств»: «Журнал только на дозапись свидетельств не переписывает: при нём старые ID остаются в свидетельствах, и перенос идёт через таблицу при пересчёте. Как он устроен и чья это работа, не решено»;
-- [altnovatrail/module-kit](https://github.com/altnovatrail/module-kit/tree/1a54028), commit 1a54028 on `main`. In RUN.md the task «Правила semver для `diff`» is `[ ]`, and it says: «таблица соответствия старых ID навыков новым: где она лежит и что сравнение у неё проверяет — покрыт ли каждый удалённый навык, не переиспользован ли опубликованный ID» and «откуда CI `modules` берёт прошлую версию».
 
 ## 6. Showing the solution and hints
 
