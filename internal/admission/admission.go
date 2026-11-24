@@ -329,7 +329,8 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 // Reads says whether the reading of handwriting by the call of the kind — of a
 // sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
 // essay, CallEssay, or its assessment, CallRubric, or the finding of the tasks
-// on the photo of a page, CallFinding, is admitted for a learner of category:
+// on the photo of a page, CallFinding, or the Check of a task from paper,
+// CallChecking, is admitted for a learner of category:
 // by platform AI, or, when ownKeyProvider names one, by the own key of that
 // provider alone. It is admitted when tutor chooses, for the call, an entry
 // all of whose models the table admits at the deployment's stage or above. On
@@ -359,23 +360,12 @@ func WordsCall(withWork bool) tutor.Call {
 	return tutor.CallHint
 }
 
-// PaperWords says whether the tutor's words of a task from paper are admitted
-// for a learner of category, on the route Reads takes: those of a rung, with
-// the work, by the call that serves the analysis of its steps and the hint, and
-// the opening question and a rung put another way by the hint alone, which
-// tutor asks the same way as Words.
-func (g *Gate) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	return g.chooses(PaperWordsCall(withWork), g.route(category, ownKeyProvider))
-}
-
-// PaperWordsCall is tutor's kind of call of the words of a task from paper, as
-// WordsCall is of a task of a module: the gate admits, and the quota reserves,
-// by it.
-func PaperWordsCall(withWork bool) tutor.Call {
-	if withWork {
-		return tutor.CallPaperWords
-	}
-	return tutor.CallPaperHint
+// PaperWords says whether "explain differently" on a task from paper is
+// admitted for a learner of category, on the route Reads takes, by its call,
+// CallPaperHint: the other words of a task from paper are the Check's, which
+// Reads admits by CallChecking.
+func (g *Gate) PaperWords(category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return g.chooses(tutor.CallPaperHint, g.route(category, ownKeyProvider))
 }
 
 // CorrectWords says whether the tutor's words after a correct answer are
@@ -438,17 +428,12 @@ func (g *Gate) ReadStatement(ctx context.Context, p tutor.PaperTask) tutor.State
 	return g.tutor.ReadStatement(ctx, p)
 }
 
-// SolveTask solves the tasks of a crop from paper it names by tutor's model of
-// the solution: the answer of each, none when it has no one answer, or the
-// outcome of a call that gave none.
-func (g *Gate) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve) tutor.TasksSolved {
-	return g.tutor.SolveTask(ctx, p, tasks)
-}
-
-// ReadPaper reads the work written on a task from paper as ReadSheet reads a
-// sheet, by the pair or one reader.
-func (g *Gate) ReadPaper(ctx context.Context, r tutor.PaperReading) tutor.SheetRead {
-	return g.tutor.ReadPaper(ctx, r)
+// CheckPaper checks the work on a task from paper by tutor's models of the
+// Check, one at a time: the verdict of each task of the frame, what was read
+// and where, the mistakes, the hidden solution and answer, the tutor's words
+// and the ladder of hints, or the outcome of a call that gave none.
+func (g *Gate) CheckPaper(ctx context.Context, c tutor.PaperCheck) tutor.PaperChecked {
+	return g.tutor.CheckPaper(ctx, c)
 }
 
 // TellWords asks tutor for the words of a rung: its question, with the box of
@@ -457,10 +442,9 @@ func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsA
 	return g.tutor.Words(ctx, w)
 }
 
-// TellPaperWords asks tutor for the words of a task from paper: its question,
-// with the box of the first mistake of a rung, or the outcome of a call that
-// gave none. api checks them for leaks and their form before they reach the
-// learner (tutor.PaperBreach).
+// TellPaperWords asks tutor for "explain differently" on a task from paper:
+// its question, or the outcome of a call that gave none. api checks them for
+// leaks and their form before they reach the learner (tutor.PaperBreach).
 func (g *Gate) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer {
 	return g.tutor.PaperWords(ctx, w)
 }

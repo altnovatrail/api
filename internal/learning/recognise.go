@@ -18,7 +18,7 @@ import (
 
 // recognising is a request "Recognise" between the parts of its request: the
 // attempt, the call and its reserve, what came of it, and the answer of an
-// attempt that keeps a reading or a key, which calls nothing.
+// attempt that keeps a reading, which calls nothing.
 type recognising struct {
 	attemptID string
 	task      tutor.PaperTask
@@ -28,13 +28,13 @@ type recognising struct {
 }
 
 // ReadStatement is "Recognise" on a task from paper: the reading of the
-// statement of the attempt's crop, the one its first Check would make, by one
-// call of AI between two transactions (rpc.Across), whose reading the attempt
-// keeps until it closes, for the Check to derive the key by with no call of its
-// own. An attempt that keeps a reading or a key answers its statements,
-// repeated, with no AI. The answer is the statements alone, never a formula. On
-// platform AI the call goes only with the reserve of the quota, the statement's
-// part of a first Check's, and a reserve refused is a refusal that keeps the
+// statement of the attempt's crop, by one call of AI between two transactions
+// (rpc.Across), whose reading the attempt keeps until it closes. The Check
+// takes none of it, but how many tasks it read, when no Check came before, and
+// the leak check of "explain differently" its statements. An attempt that
+// keeps a reading answers its statements, repeated, with no AI. The answer is
+// the statements alone, never a formula. On platform AI the call goes only with
+// the reserve of the quota, and a reserve refused is a refusal that keeps the
 // family day the request wrote. A call that gives no reading is an outcome, and
 // nothing is kept: the next press asks again. The crop goes no further than the
 // call, and the record of the key holds the outcome alone.
@@ -47,8 +47,8 @@ func (a *AttemptService) ReadStatement(ctx context.Context, req *v1.ReadStatemen
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
-	// The reading is the Check's first call, and goes by the Check's choice of the
-	// debug mode, so that the key derived from it is of the models chosen.
+	// The contract has no kind of action of its own for the reading: it is the
+	// Check's, by the choice of the debug mode of every call of a task from paper.
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
 	defer act.End()
 	profileID, attemptID := req.GetProfileId(), req.GetAttemptId()
@@ -141,10 +141,9 @@ func (s *Service) recognise(ctx context.Context, r recognising, own string) reco
 }
 
 // recognised writes what came of the call of r and answers it, on the attempt
-// held again: a reading the attempt keeps, unless a Check or another press kept
-// a key or a reading meanwhile, whose statements are the answer then, since
-// the key is derived from what is kept; or the outcome of a call that gave
-// none, with nothing kept.
+// held again: a reading the attempt keeps, unless another press kept one
+// meanwhile, whose statements are the answer then; or the outcome of a call
+// that gave none, with nothing kept.
 func (s *Service) recognised(ctx context.Context, tx pgx.Tx, profileID string, r recognising) (*v1.ReadStatementResponse, store.KeyTarget, error) {
 	answer := r.ready
 	if answer == nil {
@@ -174,13 +173,9 @@ func (s *Service) recognised(ctx context.Context, tx pgx.Tx, profileID string, r
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: r.attemptID, Response: written}, nil
 }
 
-// statedOn is the statements of the tasks of what the attempt keeps of its
-// statement, the key's or else the reading's, and whether it keeps either.
+// statedOn is the statements of the tasks of the reading the attempt keeps,
+// and whether it keeps one.
 func statedOn(row store.Attempt) ([]string, bool, error) {
-	k, err := keptKey(row)
-	if err != nil || k != nil {
-		return statementsOf(k), k != nil, err
-	}
 	reading, err := keptReading(row)
 	if err != nil || reading == nil {
 		return nil, false, err
@@ -188,10 +183,9 @@ func statedOn(row store.Attempt) ([]string, bool, error) {
 	return readStatements(reading), true, nil
 }
 
-// keptReading is the reading of the statement the attempt keeps, or none, read
-// as keptKey reads the key: one of a shape this build knows not is none, read
-// again, not a reading of no task, whose key every Check would take for
-// CAUSE_NO_KEY.
+// keptReading is the reading of the statement the attempt keeps, or none: one
+// of a shape this build knows not is none, read again, not a reading of no
+// task.
 func keptReading(row store.Attempt) (*paperv1.Reading, error) {
 	if row.PaperReading == nil {
 		return nil, nil
@@ -213,15 +207,6 @@ func readingOf(tasks []tutor.StatementTask) *paperv1.Reading {
 		r.Tasks = append(r.Tasks, &paperv1.ReadTask{Statement: t.Statement, Formula: t.Formula})
 	}
 	return r
-}
-
-// readTasks are the tasks of a kept reading, as the call read them.
-func readTasks(r *paperv1.Reading) []tutor.StatementTask {
-	out := make([]tutor.StatementTask, len(r.GetTasks()))
-	for i, t := range r.GetTasks() {
-		out[i] = tutor.StatementTask{Statement: t.GetStatement(), Formula: t.GetFormula()}
-	}
-	return out
 }
 
 // readStatements are the statements of a reading's tasks, in order.

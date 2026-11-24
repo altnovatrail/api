@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -111,10 +112,13 @@ func TestThePageBeginsItsAttempts(t *testing.T) {
 	}
 }
 
-// The key of a task from paper and the reading of its statement are kept on its
-// open attempt alone, and erased as the attempt closes: an attempt of a module
-// holds neither.
-func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
+// The Check of a task from paper, its history and the reading of its statement
+// are kept on its open attempt alone, and erased as the attempt closes: an
+// attempt of a module holds none. Each Check replaces the one before, which
+// goes to the end of the history when a turn is given, and lets the rungs of
+// the ladder before go; the rungs shown are each rung's words, then its words
+// put another way.
+func TestTheCheckOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 	t.Parallel()
 
 	e := newE3(t)
@@ -124,12 +128,13 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ids []string
+	var shown []string
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		if ids, err = store.BeginPaperAttempts(ctx, tx, e.profileID, "page-1", 1, time.Now()); err != nil {
 			return err
 		}
-		if err := store.SetPaperKey(ctx, tx, e.profileID, module, []byte{1}); err == nil {
-			t.Error("a key on the module's attempt was set")
+		if err := store.KeepPaperCheck(ctx, tx, e.profileID, module, []byte{1}, nil); err == nil {
+			t.Error("a Check on the module's attempt was kept")
 		}
 		if err := store.SetPaperReading(ctx, tx, e.profileID, module, []byte{1}); err == nil {
 			t.Error("a reading on the module's attempt was set")
@@ -137,10 +142,26 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 		if err := store.SetPaperReading(ctx, tx, e.profileID, ids[0], []byte{3}); err != nil {
 			return err
 		}
-		return store.SetPaperKey(ctx, tx, e.profileID, ids[0], []byte{1, 2})
+		if err := store.KeepPaperCheck(ctx, tx, e.profileID, ids[0], []byte{1}, nil); err != nil {
+			return err
+		}
+		if err := store.WriteRung(ctx, tx, e.profileID, ids[0], 2, store.Words{Source: store.SourceModel, Text: "Which step?"}); err != nil {
+			return err
+		}
+		if err := store.ExplainRung(ctx, tx, e.profileID, ids[0], 1, store.Words{Source: store.SourceModel, Text: "What is asked?"},
+			store.Words{Source: store.SourceModel, Text: "What do you find?"}, time.Now()); err != nil {
+			return err
+		}
+		if shown, err = store.ShownRungs(ctx, tx, e.profileID, ids[0]); err != nil {
+			return err
+		}
+		return store.KeepPaperCheck(ctx, tx, e.profileID, ids[0], []byte{1, 2}, []byte{4})
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if want := []string{"What is asked?", "What do you find?", "Which step?"}; !slices.Equal(shown, want) {
+		t.Errorf("the rungs shown = %q, want %q", shown, want)
 	}
 	hold := func() store.Attempt {
 		t.Helper()
@@ -153,11 +174,15 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 		}
 		return a
 	}
-	if a := hold(); string(a.PaperKey) != "\x01\x02" || string(a.PaperReading) != "\x03" {
-		t.Errorf("the key kept = %x, the reading %x; want 0102 and 03", a.PaperKey, a.PaperReading)
+	if a := hold(); string(a.PaperCheck) != "\x01\x02" || len(a.PaperHistory) != 1 || string(a.PaperHistory[0]) != "\x04" || string(a.PaperReading) != "\x03" {
+		t.Errorf("the Check kept = %x, the history %x, the reading %x; want 0102, [04] and 03", a.PaperCheck, a.PaperHistory, a.PaperReading)
 	}
-	for _, column := range []string{"paper_key", "paper_reading"} {
-		if _, err := e.pool.Exec(ctx, `UPDATE attempts SET `+column+` = '\x01' WHERE id = $1`, module); sqlstate(err) != "23514" {
+	var rungs int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM attempt_rungs WHERE attempt_id = $1`, ids[0]).Scan(&rungs); err != nil || rungs != 0 {
+		t.Errorf("the attempt keeps %d rungs (%v) past its new Check, want none", rungs, err)
+	}
+	for column, value := range map[string]string{"paper_check": `'\x01'`, "paper_history": `ARRAY['\x01'::bytea]`, "paper_reading": `'\x01'`} {
+		if _, err := e.pool.Exec(ctx, `UPDATE attempts SET `+column+` = `+value+` WHERE id = $1`, module); sqlstate(err) != "23514" {
 			t.Errorf("%s on a module's attempt = %v, want a check violation", column, err)
 		}
 	}
@@ -167,19 +192,21 @@ func TestTheKeyOfAPaperAttemptGoesWithItsClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a := hold(); a.PaperKey != nil || a.PaperReading != nil {
-		t.Errorf("the key after the close = %x, the reading %x; want neither", a.PaperKey, a.PaperReading)
+	if a := hold(); a.PaperCheck != nil || a.PaperHistory != nil || a.PaperReading != nil {
+		t.Errorf("after the close the Check = %x, the history %x, the reading %x; want none", a.PaperCheck, a.PaperHistory, a.PaperReading)
 	}
-	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return store.SetPaperKey(ctx, tx, e.profileID, ids[0], []byte{1}) })
+	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return store.KeepPaperCheck(ctx, tx, e.profileID, ids[0], []byte{1}, nil) })
 	if err == nil {
-		t.Error("a key on a closed attempt was set")
+		t.Error("a Check on a closed attempt was kept")
 	}
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error { return store.SetPaperReading(ctx, tx, e.profileID, ids[0], []byte{1}) })
 	if err == nil {
 		t.Error("a reading on a closed attempt was set")
 	}
-	if _, err := e.pool.Exec(ctx, `UPDATE attempts SET paper_reading = '\x01' WHERE id = $1`, ids[0]); sqlstate(err) != "23514" {
-		t.Errorf("a reading on a closed attempt by hand = %v, want a check violation", err)
+	for column, value := range map[string]string{"paper_check": `'\x01'`, "paper_history": `ARRAY['\x01'::bytea]`, "paper_reading": `'\x01'`} {
+		if _, err := e.pool.Exec(ctx, `UPDATE attempts SET `+column+` = `+value+` WHERE id = $1`, ids[0]); sqlstate(err) != "23514" {
+			t.Errorf("%s on a closed attempt by hand = %v, want a check violation", column, err)
+		}
 	}
 }
 

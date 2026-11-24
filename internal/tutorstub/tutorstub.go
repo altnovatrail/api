@@ -17,17 +17,18 @@
 // own, taller than wide a blank sheet, square illegible —, and assesses the
 // text every criterion met but the last. It finds the tasks on the photo of a
 // page by its shape as well: taller than wide five tasks, one under another,
-// wider than tall none, and square a failure of AI. A task from paper it checks
-// by shapes too: the statement wider than tall reads into a formula the solver
-// takes, at least twice as tall as wide is several tasks, which have no key,
-// otherwise taller than wide is none and a solution of AI gives the same
-// answer, and square has no one answer, so the task has no key; the work it
-// reads by the shape of its crop, which takes in the tracing paper: more than
-// twice as wide as tall right, wider but not twice wrong, else illegible. Its
-// words — a rung's questions, the praise after a correct answer and the
-// feedback on an essay — are its own, which pass the leak check and the form
-// check. Each call spends what tutor expects a call of its kind to cost on its
-// route, so that the quota runs out as on the models.
+// wider than tall none, and square a failure of AI. A task from paper it
+// reads for "Recognise" by the shape of its statement — wider than tall one
+// task, at least twice as tall as wide three, otherwise one word problem — and
+// checks by the shape of the work, which takes in the tracing paper, on as many
+// tasks as it is told, or, told none, as many as "Recognise" reads: more than
+// twice as wide as tall every task correct, wider but not twice the first not
+// yet, square every task so far correct, taller but not twice unreadable, and
+// at least twice as tall nothing written. Its words — a rung's questions, the
+// Check's words and ladder, the praise after a correct answer and the feedback
+// on an essay — are its own, which pass the leak check and the form check.
+// Each call spends what tutor expects a call of its kind to cost on its route,
+// so that the quota runs out as on the models.
 //
 // On an own key a call ends by how the key ends, as a provider would refuse it
 // (KeyRefused and the endings beside it): api hands the stub the key's value
@@ -54,7 +55,6 @@ import (
 
 	"github.com/altnovatrail/module-kit/verdict"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
-	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	tutorprovider "github.com/altnovatrail/tutor/provider"
@@ -159,7 +159,7 @@ func nextMonth(at time.Time) time.Time {
 type Gate interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
 	Words(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
-	PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
+	PaperWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	CorrectWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	Price(call tutor.Call, route tutor.Route) tutor.CallPrice
 	Reading() tutor.Reading
@@ -542,37 +542,29 @@ func (s *Stub) TellWords(ctx context.Context, w tutor.WordsRequest, own string) 
 		Usage: s.usage(admission.WordsCall(len(w.Crop) > 0), w.Route, 1)}}
 }
 
-// PaperWords says whether the tutor's words of a task from paper are admitted,
-// as the gate says.
-func (s *Stub) PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	return s.gate.PaperWords(withWork, category, ownKeyProvider)
+// PaperWords says whether "explain differently" on a task from paper is
+// admitted, as the gate says.
+func (s *Stub) PaperWords(category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return s.gate.PaperWords(category, ownKeyProvider)
 }
 
-// TellPaperWords words a question of the stub's own in the language of w, as
-// TellWords does, for the opening question, a rung and a rung put another way
-// alike. A rung's words come with the box of the first mistake: the band of the
-// crop of the rung's task, as ReadPaper reads the tasks of a crop one under
-// another, the whole crop for one task. Of tutor's checks before its call the
-// stub keeps those of the request's form: no style, a rung with no PNG of the
-// work, or an opening question with no crop of the task fails with no usage.
-// Past them an own key of an ending of the stub's, own being its value, is
-// refused by it.
+// TellPaperWords words "explain differently" on a task from paper with a
+// question of the stub's own in the language of w, as TellWords does. Of
+// tutor's checks before its call the stub keeps those of the request's form:
+// another kind of words, no style or a task not in the frame fails with no
+// usage. Past them an own key of an ending of the stub's, own being its value,
+// is refused by it.
 func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer {
 	fail := func(err error) tutor.WordsAnswer {
 		return tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	}
-	if strings.TrimSpace(w.Style) == "" {
+	switch {
+	case w.Ask != tutor.PaperAgain:
+		return fail(fmt.Errorf("tutorstub: no kind of words of paper %d", w.Ask))
+	case strings.TrimSpace(w.Style) == "":
 		return fail(errors.New("tutorstub: the words have no style of presentation"))
-	}
-	switch w.Ask {
-	case tutor.PaperRung:
-		if _, err := png.DecodeConfig(bytes.NewReader(w.Crop)); err != nil {
-			return fail(err)
-		}
-	case tutor.PaperOpening:
-		if _, _, err := image.DecodeConfig(bytes.NewReader(w.Statement)); err != nil {
-			return fail(fmt.Errorf("tutorstub: the task's crop: %w", err))
-		}
+	case w.Task < 1 || w.Task > len(w.Tasks):
+		return fail(fmt.Errorf("tutorstub: no task %d in the frame", w.Task))
 	}
 	if o, refused := refusal(ctx, own); refused {
 		return tutor.WordsAnswer{Outcome: o}
@@ -582,15 +574,12 @@ func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, ow
 		list = l
 	}
 	answer := tutor.WordsAnswer{Question: list[len(w.Asked)%len(list)], Outcome: tutor.Outcome{Kind: tutor.Answered,
-		Usage: s.usage(admission.PaperWordsCall(w.Ask == tutor.PaperRung), w.Route, 1)}}
+		Usage: s.usage(tutor.CallPaperHint, w.Route, 1)}}
 	for _, q := range list {
 		if !slices.Contains(w.Asked, q) {
 			answer.Question = q
 			break
 		}
-	}
-	if n := len(w.Tasks); w.Ask == tutor.PaperRung && n > 0 && w.Task >= 1 && w.Task <= n {
-		answer.Box = &observationv1.CropBox{Ymin: int32((w.Task - 1) * wholeCrop / n), Ymax: int32(w.Task * wholeCrop / n), Xmax: wholeCrop}
 	}
 	return answer
 }
@@ -704,7 +693,8 @@ const (
 )
 
 // FindTasks finds the tasks on the photo of f by its shape: taller than wide,
-// pageTasks of them, one under another across the page, in its order; wider
+// pageTasks of them, one under another across the page, in its order, the
+// first with the frame of an instruction in the margin above it; wider
 // than tall, none, which the learner frames by hand; square, a failure of AI,
 // which spends as a call that went. With the learner's request a photo not
 // square has columnTasks of them, one under another in the left quarter, less
@@ -743,7 +733,9 @@ func (s *Stub) FindTasks(ctx context.Context, f tutor.TaskFinding, own string) t
 		for i := range int32(pageTasks) {
 			top := 20 + i*step
 			found.Frames = append(found.Frames, &observationv1.CropBox{Ymin: top, Xmin: 50, Ymax: top + height, Xmax: wholeCrop - 50})
+			found.Instructions = append(found.Instructions, nil)
 		}
+		found.Instructions[0] = &observationv1.CropBox{Ymin: 2, Xmin: 50, Ymax: 18, Xmax: wholeCrop - 50}
 	}
 	return found
 }
@@ -826,16 +818,13 @@ func (s *Stub) readers() int {
 }
 
 // stubFormula is the formula the stub reads of a statement wider than tall, and
-// stubKey the one answer it gives a task from paper: the solver's of the
-// formula, so that both ways to the key give the same.
+// stubKey the one answer its Check gives each task from paper, the formula's.
 const (
 	stubFormula = "37+48"
 	stubKey     = "85"
 )
 
-// severalTasks are the tasks the stub reads on a crop of several: three sums,
-// whose formulas the solver takes, the last of a key other than stubKey, so
-// that the stub's reading of the work, stubKey in each, gets two of three.
+// severalTasks are the tasks the stub reads on a crop of several: three sums.
 var severalTasks = []tutor.StatementTask{
 	{Statement: "37 + 48 =", Formula: "37+48"},
 	{Statement: "40 + 45 =", Formula: "40+45"},
@@ -843,10 +832,9 @@ var severalTasks = []tutor.StatementTask{
 }
 
 // ReadStatement reads the statement of a task from paper by the shape of its
-// crop: wider than tall, one task of the formula stubFormula, which the solver
-// takes; at least twice as tall as wide, the three tasks severalTasks;
-// otherwise taller than wide or square, one task of no formula, so that a
-// solution of AI is asked. Of tutor's checks before its call the stub keeps the
+// crop: wider than tall, one task of the formula stubFormula; at least twice as
+// tall as wide, the three tasks severalTasks; otherwise taller than wide or
+// square, one task of no formula. Of tutor's checks before its call the stub keeps the
 // crop's form: one that is no JPEG or PNG fails with no usage. Past it an own
 // key of an ending of the stub's, own being its value, is refused by it.
 func (s *Stub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
@@ -866,20 +854,6 @@ func (s *Stub) ReadStatement(ctx context.Context, p tutor.PaperTask, own string)
 	return read
 }
 
-// SolveTask solves the tasks of a crop from paper it is asked by the shape of
-// the crop, as ReadStatement reads it: square, no one answer, which leaves
-// each task no key; otherwise the number stubKey for each.
-func (s *Stub) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, own string) tutor.TasksSolved {
-	cfg, o, ok := s.statement(ctx, tutor.CallSolving, p, own)
-	solved := tutor.TasksSolved{Outcome: o, Answers: map[int]*paperv1.Answer{}}
-	for _, t := range tasks {
-		if ok && cfg.Width != cfg.Height {
-			solved.Answers[t.Number] = &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: stubKey}}}
-		}
-	}
-	return solved
-}
-
 // statement is the size of the crop of p and the outcome of the call of its
 // kind, which spends the call's expected price: false for a crop that is no
 // JPEG or PNG, which fails, or an own key the stub refuses.
@@ -894,50 +868,101 @@ func (s *Stub) statement(ctx context.Context, call tutor.Call, p tutor.PaperTask
 	return cfg, tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(call, p.Route, 1)}, true
 }
 
-// ReadPaper reads the work on a task from paper by the shape of its crop, which
-// takes in the tracing paper, a line of print as a rule: more than twice as
-// wide as tall — the task with a short answer — the stub's key, stubKey; wider
-// than tall but not twice — a stroke that reaches below the task — a wrong
-// value; square or taller, illegible. Of several tasks it reads stubKey in
-// each, in a band of the crop of its own, one under another. One reader reads
-// it in any mode, as tutor's one model, the task n in the place n, 1.
-func (s *Stub) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead {
-	cfg, err := png.DecodeConfig(bytes.NewReader(r.Crop))
-	if err != nil {
-		return failed(err)
+// The verdicts of a slot of the Check, as tutor's SlotChecked names them.
+const (
+	checkCorrect    = "correct"
+	checkIncorrect  = "incorrect"
+	checkUnreadable = "unreadable"
+	checkNoAnswer   = "no_answer"
+)
+
+// stubSolution is the hidden solution the stub's Check gives each task, of the
+// answer stubKey, and stubSoFar what it reads of a work with no answer yet.
+const (
+	stubSolution = "37 + 48 = 85"
+	stubSoFar    = "37 + 4"
+)
+
+// checkWords are the tutor's words of the stub's Check, by language, without a
+// number, as the leak check takes them.
+var checkWords = map[string]string{
+	"en": "Let us look at your work together.",
+	"ru": "Давай посмотрим на твоё решение вместе.",
+}
+
+// CheckPaper checks the work of c by the shape of its crop, which takes in the
+// tracing paper, the same for each of its c.Tasks tasks — told none, as many as
+// ReadStatement reads on its statement, three on one at least twice as tall as
+// wide, else one —, each in a band of the crop of its own, one under another:
+// more than twice as wide as tall, each task correct, stubKey read; wider but
+// not twice, the first task incorrect, a wrong value read, with one error, and
+// the others correct; square, each task with no answer yet, a start of the
+// solution read and no error; taller but not twice, each unreadable; at least
+// twice as tall, each with no answer and nothing read. Each slot has the hidden
+// solution stubSolution, and the ladder is the stub's questions in the
+// language of c. Of tutor's checks before its call the stub keeps those of the
+// request's form: a count of tasks below 0 or above 20, a crop or an
+// instruction that is no picture and a work that is no PNG fail with no usage. Past them an own key of an ending of
+// the stub's, own being its value, is refused by it.
+func (s *Stub) CheckPaper(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked {
+	fail := func(err error) tutor.PaperChecked {
+		return tutor.PaperChecked{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	}
-	if len(r.Tasks) == 0 {
-		return failed(errors.New("tutorstub: the reading of paper has no task"))
+	if c.Tasks < 0 || c.Tasks > maxCheckTasks {
+		return fail(fmt.Errorf("tutorstub: the Check of %d tasks", c.Tasks))
+	}
+	statement, _, err := image.DecodeConfig(bytes.NewReader(c.Statement))
+	if err != nil {
+		return fail(fmt.Errorf("tutorstub: the statement: %w", err))
+	}
+	tasks := c.Tasks
+	if tasks == 0 {
+		tasks = 1
+		if statement.Height >= 2*statement.Width {
+			tasks = len(severalTasks)
+		}
+	}
+	if len(c.Instruction) > 0 {
+		if _, _, err := image.DecodeConfig(bytes.NewReader(c.Instruction)); err != nil {
+			return fail(fmt.Errorf("tutorstub: the instruction: %w", err))
+		}
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(c.Work))
+	if err != nil {
+		return fail(err)
 	}
 	if o, refused := refusal(ctx, own); refused {
-		return tutor.SheetRead{Outcome: o}
+		return tutor.PaperChecked{Outcome: o}
 	}
-	done := tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallPaper, r.Route, 1)}
-	if n := len(r.Tasks); n > 1 {
-		obs := &observationv1.Observation{}
-		for i := range n {
-			obs.AnswerSlots = append(obs.AnswerSlots, &observationv1.AnswerSlotObservation{
-				AnswerSlot: &observationv1.AnswerSlotPlace{Item: int32(i + 1), Slot: 1},
-				Read:       &observationv1.AnswerSlotObservation_Value{Value: stubKey},
-				CropBox:    &observationv1.CropBox{Ymin: int32(i * wholeCrop / n), Ymax: int32((i + 1) * wholeCrop / n), Xmax: wholeCrop},
-			})
+	hints := questions["en"]
+	words := checkWords["en"]
+	if l, ok := questions[base(c.Language)]; ok {
+		hints, words = l, checkWords[base(c.Language)]
+	}
+	checked := tutor.PaperChecked{TutorWords: words, Hints: slices.Clone(hints),
+		Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallChecking, c.Route, 1)}}
+	for i := range tasks {
+		band := &observationv1.CropBox{Ymin: int32(i * wholeCrop / tasks), Ymax: int32((i + 1) * wholeCrop / tasks), Xmax: wholeCrop}
+		slot := tutor.SlotChecked{Task: i + 1, Confidence: "high", Solution: stubSolution, Answer: stubKey}
+		switch {
+		case cfg.Width > 2*cfg.Height:
+			slot.Verdict, slot.Read, slot.ReadBox = checkCorrect, stubKey, band
+		case cfg.Width > cfg.Height && i == 0:
+			slot.Verdict, slot.Read, slot.ReadBox = checkIncorrect, stubKey+"1", band
+			slot.Errors = []tutor.CheckError{{Box: band, Where: "the last digit", Kind: "arithmetic", Note: "one digit too many"}}
+		case cfg.Width > cfg.Height:
+			slot.Verdict, slot.Read, slot.ReadBox = checkCorrect, stubKey, band
+		case cfg.Width == cfg.Height:
+			slot.Verdict, slot.Read, slot.ReadBox = checkNoAnswer, stubSoFar, band
+		case cfg.Height < 2*cfg.Width:
+			slot.Verdict = checkUnreadable
+		default:
+			slot.Verdict = checkNoAnswer
 		}
-		return tutor.SheetRead{Observations: []*observationv1.Observation{obs}, Outcome: done}
+		checked.Slots = append(checked.Slots, slot)
 	}
-	answer := &observationv1.AnswerSlotObservation{AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}}
-	switch {
-	case cfg.Width > 2*cfg.Height:
-		answer.Read = &observationv1.AnswerSlotObservation_Value{Value: stubKey}
-	case cfg.Width > cfg.Height:
-		answer.Read = &observationv1.AnswerSlotObservation_Value{Value: stubKey + "1"}
-	default:
-		answer.Read = &observationv1.AnswerSlotObservation_Unreadable{Unreadable: observationv1.Unreadable_UNREADABLE_ILLEGIBLE}
-	}
-	if answer.GetValue() != "" {
-		answer.CropBox = &observationv1.CropBox{Ymax: wholeCrop, Xmax: wholeCrop}
-	}
-	return tutor.SheetRead{
-		Observations: []*observationv1.Observation{{AnswerSlots: []*observationv1.AnswerSlotObservation{answer}}},
-		Outcome:      done,
-	}
+	return checked
 }
+
+// maxCheckTasks is the most tasks of a frame tutor's Check takes.
+const maxCheckTasks = 20

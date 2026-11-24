@@ -85,10 +85,15 @@ type Attempt struct {
 	// CorrectWordsGiven says whether the tutor's words after a correct answer were
 	// given on it.
 	CorrectWordsGiven bool
-	// PaperKey is the key of an attempt of a task from paper, the message Key of
-	// novatrail.paper.v1, while the attempt is open: nil before the first
-	// submission derived it.
-	PaperKey []byte
+	// PaperCheck is the last Check of an attempt of a task from paper, the
+	// message Check of novatrail.paper.v1, while the attempt is open: nil before
+	// its first Check.
+	PaperCheck []byte
+	// PaperHistory is the Checks of an attempt of a task from paper before its
+	// last, in order, while it is open: each a message Check of its verdicts, its
+	// tutor's words and, in its hints, the rungs of its ladder the learner was
+	// shown.
+	PaperHistory [][]byte
 	// PaperReading is the reading of the statement of an attempt of a task from
 	// paper, the message Reading of novatrail.paper.v1, while the attempt is open:
 	// nil before "Recognise" made it.
@@ -100,7 +105,8 @@ const attemptColumns = `id, kind = 'paper', coalesce(package_digest, ''), coales
 	coalesce(module_version, ''), coalesce(module_format_version, ''), coalesce(module_kit_version, ''),
 	coalesce(task_id, ''), coalesce(seed, 0), instance, choice_id, lesson_run_id, segment, previous_attempt_id,
 	last_action_at, close_reason, wrong_answers, step_techniques_at IS NOT NULL,
-	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given, paper_key, paper_reading`
+	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given, paper_check, paper_history,
+	paper_reading`
 
 func scanAttempt(row pgx.Row) (Attempt, error) {
 	var a Attempt
@@ -108,7 +114,7 @@ func scanAttempt(row pgx.Row) (Attempt, error) {
 	err := row.Scan(&a.ID, &a.Paper, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.FormatVersion, &a.ModuleKit,
 		&a.TaskID, &seed, &a.Instance, &a.ChoiceID, &a.LessonRunID, &a.Segment, &a.PreviousID, &a.LastActionAt,
 		&a.CloseReason, &a.WrongAnswers, &a.StepTechniques, &a.RequestedTechniques, &a.LeadingQuestion,
-		&a.CorrectWordsGiven, &a.PaperKey, &a.PaperReading)
+		&a.CorrectWordsGiven, &a.PaperCheck, &a.PaperHistory, &a.PaperReading)
 	// The seed is module-kit's uint64, kept as the bits of a bigint.
 	a.Seed = uint64(seed)
 	return a, err
@@ -240,17 +246,24 @@ func ChoiceBegun(ctx context.Context, db Querier, profileID, choiceID string) (b
 	return begun, nil
 }
 
-// SetPaperKey keeps the key of the profile's open attempt of a task from paper,
-// the message Key of novatrail.paper.v1, until the attempt closes. An attempt
-// that is not of paper, or closed, keeps none.
-func SetPaperKey(ctx context.Context, tx pgx.Tx, profileID, attemptID string, key []byte) error {
-	tag, err := tx.Exec(ctx, `UPDATE attempts SET paper_key = $3
-		WHERE profile_id = $1 AND id = $2 AND kind = 'paper' AND closed_at IS NULL`, profileID, attemptID, key)
+// KeepPaperCheck keeps check, the message Check of novatrail.paper.v1, on the
+// profile's open attempt of a task from paper in place of the Check before,
+// until the attempt closes. turn is what the history keeps of the Check before,
+// nil when there was none, and goes to its end; the rungs the learner was shown
+// of the ladder before go, so that each rung of the new ladder is given anew.
+// An attempt that is not of paper, or closed, keeps none.
+func KeepPaperCheck(ctx context.Context, tx pgx.Tx, profileID, attemptID string, check, turn []byte) error {
+	tag, err := tx.Exec(ctx, `UPDATE attempts SET paper_check = $3,
+			paper_history = CASE WHEN $4::bytea IS NULL THEN paper_history ELSE coalesce(paper_history, '{}') || $4::bytea END
+		WHERE profile_id = $1 AND id = $2 AND kind = 'paper' AND closed_at IS NULL`, profileID, attemptID, check, turn)
 	if err != nil {
-		return fmt.Errorf("store: keep the key of the attempt: %w", err)
+		return fmt.Errorf("store: keep the Check of the attempt: %w", err)
 	}
 	if tag.RowsAffected() != 1 {
-		return errors.New("store: no open attempt of paper to keep the key of")
+		return errors.New("store: no open attempt of paper to keep the Check of")
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM attempt_rungs WHERE profile_id = $1 AND attempt_id = $2`, profileID, attemptID); err != nil {
+		return fmt.Errorf("store: let the rungs of the ladder before go: %w", err)
 	}
 	return nil
 }

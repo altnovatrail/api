@@ -2,6 +2,7 @@ package learning_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -25,17 +26,41 @@ import (
 
 // paperWork is the work of a task from paper: the statement's crop, a JPEG of
 // width by height, which the stub reads into a formula when wider than tall,
-// and the crop of the work, whose shape says what the stub reads in it.
+// and the crop of the work, whose shape says how the stub checks it.
 func paperWork(t *testing.T, statement [2]int, crop []byte) *v1.Work {
 	return &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, statement[0], statement[1]), Crop: crop}}}
 }
 
 var (
-	formulaStatement = [2]int{400, 300}
-	wordStatement    = [2]int{300, 400}
-	noKeyStatement   = [2]int{300, 300}
-	severalStatement = [2]int{150, 400}
+	formulaStatement  = [2]int{400, 300}
+	wordStatement     = [2]int{300, 400}
+	severalStatement  = [2]int{150, 400}
+	rightWork         = [2]int{90, 30}
+	wrongWork         = [2]int{40, 30}
+	soFarWork         = [2]int{30, 30}
+	illegibleWork     = [2]int{30, 40}
+	nothingWrittenOn  = [2]int{30, 90}
+	stubWordsEnglish  = "Let us look at your work together."
+	stubFirstQuestion = "Which step of your work would you check first?"
 )
+
+// submitPaper submits the work of crop's shape on the attempt under a new key,
+// on a statement of one formula.
+func (w *world) submitPaper(t *testing.T, l learner, attempt string, crop [2]int) *v1.SubmitWorkResponse {
+	t.Helper()
+	return w.submitPaperOn(t, l, attempt, formulaStatement, crop)
+}
+
+// submitPaperOn submits the work of crop's shape on the statement of its shape.
+func (w *world) submitPaperOn(t *testing.T, l learner, attempt string, statement, crop [2]int) *v1.SubmitWorkResponse {
+	t.Helper()
+	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt, IdempotencyKey: uuid.NewString(),
+		Work: paperWork(t, statement, pngOf(t, crop[0], crop[1]))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
 
 // reserveOf is what a call of a task from paper reserves on platform AI for an
 // adult: the expected price of every attempt of its cascade, by tutor through
@@ -44,29 +69,31 @@ func reserveOf(g *admission.Gate, c tutor.Call) quota.Micro {
 	return quota.Reserve(c, g.Price(c, tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}), 1)
 }
 
-// paperKey is the key the attempt keeps, or nil when it keeps none.
-func (w *world) paperKey(t *testing.T, attempt string) *paperv1.Key {
+// paperCheck is the Check the attempt keeps, or nil when it keeps none.
+func (w *world) paperCheck(t *testing.T, attempt string) *paperv1.Check {
 	t.Helper()
 	var kept []byte
-	if err := w.pool.QueryRow(t.Context(), `SELECT paper_key FROM attempts WHERE id = $1`, attempt).Scan(&kept); err != nil {
+	if err := w.pool.QueryRow(t.Context(), `SELECT paper_check FROM attempts WHERE id = $1`, attempt).Scan(&kept); err != nil {
 		t.Fatal(err)
 	}
 	if kept == nil {
 		return nil
 	}
-	k := &paperv1.Key{}
-	if err := proto.Unmarshal(kept, k); err != nil {
+	c := &paperv1.Check{}
+	if err := proto.Unmarshal(kept, c); err != nil {
 		t.Fatal(err)
 	}
-	return k
+	return c
 }
 
-// firstTask is the first task of a key, or nil.
-func firstTask(k *paperv1.Key) *paperv1.TaskKey {
-	if len(k.GetTasks()) == 0 {
-		return nil
+// paperHistory is how many Checks the attempt keeps before its last.
+func (w *world) paperHistory(t *testing.T, attempt string) int {
+	t.Helper()
+	var n int
+	if err := w.pool.QueryRow(t.Context(), `SELECT coalesce(cardinality(paper_history), 0) FROM attempts WHERE id = $1`, attempt).Scan(&n); err != nil {
+		t.Fatal(err)
 	}
-	return k.GetTasks()[0]
+	return n
 }
 
 // slotOf is the verdict of the one answer slot of a task from paper.
@@ -78,211 +105,333 @@ func slotOf(t *testing.T, res *v1.SubmitWorkResponse) *v1.AnswerSlotVerdict {
 	return res.GetItems()[0].GetAnswerSlots()[0]
 }
 
-// The first Check of a task from paper derives its key while the work is read
-// beside it: a statement the stub reads into a formula gets the solver's key,
-// and its solution is not asked, its part of the reserve given back. A wrong
-// value is a wrong answer, and a later Check reads the work alone by the key
-// kept; the right one closes the attempt "correct" with an empty solved and no
-// next, the key and the submissions erased with the close. A repeat under the
-// key gives the task solved alone, with no call and no verdict of a task, which
-// the close erased.
-func TestATaskFromPaperIsCheckedByTheSolversKey(t *testing.T) {
+// scripted is the stub of tutor whose calls of a task from paper a test answers
+// where it sets them, the stub the others, and which keeps every Check it is
+// asked; during runs as the work is checked, between the two transactions of a
+// Check.
+type scripted struct {
+	*tutorstub.Stub
+	mu        sync.Mutex
+	statement *tutor.StatementRead
+	checked   *tutor.PaperChecked
+	during    func()
+	asked     []tutor.PaperCheck
+}
+
+func (s *scripted) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
+	s.mu.Lock()
+	given := s.statement
+	s.mu.Unlock()
+	if given != nil {
+		return *given
+	}
+	return s.Stub.ReadStatement(ctx, p, own)
+}
+
+func (s *scripted) CheckPaper(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked {
+	s.mu.Lock()
+	given, during := s.checked, s.during
+	s.asked = append(s.asked, c)
+	s.mu.Unlock()
+	if during != nil {
+		during()
+	}
+	if given != nil {
+		return *given
+	}
+	return s.Stub.CheckPaper(ctx, c, own)
+}
+
+// checks are the Checks the stub was asked, in order.
+func (s *scripted) checks() []tutor.PaperCheck {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.asked)
+}
+
+// scriptedWorld is a world on the scripted stub.
+func scriptedWorld(t *testing.T) (*world, *scripted, *admission.Gate) {
+	t.Helper()
+	g := stubGate(t)
+	s := &scripted{Stub: tutorstub.New(g)}
+	return worldOf(t, g, []learning.Option{learning.WithTutor(s)}), s, g
+}
+
+// A submission of a task from paper is one Check, told no task count before
+// the first and the last one's after it, the language of the interface, the learner's age category and the instruction.
+// A task not yet is a wrong answer with the value read at its box and the
+// tutor's words, and the attempt keeps the Check; a Check that came to an
+// outcome keeps nothing and counts nothing. The next Check is given the one
+// before as its history, with the rungs the learner was shown; the right value
+// closes the attempt "correct" with an empty solved and no next, the Check,
+// its history and the submissions erased with the close. A repeat under the
+// key gives the task solved alone, with no call.
+func TestATaskFromPaperIsOneCheck(t *testing.T) {
 	t.Parallel()
 
-	w, g := newStubWorld(t)
+	w, s, g := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
+	instruction := photoOf(t, 400, 100)
 	first := &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))}
+		Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, 400, 300), Crop: pngOf(t, wrongWork[0], wrongWork[1]),
+			Instruction: instruction}}}}
 	wrong, err := w.attempts.SubmitWork(l.ctx, first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := slotOf(t, wrong); s.GetVerdict() != "not_yet" || s.GetValue() != "851" || wrong.GetWrongAnswers() != 1 || wrong.GetSolved() != nil {
-		t.Errorf("a wrong value = %v, want not_yet, 851 read and one wrong answer", wrong)
+	band := &observationv1.CropBox{Ymax: 1000, Xmax: 1000}
+	if s := slotOf(t, wrong); s.GetVerdict() != "not_yet" || s.GetValue() != "851" || !proto.Equal(s.GetCropBox(), band) ||
+		wrong.GetWrongAnswers() != 1 || wrong.GetSolved() != nil || wrong.GetTutorWords() != stubWordsEnglish {
+		t.Errorf("a wrong value = %v, want not_yet, 851 read at its box, one wrong answer and the tutor's words", wrong)
 	}
 	if again, err := w.attempts.SubmitWork(l.ctx, first); err != nil || !proto.Equal(again, wrong) {
 		t.Errorf("the repeat of the wrong Check = %v (%v), want its answer, which its submission keeps", again, err)
 	}
-	// The key kept, a Check on an own key the provider refuses reads the work
-	// alone, and gets the refusal: unchecked, and no wrong answer more.
+	asked := s.checks()
+	if len(asked) != 1 || asked[0].Tasks != 0 || asked[0].Language != "en" || asked[0].AgeCategory != "adult" ||
+		len(asked[0].Instruction) == 0 || len(asked[0].History) != 0 {
+		t.Fatalf("the Checks asked = %+v, want one of no task count, in English, for an adult, with the instruction and no history", asked)
+	}
+	if c := w.paperCheck(t, a); len(c.GetSlots()) != 1 || c.GetSlots()[0].GetVerdict() != "incorrect" || c.GetSlots()[0].GetAnswer() != "85" ||
+		len(c.GetHints()) != 3 || w.paperHistory(t, a) != 0 {
+		t.Errorf("the Check kept = %v, want the incorrect task with its hidden answer and the ladder, and no history", c)
+	}
+	checking := reserveOf(g, tutor.CallChecking)
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != checking || profile.Reserved != 0 {
+		t.Errorf("the counter = %+v, want one Check spent, %d", profile, checking)
+	}
+
 	refused, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30)), OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-own" + tutorstub.KeyRefused}})
+		Work: paperWork(t, formulaStatement, pngOf(t, rightWork[0], rightWork[1])), OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-own" + tutorstub.KeyRefused}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := slotOf(t, refused); s.GetVerdict() != "unchecked" || refused.GetOutcome().GetCause() != v1.Cause_CAUSE_KEY_REFUSED || refused.GetWrongAnswers() != 1 {
-		t.Errorf("a refused own key by the key kept = %v, want unchecked with CAUSE_KEY_REFUSED and one wrong answer still", refused)
+	if s := slotOf(t, refused); s.GetVerdict() != "unchecked" || refused.GetOutcome().GetCause() != v1.Cause_CAUSE_KEY_REFUSED ||
+		refused.GetWrongAnswers() != 1 || refused.GetTutorWords() != "" {
+		t.Errorf("a refused own key = %v, want unchecked with CAUSE_KEY_REFUSED and one wrong answer still", refused)
 	}
-	k := w.paperKey(t, a)
-	if firstTask(k).GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER || firstTask(k).GetAnswer().GetNumber().GetValue() != "85" {
-		t.Errorf("the key kept = %v, want the solver's 85", k)
+	if c := w.paperCheck(t, a); c.GetSlots()[0].GetVerdict() != "incorrect" || w.paperHistory(t, a) != 0 {
+		t.Errorf("the Check kept after the refusal = %v, want the one before", c)
 	}
-	reading, stating := reserveOf(g, tutor.CallPaper), reserveOf(g, tutor.CallStatement)
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != reading+stating || profile.Reserved != 0 {
-		t.Errorf("the counter = %+v, want the reading and the statement spent, the solution given back", profile)
+	rung, err := w.paperRungWords(t, l, l.adult, a, 1)
+	if err != nil || rung.GetWords() != stubFirstQuestion {
+		t.Fatalf("the words of rung 1 = %v, %v; want the ladder's first rung", rung, err)
 	}
 
 	key := uuid.NewString()
-	req := &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: key, Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))}
+	req := &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: key, Work: paperWork(t, formulaStatement, pngOf(t, rightWork[0], rightWork[1]))}
 	right, err := w.attempts.SubmitWork(l.ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := slotOf(t, right); s.GetVerdict() != "correct" || s.GetValue() != "85" || right.GetSolved() == nil || right.GetNext() != nil || right.GetWrongAnswers() != 1 {
-		t.Errorf("the right value = %v, want correct, solved and no next", right)
+	if s := slotOf(t, right); s.GetVerdict() != "correct" || s.GetValue() != "85" || right.GetSolved() == nil || right.GetNext() != nil ||
+		right.GetWrongAnswers() != 1 || right.GetTutorWords() != stubWordsEnglish {
+		t.Errorf("the right value = %v, want correct, solved, the tutor's words and no next", right)
 	}
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*reading+stating {
-		t.Errorf("the counter = %+v, want a second reading alone", profile)
+	asked = s.checks()
+	if n := asked[len(asked)-1].Tasks; n != 1 {
+		t.Errorf("the last Check was told %d tasks, want the one the first gave", n)
+	}
+	if h := asked[len(asked)-1].History; len(h) != 1 || !slices.Equal(h[0].Verdicts, []string{"incorrect"}) || h[0].Words != stubWordsEnglish ||
+		!slices.Equal(h[0].Rungs, []string{stubFirstQuestion}) {
+		t.Errorf("the history of the last Check = %+v, want the first, its words and the rung shown", h)
+	}
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*checking {
+		t.Errorf("the counter = %+v, want a second Check spent", profile)
 	}
 	var kept int
 	if err := w.pool.QueryRow(l.ctx, `SELECT count(*) FROM submissions WHERE attempt_id = $1`, a).Scan(&kept); err != nil {
 		t.Fatal(err)
 	}
-	if w.closeOf(t, a) != "correct" || w.paperKey(t, a) != nil || kept != 0 {
-		t.Errorf("the attempt closed %q, its key %v, %d submissions kept; want correct, and none", w.closeOf(t, a), w.paperKey(t, a), kept)
+	if w.closeOf(t, a) != "correct" || w.paperCheck(t, a) != nil || w.paperHistory(t, a) != 0 || kept != 0 {
+		t.Errorf("the attempt closed %q, its Check %v, %d submissions kept; want correct, and none", w.closeOf(t, a), w.paperCheck(t, a), kept)
 	}
 	again, err := w.attempts.SubmitWork(l.ctx, req)
 	if err != nil || !proto.Equal(again, &v1.SubmitWorkResponse{Solved: right.GetSolved()}) {
 		t.Errorf("the repeat = %v (%v), want the task solved alone", again, err)
 	}
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != 2*reading+stating {
-		t.Errorf("the counter after the repeat = %+v, want no call", profile)
+	if n := len(s.checks()); n != len(asked) {
+		t.Errorf("%d Checks after the repeat, %d before; want none more", n, len(asked))
 	}
 	_, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+		Work: paperWork(t, formulaStatement, pngOf(t, rightWork[0], rightWork[1]))})
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
 }
 
-// A statement that is no formula goes to one solution of AI, whose answer is
-// the key; a square crop of the work is illegible, no wrong answer.
-func TestATaskFromPaperIsCheckedByAIsKey(t *testing.T) {
+// Each Check replaces the one before, which goes to the history: a solution so
+// far correct counts no wrong answer and closes nothing; an unreadable work is
+// illegible; and a work with nothing written on it is CAUSE_NO_KEY, its slot
+// unchecked, its ladder kept.
+func TestEachCheckOfPaperReplacesTheOneBefore(t *testing.T) {
 	t.Parallel()
 
-	w, g := newStubWorld(t)
+	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, wordStatement, pngOf(t, 30, 30))})
-	if err != nil {
-		t.Fatal(err)
+	for i, tc := range []struct {
+		crop    [2]int
+		verdict string
+		reason  string
+		cause   v1.Cause
+		words   string
+	}{
+		{soFarWork, "so_far_correct", "", 0, stubWordsEnglish},
+		{illegibleWork, "unreadable", "illegible", 0, stubWordsEnglish},
+		{nothingWrittenOn, "unchecked", "", v1.Cause_CAUSE_NO_KEY, ""},
+	} {
+		res := w.submitPaper(t, l, a, tc.crop)
+		if s := slotOf(t, res); s.GetVerdict() != tc.verdict || s.GetReason() != tc.reason || s.GetValue() != "" ||
+			res.GetOutcome().GetCause() != tc.cause || res.GetTutorWords() != tc.words || res.GetWrongAnswers() != 0 || res.GetSolved() != nil {
+			t.Errorf("Check %d = %v, want %s %s with %v and words %q, no wrong answer", i+1, res, tc.verdict, tc.reason, tc.cause, tc.words)
+		}
+		if n := w.paperHistory(t, a); n != i || w.paperCheck(t, a) == nil {
+			t.Errorf("after Check %d the history keeps %d, want %d", i+1, n, i)
+		}
 	}
-	if s := slotOf(t, res); s.GetVerdict() != "unreadable" || res.GetWrongAnswers() != 0 || res.GetOutcome() != nil {
-		t.Errorf("an illegible work = %v, want unreadable and no wrong answer", res)
+	if h := s.checks()[2].History; len(h) != 2 || h[0].Verdicts[0] != "no_answer" || h[1].Verdicts[0] != "unreadable" || len(h[0].Rungs) != 0 {
+		t.Errorf("the history of the third Check = %+v, want the two before, no rung shown", h)
 	}
-	if k := w.paperKey(t, a); firstTask(k).GetProvenance() != paperv1.Provenance_PROVENANCE_AI || firstTask(k).GetAnswer().GetNumber().GetValue() != "85" {
-		t.Errorf("the key kept = %v, want AI's 85", k)
-	}
-	all := reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement) + reserveOf(g, tutor.CallSolving)
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
-		t.Errorf("the counter = %+v, want the three calls spent, %d", profile, all)
+	if w.closeOf(t, a) != "" {
+		t.Errorf("the attempt closed %q, want it open", w.closeOf(t, a))
 	}
 }
 
-// A task whose solution gives no one answer has no key: the slot is unchecked
-// with CAUSE_NO_KEY, and a later Check calls no AI.
-func TestATaskFromPaperWithNoKeyIsNotChecked(t *testing.T) {
-	t.Parallel()
-
-	w, g := newStubWorld(t)
-	l := w.learner(t)
-	a := w.beginPage(t, l, l.adult, 1)[0]
-	calls := 0
-	for i := range 2 {
-		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-			Work: paperWork(t, noKeyStatement, pngOf(t, 90, 30))})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_NO_KEY {
-			t.Errorf("Check %d = %v, want unchecked with CAUSE_NO_KEY", i+1, res)
-		}
-		if n := strings.Count(w.log.String(), `"model":"stub"`); i == 0 {
-			calls = n
-		} else if n != calls || calls == 0 {
-			t.Errorf("the log has %d calls of the stub after the second Check, %d after the first; want none more", n, calls)
-		}
-	}
-	if k := w.paperKey(t, a); k == nil || firstTask(k).GetAnswer() != nil {
-		t.Errorf("the key kept = %v, want one with no answer", k)
-	}
-	all := reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement) + reserveOf(g, tutor.CallSolving)
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != all {
-		t.Errorf("the counter = %+v, want the first Check's calls alone, %d", profile, all)
-	}
-}
-
-// A crop of several tasks is checked task by task: the statement reads into
-// three, each keyed by the solver, so no solution is asked and its reserve goes
-// back; the work is read given their statements, and each task's item gets its
-// verdict, its value and the box where it was read. One wrong task makes the
-// Check a wrong answer, and the attempt stays open; a later Check reads the
-// work alone, by the key kept with its statements.
+// The first Check of a frame is told no task count, for the model to find
+// the tasks itself, whatever "Recognise" read, and each Check after it the
+// count of the last: each task's item gets its verdict, its value and the box
+// where it was read, and one wrong task makes the Check one wrong answer.
 func TestATaskFromPaperOfSeveralTasksIsCheckedTaskByTask(t *testing.T) {
 	t.Parallel()
 
-	w, g := newStubWorld(t)
+	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	calls := 0
+	if res, err := w.recognise(t, l, a, formulaStatement, uuid.NewString()); err != nil || len(res.GetStatements()) != 1 {
+		t.Fatalf("Recognise = %v, %v; want one task", res, err)
+	}
 	for i := range 2 {
-		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-			Work: paperWork(t, severalStatement, pngOf(t, 30, 90))})
-		if err != nil {
-			t.Fatal(err)
-		}
+		res := w.submitPaperOn(t, l, a, severalStatement, wrongWork)
 		items := res.GetItems()
 		if len(items) != 3 || res.GetOutcome() != nil || res.GetSolved() != nil || res.GetWrongAnswers() != int32(i+1) {
-			t.Fatalf("Check %d = %v, want three items, two right", i+1, res)
+			t.Fatalf("Check %d = %v, want three items, one wrong", i+1, res)
 		}
-		for n, want := range []string{"correct", "correct", "not_yet"} {
+		for n, want := range []string{"not_yet", "correct", "correct"} {
 			s := items[n].GetAnswerSlots()[0]
-			if items[n].GetVerdict() != want || s.GetAnswerSlot().GetItem() != int32(n+1) || s.GetValue() != "85" || s.GetCropBox() == nil {
-				t.Errorf("Check %d, task %d = %v, want %s, read 85, with its box", i+1, n+1, items[n], want)
+			if items[n].GetVerdict() != want || s.GetAnswerSlot().GetItem() != int32(n+1) || s.GetCropBox().GetYmin() != int32(n*1000/3) {
+				t.Errorf("Check %d, task %d = %v, want %s in its band", i+1, n+1, items[n], want)
 			}
 		}
-		if n := strings.Count(w.log.String(), `"model":"stub"`); i == 0 {
-			calls = n
-		} else if n != calls+1 {
-			t.Errorf("the log has %d calls of the stub after the second Check, %d after the first; want the reading alone", n, calls)
-		}
 	}
-	k := w.paperKey(t, a)
-	if len(k.GetTasks()) != 3 || k.GetTasks()[2].GetStatement() != "50 + 36 =" || k.GetTasks()[2].GetAnswer().GetNumber().GetValue() != "86" ||
-		k.GetTasks()[0].GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER {
-		t.Errorf("the key kept = %v, want the solver's three, with their statements", k)
-	}
-	spent := 2*reserveOf(g, tutor.CallPaper) + reserveOf(g, tutor.CallStatement)
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != spent {
-		t.Errorf("the counter = %+v, want two readings and the statement, %d", profile, spent)
+	if told := tasksTold(s.checks()); !slices.Equal(told, []int{0, 3}) {
+		t.Errorf("the Checks were told %v tasks, want none, then the three the first found", told)
 	}
 }
 
-// The quota that does not hold the calls leaves the slot unchecked with its
-// outcome and keeps no key, so the next Check derives it.
+// tasksTold is how many tasks each Check asked was told of, in order.
+func tasksTold(asked []tutor.PaperCheck) []int {
+	var told []int
+	for _, c := range asked {
+		told = append(told, c.Tasks)
+	}
+	return told
+}
+
+// checkOfTasks is a Check of the scripted stub that gives the verdicts, a task
+// each, the incorrect read "1" with an error and the correct "85".
+func checkOfTasks(verdicts ...string) *tutor.PaperChecked {
+	c := &tutor.PaperChecked{Outcome: tutor.Outcome{Kind: tutor.Answered}, TutorWords: stubWordsEnglish,
+		Hints: []string{"Which line would you check?", "What did you carry?"}}
+	for i, v := range verdicts {
+		slot := tutor.SlotChecked{Task: i + 1, Verdict: v, Read: "85", Solution: "37 + 48 = 85", Answer: "85", Confidence: "high",
+			ReadBox: &observationv1.CropBox{Ymin: int32(i * 100), Ymax: int32(i*100 + 90), Xmax: 1000}}
+		if v == "incorrect" {
+			slot.Read = "1"
+			slot.Errors = []tutor.CheckError{{Box: slot.ReadBox, Where: "the answer", Kind: "arithmetic"}}
+		}
+		c.Slots = append(c.Slots, slot)
+	}
+	return c
+}
+
+// The items of an attempt of a task from paper are the tasks of its latest
+// Check, however many the Checks before gave: a frame read as one task grows to
+// three, then shrinks to two, each Check told the count of the last, the
+// history keeping each turn as its own Check gave it, and the hints standing on
+// the latest Check's tasks.
+func TestTheTasksOfAFrameAreThoseOfTheLatestCheck(t *testing.T) {
+	t.Parallel()
+
+	w, s, _ := scriptedWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	if res := w.submitPaper(t, l, a, wrongWork); len(res.GetItems()) != 1 {
+		t.Fatalf("the first Check = %v, want the one task the model found", res)
+	}
+	s.checked = checkOfTasks("correct", "incorrect", "correct")
+	grown := w.submitPaper(t, l, a, wrongWork)
+	if got := verdictsOf(grown); got != "correct not_yet correct" || grown.GetWrongAnswers() != 2 {
+		t.Errorf("the Check of three tasks = %v, want its three items, the second not yet", grown)
+	}
+	if c := w.paperCheck(t, a); len(c.GetSlots()) != 3 || w.paperHistory(t, a) != 1 {
+		t.Errorf("the Check kept = %v, want its three tasks and one before it", c)
+	}
+	if h := w.hint(t, l, l.adult, a); h.GetRung().GetWords() != "What did you carry?" {
+		t.Errorf("the hint after two wrong answers = %v, want the rung of the latest ladder", h)
+	}
+	s.checked = checkOfTasks("correct", "no_answer")
+	shrunk := w.submitPaper(t, l, a, wrongWork)
+	if got := verdictsOf(shrunk); got != "correct so_far_correct" || shrunk.GetWrongAnswers() != 2 || shrunk.GetSolved() != nil {
+		t.Errorf("the Check of two tasks = %v, want its two items, the second so far correct", shrunk)
+	}
+	s.checked = checkOfTasks("correct", "correct")
+	solved := w.submitPaper(t, l, a, rightWork)
+	if got := verdictsOf(solved); got != "correct correct" || solved.GetSolved() == nil {
+		t.Errorf("the Check of two correct = %v, want the attempt solved", solved)
+	}
+	asked := s.checks()
+	if told := tasksTold(asked); !slices.Equal(told, []int{0, 1, 3, 2}) {
+		t.Errorf("the Checks were told %v tasks, want none, then each the count of the one before", told)
+	}
+	var turns []int
+	for _, turn := range asked[3].History {
+		turns = append(turns, len(turn.Verdicts))
+	}
+	if !slices.Equal(turns, []int{1, 3, 2}) {
+		t.Errorf("the history of the last Check has turns of %v tasks, want 1, 3 and 2", turns)
+	}
+}
+
+// verdictsOf are the verdicts of the items of a SubmitWork answer.
+func verdictsOf(res *v1.SubmitWorkResponse) string {
+	var out []string
+	for _, item := range res.GetItems() {
+		out = append(out, item.GetVerdict())
+	}
+	return strings.Join(out, " ")
+}
+
+// The quota that does not hold the Check leaves the slot unchecked with its
+// outcome and keeps no Check, and nothing is called.
 func TestATaskFromPaperOverTheQuota(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
 	w.spend(t, l.accountID, 1_995_000)
-	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
-	if err != nil {
-		t.Fatal(err)
-	}
+	res := w.submitPaper(t, l, a, rightWork)
 	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA {
 		t.Errorf("over the quota = %v, want unchecked with CAUSE_QUOTA", res)
 	}
-	if k := w.paperKey(t, a); k != nil {
-		t.Errorf("the key kept = %v, want none", k)
+	if c := w.paperCheck(t, a); c != nil || len(s.checks()) != 0 {
+		t.Errorf("the Check kept = %v after %d calls, want none", c, len(s.checks()))
 	}
 }
 
-// What a Check of a task from paper refuses: no work of paper, a statement or a
-// crop the contract does not take, and taps; and a task's work on an attempt
-// of paper. Nothing is called.
+// What a Check of a task from paper refuses: no work of paper, a statement, a
+// crop or an instruction the contract does not take, and taps; and a task's
+// work on an attempt of paper. Nothing is called.
 func TestATaskFromPaperRefusesWhatTheContractRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -295,7 +444,9 @@ func TestATaskFromPaperRefusesWhatTheContractRefuses(t *testing.T) {
 		"no statement":    {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Crop: pngOf(t, 90, 30)}}}},
 		"no crop":         {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, 40, 30)}}}},
 		"a JPEG for crop": {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, 40, 30), Crop: photoOf(t, 40, 30)}}}},
-		"taps":            {Work: paperWork(t, formulaStatement, pngOf(t, 90, 30)), TappedChoices: []*v1.TappedChoice{tap(1, 1, "85")}},
+		"an instruction that is no picture": {Work: &v1.Work{Surface: &v1.Work_Paper{Paper: &v1.PaperWork{Statement: photoOf(t, 40, 30),
+			Crop: pngOf(t, 90, 30), Instruction: []byte("no picture")}}}},
+		"taps": {Work: paperWork(t, formulaStatement, pngOf(t, 90, 30)), TappedChoices: []*v1.TappedChoice{tap(1, 1, "85")}},
 	} {
 		req.ProfileId, req.AttemptId, req.IdempotencyKey = l.adult, a, uuid.NewString()
 		if _, err := w.attempts.SubmitWork(l.ctx, req); connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -313,65 +464,19 @@ func TestATaskFromPaperRefusesWhatTheContractRefuses(t *testing.T) {
 	}
 }
 
-// One reader reads the work in the reading mode single, and the own key that a
-// provider refuses gives the outcome and keeps no key.
-func TestATaskFromPaperByOneReaderAndAnOwnKey(t *testing.T) {
-	t.Parallel()
-
-	g := stubGateOf(t, adultFacts, "API_READING_MODE=single")
-	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
-	l := w.learner(t)
-	a := w.beginPage(t, l, l.adult, 1)[0]
-	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30)), OwnKey: &v1.OwnKey{Provider: "anthropic", Key: "sk-own" + tutorstub.KeyRefused}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_KEY_REFUSED || w.paperKey(t, a) != nil {
-		t.Errorf("a refused own key = %v, the key %v; want unchecked with CAUSE_KEY_REFUSED, and no key", res, w.paperKey(t, a))
-	}
-	res, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := slotOf(t, res); s.GetVerdict() != "correct" || s.GetValue() != "85" {
-		t.Errorf("one reader = %v, want correct", res)
-	}
-}
-
 // The gate's tutor on the stub's adapter calls no provider: each call fails as
-// AI does. The slot of a Check is unchecked with no key kept, and by a key kept
-// too; the finding gives no frame, and the opening question is the fallback
-// text, each with the failure of AI.
+// AI does. The slot of a Check is unchecked with no Check kept; the finding
+// gives no frame, and the opening question is the fallback text, each with the
+// failure of AI.
 func TestATaskFromPaperOnTheGatesTutor(t *testing.T) {
 	t.Parallel()
 
 	w := worldOf(t, stubGate(t), nil)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, wordStatement, pngOf(t, 90, 30))})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE || w.paperKey(t, a) != nil {
-		t.Errorf("the gate's tutor = %v, the key %v; want unchecked with the failure of AI, and no key", res, w.paperKey(t, a))
-	}
-	// A key kept, the work alone is read, and fails as AI does.
-	key, err := proto.Marshal(&paperv1.Key{Tasks: []*paperv1.TaskKey{{Statement: "37 + 48 =",
-		Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "85"}}}}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	w.exec(t, `UPDATE attempts SET paper_key = $2 WHERE id = $1`, a, key)
-	res, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE || res.GetWrongAnswers() != 0 {
-		t.Errorf("the reading by the key kept = %v, want unchecked with the failure of AI", res)
+	res := w.submitPaper(t, l, a, rightWork)
+	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE || w.paperCheck(t, a) != nil {
+		t.Errorf("the gate's tutor = %v, the Check %v; want unchecked with the failure of AI, and no Check", res, w.paperCheck(t, a))
 	}
 	found, err := w.findTasks(l, l.adult, photoOf(t, 300, 400), uuid.NewString())
 	if err != nil || len(found.GetFrames()) != 0 || found.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE {
@@ -383,135 +488,12 @@ func TestATaskFromPaperOnTheGatesTutor(t *testing.T) {
 	}
 }
 
-// scripted is the stub of tutor whose calls of a task from paper a test answers
-// where it sets them, the stub the others; during runs as the work is read,
-// between the two transactions of a Check.
-type scripted struct {
-	*tutorstub.Stub
-	mu        sync.Mutex
-	statement *tutor.StatementRead
-	solved    *tutor.TasksSolved
-	read      *tutor.SheetRead
-	during    func()
-}
-
-func (s *scripted) ReadStatement(ctx context.Context, p tutor.PaperTask, own string) tutor.StatementRead {
-	s.mu.Lock()
-	given := s.statement
-	s.mu.Unlock()
-	if given != nil {
-		return *given
-	}
-	return s.Stub.ReadStatement(ctx, p, own)
-}
-
-func (s *scripted) SolveTask(ctx context.Context, p tutor.PaperTask, tasks []tutor.TaskToSolve, own string) tutor.TasksSolved {
-	s.mu.Lock()
-	given := s.solved
-	s.mu.Unlock()
-	if given != nil {
-		return *given
-	}
-	return s.Stub.SolveTask(ctx, p, tasks, own)
-}
-
-func (s *scripted) ReadPaper(ctx context.Context, r tutor.PaperReading, own string) tutor.SheetRead {
-	s.mu.Lock()
-	given, during := s.read, s.during
-	s.mu.Unlock()
-	if during != nil {
-		during()
-	}
-	if given != nil {
-		return *given
-	}
-	return s.Stub.ReadPaper(ctx, r, own)
-}
-
-// itemVerdicts are the verdicts of the items of a Check, in order.
-func itemVerdicts(res *v1.SubmitWorkResponse) []string {
-	var out []string
-	for _, item := range res.GetItems() {
-		out = append(out, item.GetVerdict())
-	}
-	return out
-}
-
-// What the statement, the solution and the reading give a Check as AI gave
-// them: a crop on which the statement found no task has a key of none,
-// CAUSE_NO_KEY, with no reading; a solution that fails keeps no key; a task the
-// solution gives no answer is unchecked beside one the solver keyed, which
-// alone decides the attempt; and a task the reader read nothing of is unchecked
-// with the failure of AI beside one it read, whose value with no box comes with
-// none.
-func TestAChecksKeyAndReadingAreWhatAIGave(t *testing.T) {
-	t.Parallel()
-
-	answered := tutor.Outcome{Kind: tutor.Answered}
-	two := []tutor.StatementTask{{Statement: "37 + 48 =", Formula: "37+48"}, {Statement: "40 + 45 =", Formula: "40+45"}}
-	// The key is the number of its tasks, -1 for none kept.
-	for _, tc := range []struct {
-		name      string
-		read      *tutor.StatementRead
-		solved    *tutor.TasksSolved
-		work      *tutor.SheetRead
-		statement [2]int
-		verdicts  string
-		cause     v1.Cause
-		key       int
-		closed    string
-	}{
-		{"no task", &tutor.StatementRead{Outcome: answered}, nil, nil, formulaStatement, "unchecked", v1.Cause_CAUSE_NO_KEY, 0, ""},
-		{"a solution that fails", nil, &tutor.TasksSolved{Outcome: tutor.Outcome{Kind: tutor.Failed}}, nil, wordStatement,
-			"unchecked", v1.Cause_CAUSE_AI_FAILURE, -1, ""},
-		{"a task with no answer", &tutor.StatementRead{Outcome: answered, Tasks: []tutor.StatementTask{two[0], {Statement: "Draw a cat."}}},
-			&tutor.TasksSolved{Outcome: answered}, nil, formulaStatement, "correct unchecked", v1.Cause_CAUSE_UNSPECIFIED, -1, "correct"},
-		{"a task read of nothing", &tutor.StatementRead{Outcome: answered, Tasks: two}, nil,
-			&tutor.SheetRead{Outcome: answered, Observations: []*observationv1.Observation{{AnswerSlots: []*observationv1.AnswerSlotObservation{{
-				AnswerSlot: &observationv1.AnswerSlotPlace{Item: 1, Slot: 1}, Read: &observationv1.AnswerSlotObservation_Value{Value: "85"}}}}}},
-			formulaStatement, "correct unchecked", v1.Cause_CAUSE_AI_FAILURE, 2, ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			g := stubGate(t)
-			script := &scripted{Stub: tutorstub.New(g), statement: tc.read, solved: tc.solved, read: tc.work}
-			w := worldOf(t, g, []learning.Option{learning.WithTutor(script)})
-			l := w.learner(t)
-			a := w.beginPage(t, l, l.adult, 1)[0]
-			res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-				Work: paperWork(t, tc.statement, pngOf(t, 90, 30))})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := strings.Join(itemVerdicts(res), " "); got != tc.verdicts || res.GetOutcome().GetCause() != tc.cause {
-				t.Errorf("the Check = %v, want %s with %v", res, tc.verdicts, tc.cause)
-			}
-			if s := res.GetItems()[0].GetAnswerSlots()[0]; tc.work != nil && (s.GetValue() != "85" || s.GetCropBox() != nil) {
-				t.Errorf("a value read with no box = %v, want it shown with none", s)
-			}
-			k := w.paperKey(t, a)
-			if tc.key < 0 && k != nil || tc.key >= 0 && (k == nil || len(k.GetTasks()) != tc.key) {
-				t.Errorf("the key kept = %v, want %d tasks", k, tc.key)
-			}
-			if w.closeOf(t, a) != tc.closed {
-				t.Errorf("the attempt closed %q, want %q", w.closeOf(t, a), tc.closed)
-			}
-			if profile, _ := w.counted(t, l.accountID, l.adult); profile.Reserved != 0 {
-				t.Errorf("the counter = %+v, want nothing left in reserve", profile)
-			}
-		})
-	}
-}
-
-// An attempt of paper that another device closed while AI read the work is
+// An attempt of paper that another device closed while AI checked the work is
 // "closed": nothing is written, and the key records nothing.
-func TestAnAttemptOfPaperClosedWhileAIReadsIsClosed(t *testing.T) {
+func TestAnAttemptOfPaperClosedWhileAIChecksIsClosed(t *testing.T) {
 	t.Parallel()
 
-	g := stubGate(t)
-	script := &scripted{Stub: tutorstub.New(g)}
-	w := worldOf(t, g, []learning.Option{learning.WithTutor(script)})
+	w, script, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
 	script.mu.Lock()
@@ -531,74 +513,72 @@ func TestAnAttemptOfPaperClosedWhileAIReadsIsClosed(t *testing.T) {
 			(SELECT count(*) FROM idempotency_keys WHERE key = $2)`, a, req.GetIdempotencyKey()).Scan(&submissions, &records); err != nil {
 		t.Fatal(err)
 	}
-	if submissions != 0 || records != 0 {
+	if submissions != 0 || records != 0 || w.paperCheck(t, a) != nil {
 		t.Errorf("a Check of a closed attempt wrote %d submissions and %d records, want none", submissions, records)
 	}
 }
 
-// A key the attempt keeps that this build cannot read fails the requests that
-// read it, a Check, the opening question, the words of a rung and "Recognise",
-// as a failure of the service rather than a judgement or words by another key,
-// and so does a kept reading of the statement, for the Check that derives the
-// key from it; nothing is called.
-func TestAKeptKeyThatCannotBeReadFailsTheRequest(t *testing.T) {
+// A Check, a history or a reading the attempt keeps that this build cannot
+// read fails the requests that read it — a Check, "Hint", the words of a rung,
+// "explain differently" and "Recognise" — as a failure of the service rather
+// than a judgement or words by another Check; nothing is called.
+func TestAKeptCheckThatCannotBeReadFailsTheRequest(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
-	page := w.beginPage(t, l, l.adult, 2)
-	if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))}); err != nil {
-		t.Fatal(err)
+	page := w.beginPage(t, l, l.adult, 3)
+	w.submitPaper(t, l, page[0], wrongWork)
+	w.submitPaper(t, l, page[1], wrongWork)
+	w.exec(t, `UPDATE attempts SET paper_check = '\xff' WHERE id = $1`, page[0])
+	w.exec(t, `UPDATE attempts SET paper_history = ARRAY['\xff'::bytea] WHERE id = $1`, page[1])
+	w.exec(t, `UPDATE attempts SET paper_reading = '\xff' WHERE id = $1`, page[2])
+	calls := len(s.checks())
+	submit := func(a string) error {
+		_, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+			Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
+		return err
 	}
-	w.exec(t, `UPDATE attempts SET paper_key = '\xff' WHERE id = ANY($1)`, page)
-	calls := strings.Count(w.log.String(), `"model":"stub"`)
-	_, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
-	if connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Errorf("a Check = %v, want unavailable", err)
+	for name, call := range map[string]func() error{
+		"a Check":                func() error { return submit(page[0]) },
+		"a Check by its history": func() error { return submit(page[1]) },
+		"the words of rung 1":    func() error { _, err := w.paperRungWords(t, l, l.adult, page[0], 1); return err },
+		"explain differently":    func() error { _, err := w.explain(l, l.adult, page[0], 1); return err },
+		"Recognise by its reading": func() error {
+			_, err := w.recognise(t, l, page[2], formulaStatement, uuid.NewString())
+			return err
+		},
+		"Hint": func() error {
+			_, err := w.attempts.GetHint(l.ctx, &v1.GetHintRequest{ProfileId: l.adult, AttemptId: page[0]})
+			return err
+		},
+	} {
+		if err := call(); connect.CodeOf(err) != connect.CodeUnavailable {
+			t.Errorf("%s = %v, want unavailable", name, err)
+		}
 	}
-	if _, err := w.paperRungWords(t, l, l.adult, page[0], 1); connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Errorf("the words of rung 1 = %v, want unavailable", err)
-	}
-	if _, err := w.opening(t, l, l.adult, page[1], uuid.NewString()); connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Errorf("the opening question = %v, want unavailable", err)
-	}
-	if _, err := w.recognise(t, l, page[1], formulaStatement, uuid.NewString()); connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Errorf("Recognise = %v, want unavailable", err)
-	}
-	w.exec(t, `UPDATE attempts SET paper_key = NULL, paper_reading = '\xff' WHERE id = $1`, page[1])
-	_, err = w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
-	if connect.CodeOf(err) != connect.CodeUnavailable {
-		t.Errorf("a Check by a reading that cannot be read = %v, want unavailable", err)
-	}
-	if n := strings.Count(w.log.String(), `"model":"stub"`); n != calls {
-		t.Errorf("the log has %d calls of the stub, %d before; want none more", n, calls)
+	if n := len(s.checks()); n != calls {
+		t.Errorf("%d Checks, %d before; want none more", n, calls)
 	}
 }
 
 // The requests of a task from paper that call AI refuse a deadline that leaves
 // too little time for the call and the transaction after it, before anything
-// is called or reserved: the finding, a Check, the opening question, the
-// words of a rung and "Recognise".
+// is called or reserved: the finding, a Check, the opening question and
+// "Recognise". The words of a rung call none, and are given.
 func TestTheRequestsOfPaperWithTooLittleTimeAreRefused(t *testing.T) {
 	t.Parallel()
 
 	w, _ := newStubWorld(t)
 	l := w.learner(t)
 	page := w.beginPage(t, l, l.adult, 2)
-	if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))}); err != nil {
-		t.Fatal(err)
-	}
+	w.submitPaper(t, l, page[0], wrongWork)
 	before, _ := w.counted(t, l.accountID, l.adult)
 	short := func() context.Context {
 		ctx, cancel := context.WithTimeout(l.ctx, 5*time.Second)
 		t.Cleanup(cancel)
 		return ctx
 	}
-	wrong := int32(1)
 	for name, call := range map[string]func() error{
 		"FindTasks": func() error {
 			_, err := w.paper.FindTasks(short(), &v1.FindTasksRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Photo: photoOf(t, 300, 400)})
@@ -611,17 +591,12 @@ func TestTheRequestsOfPaperWithTooLittleTimeAreRefused(t *testing.T) {
 		},
 		"GetOpeningWords": func() error {
 			_, err := w.attempts.GetOpeningWords(short(), &v1.GetOpeningWordsRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
-				Statement: photoOf(t, formulaStatement[0], formulaStatement[1])})
+				Work: paperWork(t, formulaStatement, pngOf(t, 30, 30))})
 			return err
 		},
 		"ReadStatement": func() error {
 			_, err := w.attempts.ReadStatement(short(), &v1.ReadStatementRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
 				Statement: photoOf(t, formulaStatement[0], formulaStatement[1])})
-			return err
-		},
-		"GetRungWords": func() error {
-			_, err := w.attempts.GetRungWords(short(), &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
-				WrongAnswers: &wrong, Work: paperWork(t, formulaStatement, pngOf(t, 40, 30))})
 			return err
 		},
 	} {
@@ -631,6 +606,11 @@ func TestTheRequestsOfPaperWithTooLittleTimeAreRefused(t *testing.T) {
 	}
 	if after, _ := w.counted(t, l.accountID, l.adult); after != before {
 		t.Errorf("the counter = %+v, %+v before; want nothing spent or reserved", after, before)
+	}
+	wrong := int32(1)
+	if res, err := w.attempts.GetRungWords(short(), &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
+		WrongAnswers: &wrong}); err != nil || res.GetWords() == "" {
+		t.Errorf("the words of rung 1 with 5 s left = %v, %v; want them given", res, err)
 	}
 }
 
@@ -659,20 +639,18 @@ func TestACheckOfPaperGoesForTheTimeLimitOfPaper(t *testing.T) {
 }
 
 // An attempt of paper past 7 days with no action is closed "abandoned" by the
-// Check, which reads nothing.
+// Check, which calls nothing.
 func TestATaskFromPaperLapses(t *testing.T) {
 	t.Parallel()
 
-	w, _ := newStubWorld(t)
+	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	if _, err := w.pool.Exec(t.Context(), `UPDATE attempts SET last_action_at = last_action_at - interval '8 days' WHERE id = $1`, a); err != nil {
-		t.Fatal(err)
-	}
+	w.exec(t, `UPDATE attempts SET last_action_at = last_action_at - interval '8 days' WHERE id = $1`, a)
 	_, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
 		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
-	if w.closeOf(t, a) != "abandoned" {
-		t.Errorf("the attempt closed %q, want abandoned", w.closeOf(t, a))
+	if w.closeOf(t, a) != "abandoned" || len(s.checks()) != 0 {
+		t.Errorf("the attempt closed %q after %d Checks, want abandoned after none", w.closeOf(t, a), len(s.checks()))
 	}
 }

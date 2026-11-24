@@ -65,10 +65,9 @@ func countingWorld(t *testing.T) (*world, *counting, *admission.Gate) {
 
 // "Recognise" reads the statement of the crop once: the answer is its
 // statements, never a formula, and the attempt keeps the reading, so that a
-// repeat and a later press answer with no AI. The first Check derives the key
-// from the reading kept, with no reading of its own and no reserve of one — its
-// own crop, which the stub would read into a word problem, goes to no reading
-// of the statement —, and the attempt's close erases the reading with the key.
+// repeat and a later press answer with no AI. The Check takes nothing of it
+// but its count of tasks, and reads no statement of its own; the attempt's
+// close erases the reading with the Check.
 func TestRecogniseKeepsTheReadingForTheCheck(t *testing.T) {
 	t.Parallel()
 
@@ -83,10 +82,10 @@ func TestRecogniseKeepsTheReadingForTheCheck(t *testing.T) {
 	if !slices.Equal(res.GetStatements(), []string{"37 + 48 ="}) || res.GetRepeated() || res.GetOutcome() != nil {
 		t.Errorf("Recognise = %v, want the statement read, not repeated", res)
 	}
-	if r := w.paperReading(t, a); len(r.GetTasks()) != 1 || r.GetTasks()[0].GetFormula() != "37+48" || w.paperKey(t, a) != nil {
-		t.Errorf("the reading kept = %v, the key %v; want the task with its formula, and no key", r, w.paperKey(t, a))
+	if r := w.paperReading(t, a); len(r.GetTasks()) != 1 || r.GetTasks()[0].GetFormula() != "37+48" || w.paperCheck(t, a) != nil {
+		t.Errorf("the reading kept = %v, the Check %v; want the task with its formula, and no Check", r, w.paperCheck(t, a))
 	}
-	stating, reading := reserveOf(g, tutor.CallStatement), reserveOf(g, tutor.CallPaper)
+	stating, checking := reserveOf(g, tutor.CallStatement), reserveOf(g, tutor.CallChecking)
 	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != stating || profile.Reserved != 0 {
 		t.Errorf("the counter = %+v, want the statement's call spent", profile)
 	}
@@ -100,59 +99,41 @@ func TestRecogniseKeepsTheReadingForTheCheck(t *testing.T) {
 		t.Errorf("the statement was read %d times, want once", n)
 	}
 
-	res2, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, wordStatement, pngOf(t, 40, 30))})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := slotOf(t, res2); s.GetVerdict() != "not_yet" || s.GetValue() != "851" {
-		t.Errorf("the Check = %v, want not_yet by the solver's key", res2)
+	if s := slotOf(t, w.submitPaper(t, l, a, wrongWork)); s.GetVerdict() != "not_yet" || s.GetValue() != "851" {
+		t.Errorf("the Check = %v, want not_yet", s)
 	}
 	if n := c.statements.Load(); n != 1 {
 		t.Errorf("the statement was read %d times after the Check, want once", n)
 	}
-	if k := w.paperKey(t, a); firstTask(k).GetProvenance() != paperv1.Provenance_PROVENANCE_SOLVER || firstTask(k).GetStatement() != "37 + 48 =" {
-		t.Errorf("the key kept = %v, want the solver's of the reading kept", k)
-	}
-	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != stating+reading || profile.Reserved != 0 {
-		t.Errorf("the counter = %+v, want the reading of the work alone more, %d", profile, stating+reading)
+	if profile, _ := w.counted(t, l.accountID, l.adult); profile.Spent != stating+checking || profile.Reserved != 0 {
+		t.Errorf("the counter = %+v, want the Check alone more, %d", profile, stating+checking)
 	}
 	again, err := w.recognise(t, l, a, formulaStatement, uuid.NewString())
 	if err != nil || !proto.Equal(again, &v1.ReadStatementResponse{Statements: []string{"37 + 48 ="}, Repeated: true}) {
-		t.Errorf("Recognise by the key = %v (%v), want its statements, repeated", again, err)
+		t.Errorf("Recognise after the Check = %v (%v), want its statements, repeated", again, err)
 	}
 
-	if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))}); err != nil {
-		t.Fatal(err)
-	}
-	if w.closeOf(t, a) != "correct" || w.paperReading(t, a) != nil || w.paperKey(t, a) != nil {
-		t.Errorf("the attempt closed %q, its reading %v, its key %v; want correct, and neither", w.closeOf(t, a), w.paperReading(t, a), w.paperKey(t, a))
+	w.submitPaper(t, l, a, rightWork)
+	if w.closeOf(t, a) != "correct" || w.paperReading(t, a) != nil || w.paperCheck(t, a) != nil {
+		t.Errorf("the attempt closed %q, its reading %v, its Check %v; want correct, and neither", w.closeOf(t, a), w.paperReading(t, a), w.paperCheck(t, a))
 	}
 	_, err = w.recognise(t, l, a, formulaStatement, uuid.NewString())
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED)
 }
 
-// An attempt that keeps a key answers its statements with no AI, and keeps no
-// reading; a reading of several tasks keeps them all.
-func TestRecogniseByAKeptKeyCallsNoAI(t *testing.T) {
+// A reading of several tasks keeps them all; "Recognise" after a Check with no
+// reading kept reads the statement.
+func TestRecogniseOfSeveralTasksKeepsThemAll(t *testing.T) {
 	t.Parallel()
 
 	w, c, _ := countingWorld(t)
 	l := w.learner(t)
 	page := w.beginPage(t, l, l.adult, 2)
-	if _, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[0], IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, severalStatement, pngOf(t, 40, 30))}); err != nil {
-		t.Fatal(err)
-	}
-	before, _ := w.counted(t, l.accountID, l.adult)
-	res, err := w.recognise(t, l, page[0], formulaStatement, uuid.NewString())
+	w.submitPaper(t, l, page[0], wrongWork)
+	res, err := w.recognise(t, l, page[0], severalStatement, uuid.NewString())
 	want := []string{"37 + 48 =", "40 + 45 =", "50 + 36 ="}
-	if err != nil || !slices.Equal(res.GetStatements(), want) || !res.GetRepeated() {
-		t.Errorf("Recognise by the key = %v (%v), want its three statements, repeated", res, err)
-	}
-	if after, _ := w.counted(t, l.accountID, l.adult); after != before || c.statements.Load() != 1 || w.paperReading(t, page[0]) != nil {
-		t.Errorf("the counter = %+v, %+v before, %d readings; want no call and no reading kept", after, before, c.statements.Load())
+	if err != nil || !slices.Equal(res.GetStatements(), want) || res.GetRepeated() || c.statements.Load() != 1 {
+		t.Errorf("Recognise after a Check = %v (%v), want its three statements read", res, err)
 	}
 	res, err = w.recognise(t, l, page[1], severalStatement, uuid.NewString())
 	if err != nil || !slices.Equal(res.GetStatements(), want) || res.GetRepeated() {
@@ -166,7 +147,7 @@ func TestRecogniseByAKeptKeyCallsNoAI(t *testing.T) {
 // A reading that gives no statement is an outcome with nothing kept, its
 // reserve settled, and the next press asks again; a repeat gets the outcome.
 // A crop on which the reading found no task keeps a reading of none, and the
-// Check from it is CAUSE_NO_KEY with no reading of the statement.
+// Check from it is told one task, with no reading of the statement.
 func TestRecogniseThatGivesNoReadingKeepsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -215,8 +196,8 @@ func TestRecogniseThatGivesNoReadingKeepsNothing(t *testing.T) {
 	calls := c.statements.Load()
 	check, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: page[1], IdempotencyKey: uuid.NewString(),
 		Work: paperWork(t, formulaStatement, pngOf(t, 90, 30))})
-	if err != nil || check.GetOutcome().GetCause() != v1.Cause_CAUSE_NO_KEY || c.statements.Load() != calls {
-		t.Errorf("the Check of a reading of no task = %v (%v), want CAUSE_NO_KEY with no reading of the statement", check, err)
+	if err != nil || check.GetSolved() == nil || len(check.GetItems()) != 1 || c.statements.Load() != calls {
+		t.Errorf("the Check of a reading of no task = %v (%v), want one task solved with no reading of the statement", check, err)
 	}
 }
 

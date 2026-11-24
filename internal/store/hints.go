@@ -116,6 +116,27 @@ func AskedQuestions(ctx context.Context, db pgx.Tx, profileID, attemptID string)
 	return asked, nil
 }
 
+// ShownRungs is the words the learner was shown on the attempt's rungs, in
+// order, whatever they came of: each rung's words, and the words "explain
+// differently" gave it after them.
+func ShownRungs(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([]string, error) {
+	rows, err := db.Query(ctx, `SELECT q FROM (
+			SELECT rung, 1 AS n, words AS q FROM attempt_rungs
+				WHERE profile_id = $1 AND attempt_id = $2 AND words IS NOT NULL
+			UNION ALL
+			SELECT rung, 2, explained_words FROM attempt_rungs
+				WHERE profile_id = $1 AND attempt_id = $2 AND explained_words IS NOT NULL
+		) shown ORDER BY rung, n`, profileID, attemptID)
+	if err != nil {
+		return nil, fmt.Errorf("store: read the rungs shown: %w", err)
+	}
+	shown, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("store: read the rungs shown: %w", err)
+	}
+	return shown, nil
+}
+
 // GiveRequested records, at at, that a hint asked for gave the techniques of
 // the attempt's task, when techniques — it has some —, and its leading
 // question, when leading, each the first time it did, and that the attempt's

@@ -63,7 +63,8 @@ type finding struct {
 
 // FindTasks finds the tasks on the photo of a page, under its idempotency key,
 // by one call of AI between two transactions (rpc.Across): their frames, in the
-// order of the page, on the photo turned by the turn tutor gave, which goes
+// order of the page, each with the frame of the instruction printed above it
+// where tutor found one, on the photo turned by the turn tutor gave, which goes
 // with them. It makes no call without the admission of the finding on the
 // request's route, nor on platform AI without the reserve of the quota: either
 // is a refusal, and the family day the request wrote stays. A call that gives
@@ -128,8 +129,12 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 		Finish: func(_ pgx.Tx, f finding) (*v1.FindTasksResponse, store.KeyTarget, error) {
 			answer := &v1.FindTasksResponse{}
 			if f.found.Outcome.Kind == tutor.Answered {
-				for _, box := range f.found.Frames {
-					answer.Frames = append(answer.Frames, &v1.TaskFrame{Box: box})
+				for i, box := range f.found.Frames {
+					frame := &v1.TaskFrame{Box: box}
+					if i < len(f.found.Instructions) {
+						frame.Instruction = f.found.Instructions[i]
+					}
+					answer.Frames = append(answer.Frames, frame)
 				}
 				if len(answer.Frames) > 0 {
 					answer.TurnDegrees = int32(f.found.Turn)
@@ -229,11 +234,10 @@ var pageID = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$`)
 // closes the profile's open attempts of another page "left", those of the page
 // named staying for a Start again after "Add", and leaves its open attempt of a
 // module as it is. The attempts begin when the gate admits, on the route of
-// ownKey, the calls without which no Check gives a verdict — the reading of the
-// statement and that of the work; the solution serves only the tasks no formula
-// keys —, and on platform AI only with room for a typical task of handwriting
-// left of the family day, while the limit of its provider leaves platform AI
-// open, as BeginAttempt begins a task of a module.
+// ownKey, the Check, without which no verdict comes, and on platform AI only
+// with room for a typical task of handwriting left of the family day, while the
+// limit of its provider leaves platform AI open, as BeginAttempt begins a task
+// of a module.
 func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPaperAttemptsRequest) (*v1.BeginPaperAttemptsResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -254,7 +258,7 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.PaperServiceBeginPaperAttemptsProcedure}, req,
 		func(tx pgx.Tx, _ string) (*v1.BeginPaperAttemptsResponse, store.KeyTarget, error) {
 			now := s.clock()
-			if !s.debugChosen(ctx) && !(s.admits.Reads(tutor.CallStatement, category, ownKey) && s.admits.Reads(tutor.CallPaper, category, ownKey)) {
+			if !s.debugChosen(ctx) && !s.admits.Reads(tutor.CallChecking, category, ownKey) {
 				return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 			}
 			if ownKey == "" {

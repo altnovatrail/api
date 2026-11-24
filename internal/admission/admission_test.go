@@ -149,14 +149,14 @@ func TestTheReportSaysWhatWasDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.5", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.6", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
 		t.Errorf("Report = %+v, want %+v", r, want)
 	}
 	_, r, err = admission.Load(config.Admission{Rung: config.RungFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.5", Rung: "full", Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.6", Rung: "full", Reading: "pair"}); r != want {
 		t.Errorf("Report of nothing declared = %+v, want %+v", r, want)
 	}
 }
@@ -303,10 +303,8 @@ func TestTheGateAdmitsWordsWhereTheTableDoes(t *testing.T) {
 	}
 }
 
-// The tutor's words of a task from paper are admitted as those of a task of a
-// module: a rung's, with the work, by CallPaperWords, and the opening question
-// and a rung put another way by CallPaperHint, each exactly when tutor chooses
-// an entry for its kind of call.
+// "Explain differently" on a task from paper is admitted exactly when tutor
+// chooses an entry for its call, CallPaperHint.
 func TestTheGateAdmitsPaperWordsWhereTutorChooses(t *testing.T) {
 	t.Parallel()
 
@@ -329,27 +327,22 @@ func TestTheGateAdmitsPaperWordsWhereTutorChooses(t *testing.T) {
 			if tc.provider != "" {
 				route.AI, route.Own = admissionv0.AiRouteOwnKey, tutor.NewOwnKey(admissionv0.Provider(tc.provider), "own key")
 			}
-			for withWork, call := range map[bool]tutor.Call{false: tutor.CallPaperHint, true: tutor.CallPaperWords} {
-				if got := admission.PaperWordsCall(withWork); got != call {
-					t.Errorf("PaperWordsCall(%v) = %s, want %s", withWork, got, call)
-				}
-				got := g.PaperWords(withWork, tc.category, tc.provider)
-				entry, _, err := admission.TutorOf(g).ChooseCall(call, route)
-				if chosen := err == nil && len(entry.Models) > 0; got != chosen {
-					t.Errorf("PaperWords(%v) = %v, but ChooseCall(%s) chose an entry: %v", withWork, got, call, chosen)
-				}
+			got := g.PaperWords(tc.category, tc.provider)
+			entry, _, err := admission.TutorOf(g).ChooseCall(tutor.CallPaperHint, route)
+			if chosen := err == nil && len(entry.Models) > 0; got != chosen {
+				t.Errorf("PaperWords = %v, but ChooseCall chose an entry: %v", got, chosen)
 			}
 		})
 	}
-	if !load(t, facts).PaperWords(false, formatv0.AgeCategoryAdult, "") {
-		t.Error("the opening question is not admitted for an adult by the platform's key at the author's stage")
+	if !load(t, facts).PaperWords(formatv0.AgeCategoryAdult, "") {
+		t.Error("explain differently is not admitted for an adult by the platform's key at the author's stage")
 	}
 }
 
 // The gate finds the tasks on a page, reads the statement of a task from
-// paper, solves it, reads the work on it and words its tutor's words by tutor,
-// which calls no model where no facts admit the call, for a reading with no
-// task, or for words with no style.
+// paper, checks the work on it and words its tutor's words by tutor, which
+// calls no model where no facts admit the call, for a Check of no task, or for
+// words with no style.
 func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
 	t.Parallel()
 
@@ -359,9 +352,8 @@ func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
 	for name, o := range map[string]tutor.Outcome{
 		"FindTasks":      g.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: []byte("a page")}).Outcome,
 		"ReadStatement":  g.ReadStatement(t.Context(), page).Outcome,
-		"SolveTask":      g.SolveTask(t.Context(), page, []tutor.TaskToSolve{{Number: 1, Statement: "37 + 48 ="}}).Outcome,
-		"ReadPaper":      g.ReadPaper(t.Context(), tutor.PaperReading{Route: adult}).Outcome,
-		"TellPaperWords": g.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperOpening}).Outcome,
+		"CheckPaper":     g.CheckPaper(t.Context(), tutor.PaperCheck{Route: adult, Statement: []byte("a page")}).Outcome,
+		"TellPaperWords": g.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperAgain}).Outcome,
 	} {
 		if o.Kind == tutor.Answered || len(o.Usage) != 0 {
 			t.Errorf("%s = %v, want no answer and no call", name, o.Kind)
@@ -990,7 +982,7 @@ func TestTheGateOfTheDebugMode(t *testing.T) {
 	if err != nil || !r.Debug || !r.DebugEvery {
 		t.Fatalf("Load = %+v, %v; want the debug mode reported, its right every account's", r, err)
 	}
-	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallSolving, tutor.CallPaper} {
+	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallChecking} {
 		var got []string
 		for _, m := range g.Admitted(call) {
 			got = append(got, m.Name())

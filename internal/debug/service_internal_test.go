@@ -48,7 +48,7 @@ func TestTheService(t *testing.T) {
 		t.Errorf("Fable not thinking = %v, want invalid_argument", err)
 	}
 	a := s.store.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_FIND_TASKS, "", time.Now())
-	a.Solved(nil, 0)
+	a.Route(tutor.Route{}).Debug.Record(tutor.DebugCall{Call: tutor.CallFinding, Attempt: 1})
 	a.End()
 	if taken, err := s.TakeDebugCalls(ctx, &v1.TakeDebugCallsRequest{}); err != nil || len(taken.GetActions()) != 1 {
 		t.Errorf("TakeDebugCalls = %v, %v; want the one action", taken, err)
@@ -94,7 +94,7 @@ func TestAReadKeepsNoAccount(t *testing.T) {
 		t.Errorf("the store holds %d accounts after reads and an action with no call, want none", len(s.accounts))
 	}
 	a := s.Begin("b", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, "", time.Now())
-	a.Solved(nil, 0)
+	a.Route(tutor.Route{}).Debug.Record(tutor.DebugCall{Call: tutor.CallFinding, Attempt: 1})
 	a.End()
 	if _, err := s.SetChoice("c", &v1.DebugChoice{}); err != nil {
 		t.Fatal(err)

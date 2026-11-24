@@ -287,8 +287,19 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			_, err := store.BeginPaperAttempts(t.Context(), tx, profile, "page-1", 1, time.Now())
 			return err
 		}},
-		{"SET paper_key", func(tx pgx.Tx) error {
-			return store.SetPaperKey(t.Context(), tx, profile, none, []byte{})
+		{"SET paper_check", func(tx pgx.Tx) error {
+			return store.KeepPaperCheck(t.Context(), tx, profile, none, []byte{}, nil)
+		}},
+		{"DELETE FROM attempt_rungs WHERE profile_id = $1 AND attempt_id = $2", func(tx pgx.Tx) error {
+			page, err := store.BeginPaperAttempts(t.Context(), tx, profile, "page-2", 1, time.Now())
+			if err != nil {
+				return err
+			}
+			return store.KeepPaperCheck(t.Context(), tx, profile, page[0], []byte{}, nil)
+		}},
+		{"explained_words IS NOT NULL", func(tx pgx.Tx) error {
+			_, err := store.ShownRungs(t.Context(), tx, profile, none)
+			return err
 		}},
 		{"SET paper_reading", func(tx pgx.Tx) error {
 			return store.SetPaperReading(t.Context(), tx, profile, none, []byte{})
