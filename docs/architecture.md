@@ -493,15 +493,15 @@ With what weight the evidence goes to the new skills and whether "mastered" carr
 
 ### 3.5. Showing the solution and hints
 
-О-7 and О-21 are closed. The examples of MathTrail and what the neighbouring repositories say are in the records sources 6.1 and 6.2.
+О-7 and О-21 are closed. The examples of MathTrail and what the neighbouring repositories say are in [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs), [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft), [`app` at a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs) and [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/blob/9f338ae/RUN.md).
 
 **What the decision rests on:**
-- О-7: showing by a button; the outcome "solution shown" is the evidence "not solved", without a trap. To a child — after the hint ladder and with the adult's setting "ask before showing", to an adult — freely. Rejected: never to show, as in canvas-api (sources 6.1), and to count the task as skipped without changing the rating, as in the prototype;
+- О-7: showing by a button; the outcome "solution shown" is the evidence "not solved", without a trap. To a child — after the hint ladder and with the adult's setting "ask before showing", to an adult — freely. Rejected: never to show, as in canvas-api ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)), and to count the task as skipped without changing the rating, as in the prototype;
 - the ladder goes by the number of wrong answers on the task, the program chooses the rung, and the model only finds the words; after the third rung the program offers to call an adult — to a child — or to show the solution. A task's solution in a module is closed and required for a task that has an item with a verdict;
 - the key and the solution of a task go to the device only when the attempt is closed by a correct answer or by showing the solution, and an attempt that was left, abandoned or closed "unchecked" does not give the key. The keys of open modules are public, and holding the key back does not guard a secret but only keeps it out of the learner's app;
 - the outcomes of evidence are from the first submission, after hint number k, with a sketch hint, solution shown, unchecked; their weights are decided by `learner-model`;
 - О-21: before the first wrong answer a request gives "givens and unknown" and the task's technique — without AI and without reading the work, — and there is no sketch "how to begin" in format v0. After a wrong answer — the current rung, and "explain differently" — the same rung in other words, an AI call within the quota, with the previous questions of the same task;
-- the work is read only by the learner's action, and a request does not send unsubmitted work for reading. `app` sends a request for a hint without the work, and the request always goes to `api` (sources 6.2);
+- the work is read only by the learner's action, and a request does not send unsubmitted work for reading. `app` sends a request for a hint without the work, and the request always goes to `api` ([a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md));
 - the fallback text is, on rungs 1–2, the text of the trap value, without it the trap advice, without a trap the module's rung template; on the third rung, the item's simpler case, and without it the same as on the second. When a submission has several wrong answer slots, it speaks about the first answer slot "not yet" in order;
 - any text of the tutor passes the leak check, and a hint also the form check, before it goes to the device; if it did not pass, the learner gets the fallback text. Of what is stored about attempts, only the previous questions of the same task go to AI — for the hint ladder;
 - in the solving mode "by steps" the app leads the learner by the solving steps, in the solving mode "self" the tutor waits until it is called. "Step done" does not read the work and leads to the next step on the device, without AI. `app` asks for the words of a rung after the verdict "not yet" and sends the work for them once more.
@@ -515,7 +515,7 @@ With what weight the evidence goes to the new skills and whether "mastered" carr
 | 3rd | 3 — a simpler case | the same; the fallback text is the item's simpler case | "explain differently" |
 | 4th and on | no new one | no new words, and AI is not called for them; "Hint" gives the words of rung 3 | to a child — call an adult or show the solution; to a learner of the category `adult` — show the solution; "explain differently" of rung 3, if it was not asked for yet |
 
-From the fourth wrong answer — as `offer_help` in canvas-api, where the analysis went on only while there were no more than three wrong answers (sources 6.1). The ladder is per task, not per item: on a workbook page four submissions with an error offer to show the solution of the whole page. A task with a rubric has no ladder: its item has no verdict, and it goes the path of a task with a rubric, below.
+From the fourth wrong answer — as `offer_help` in canvas-api, where the analysis went on only while there were no more than three wrong answers ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)). The ladder is per task, not per item: on a workbook page four submissions with an error offer to show the solution of the whole page. A task with a rubric has no ladder: its item has no verdict, and it goes the path of a task with a rubric, below.
 
 **Showing the solution.** A child is a profile of any age category but `adult`:
 1. Before the fourth wrong answer there is no showing: `api` rejects a request to show by any kind of action.
@@ -550,7 +550,7 @@ A request does not raise the rung: it grows only with wrong answers. "Hint" in `
 - without AI — a tapped choice in the mode without AI (О-5) — "explain differently" is not offered: the fallback texts remain.
 
 **The words of a rung:**
-- each call of an attempt's words — both of a rung and of "differently" — gets the previous questions of the same task, so as not to repeat them, as in canvas-api (sources 6.1);
+- each call of an attempt's words — both of a rung and of "differently" — gets the previous questions of the same task, so as not to repeat them, as in canvas-api ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs));
 - an AI failure, an exhausted quota and words that did not pass the leak check or the form check give the fallback text of the rung: the verdict is already given, and the learner always gets an answer. A neutral phrase is only for the verdict "unchecked";
 - **the rung's answer slot** is the first answer slot "not yet" in order in the submission that gave the rung: items by place, answer slots by order in the item. The program chooses it, and everything else depends on it: the words of a rung and of "differently" get its trap, the fallback text of rungs 1–2 is the text of its trap value, without it the trap advice of its trap, without a trap the rung template, and on the third, the simpler case of its item. From the fourth wrong answer there is no rung, and the answer slot stays the one that rung 3 speaks about: "Hint", the fallback text and "differently" speak about one place. `api` does not store the answer slot: it is derived from the verdicts of the submission.
 
@@ -568,7 +568,7 @@ A request does not raise the rung: it grows only with wrong answers. "Hint" in `
 
 - Closing always goes in one transaction: the reason, the evidence if there is any, and deleting the words of the hints. The job for abandoned ones is also a safety net for the attempts of a version that was withdrawn or left the window, and a closing by the job does not move the profile's activity date.
 - In the code "in one transaction" holds the closing in a request and the evidence: the closing calls the catch-up of owed evidence, which appends the evidence of the profile's closed attempts. An attempt that the job `api sweep` closed in a batch gets its evidence from the job's next step `evidence`, and an attempt closed by the previous image, from the first catch-up of its profile. The evidence carries a leading question on request in a field of its own, kind 2, and an answer slot of the kind `time` as a kind of its own, as the schema of `learner-model` knows them.
-- An attempt that was left or abandoned without wrong answers stays a row with a close reason: an adult sees it in progress, as a skip in standalone (sources 6.1), and the learner model does not.
+- An attempt that was left or abandoned without wrong answers stays a row with a close reason: an adult sees it in progress, as a skip in standalone ([89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs)), and the learner model does not.
 - The outcome "left unfinished" is a term of the platform's glossary. The name is not "not solved": that is what О-7 calls the value "solution shown".
 - If the solution of this task has already gone to the profile's device — after a correct answer or showing, — and it is not a template, the evidence of a new attempt carries that too: the learner knows the key, and the engine does not give such a task again at once — as the next task, and after that the engine's pause holds it. When the solution last went to the device the engine learns from the summary of issues. This is derived from the earlier attempts, and the weight is decided by `learner-model`.
 - In a lesson a segment is ended by "correct" and "solution shown", and the segment of a task with a rubric by "done"; "left" and "abandoned" do not end a segment, and on return it begins a new attempt, and "unchecked" and "not suitable" end the lesson run too. Leaving the lesson does not end the run.
@@ -598,7 +598,7 @@ A request does not raise the rung: it grows only with wrong answers. "Hint" in `
 
 ### 3.6. Platform AI quota
 
-The spending message of `tutor`, the provider's prices and the examples of MathTrail are in the record sources 7.1.
+The provider's prices are in the record sources 7.1, the spending message of `tutor` in [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs) and [`tutor` at 9f85613](https://github.com/altnovatrail/tutor/tree/9f85613/docs), and the examples of MathTrail in [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs) and [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs).
 
 **What the decision rests on:**
 - `api`'s card in `spec` says that the platform AI quota `api` counts "in dollars by the spending message of `tutor`, per family day, with the caps of the profile and the account by the account's tariff", and the card of `tutor` says: "By the spending `api` counts the platform AI quotas". `tutor` reports spending in one message per library call, with a record for each model call: reading handwriting has two of them, one per reader, reading an essay has one. A record has the provider, the model, the tokens and an estimate in dollars by its price table with a date. A cut-off answer `tutor` counts by the worst case, and there is neither content nor identifiers in the message;
@@ -608,8 +608,8 @@ The spending message of `tutor`, the provider's prices and the examples of MathT
 - the mode without AI is always there, it is the free path, open to children too — the recommendation of О-5. Without AI a tapped choice is checked. An option written by hand is read by AI like any handwriting, and there is no keyboard input in format v0;
 - the prototype has a free daily quota and the tariff Plus for $10 a month with a quota five times larger. The recommendation of О-14 is to decide by unit economics: a subscriber's worst month must pay for itself;
 - the account holds the tariff, and the account owner's payment data from stage 3 is held by the payment provider;
-- in canvas-api the counters of readings and analyses were kept per child and per parent, and the day of the limits was UTC. The reserve was taken at the start of a check, and a call that was made was counted even on a failure. An exhausted limit gave `UNCHECKED` with the cause `limit`, and the phrase promised no time (sources 7.1). The parent's counters survived the deletion of a child (sources 12.1);
-- in standalone the day of the limits is the family's, by the device's clock, and a new offset takes effect from the next day. The refusal does not name the number of the limit (sources 7.1).
+- in canvas-api the counters of readings and analyses were kept per child and per parent, and the day of the limits was UTC. The reserve was taken at the start of a check, and a call that was made was counted even on a failure. An exhausted limit gave `UNCHECKED` with the cause `limit`, and the phrase promised no time ([canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)). The parent's counters survived the deletion of a child (sources 12.1);
+- in standalone the day of the limits is the family's, by the device's clock, and a new offset takes effect from the next day. The refusal does not name the number of the limit ([mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs)).
 
 **The rule:**
 
@@ -667,7 +667,7 @@ In the code: a new task with handwriting on platform AI — by the engine choice
 
 **Reserve and settlement:**
 1. Before each request that calls platform AI, `api` takes a reserve on the counters of the profile and the account in one transaction. The request goes if on each of them what is spent, what is in reserve and the new reserve together are no more than the cap. So two devices of one account do not slip past the cap at once.
-2. The reserve is the expected price of the kind of call. `tutor` gives it by its price table and the model of the kind, and until then, a value by kind in the configuration of `api`. The worst case does not do: in `tutor` it is 4,000 tokens of input and 16,000 of output, for Opus 5.5 about $0.34 (sources 7.1), and the profile's cap would run out on the second reserve.
+2. The reserve is the expected price of the kind of call. `tutor` gives it by its price table and the model of the kind, and until then, a value by kind in the configuration of `api`. The worst case does not do: in `tutor` it is 4,000 tokens of input and 16,000 of output ([be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs)), for Opus 5.5 about $0.34 by the prices of sources 7.1, and the profile's cap would run out on the second reserve.
 3. A check of handwriting reserves both readers, or the one of `single`, an essay the reading with the assessment, a workbook page by its crops, a task from paper its Check whole, the cascade of its models. So the quota does not run out mid-check.
 4. Settlement is in the day when the reserve was taken:
    - an exact spending record is counted at its own price;
@@ -680,7 +680,7 @@ In the code: a new task with handwriting on platform AI — by the engine choice
 
 In the code: the reserve is taken by the first transaction of the request — the same one that writes the family day, — by `Tutor.Price` of the kind of call through the admission gate, and without an expected price, by the value of the kind from `internal/quota`. Reading a sheet is reserved by `CallSheet`, the words of a rung with the work by `CallWords`, and those of a task a tap checks and "explain differently" by `CallHint`, which `tutor` gives no expected price of, so by its value in `internal/quota`. The correct answer words reserve by `CallCorrect`, whose expected price `tutor` gives, so `internal/quota` has no value of it. If it did not fit, there is no call: for reading, "unchecked" and the outcome "quota" with the time the next day begins, for the words of a rung, the fallback text with the same outcome, for "explain differently", the refusal `resource_exhausted` with `next_family_day`, and the day written by the request stays. A tariff without caps is the outcome or the refusal "not admitted", without the next day. Settlement is right after the call, in a transaction of its own on a context that the end of the request does not cut off, before the second transaction: the call has already been made, and whatever happens to the answer, it is counted. The price is by the settlement table above: exact records by their sum, a record by the worst case and a call without records as the reserve, "not admitted" as zero. The row `ai_usage` writes the price of each model `cost_micro_usd` and the sign `billed`, its tokens of the cache `cache_write_tokens` and `cache_read_tokens` beside `input_tokens` without them, and its own time `model_ms`, its `retries` and `first_token_ms`, and an exhaustion is a row of its own `quota_exhausted` with the cap that the request hit: `profile`, `account` or `tariff`. Stopping an instance needs no settlement mechanism of its own: the requests that the server managed to wait for settle themselves, and one cut off by the stop leaves the reserve as the spending of its day, like a crashed process.
 
-**The estimate of spending** — for the size of the caps and for О-14. The prices of calls are from the measurements of `tutor`, by Anthropic's prices, checked 2026-11-02 (sources 7.1). This is a guideline, not a measurement of the product:
+**The estimate of spending** — for the size of the caps and for О-14. The prices of calls are from the measurements of `tutor`, by Anthropic's prices, checked 2026-11-02 (sources 7.1; [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs)). This is a guideline, not a measurement of the product:
 
 | Call | Price | Where from |
 |---|---|---|
@@ -688,7 +688,7 @@ In the code: the reserve is taken by the first transaction of the request — th
 | the words of a rung — the analysis and the hint, Opus 5.5 · `high` | ≈ $0.0152 | sources 10.3 |
 | the correct answer words — praise and a question, Opus 5.5 · `high` | ≈ $0.0135, by `Price(CallCorrect)` of `tutor`: its expected tokens are those of the 110 calls that admitted them | measurements 7 |
 | "explain differently" | cheaper than the words of a rung: there is no picture of the work | — |
-| an essay — reading and assessment, Opus 5.5 · `high` | ≈ $0.030 | sources 7.1 |
+| an essay — reading and assessment, Opus 5.5 · `high` | ≈ $0.030 | [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs) |
 | a workbook page | not measured | — |
 
 | Mode, 20 tasks a day | Assumptions | Spending |
@@ -739,7 +739,7 @@ In the code: the migration `0015` — the tables `account_quota` and `profile_qu
 
 ### 3.7. Lesson
 
-What the neighbours decided about the lesson is in the record sources 8.1.
+What the neighbours decided about the lesson is in [`app` at 3ce4cdb](https://github.com/altnovatrail/app/tree/3ce4cdb/docs), [`learner-model` at 20ae268](https://github.com/altnovatrail/learner-model/blob/20ae268/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a), [`engine` at 9751ba4](https://github.com/altnovatrail/engine/blob/9751ba4/docs/decisions.md) and [`skill-map` at 0295ce8](https://github.com/altnovatrail/skill-map/blob/0295ce8/docs/architecture.md).
 
 **What the decision starts from:**
 - a lesson is a module's file `lessons/<id>.yaml`: the module's skills that it teaches, and segments in the author's order — an explanation, a worked example and a task of the module by its ID. There is no special check segment at the end: the check is the lesson's last tasks. A module may have no lessons, there is a lesson without tasks — `reading-model-essays.yaml` —, and an explanation may come after the last task — `gaps-and-posts.yaml` and `first-sentences.yaml` (`spec/format/examples/lesson/valid/`);
@@ -748,9 +748,9 @@ What the neighbours decided about the lesson is in the record sources 8.1.
 - a lesson names a template as it names a task: the learner model and the engine see one task, and the attempt's seed chooses the instance. A repeat of a template is a new attempt seed;
 - a lesson holds the digest of the package it began on, all its tasks go on this package, and a withdrawn version or a version outside the window ends the lesson "unchecked". The skills of a lesson on an earlier package go to the engine mapped by `retired_skills` of the current version;
 - the order of lessons is set by the skill graph, and where it gives no order, the engine's rule chooses. When the engine gives a lesson and when a task outside a lesson is decided in `engine`, and the first slice has no consolidation within a lesson and no early end of a lesson. At the engine's input are "the lessons and the pool of tasks: the lesson's skills and its segments";
-- the lesson player is `app`'s. `app` keeps the state of the demo of a worked example itself, and after a break it returns the learner to where they were. `app`'s side (sources 8.1): the place in the lesson and the state of the demo are its own, by the key "lesson ID, package digest"; leaving mid-lesson sends nothing, and when `api` gives the lesson again on the same package, `app` opens it at that place; `app` sends "lesson passed" itself, on "Continue" at the last segment. Whether a lesson begun on another device continues the same run, and what is recorded about a passed lesson, are `api`'s, below;
+- the lesson player is `app`'s. `app` keeps the state of the demo of a worked example itself, and after a break it returns the learner to where they were. `app`'s side ([3ce4cdb](https://github.com/altnovatrail/app/tree/3ce4cdb/docs)): the place in the lesson and the state of the demo are its own, by the key "lesson ID, package digest"; leaving mid-lesson sends nothing, and when `api` gives the lesson again on the same package, `app` opens it at that place; `app` sends "lesson passed" itself, on "Continue" at the last segment. Whether a lesson begun on another device continues the same run, and what is recorded about a passed lesson, are `api`'s, below;
 - the age category is confirmed once a year, and when the country changes, the age is given again;
-- a worked example is neither a task nor evidence, and a lesson adds no call of `tutor` (sources 8.1);
+- a worked example is neither a task nor evidence, and a lesson adds no call of `tutor` ([`learner-model` at 20ae268](https://github.com/altnovatrail/learner-model/blob/20ae268/docs/architecture.md); [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs));
 - a lesson's task is the same attempt as outside a lesson, and a profile has one open attempt.
 
 **Lesson run** — a row of `api`'s database per profile and lesson, one for all devices. The term is the same as `app`'s:
@@ -832,7 +832,7 @@ What `engine` needs for this, `spec` holds: within a lesson the engine is not ca
 
 **Evidence:** a run has none of its own. A segment's attempt gives evidence, as outside a lesson, and a worked example gives none. Whether the weight of evidence needs the fact "in a lesson" — the attempt knows its run — is for `learner-model` to decide: its card in `spec` names this point.
 
-**`skill-map`** does not draw lessons and asks nothing about them (sources 8.1). `app` gets the tiers for the label "sequential" with a connected module — `skill_tiers` of the current version, even before the first attempt.
+**`skill-map`** does not draw lessons and asks nothing about them ([`skill-map` at 0295ce8](https://github.com/altnovatrail/skill-map/blob/0295ce8/docs/architecture.md)). `app` gets the tiers for the label "sequential" with a connected module — `skill_tiers` of the current version, even before the first attempt.
 
 **What is stored and for how long** — the rows "lesson runs" and "attempt" of the table of what the database stores, above: a run lives while the profile lives (П-9), and an open one without actions for 30 days ends "abandoned"; all the fields go into the export, and a run is deleted with the profile.
 
@@ -855,12 +855,12 @@ What `engine` needs for this, `spec` holds: within a lesson the engine is not ca
 In the protocol — opening a lesson by the engine choice and a run by its ID, a segment's attempt as a variant of beginning an attempt, "lesson passed" and the refusals "run ended", "segments not ended" and "segment unavailable" with the places of ended segments. The answer by which a run ended carries the next engine choice, and the answer to a segment's end, the place of the next segment or "no more segments". The end of an attempt with a rubric, and with it the end of its segment in a lesson, is "Done".
 ### 3.8. Task with a rubric
 
-What the neighbours decided about the essay is in the record sources 9.1.
+What the neighbours decided about the essay is in [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`app` at 14f5a54](https://github.com/altnovatrail/app/tree/14f5a54/docs), [`learner-model` at 28433fa](https://github.com/altnovatrail/learner-model/blob/28433fa/docs/architecture.md), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a) and [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft).
 
 **What the decision starts from:**
 - in the first slice a task with a rubric is given by the module of short essays in English for any age: an essay by hand on a sheet gets feedback by a rubric — an assessment by the author's criteria —, not a verdict. Tasks with a key in the same module get a verdict. The check `rubric` is only on the whole sheet, and such a task has one item and one answer slot;
 - the path is two calls: reading the essay by one reader, without the rubric — the text as written —, then assessing the read text by the criteria of the rubric, without the picture, the key and the task's solution. The model gives for each criterion a justification and whether it is met, and one feedback on the whole essay. Between the calls the text lives in the memory of `api`'s request;
-- a criterion has no ID — only a text, and `tutor` numbers the criteria in order. A criterion that is absent from the model's answer or that is named twice `tutor` gives without an assessment, and «Повторять ли тогда вызов, решает `api`»; a failure of the call leaves all the criteria without an assessment. Reading gives «текст, как написан, и можно ли его прочитать», but the measurement prompt did not measure the output "unreadable": the synthetic samples are all legible (sources 9.1);
+- a criterion has no ID — only a text, and `tutor` numbers the criteria in order. A criterion that is absent from the model's answer or that is named twice `tutor` gives without an assessment, and «Повторять ли тогда вызов, решает `api`»; a failure of the call leaves all the criteria without an assessment. Reading gives «текст, как написан, и можно ли его прочитать», but the measurement prompt did not measure the output "unreadable": the synthetic samples are all legible ([`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs));
 - feedback passes the leak check and the feedback rule — no more than three sentences and 80 words in English, and a stretch in quotation marks of four words or more is only the learner's words —, by the code of `tutor`. For a rubric, leaks are searched for only by the task's leak phrases, and the function of the feedback rule answers "passed" or names the broken parts — sentences, words, quote, letters. What the learner sees instead of feedback that did not pass the rule, `api` decides. The format gives a rubric no fallback texts: they belong to the rungs of the ladder, after a wrong value;
 - an essay that cannot be read does not reach the assessment, and the learner sees a request to rewrite the sheet, as for "unreadable". But an item with a rubric has no verdict, and "unreadable" is a verdict, so how `api` shows and records this is for it to decide;
 - the check of a rubric is closed whole, with the criteria, "until the task is solved", and a solution is optional for a task whose answer slot is only `sheet`. The learner sees feedback "as feedback, not as a grade", and "what to develop" is derived from the learner model;
@@ -868,7 +868,7 @@ What the neighbours decided about the essay is in the record sources 9.1.
 - on the recommendation of О-17, rubric feedback does not go into the learner model in the first slice. There is no need to repeat feedback from the observation: an observation repeats a verdict, and rubric feedback has none (П-19);
 - assessment by a rubric is measured by false alarms on met criteria and by agreement with people's assessment (О-22 closed) — this is the eval of `tutor`, not of `api`;
 - what a module may ask a learner under 18 to write about is П-20: a module may give a task about the learner's life only to adults, through the task's `age_categories`, and `api` gives a task only to learners of its categories;
-- `app` keeps the essay with what was read and the feedback on the device as an artifact, until an adult erases it. «Что идёт после отзыва, решает `api`», and "Continue" on a lesson's task appears only when `api` has said that the task has ended (sources 9.1);
+- `app` keeps the essay with what was read and the feedback on the device as an artifact, until an adult erases it. «Что идёт после отзыва, решает `api`», and "Continue" on a lesson's task appears only when `api` has said that the task has ended ([`app` at 14f5a54](https://github.com/altnovatrail/app/tree/14f5a54/docs));
 - in the prototype the essay "goes Plan, Write, Improve and ends with "I'm done"", and that "nothing checks" it, `spec` replaced with feedback by a rubric (`spec/draft/README.md`).
 
 **Path** — one request of `app`, two calls of `tutor`:
@@ -912,7 +912,7 @@ What the neighbours decided about the essay is in the record sources 9.1.
 
 **Quota:**
 - the reserve is for reading together with the assessment; for "unreadable" the assessment's reserve is returned, and the rest is counted as for any check;
-- `api` begins a new task with a rubric only if what is left is enough for a typical task with a rubric — two readings of the essay with an assessment, the first submission and one rewrite, `quota.TypicalRubric`, by the essay price at `tutor` (sources 9.1);
+- `api` begins a new task with a rubric only if what is left is enough for a typical task with a rubric — two readings of the essay with an assessment, the first submission and one rewrite, `quota.TypicalRubric`, by the essay price at `tutor` ([be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs));
 - if the quota runs out mid-essay, the submission ends "unchecked", and the attempt waits until the next day, like any. The learner can press "Done" then too;
 - an own key does not spend the quota.
 
@@ -929,7 +929,7 @@ What the neighbours decided about the essay is in the record sources 9.1.
 - the glossary derives "what to develop" from the learner model, and rubric feedback does not go into it (О-17): the marks in progress are the glossary's reservation: for tasks with a rubric, progress reads "what to develop" from the marks;
 - the marks do not go to the engine: it gets the closed attempts of tasks with a rubric without marks (О-17).
 
-**Logs** — without IDs and without content: the event code "feedback did not pass the check" — in the code the request's line names the check by its closed set, `empty`, `leak` or `form`, not the part of the rule. By it one sees how often the phrase "no feedback this time" replaces feedback. Neither the text, nor the feedback, nor the justifications, nor marks with IDs are in the logs, as in the logs of `tutor` (sources 9.1).
+**Logs** — without IDs and without content: the event code "feedback did not pass the check" — in the code the request's line names the check by its closed set, `empty`, `leak` or `form`, not the part of the rule. By it one sees how often the phrase "no feedback this time" replaces feedback. Neither the text, nor the feedback, nor the justifications, nor marks with IDs are in the logs, as in the logs of `tutor` ([be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs)).
 
 **Check against the privacy document of `spec`:**
 - the marks are pseudonymous data, an opinion of AI on the learner's writing. They hold no content of the work, and all of them go into the export;
@@ -1487,11 +1487,11 @@ The records of sources — the facts no run checks that this document rests on, 
 | `learner-model` and `module-kit` on carrying progress over | [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/tree/9f338ae), [`module-kit` at 1a54028](https://github.com/altnovatrail/module-kit/tree/1a54028) |
 | Required checks and the path filter | sources 4.2 |
 | Embedding a file in Go | [`embed` of Go 1.27.3](https://pkg.go.dev/embed@go1.27.3) |
-| Showing the solution and hints in MathTrail | sources 6.1 |
-| Neighbouring repositories on showing the solution and the hint | sources 6.2 |
-| Platform AI quota | sources 7.1 |
-| The lesson at the neighbours | sources 8.1 |
-| The task with a rubric at the neighbours | sources 9.1 |
+| Showing the solution and hints in MathTrail | [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs), [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft) |
+| Neighbouring repositories on showing the solution and the hint | [`app` at a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/blob/9f338ae/RUN.md) |
+| Platform AI quota | sources 7.1; [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`tutor` at 9f85613](https://github.com/altnovatrail/tutor/tree/9f85613/docs), [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs), [`app` at a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md) |
+| The lesson at the neighbours | [`app` at 3ce4cdb](https://github.com/altnovatrail/app/tree/3ce4cdb/docs), [`learner-model` at 20ae268](https://github.com/altnovatrail/learner-model/blob/20ae268/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a), [`engine` at 9751ba4](https://github.com/altnovatrail/engine/blob/9751ba4/docs/decisions.md), [`skill-map` at 0295ce8](https://github.com/altnovatrail/skill-map/blob/0295ce8/docs/architecture.md), [`modules` at a0db6e9](https://github.com/altnovatrail/modules/tree/a0db6e9), [`spec` v0.6.4](https://github.com/altnovatrail/spec/blob/v0.6.4/RUN.md) |
+| The task with a rubric at the neighbours | [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`app` at 14f5a54](https://github.com/altnovatrail/app/tree/14f5a54/docs), [`learner-model` at 28433fa](https://github.com/altnovatrail/learner-model/blob/28433fa/docs/architecture.md), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a), [`modules` at 97c20e2](https://github.com/altnovatrail/modules/tree/97c20e2), [`spec` v0.6.5](https://github.com/altnovatrail/spec/blob/v0.6.5/docs/privacy.md), [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft) |
 | Connect, protobuf and buf | sources 10.1 |
 | Fetch, CORS and `<img>` | sources 10.2 |
 | Check time at `tutor` | sources 10.3 |
