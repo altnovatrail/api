@@ -120,7 +120,7 @@ How the component is built by the items above. The first ten subsections are the
 
 ### 3.1. Sign-in and permissions
 
-The facts about the services are in the records sources 2.1, 2.2, 10.2 and 12.1, and the pages for the code in 2.4 and 2.6.
+The facts about the services are in the records sources 2.1, 2.2 and 10.2, and the pages for the code in 2.4 and 2.6; the precedents are in [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs).
 
 **The sign-in service:**
 - Firebase Auth. The dev project of `api` is without the upgrade to Identity Platform, and the platform's production project works with Identity Platform: `infra` upgrades and configures it by code — the authorized domains `<project>.firebaseapp.com` and `<project>.web.app`, sign-in only by the Google window, email, phone and anonymous sign-in off, the activity log off, and only `api` deletes a user. The service account of `api` gets the role `signInUsers` — `firebaseauth.users.get`, `.update` and `.delete` — exactly for the four calls of Identity Toolkit that the Admin SDK of `api` makes: `accounts:lookup` — the revocation check of each ID token, `accounts:batchGet` — iterating over users in `api sweep`, `accounts:update` — revoking tokens, `accounts:delete` — deleting a user (the source files `auth/auth.go`, `auth/user_mgt.go` and `auth/export_users.go` of SDK v4.22.0, read 2026-11-09). [build.md](build.md) names them for `infra`, which grants the role, and a new call comes as a row «в реестр spec» before the release that makes it. Sign-in is through Google alone; Apple waits for Т-41 (Д3). There is no email and password, no email links and no phone.
@@ -205,7 +205,7 @@ A request with a profile ID then goes on like this:
 
 Irreversible actions check fresh sign-in last, after the right: then a repeat of a deletion after a lost answer gets "account gone" or "no profile" without a new sign-in window.
 
-**Where this is in code** (sources 10.5). The token class, the mark, the account (step 1), the right (step 4) and fresh sign-in are checked by a Connect interceptor before the handler, by the table of methods `internal/rpc/methods.go`: which method needs a token, whether it needs an account — without one, only creating an account —, which right on the profile of its message it needs, and whether it needs a fresh sign-in. The right is on the message, before any reading by profile ID, and the profile's row under the account the interceptor reads only after the right: a dangling tuple gives the same refusal "no profile". Steps 2, 3, 5–7 belong to the handlers of their own tasks. Access and the statement (steps 2 and 3) are `CreateAccount` of the package `internal/account`: the code is read by `internal/invite`, and the redemption, the binding and the tariff are done by one transaction, `store.CreateAccount`. Creating profiles, child consent and settings are `internal/account`: the country is checked by `store.CountryAccepted`, and the tuple `owner` is written from inside the transaction, before `COMMIT`. Consent, the AI route and the quota (steps 5–7) are checked by `internal/learning`, with `internal/admission` and `internal/quota`.
+**Where this is in code** ([connect-go v2.0.2](https://github.com/connectrpc/connect-go/blob/v2.0.2/docs/v2-guide.md), [the contracts at `contracts/v0.12.0`](https://github.com/altnovatrail/spec/blob/contracts/v0.12.0/contracts/novatrail/api/v1/apiv1connect/account.connect.go)). The token class, the mark, the account (step 1), the right (step 4) and fresh sign-in are checked by a Connect interceptor before the handler, by the table of methods `internal/rpc/methods.go`: which method needs a token, whether it needs an account — without one, only creating an account —, which right on the profile of its message it needs, and whether it needs a fresh sign-in. The right is on the message, before any reading by profile ID, and the profile's row under the account the interceptor reads only after the right: a dangling tuple gives the same refusal "no profile". Steps 2, 3, 5–7 belong to the handlers of their own tasks. Access and the statement (steps 2 and 3) are `CreateAccount` of the package `internal/account`: the code is read by `internal/invite`, and the redemption, the binding and the tariff are done by one transaction, `store.CreateAccount`. Creating profiles, child consent and settings are `internal/account`: the country is checked by `store.CountryAccepted`, and the tuple `owner` is written from inside the transaction, before `COMMIT`. Consent, the AI route and the quota (steps 5–7) are checked by `internal/learning`, with `internal/admission` and `internal/quota`.
 
 Creating a profile is an action on the account, and it goes like this:
 
@@ -242,7 +242,7 @@ Creating a profile is an action on the account, and it goes like this:
 
 ### 3.2. Database and learner model
 
-The facts about Neon and about the precedents are in the records sources 3.1, 3.2, 3.5 and 12.1.
+The facts about Neon and about the precedents are in the records sources 3.1, 3.2 and 3.5, and in [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs).
 
 **Database:**
 - Neon Postgres, as in canvas-api. There is one project, and it has two databases: `api` — the data of `api` — and `openfga` — the OpenFGA store. They share the region and the history window.
@@ -300,7 +300,7 @@ The facts about Neon and about the precedents are in the records sources 3.1, 3.
 | idempotency keys: the account, the key — in the account's space, — the method, the profile ID, the target — an attempt, a run or, for "something else", the profile; for a request of the account itself — the PIN, child consent — the account itself, — the request's fingerprint, a reference to what was recorded — a submission or a choice — or an answer without content, as for the PIN, the state "in progress" or "done", and the time. The fingerprint is SHA-256 of the request without the key, and for a request with the PIN or an age, argon2id with the record's salt: a fast hash would give them away | the database of `api` | "in progress" — no longer than the request time limit, 30 s; records older than a day are deleted by the operator's daily retention job: no longer than 2 days. They are deleted with the profile, and the records of the account's own requests with the account | no: a service field |
 | the list of countries before the DPIA: the country code and the time when the operator opened it | the database of `api` | until the operator removes the country | no: a service record, it holds no learner data |
 | OpenFGA tuples "account — profile" | the database `openfga` | deleted with the profile, after the database transaction; a "dangling" one is removed by the daily job | no: this is the account's list of profiles, and it goes with the profiles |
-| OpenFGA's `changelog` — the history of tuple writes | the database `openfga` | no longer than two days: OpenFGA does not clean it itself, and the operator's daily job deletes records older than a day ([`.config-schema.json`](https://github.com/openfga/openfga/blob/v1.22.1/.config-schema.json) of OpenFGA v1.22.1; sources 11.7) | no |
+| OpenFGA's `changelog` — the history of tuple writes | the database `openfga` | no longer than two days: OpenFGA does not clean it itself, and the operator's daily job deletes records older than a day ([`.config-schema.json`](https://github.com/openfga/openfga/blob/v1.22.1/.config-schema.json) and [the schema of `changelog`](https://github.com/openfga/openfga/blob/v1.22.1/assets/migrations/postgres/001_initialize_schema.sql) of OpenFGA v1.22.1) | no |
 | Neon's history — everything listed, as it was at a moment in the past | Neon, both databases | the history window: in the deployment, 1 day, on the Launch plan; in the dev project on Free, 6 hours | no |
 
 In code the rows of attempts, runs, the log, the cache and the choices are tables of migration `0005`, as a skeleton: keys, links to the profile, the constraints "one open" and the fields of the row's life; their other fields come by the migrations the table above names, and among them `0006` gives the attempt the number of wrong answers and the time the technique was given at a step, and the choice of a task the module and the task. The log holds append-only by a trigger, and the cache row is created by the creation of a profile. A submission with a verdict is a row of `submissions`: its answer — the verdicts, what was read and the solved task, — and the record of the submission's key refers to it rather than holds the answer.
@@ -493,15 +493,15 @@ With what weight the evidence goes to the new skills and whether "mastered" carr
 
 ### 3.5. Showing the solution and hints
 
-О-7 and О-21 are closed. The examples of MathTrail and what the neighbouring repositories say are in the records sources 6.1 and 6.2.
+О-7 and О-21 are closed. The examples of MathTrail and what the neighbouring repositories say are in [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs), [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft), [`app` at a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs) and [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/blob/9f338ae/RUN.md).
 
 **What the decision rests on:**
-- О-7: showing by a button; the outcome "solution shown" is the evidence "not solved", without a trap. To a child — after the hint ladder and with the adult's setting "ask before showing", to an adult — freely. Rejected: never to show, as in canvas-api (sources 6.1), and to count the task as skipped without changing the rating, as in the prototype;
+- О-7: showing by a button; the outcome "solution shown" is the evidence "not solved", without a trap. To a child — after the hint ladder and with the adult's setting "ask before showing", to an adult — freely. Rejected: never to show, as in canvas-api ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)), and to count the task as skipped without changing the rating, as in the prototype;
 - the ladder goes by the number of wrong answers on the task, the program chooses the rung, and the model only finds the words; after the third rung the program offers to call an adult — to a child — or to show the solution. A task's solution in a module is closed and required for a task that has an item with a verdict;
 - the key and the solution of a task go to the device only when the attempt is closed by a correct answer or by showing the solution, and an attempt that was left, abandoned or closed "unchecked" does not give the key. The keys of open modules are public, and holding the key back does not guard a secret but only keeps it out of the learner's app;
 - the outcomes of evidence are from the first submission, after hint number k, with a sketch hint, solution shown, unchecked; their weights are decided by `learner-model`;
 - О-21: before the first wrong answer a request gives "givens and unknown" and the task's technique — without AI and without reading the work, — and there is no sketch "how to begin" in format v0. After a wrong answer — the current rung, and "explain differently" — the same rung in other words, an AI call within the quota, with the previous questions of the same task;
-- the work is read only by the learner's action, and a request does not send unsubmitted work for reading. `app` sends a request for a hint without the work, and the request always goes to `api` (sources 6.2);
+- the work is read only by the learner's action, and a request does not send unsubmitted work for reading. `app` sends a request for a hint without the work, and the request always goes to `api` ([a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md));
 - the fallback text is, on rungs 1–2, the text of the trap value, without it the trap advice, without a trap the module's rung template; on the third rung, the item's simpler case, and without it the same as on the second. When a submission has several wrong answer slots, it speaks about the first answer slot "not yet" in order;
 - any text of the tutor passes the leak check, and a hint also the form check, before it goes to the device; if it did not pass, the learner gets the fallback text. Of what is stored about attempts, only the previous questions of the same task go to AI — for the hint ladder;
 - in the solving mode "by steps" the app leads the learner by the solving steps, in the solving mode "self" the tutor waits until it is called. "Step done" does not read the work and leads to the next step on the device, without AI. `app` asks for the words of a rung after the verdict "not yet" and sends the work for them once more.
@@ -515,7 +515,7 @@ With what weight the evidence goes to the new skills and whether "mastered" carr
 | 3rd | 3 — a simpler case | the same; the fallback text is the item's simpler case | "explain differently" |
 | 4th and on | no new one | no new words, and AI is not called for them; "Hint" gives the words of rung 3 | to a child — call an adult or show the solution; to a learner of the category `adult` — show the solution; "explain differently" of rung 3, if it was not asked for yet |
 
-From the fourth wrong answer — as `offer_help` in canvas-api, where the analysis went on only while there were no more than three wrong answers (sources 6.1). The ladder is per task, not per item: on a workbook page four submissions with an error offer to show the solution of the whole page. A task with a rubric has no ladder: its item has no verdict, and it goes the path of a task with a rubric, below.
+From the fourth wrong answer — as `offer_help` in canvas-api, where the analysis went on only while there were no more than three wrong answers ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)). The ladder is per task, not per item: on a workbook page four submissions with an error offer to show the solution of the whole page. A task with a rubric has no ladder: its item has no verdict, and it goes the path of a task with a rubric, below.
 
 **Showing the solution.** A child is a profile of any age category but `adult`:
 1. Before the fourth wrong answer there is no showing: `api` rejects a request to show by any kind of action.
@@ -550,7 +550,7 @@ A request does not raise the rung: it grows only with wrong answers. "Hint" in `
 - without AI — a tapped choice in the mode without AI (О-5) — "explain differently" is not offered: the fallback texts remain.
 
 **The words of a rung:**
-- each call of an attempt's words — both of a rung and of "differently" — gets the previous questions of the same task, so as not to repeat them, as in canvas-api (sources 6.1);
+- each call of an attempt's words — both of a rung and of "differently" — gets the previous questions of the same task, so as not to repeat them, as in canvas-api ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs));
 - an AI failure, an exhausted quota and words that did not pass the leak check or the form check give the fallback text of the rung: the verdict is already given, and the learner always gets an answer. A neutral phrase is only for the verdict "unchecked";
 - **the rung's answer slot** is the first answer slot "not yet" in order in the submission that gave the rung: items by place, answer slots by order in the item. The program chooses it, and everything else depends on it: the words of a rung and of "differently" get its trap, the fallback text of rungs 1–2 is the text of its trap value, without it the trap advice of its trap, without a trap the rung template, and on the third, the simpler case of its item. From the fourth wrong answer there is no rung, and the answer slot stays the one that rung 3 speaks about: "Hint", the fallback text and "differently" speak about one place. `api` does not store the answer slot: it is derived from the verdicts of the submission.
 
@@ -568,7 +568,7 @@ A request does not raise the rung: it grows only with wrong answers. "Hint" in `
 
 - Closing always goes in one transaction: the reason, the evidence if there is any, and deleting the words of the hints. The job for abandoned ones is also a safety net for the attempts of a version that was withdrawn or left the window, and a closing by the job does not move the profile's activity date.
 - In the code "in one transaction" holds the closing in a request and the evidence: the closing calls the catch-up of owed evidence, which appends the evidence of the profile's closed attempts. An attempt that the job `api sweep` closed in a batch gets its evidence from the job's next step `evidence`, and an attempt closed by the previous image, from the first catch-up of its profile. The evidence carries a leading question on request in a field of its own, kind 2, and an answer slot of the kind `time` as a kind of its own, as the schema of `learner-model` knows them.
-- An attempt that was left or abandoned without wrong answers stays a row with a close reason: an adult sees it in progress, as a skip in standalone (sources 6.1), and the learner model does not.
+- An attempt that was left or abandoned without wrong answers stays a row with a close reason: an adult sees it in progress, as a skip in standalone ([89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs)), and the learner model does not.
 - The outcome "left unfinished" is a term of the platform's glossary. The name is not "not solved": that is what О-7 calls the value "solution shown".
 - If the solution of this task has already gone to the profile's device — after a correct answer or showing, — and it is not a template, the evidence of a new attempt carries that too: the learner knows the key, and the engine does not give such a task again at once — as the next task, and after that the engine's pause holds it. When the solution last went to the device the engine learns from the summary of issues. This is derived from the earlier attempts, and the weight is decided by `learner-model`.
 - In a lesson a segment is ended by "correct" and "solution shown", and the segment of a task with a rubric by "done"; "left" and "abandoned" do not end a segment, and on return it begins a new attempt, and "unchecked" and "not suitable" end the lesson run too. Leaving the lesson does not end the run.
@@ -598,7 +598,7 @@ A request does not raise the rung: it grows only with wrong answers. "Hint" in `
 
 ### 3.6. Platform AI quota
 
-The spending message of `tutor`, the provider's prices and the examples of MathTrail are in the record sources 7.1.
+The provider's prices are in the record sources 7.1, the spending message of `tutor` in [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs) and [`tutor` at 9f85613](https://github.com/altnovatrail/tutor/tree/9f85613/docs), and the examples of MathTrail in [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs) and [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs).
 
 **What the decision rests on:**
 - `api`'s card in `spec` says that the platform AI quota `api` counts "in dollars by the spending message of `tutor`, per family day, with the caps of the profile and the account by the account's tariff", and the card of `tutor` says: "By the spending `api` counts the platform AI quotas". `tutor` reports spending in one message per library call, with a record for each model call: reading handwriting has two of them, one per reader, reading an essay has one. A record has the provider, the model, the tokens and an estimate in dollars by its price table with a date. A cut-off answer `tutor` counts by the worst case, and there is neither content nor identifiers in the message;
@@ -608,8 +608,8 @@ The spending message of `tutor`, the provider's prices and the examples of MathT
 - the mode without AI is always there, it is the free path, open to children too — the recommendation of О-5. Without AI a tapped choice is checked. An option written by hand is read by AI like any handwriting, and there is no keyboard input in format v0;
 - the prototype has a free daily quota and the tariff Plus for $10 a month with a quota five times larger. The recommendation of О-14 is to decide by unit economics: a subscriber's worst month must pay for itself;
 - the account holds the tariff, and the account owner's payment data from stage 3 is held by the payment provider;
-- in canvas-api the counters of readings and analyses were kept per child and per parent, and the day of the limits was UTC. The reserve was taken at the start of a check, and a call that was made was counted even on a failure. An exhausted limit gave `UNCHECKED` with the cause `limit`, and the phrase promised no time (sources 7.1). The parent's counters survived the deletion of a child (sources 12.1);
-- in standalone the day of the limits is the family's, by the device's clock, and a new offset takes effect from the next day. The refusal does not name the number of the limit (sources 7.1).
+- in canvas-api the counters of readings and analyses were kept per child and per parent, and the day of the limits was UTC. The reserve was taken at the start of a check, and a call that was made was counted even on a failure. An exhausted limit gave `UNCHECKED` with the cause `limit`, and the phrase promised no time ([canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)). The parent's counters survived the deletion of a child ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs));
+- in standalone the day of the limits is the family's, by the device's clock, and a new offset takes effect from the next day. The refusal does not name the number of the limit ([mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs)).
 
 **The rule:**
 
@@ -667,7 +667,7 @@ In the code: a new task with handwriting on platform AI — by the engine choice
 
 **Reserve and settlement:**
 1. Before each request that calls platform AI, `api` takes a reserve on the counters of the profile and the account in one transaction. The request goes if on each of them what is spent, what is in reserve and the new reserve together are no more than the cap. So two devices of one account do not slip past the cap at once.
-2. The reserve is the expected price of the kind of call. `tutor` gives it by its price table and the model of the kind, and until then, a value by kind in the configuration of `api`. The worst case does not do: in `tutor` it is 4,000 tokens of input and 16,000 of output, for Opus 5.5 about $0.34 (sources 7.1), and the profile's cap would run out on the second reserve.
+2. The reserve is the expected price of the kind of call. `tutor` gives it by its price table and the model of the kind, and until then, a value by kind in the configuration of `api`. The worst case does not do: in `tutor` it is 4,000 tokens of input and 16,000 of output ([be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs)), for Opus 5.5 about $0.34 by the prices of sources 7.1, and the profile's cap would run out on the second reserve.
 3. A check of handwriting reserves both readers, or the one of `single`, an essay the reading with the assessment, a workbook page by its crops, a task from paper its Check whole, the cascade of its models. So the quota does not run out mid-check.
 4. Settlement is in the day when the reserve was taken:
    - an exact spending record is counted at its own price;
@@ -675,20 +675,20 @@ In the code: a new task with handwriting on platform AI — by the engine choice
    - there was no call — the reserve is returned;
    - the provider refused one reader by a limit — only the record of the one that answered is counted;
    - there is no spending message at all — the reserve stays;
-   - the process crashed — the reserve stays as the spending of its day, as in canvas-api a call that was made was counted even on a failure (sources 12.1).
+   - the process crashed — the reserve stays as the spending of its day, as in canvas-api a call that was made was counted even on a failure ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)).
 5. Overspending beyond the cap is no more than the difference between the exact price and the reserve for each running request. It is held by the limited `MaxOutputTokens` of each kind of product call, and for the words whose instructions the cache keeps, by the premium of a write to the cache over the input on the instructions, which the expected price does not count.
 
 In the code: the reserve is taken by the first transaction of the request — the same one that writes the family day, — by `Tutor.Price` of the kind of call through the admission gate, and without an expected price, by the value of the kind from `internal/quota`. Reading a sheet is reserved by `CallSheet`, the words of a rung with the work by `CallWords`, and those of a task a tap checks and "explain differently" by `CallHint`, which `tutor` gives no expected price of, so by its value in `internal/quota`. The correct answer words reserve by `CallCorrect`, whose expected price `tutor` gives, so `internal/quota` has no value of it. If it did not fit, there is no call: for reading, "unchecked" and the outcome "quota" with the time the next day begins, for the words of a rung, the fallback text with the same outcome, for "explain differently", the refusal `resource_exhausted` with `next_family_day`, and the day written by the request stays. A tariff without caps is the outcome or the refusal "not admitted", without the next day. Settlement is right after the call, in a transaction of its own on a context that the end of the request does not cut off, before the second transaction: the call has already been made, and whatever happens to the answer, it is counted. The price is by the settlement table above: exact records by their sum, a record by the worst case and a call without records as the reserve, "not admitted" as zero. The row `ai_usage` writes the price of each model `cost_micro_usd` and the sign `billed`, its tokens of the cache `cache_write_tokens` and `cache_read_tokens` beside `input_tokens` without them, and its own time `model_ms`, its `retries` and `first_token_ms`, and an exhaustion is a row of its own `quota_exhausted` with the cap that the request hit: `profile`, `account` or `tariff`. Stopping an instance needs no settlement mechanism of its own: the requests that the server managed to wait for settle themselves, and one cut off by the stop leaves the reserve as the spending of its day, like a crashed process.
 
-**The estimate of spending** — for the size of the caps and for О-14. The prices of calls are from the measurements of `tutor`, by Anthropic's prices, checked 2026-11-02 (sources 7.1). This is a guideline, not a measurement of the product:
+**The estimate of spending** — for the size of the caps and for О-14. The prices of calls are from the measurements of `tutor`, by Anthropic's prices, checked 2026-11-02 (sources 7.1; [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs)). This is a guideline, not a measurement of the product:
 
 | Call | Price | Where from |
 |---|---|---|
 | reading handwriting by two readers — Opus 5.5 · `high` and Haiku 5.5 · `medium` | ≈ $0.0086: $0.0083 and $0.0003; the measured check is dearer, most of all by the output of Opus | measurements 2.1 |
-| the words of a rung — the analysis and the hint, Opus 5.5 · `high` | ≈ $0.0152 | sources 10.3 |
+| the words of a rung — the analysis and the hint, Opus 5.5 · `high` | ≈ $0.0152 | [`tutor` at be607e5](https://github.com/altnovatrail/tutor/blob/be607e5/docs/architecture.md) |
 | the correct answer words — praise and a question, Opus 5.5 · `high` | ≈ $0.0135, by `Price(CallCorrect)` of `tutor`: its expected tokens are those of the 110 calls that admitted them | measurements 7 |
 | "explain differently" | cheaper than the words of a rung: there is no picture of the work | — |
-| an essay — reading and assessment, Opus 5.5 · `high` | ≈ $0.030 | sources 7.1 |
+| an essay — reading and assessment, Opus 5.5 · `high` | ≈ $0.030 | [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs) |
 | a workbook page | not measured | — |
 
 | Mode, 20 tasks a day | Assumptions | Spending |
@@ -709,7 +709,7 @@ In the code: the reserve is taken by the first transaction of the request — th
 In the code: the migration `0015` — the tables `account_quota` and `profile_quota`, a row per day with a reserve, with the key "owner and start of the day" and the end of the day, by which the step `quota` of the job `api sweep` deletes them when the day ended more than a day ago, — and the table `platform_ai` of one row of the flag. The reserve is `store.ReserveQuota`: in the transaction that already holds the account's row by the idempotency key, it reads the day's counters `FOR UPDATE`, checks both caps of the tariff and adds to the reserve of both. So two reserves of one account go one after another. `store.QuotaFits` is the same check without a write, for a typical task. Settlement is `store.SettleQuota`, in a transaction of its own: the reserve goes, and the price of the call is added to what is spent. Deleting a profile takes its counters with it by the key `ON DELETE CASCADE`, and deleting an account, the account's counters too. In the export — `QuotaCounters` of the profile and the account.
 
 **Deletion:**
-- deleting a profile takes its counters, and the account's counters stay: otherwise a deletion and a new profile would lift the spending cap (sources 12.1). The order of deletion is in the design of deletion and export;
+- deleting a profile takes its counters, and the account's counters stay: otherwise a deletion and a new profile would lift the spending cap ([canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs)). The order of deletion is in the design of deletion and export;
 - deleting an account takes everything. A new account needs a new one-time code, so the cap is not lifted then either. With the open sign-in of stage 3 this stops holding — Д10.
 
 **Logs and unit economics** — without IDs:
@@ -739,7 +739,7 @@ In the code: the migration `0015` — the tables `account_quota` and `profile_qu
 
 ### 3.7. Lesson
 
-What the neighbours decided about the lesson is in the record sources 8.1.
+What the neighbours decided about the lesson is in [`app` at 3ce4cdb](https://github.com/altnovatrail/app/tree/3ce4cdb/docs), [`learner-model` at 20ae268](https://github.com/altnovatrail/learner-model/blob/20ae268/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a), [`engine` at 9751ba4](https://github.com/altnovatrail/engine/blob/9751ba4/docs/decisions.md) and [`skill-map` at 0295ce8](https://github.com/altnovatrail/skill-map/blob/0295ce8/docs/architecture.md).
 
 **What the decision starts from:**
 - a lesson is a module's file `lessons/<id>.yaml`: the module's skills that it teaches, and segments in the author's order — an explanation, a worked example and a task of the module by its ID. There is no special check segment at the end: the check is the lesson's last tasks. A module may have no lessons, there is a lesson without tasks — `reading-model-essays.yaml` —, and an explanation may come after the last task — `gaps-and-posts.yaml` and `first-sentences.yaml` (`spec/format/examples/lesson/valid/`);
@@ -748,9 +748,9 @@ What the neighbours decided about the lesson is in the record sources 8.1.
 - a lesson names a template as it names a task: the learner model and the engine see one task, and the attempt's seed chooses the instance. A repeat of a template is a new attempt seed;
 - a lesson holds the digest of the package it began on, all its tasks go on this package, and a withdrawn version or a version outside the window ends the lesson "unchecked". The skills of a lesson on an earlier package go to the engine mapped by `retired_skills` of the current version;
 - the order of lessons is set by the skill graph, and where it gives no order, the engine's rule chooses. When the engine gives a lesson and when a task outside a lesson is decided in `engine`, and the first slice has no consolidation within a lesson and no early end of a lesson. At the engine's input are "the lessons and the pool of tasks: the lesson's skills and its segments";
-- the lesson player is `app`'s. `app` keeps the state of the demo of a worked example itself, and after a break it returns the learner to where they were. `app`'s side (sources 8.1): the place in the lesson and the state of the demo are its own, by the key "lesson ID, package digest"; leaving mid-lesson sends nothing, and when `api` gives the lesson again on the same package, `app` opens it at that place; `app` sends "lesson passed" itself, on "Continue" at the last segment. Whether a lesson begun on another device continues the same run, and what is recorded about a passed lesson, are `api`'s, below;
+- the lesson player is `app`'s. `app` keeps the state of the demo of a worked example itself, and after a break it returns the learner to where they were. `app`'s side ([3ce4cdb](https://github.com/altnovatrail/app/tree/3ce4cdb/docs)): the place in the lesson and the state of the demo are its own, by the key "lesson ID, package digest"; leaving mid-lesson sends nothing, and when `api` gives the lesson again on the same package, `app` opens it at that place; `app` sends "lesson passed" itself, on "Continue" at the last segment. Whether a lesson begun on another device continues the same run, and what is recorded about a passed lesson, are `api`'s, below;
 - the age category is confirmed once a year, and when the country changes, the age is given again;
-- a worked example is neither a task nor evidence, and a lesson adds no call of `tutor` (sources 8.1);
+- a worked example is neither a task nor evidence, and a lesson adds no call of `tutor` ([`learner-model` at 20ae268](https://github.com/altnovatrail/learner-model/blob/20ae268/docs/architecture.md); [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs));
 - a lesson's task is the same attempt as outside a lesson, and a profile has one open attempt.
 
 **Lesson run** — a row of `api`'s database per profile and lesson, one for all devices. The term is the same as `app`'s:
@@ -832,7 +832,7 @@ What `engine` needs for this, `spec` holds: within a lesson the engine is not ca
 
 **Evidence:** a run has none of its own. A segment's attempt gives evidence, as outside a lesson, and a worked example gives none. Whether the weight of evidence needs the fact "in a lesson" — the attempt knows its run — is for `learner-model` to decide: its card in `spec` names this point.
 
-**`skill-map`** does not draw lessons and asks nothing about them (sources 8.1). `app` gets the tiers for the label "sequential" with a connected module — `skill_tiers` of the current version, even before the first attempt.
+**`skill-map`** does not draw lessons and asks nothing about them ([`skill-map` at 0295ce8](https://github.com/altnovatrail/skill-map/blob/0295ce8/docs/architecture.md)). `app` gets the tiers for the label "sequential" with a connected module — `skill_tiers` of the current version, even before the first attempt.
 
 **What is stored and for how long** — the rows "lesson runs" and "attempt" of the table of what the database stores, above: a run lives while the profile lives (П-9), and an open one without actions for 30 days ends "abandoned"; all the fields go into the export, and a run is deleted with the profile.
 
@@ -855,12 +855,12 @@ What `engine` needs for this, `spec` holds: within a lesson the engine is not ca
 In the protocol — opening a lesson by the engine choice and a run by its ID, a segment's attempt as a variant of beginning an attempt, "lesson passed" and the refusals "run ended", "segments not ended" and "segment unavailable" with the places of ended segments. The answer by which a run ended carries the next engine choice, and the answer to a segment's end, the place of the next segment or "no more segments". The end of an attempt with a rubric, and with it the end of its segment in a lesson, is "Done".
 ### 3.8. Task with a rubric
 
-What the neighbours decided about the essay is in the record sources 9.1.
+What the neighbours decided about the essay is in [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`app` at 14f5a54](https://github.com/altnovatrail/app/tree/14f5a54/docs), [`learner-model` at 28433fa](https://github.com/altnovatrail/learner-model/blob/28433fa/docs/architecture.md), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a) and [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft).
 
 **What the decision starts from:**
 - in the first slice a task with a rubric is given by the module of short essays in English for any age: an essay by hand on a sheet gets feedback by a rubric — an assessment by the author's criteria —, not a verdict. Tasks with a key in the same module get a verdict. The check `rubric` is only on the whole sheet, and such a task has one item and one answer slot;
 - the path is two calls: reading the essay by one reader, without the rubric — the text as written —, then assessing the read text by the criteria of the rubric, without the picture, the key and the task's solution. The model gives for each criterion a justification and whether it is met, and one feedback on the whole essay. Between the calls the text lives in the memory of `api`'s request;
-- a criterion has no ID — only a text, and `tutor` numbers the criteria in order. A criterion that is absent from the model's answer or that is named twice `tutor` gives without an assessment, and «Повторять ли тогда вызов, решает `api`»; a failure of the call leaves all the criteria without an assessment. Reading gives «текст, как написан, и можно ли его прочитать», but the measurement prompt did not measure the output "unreadable": the synthetic samples are all legible (sources 9.1);
+- a criterion has no ID — only a text, and `tutor` numbers the criteria in order. A criterion that is absent from the model's answer or that is named twice `tutor` gives without an assessment, and «Повторять ли тогда вызов, решает `api`»; a failure of the call leaves all the criteria without an assessment. Reading gives «текст, как написан, и можно ли его прочитать», but the measurement prompt did not measure the output "unreadable": the synthetic samples are all legible ([`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs));
 - feedback passes the leak check and the feedback rule — no more than three sentences and 80 words in English, and a stretch in quotation marks of four words or more is only the learner's words —, by the code of `tutor`. For a rubric, leaks are searched for only by the task's leak phrases, and the function of the feedback rule answers "passed" or names the broken parts — sentences, words, quote, letters. What the learner sees instead of feedback that did not pass the rule, `api` decides. The format gives a rubric no fallback texts: they belong to the rungs of the ladder, after a wrong value;
 - an essay that cannot be read does not reach the assessment, and the learner sees a request to rewrite the sheet, as for "unreadable". But an item with a rubric has no verdict, and "unreadable" is a verdict, so how `api` shows and records this is for it to decide;
 - the check of a rubric is closed whole, with the criteria, "until the task is solved", and a solution is optional for a task whose answer slot is only `sheet`. The learner sees feedback "as feedback, not as a grade", and "what to develop" is derived from the learner model;
@@ -868,7 +868,7 @@ What the neighbours decided about the essay is in the record sources 9.1.
 - on the recommendation of О-17, rubric feedback does not go into the learner model in the first slice. There is no need to repeat feedback from the observation: an observation repeats a verdict, and rubric feedback has none (П-19);
 - assessment by a rubric is measured by false alarms on met criteria and by agreement with people's assessment (О-22 closed) — this is the eval of `tutor`, not of `api`;
 - what a module may ask a learner under 18 to write about is П-20: a module may give a task about the learner's life only to adults, through the task's `age_categories`, and `api` gives a task only to learners of its categories;
-- `app` keeps the essay with what was read and the feedback on the device as an artifact, until an adult erases it. «Что идёт после отзыва, решает `api`», and "Continue" on a lesson's task appears only when `api` has said that the task has ended (sources 9.1);
+- `app` keeps the essay with what was read and the feedback on the device as an artifact, until an adult erases it. «Что идёт после отзыва, решает `api`», and "Continue" on a lesson's task appears only when `api` has said that the task has ended ([`app` at 14f5a54](https://github.com/altnovatrail/app/tree/14f5a54/docs));
 - in the prototype the essay "goes Plan, Write, Improve and ends with "I'm done"", and that "nothing checks" it, `spec` replaced with feedback by a rubric (`spec/draft/README.md`).
 
 **Path** — one request of `app`, two calls of `tutor`:
@@ -912,7 +912,7 @@ What the neighbours decided about the essay is in the record sources 9.1.
 
 **Quota:**
 - the reserve is for reading together with the assessment; for "unreadable" the assessment's reserve is returned, and the rest is counted as for any check;
-- `api` begins a new task with a rubric only if what is left is enough for a typical task with a rubric — two readings of the essay with an assessment, the first submission and one rewrite, `quota.TypicalRubric`, by the essay price at `tutor` (sources 9.1);
+- `api` begins a new task with a rubric only if what is left is enough for a typical task with a rubric — two readings of the essay with an assessment, the first submission and one rewrite, `quota.TypicalRubric`, by the essay price at `tutor` ([be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs));
 - if the quota runs out mid-essay, the submission ends "unchecked", and the attempt waits until the next day, like any. The learner can press "Done" then too;
 - an own key does not spend the quota.
 
@@ -929,7 +929,7 @@ What the neighbours decided about the essay is in the record sources 9.1.
 - the glossary derives "what to develop" from the learner model, and rubric feedback does not go into it (О-17): the marks in progress are the glossary's reservation: for tasks with a rubric, progress reads "what to develop" from the marks;
 - the marks do not go to the engine: it gets the closed attempts of tasks with a rubric without marks (О-17).
 
-**Logs** — without IDs and without content: the event code "feedback did not pass the check" — in the code the request's line names the check by its closed set, `empty`, `leak` or `form`, not the part of the rule. By it one sees how often the phrase "no feedback this time" replaces feedback. Neither the text, nor the feedback, nor the justifications, nor marks with IDs are in the logs, as in the logs of `tutor` (sources 9.1).
+**Logs** — without IDs and without content: the event code "feedback did not pass the check" — in the code the request's line names the check by its closed set, `empty`, `leak` or `form`, not the part of the rule. By it one sees how often the phrase "no feedback this time" replaces feedback. Neither the text, nor the feedback, nor the justifications, nor marks with IDs are in the logs, as in the logs of `tutor` ([be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs)).
 
 **Check against the privacy document of `spec`:**
 - the marks are pseudonymous data, an opinion of AI on the learner's writing. They hold no content of the work, and all of them go into the export;
@@ -949,7 +949,7 @@ In the protocol: the answer to a submission with a rubric is the read text, how 
 
 ### 3.9. Protocol between `app` and `api`
 
-This section holds the requests, the boundary with the contract of `spec`, refusals and outcomes, idempotency keys and what goes to the device; the wire, the paths without a token, version withdrawal, CORS and logs; no real-time channel in the first slice (Т-25); and where a refusal and where an outcome. The facts about Connect, protobuf, buf and Fetch and the measurements of `tutor` are in the records sources 10.1–10.5.
+This section holds the requests, the boundary with the contract of `spec`, refusals and outcomes, idempotency keys and what goes to the device; the wire, the paths without a token, version withdrawal, CORS and logs; no real-time channel in the first slice (Т-25); and where a refusal and where an outcome. The facts about Connect, protobuf, buf and Fetch are in the records sources 10.1 and 10.2, and the libraries' code, the measurements of `tutor` and canvas-api are links beside the claims.
 
 #### What the contract decided and the boundary of `spec` and `api`
 
@@ -997,7 +997,7 @@ This section holds the requests, the boundary with the contract of `spec`, refus
 - `app` reads the address of `api` from `/deployment.json`, the part `deployment/` of `spec` — `app` and the deployment of `infra` read it, and `api` does not. `api` stands on the origin of `app` or on its own — `infra` chooses this (Т-17) —, and on its own it answers CORS to the exact origin of `app` on all paths — in the platform's deployment this is `<project>.web.app`, without `firebaseapp.com` —, with `Authorization` among the allowed headers and a preflight term of 7200 s. `app` takes media files by `fetch` and gives the canvas a `Blob`;
 - the own key and its provider come with every request of the owner profile that calls AI, with "explain differently" too, and in `api` they live only in the request's memory. `app` names the provider without the key at the beginning of an attempt, and at every request whose answer or refusal may give an engine choice, so that the choice goes by that route; `api` checks the key at connection through `tutor`, and names the providers open to an own key by the admission function;
 - the contract carries what `app` needs — the steps and the hint, the mode and voicing in the profile, the lesson player, for a connected module the digest of the current version and `skill_tiers` even before the first attempt — and the answers by which it erases on the device — the list of profiles, "account gone", version withdrawal by digest and the end of an attempt;
-- the architecture of the first slice has no real-time channel, and no queues or event bus of its own either. Т-25 recommends no channel, and to return to it together with voice (Т-13), deciding then whether a channel is needed if voice input goes as a stream. canvas-api had a channel — Centrifugo —, and its author refused to remove it (sources 10.4).
+- the architecture of the first slice has no real-time channel, and no queues or event bus of its own either. Т-25 recommends no channel, and to return to it together with voice (Т-13), deciding then whether a channel is needed if voice input goes as a stream. canvas-api had a channel — Centrifugo —, and its author refused to remove it ([0901af0](https://github.com/mathtrail/canvas-api/blob/0901af0/docs/decisions.md)).
 
 **The boundary of `spec` and `api`:**
 
@@ -1239,8 +1239,8 @@ The close reasons of an attempt, the end reasons of a lesson run and the ends of
 #### The wire, routes without a token, CORS, logs and the request timeout
 
 **The wire:**
-- binary protobuf. `app` turns it on in the transport connect-web — by default it sends JSON. A new value of an enumeration that a release of `spec` added to the package `v1` binary protobuf carries to an earlier build of `app` as a number: a proto3 enumeration is open. In JSON the server writes the value's name, and connect-es skips an unknown name, and the field reads as empty: a new close reason would look like "attempt open". Crops are `bytes`, in JSON a base64 string, a third longer, and the crop of a handwriting check goes twice;
-- the server accepts JSON too, for debugging. The standard JSON codec of connect-go writes the names in lowerCamelCase, so `api` sets its own: `protojson` with `UseProtoNames`, as the rules of the contracts prescribe, and `DiscardUnknown`, as the standard one does;
+- binary protobuf. `app` turns it on in the transport connect-web — by default it sends JSON. A new value of an enumeration that a release of `spec` added to the package `v1` binary protobuf carries to an earlier build of `app` as a number: a proto3 enumeration is open. In JSON the server writes the value's name, and connect-es skips an unknown name, and the field reads as empty: a new close reason would look like "attempt open". Crops are `bytes`, in JSON a base64 string, a third longer, and the crop of a handwriting check goes twice ([connect-es v2.3.0](https://github.com/connectrpc/connect-es/tree/v2.3.0), [protobuf-es v2.16.0](https://github.com/bufbuild/protobuf-es/tree/v2.16.0));
+- the server accepts JSON too, for debugging. The standard JSON codec of connect-go writes the names in lowerCamelCase, so `api` sets its own: `protojson` with `UseProtoNames`, as the rules of the contracts prescribe, and `DiscardUnknown`, as the standard one does ([connect-go v2.0.2](https://github.com/connectrpc/connect-go/blob/v2.0.2/connectproto/connectproto.go));
 - the price: binary cannot be read by eye in the browser's tools.
 
 **Routes without a token and withdrawal of a version:**
@@ -1262,15 +1262,15 @@ The close reasons of an attempt, the end reasons of a lesson run and the ends of
 **CORS:** when `api` is on its own origin; on the origin of `app` it is not needed. The origin of `app` is the variable `API_APP_ORIGIN`, exact, without a path and `*`; when it is not set, there is no CORS:
 - the exact origin of `app` from the configuration of `api`, on all paths and on all answers, errors and `410` and `503` too: otherwise `fetch` cannot tell a refusal from a network failure;
 - the methods `GET` and `POST`; the headers `Authorization`, `Content-Type`, `Connect-Protocol-Version` and `Connect-Timeout-Ms`, and `Authorization` by name: `*` does not cover it; `Access-Control-Max-Age` is 7200 s; `Access-Control-Expose-Headers` is `Retry-After`: it is not in the safelist of response headers;
-- the preflight cache is by the exact address: each POST method has its own, and Chromium holds it no longer than 2 hours and no more than 32 entries per top-level site, Firefox no longer than a day.
+- the preflight cache is by the exact address: each POST method has its own, and Chromium holds it no longer than 2 hours and no more than 32 entries per top-level site ([98b9eab](https://github.com/chromium/chromium/blob/98b9eab7ac9e36a7228c5143db756f699c8ec4e1/services/network/cors/preflight_result.cc), [`preflight_cache.h`](https://github.com/chromium/chromium/blob/98b9eab7ac9e36a7228c5143db756f699c8ec4e1/services/network/cors/preflight_cache.h)), Firefox no longer than a day ([abbeff4](https://github.com/mozilla-firefox/firefox/blob/abbeff4fd9e02e3f6195153493fc0825eafe5d6d/netwerk/protocol/http/nsCORSListenerProxy.cpp)).
 
 **Logs:** an interceptor of Connect writes the method, the code, the cause of a refusal and the time, the event `request`, and with it the class of a token refusal and, for a failure, the kind of error. It does not write the body, the headers or the address of the request: the body holds the work and the learner's data, a header holds the token, and the GET address holds the message. The request logs of Cloud Run are excluded.
 
-**Request timeout** (sources 10.5): 30 s, `API_REQUEST_TIMEOUT`, and 90 s for `FindTasks`, `ReadStatement` and `SubmitWork`, `API_PAPER_REQUEST_TIMEOUT`, each less than `API_HTTP_WRITE_TIMEOUT`, 120 s; shorter if the client's `Connect-Timeout-Ms` asks so. It governs the calls of the ports — the Firebase SDK repeats a call for up to two minutes —, the record "going" of the idempotency key and the finishing of marks by a job, as the database and learner model, above, and deletion and export, below, describe.
+**Request timeout** ([connect-go v2.0.2](https://github.com/connectrpc/connect-go/tree/v2.0.2)): 30 s, `API_REQUEST_TIMEOUT`, and 90 s for `FindTasks`, `ReadStatement` and `SubmitWork`, `API_PAPER_REQUEST_TIMEOUT`, each less than `API_HTTP_WRITE_TIMEOUT`, 120 s; shorter if the client's `Connect-Timeout-Ms` asks so. It governs the calls of the ports — the Firebase SDK repeats a call for up to two minutes —, the record "going" of the idempotency key and the finishing of marks by a job, as the database and learner model, above, and deletion and export, below, describe.
 
 #### The real-time channel and its measurement
 
-**Real-time channel** (Т-25): there is none. The check of handwriting is two requests, a tapped choice one, without AI, an essay one. How long the learner waits on Opus 5.5 · `high` is an estimate by the measurements of `tutor` (sources 10.3), not a measurement:
+**Real-time channel** (Т-25): there is none. The check of handwriting is two requests, a tapped choice one, without AI, an essay one. How long the learner waits on Opus 5.5 · `high` is an estimate by the measurements of `tutor` ([be607e5](https://github.com/altnovatrail/tutor/blob/be607e5/docs/architecture.md)), not a measurement:
 
 | What the learner waits for | Two requests — decided | One answer | Event channel |
 |---|---|---|---|
@@ -1279,16 +1279,16 @@ The close reasons of an attempt, the end reasons of a lesson run and the ends of
 | "correct" and the solution | after reading, ≈ 3–4 s; praise by the second request | after reading and praise | after reading |
 | feedback on an essay | ≈ 12 s by one request | the same | the same |
 
-- reading is the pair of readers of one provider. The estimate takes the time of the judge with the key on the board, the same call with the picture of the work: for Opus 5.5 · `high` p50 2.5–3.9 s, for Haiku 5.5 · `low` a median of 2.7 s; the documents of `tutor` give no time of a reading call (sources 10.3). The numbers are for readers that go in parallel, and the pair takes the time of Opus; one after the other, ≈ 2–3 s more to the verdict. The estimate is for Haiku 5.5 · `low`, not for the effort the pair of `tutor` takes from its list `admission.Admitted`, which the platform AI quota above prices;
-- words are the analysis and the hint, Opus 5.5 · `high`, p50 5.1 s (sources 10.3);
-- an essay is reading and assessment, Opus 5.5 · `high`, p50 11.9 s (sources 10.3);
+- reading is the pair of readers of one provider. The estimate takes the time of the judge with the key on the board, the same call with the picture of the work: for Opus 5.5 · `high` p50 2.5–3.9 s, for Haiku 5.5 · `low` a median of 2.7 s; the documents of `tutor` give no time of a reading call ([be607e5](https://github.com/altnovatrail/tutor/blob/be607e5/docs/architecture.md)). The numbers are for readers that go in parallel, and the pair takes the time of Opus; one after the other, ≈ 2–3 s more to the verdict. The estimate is for Haiku 5.5 · `low`, not for the effort the pair of `tutor` takes from its list `admission.Admitted`, which the platform AI quota above prices;
+- words are the analysis and the hint, Opus 5.5 · `high`, p50 5.1 s ([`tutor` at be607e5](https://github.com/altnovatrail/tutor/blob/be607e5/docs/architecture.md));
+- an essay is reading and assessment, Opus 5.5 · `high`, p50 11.9 s ([`tutor` at be607e5](https://github.com/altnovatrail/tutor/blob/be607e5/docs/architecture.md));
 - the overhead of the second request: the check of the token with revocation, by a network call to the sign-in service; a preflight, if `api` is on its own origin and the cache entry for the method has expired; the crop once more, by binary protobuf, without base64. On the first app the second request without a call, `GetRungWords` with a fallback text, took about a second (measurements 2.1);
 - a channel does not speed up the verdict: the answer of the first request is the early verdict. It would win only the overhead of the second request, and itself would need a service of its own and a subscription by token;
 - the first app works locally: `app` and `api` on one machine, the preflight local, and the check of the token, the database and the AI provider over the network, as in a deployment.
 
 **Measurement on the first app:** measurements 2.1 and 2.2. The verdict came later than the estimate, and the words took twice their estimate of ≈ 5 s. A channel would give the verdict no earlier, and the words earlier only by the overhead of the second request, and the verdict does not wait for them. Why reading is longer than the judge of `tutor`, and the words longer than the measurement of `tutor`, is Д222 spec.
 
-**Against canvas-api**, which kept the channel and rejected «всё в HTTP-ответе» (sources 12.1): the tutor's words go whole, after the leak check, so a channel would carry only events; the verdict is ready after the first call, the reading, so a channel would carry one event, the one that comes as an answer anyway; the rules of the contracts do not allow streams; there are no queues or event bus of our own. The argument of canvas-api itself — on Cloud Run work after the response gets almost no CPU — holds (sources 10.4): each request does its work within itself. Return to the channel together with voice (Т-13), at stage 3, and decide then whether it is needed, if voice input goes as a stream.
+**Against canvas-api**, which kept the channel and rejected «всё в HTTP-ответе» ([0901af0](https://github.com/mathtrail/canvas-api/blob/0901af0/docs/decisions.md)): the tutor's words go whole, after the leak check, so a channel would carry only events; the verdict is ready after the first call, the reading, so a channel would carry one event, the one that comes as an answer anyway; the rules of the contracts do not allow streams; there are no queues or event bus of our own. The argument of canvas-api itself — on Cloud Run work after the response gets almost no CPU — holds ([0901af0](https://github.com/mathtrail/canvas-api/blob/0901af0/docs/decisions.md)): each request does its work within itself. Return to the channel together with voice (Т-13), at stage 3, and decide then whether it is needed, if voice input goes as a stream.
 
 #### The check against privacy
 
@@ -1303,17 +1303,17 @@ The close reasons of an attempt, the end reasons of a lesson run and the ends of
 
 ### 3.10. Deletion and export
 
-This section holds the fresh sign-in, the class of a token check refusal and the answers "fresh sign-in needed" and "account gone"; the deletion of a profile and of the account, the operator's job, consent, honest periods and the export. The facts about Firebase, RFC 9470, Connect, canvas-api and `app` are in the records sources 11.1–11.5, and about Cloud Run jobs, the `changelog` of OpenFGA and the Admin SDK in the code in 11.6, 11.7 and 2.5.
+This section holds the fresh sign-in, the class of a token check refusal and the answers "fresh sign-in needed" and "account gone"; the deletion of a profile and of the account, the operator's job, consent, honest periods and the export. The facts about Firebase, RFC 9470, Connect, Cloud Run jobs and the size of a response of Cloud Run are in the records sources 11.1–11.3, 11.6 and 11.8, and the code of the Firebase SDKs and of OpenFGA, canvas-api and `app` are links beside the claims.
 
 **What the decision rests on:**
 - deletion is confirmed by a fresh sign-in, not by the PIN. `api` deletes the data from the database and the account at the sign-in service, and the other devices erase their data at their next call to `api`: it answers that the account is gone. The honest periods name the backups of the database, the sign-in service, the logs of the platform and of the AI providers, the other devices and the record of consent, and what remains of consent is the minimal record below;
 - one account holds both the owner profile and the profiles of their children, and the export and deletion by profile and of the whole account are detailed by `api`;
 - П-14 is closed: a minimal record of a child's consent — the date and the method of the check, without the child's data — is kept 5 years after the deletion of the account or the profile and erases itself; the platform has no lawyer;
-- the Admin SDK for Go holds the time of sign-in in the field `AuthTime` of the token. `VerifyIDTokenAndCheckRevoked` does not give the token on a refusal, and names a deleted user `IsUserNotFound`, which `IsIDTokenInvalid` does not cover. An ID token lives up to an hour after revocation, and revocation is precise to a second (sources 11.1);
-- in the Firebase SDK for the web, refreshing the token of a deleted user ends with `auth/user-token-expired`, the same code as for a revoked sign-in, and the SDK signs out by itself. `getIdToken(true)` does not change `auth_time`, and a re-sign-in by the window requires the same UID;
-- in canvas-api a sign-in no older than 5 minutes was fresh, by `auth_time`, and it was required by the deletion of a child's profile, the deletion of the account and the change of a forgotten PIN, and the PIN was a barrier of the interface, not a security boundary. Tokens there were checked with revocation, so that an old token from another device would not create the parent's record anew (sources 12.1);
-- canvas-api deleted the database, then the tuples, then `RevokeRefreshTokens` and `DeleteUser`, and only the client led a repeat: a failure after the database left the Firebase user without a period, and the other devices got no answer (sources 11.4);
-- `app` erases on the device at sign-out everything of the account, at the sign-in of another account everything of the previous one, a profile deleted on another device by the list of profiles at launch, and the account by "account gone" (sources 11.5).
+- the Admin SDK for Go holds the time of sign-in in the field `AuthTime` of the token. `VerifyIDTokenAndCheckRevoked` does not give the token on a refusal, and names a deleted user `IsUserNotFound`, which `IsIDTokenInvalid` does not cover. An ID token lives up to an hour after revocation, and revocation is precise to a second ([firebase-admin-go v4.22.0](https://github.com/firebase/firebase-admin-go/tree/v4.22.0));
+- in the Firebase SDK for the web, refreshing the token of a deleted user ends with `auth/user-token-expired`, the same code as for a revoked sign-in, and the SDK signs out by itself. `getIdToken(true)` does not change `auth_time`, and a re-sign-in by the window requires the same UID ([`@firebase/auth` 1.13.8](https://github.com/firebase/firebase-js-sdk/tree/@firebase/auth@1.13.8/packages/auth));
+- in canvas-api a sign-in no older than 5 minutes was fresh, by `auth_time`, and it was required by the deletion of a child's profile, the deletion of the account and the change of a forgotten PIN, and the PIN was a barrier of the interface, not a security boundary. Tokens there were checked with revocation, so that an old token from another device would not create the parent's record anew ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs));
+- canvas-api deleted the database, then the tuples, then `RevokeRefreshTokens` and `DeleteUser`, and only the client led a repeat: a failure after the database left the Firebase user without a period, and the other devices got no answer ([0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs));
+- `app` erases on the device at sign-out everything of the account, at the sign-in of another account everything of the previous one, a profile deleted on another device by the list of profiles at launch, and the account by "account gone" ([375a09b](https://github.com/altnovatrail/app/blob/375a09b/docs/architecture.md)).
 
 **Fresh sign-in:**
 - the `auth_time` of a token that passed the check is no older than 300 s by the clock of `api`. An `auth_time` ahead of the clock of `api` by no more than 300 s is fresh too: this is the same tolerance that the Admin SDK gives the token's expiry;
@@ -1473,7 +1473,7 @@ The records of sources — the facts no run checks that this document rests on, 
 
 | Reading held here | Record |
 |---|---|
-| Decisions and specification of canvas-api | sources 12.1 |
+| Decisions and specification of canvas-api | [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs) |
 | Firebase Auth | sources 2.1 |
 | Apple Developer Program (Д3; Т-41) | sources 2.2 |
 | OpenFGA | [openfga/openfga v1.22.1](https://github.com/openfga/openfga/tree/v1.22.1) |
@@ -1487,23 +1487,23 @@ The records of sources — the facts no run checks that this document rests on, 
 | `learner-model` and `module-kit` on carrying progress over | [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/tree/9f338ae), [`module-kit` at 1a54028](https://github.com/altnovatrail/module-kit/tree/1a54028) |
 | Required checks and the path filter | sources 4.2 |
 | Embedding a file in Go | [`embed` of Go 1.27.3](https://pkg.go.dev/embed@go1.27.3) |
-| Showing the solution and hints in MathTrail | sources 6.1 |
-| Neighbouring repositories on showing the solution and the hint | sources 6.2 |
-| Platform AI quota | sources 7.1 |
-| The lesson at the neighbours | sources 8.1 |
-| The task with a rubric at the neighbours | sources 9.1 |
-| Connect, protobuf and buf | sources 10.1 |
-| Fetch, CORS and `<img>` | sources 10.2 |
-| Check time at `tutor` | sources 10.3 |
-| canvas-api on the channel | sources 10.4 |
-| Firebase Auth on deletion and the fresh sign-in | sources 11.1 |
+| Showing the solution and hints in MathTrail | [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs), [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft) |
+| Neighbouring repositories on showing the solution and the hint | [`app` at a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`learner-model` at 9f338ae](https://github.com/altnovatrail/learner-model/blob/9f338ae/RUN.md) |
+| Platform AI quota | sources 7.1; [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`tutor` at 9f85613](https://github.com/altnovatrail/tutor/tree/9f85613/docs), [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs), [mathtrail-standalone at 89986bc](https://github.com/mathtrail/mathtrail-standalone/tree/89986bc/docs), [`app` at a42a7e1](https://github.com/altnovatrail/app/blob/a42a7e1/docs/architecture.md) |
+| The lesson at the neighbours | [`app` at 3ce4cdb](https://github.com/altnovatrail/app/tree/3ce4cdb/docs), [`learner-model` at 20ae268](https://github.com/altnovatrail/learner-model/blob/20ae268/docs/architecture.md), [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a), [`engine` at 9751ba4](https://github.com/altnovatrail/engine/blob/9751ba4/docs/decisions.md), [`skill-map` at 0295ce8](https://github.com/altnovatrail/skill-map/blob/0295ce8/docs/architecture.md), [`modules` at a0db6e9](https://github.com/altnovatrail/modules/tree/a0db6e9), [`spec` v0.6.4](https://github.com/altnovatrail/spec/blob/v0.6.4/RUN.md) |
+| The task with a rubric at the neighbours | [`tutor` at be607e5](https://github.com/altnovatrail/tutor/tree/be607e5/docs), [`app` at 14f5a54](https://github.com/altnovatrail/app/tree/14f5a54/docs), [`learner-model` at 28433fa](https://github.com/altnovatrail/learner-model/blob/28433fa/docs/architecture.md), [`engine` at 08bc48a](https://github.com/altnovatrail/engine/tree/08bc48a), [`modules` at 97c20e2](https://github.com/altnovatrail/modules/tree/97c20e2), [`spec` v0.6.5](https://github.com/altnovatrail/spec/blob/v0.6.5/docs/privacy.md), [the prototype in `spec` v0.6.2](https://github.com/altnovatrail/spec/tree/v0.6.2/draft) |
+| Connect, protobuf and buf | sources 10.1; [connect-es v2.3.0](https://github.com/connectrpc/connect-es/tree/v2.3.0), [protobuf-es v2.16.0](https://github.com/bufbuild/protobuf-es/tree/v2.16.0), [connect-go v2.0.2](https://github.com/connectrpc/connect-go/tree/v2.0.2) |
+| Fetch, CORS and `<img>` | sources 10.2; [Chromium at 98b9eab](https://github.com/chromium/chromium/blob/98b9eab7ac9e36a7228c5143db756f699c8ec4e1/services/network/cors/preflight_result.cc) and [`preflight_cache.h`](https://github.com/chromium/chromium/blob/98b9eab7ac9e36a7228c5143db756f699c8ec4e1/services/network/cors/preflight_cache.h), [Firefox at abbeff4](https://github.com/mozilla-firefox/firefox/blob/abbeff4fd9e02e3f6195153493fc0825eafe5d6d/netwerk/protocol/http/nsCORSListenerProxy.cpp) |
+| Check time at `tutor` | [`tutor` at be607e5](https://github.com/altnovatrail/tutor/blob/be607e5/docs/architecture.md) |
+| canvas-api on the channel | [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/blob/0901af0/docs/decisions.md) |
+| Firebase Auth on deletion and the fresh sign-in | sources 11.1; [`@firebase/auth` 1.13.8](https://github.com/firebase/firebase-js-sdk/tree/@firebase/auth@1.13.8/packages/auth); measurements 14 |
 | The Admin SDK for Go and its tests | [firebase-admin-go v4.22.0](https://github.com/firebase/firebase-admin-go/tree/v4.22.0) |
-| Connect v2 | sources 10.5 |
+| Connect v2 | [connect-go v2.0.2](https://github.com/connectrpc/connect-go/tree/v2.0.2), [the contracts at `contracts/v0.12.0`](https://github.com/altnovatrail/spec/blob/contracts/v0.12.0/contracts/novatrail/api/v1/apiv1connect/account.connect.go) |
 | RFC 9470 | sources 11.2 |
 | Connect codes | sources 11.3 |
-| Deletion in canvas-api | sources 11.4 |
-| `app` on erasing on the device | sources 11.5 |
+| Deletion in canvas-api | [canvas-api at 0901af0](https://github.com/mathtrail/canvas-api/tree/0901af0/docs) |
+| `app` on erasing on the device | [`app` at 375a09b](https://github.com/altnovatrail/app/blob/375a09b/docs/architecture.md) |
 | Cloud Run jobs | sources 11.6 |
-| The `changelog` of OpenFGA | sources 11.7 |
+| The `changelog` of OpenFGA | [OpenFGA v1.22.1](https://github.com/openfga/openfga/blob/v1.22.1/assets/migrations/postgres/001_initialize_schema.sql) |
 | ID token without `app` | sources 2.6 |
 | The scheduled workflow and its signal | sources 4.4 |

@@ -107,5 +107,5 @@ The last done epic is E13, [docs/plan/E13.md](docs/plan/E13.md); the author pick
 | [x] | T145 | Ключ `"citations": true` с релизом `learner-model` и тегом `spec`, чьи `.proto` без ссылок | Claude | — | T142; релиз `learner-model` и тег `spec` с `.proto` без ссылок |
 | [x] | T146 | Переход на тег `spec` v0.19.17 | Claude | — | — |
 | [x] | T147 | `docs/sources.md` по правилу записей: вводные и темы 2–5 | Claude | да | — |
-| [ ] | T148 | `docs/sources.md` по правилу записей: темы 6–9 | Claude | — | T147 |
-| [ ] | T149 | `docs/sources.md` по правилу записей: темы 10–13 | Claude | — | T148 |
+| [x] | T148 | `docs/sources.md` по правилу записей: темы 6–9 | Claude | — | T147 |
+| [x] | T149 | `docs/sources.md` по правилу записей: темы 10–13 | Claude | — | T148 |
