@@ -66,7 +66,7 @@ func (a *AttemptService) AskTutor(ctx context.Context, req *v1.AskTutorRequest) 
 	if ctx, err = askedLanguage(ctx, req.GetWordsLanguage()); err != nil {
 		return nil, err
 	}
-	if err := questionTaken(req); err != nil {
+	if err := questionTaken(req.GetQuestion(), req.GetTurns()); err != nil {
 		return nil, err
 	}
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
@@ -125,17 +125,15 @@ func (a *AttemptService) AskTutor(ctx context.Context, req *v1.AskTutorRequest) 
 	return answer, nil
 }
 
-// questionTaken checks the question and the conversation of req by the
-// contract's bounds: a question not empty, of at most maxQuestion code points,
-// with no control character but a line break; at most maxTurns turns, each of
-// at most maxTurnText code points. They reach a model as data.
-func questionTaken(req *v1.AskTutorRequest) error {
-	q := req.GetQuestion()
+// questionTaken checks a question q and the conversation turns before it by
+// the contract's bounds: a question not empty, of at most maxQuestion code
+// points, with no control character but a line break; at most maxTurns turns,
+// each of at most maxTurnText code points. They reach a model as data.
+func questionTaken(q string, turns []*v1.TutorTurn) error {
 	if strings.TrimSpace(q) == "" || utf8.RuneCountInString(q) > maxQuestion ||
 		strings.ContainsFunc(q, func(r rune) bool { return r != '\n' && unicode.IsControl(r) }) {
 		return rpc.Malformed("question")
 	}
-	turns := req.GetTurns()
 	if len(turns) > maxTurns {
 		return rpc.Malformed("turns")
 	}

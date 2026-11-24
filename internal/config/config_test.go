@@ -27,9 +27,14 @@ func TestDefaults(t *testing.T) {
 		ShutdownTimeout:     config.DefaultShutdownTimeout,
 		RequestTimeout:      config.DefaultRequestTimeout,
 		PaperRequestTimeout: config.DefaultPaperRequestTimeout,
+
+		GrownUpRequestTimeout: config.DefaultGrownUpRequestTimeout,
 	}
 	if *cfg != want {
 		t.Errorf("LoadFrom(nil) = %+v, want %+v", *cfg, want)
+	}
+	if cfg.LongestRequest() != config.DefaultGrownUpRequestTimeout || cfg.GrownUpRequestTimeout >= cfg.WriteTimeout {
+		t.Errorf("the longest request = %v under a write of %v, want grown-up mode's, under it", cfg.LongestRequest(), cfg.WriteTimeout)
 	}
 	if cfg.Deployed() {
 		t.Error("Deployed() = true without K_SERVICE, want false")
@@ -49,6 +54,7 @@ func TestValuesAreRead(t *testing.T) {
 		"API_SHUTDOWN_TIMEOUT=8s",
 		"API_REQUEST_TIMEOUT=2500ms",
 		"API_PAPER_REQUEST_TIMEOUT=2800ms",
+		"API_GROWN_UP_REQUEST_TIMEOUT=2900ms",
 		"K_SERVICE=api",
 	})
 	if err != nil {
@@ -64,7 +70,9 @@ func TestValuesAreRead(t *testing.T) {
 		ShutdownTimeout:     8 * time.Second,
 		RequestTimeout:      2500 * time.Millisecond,
 		PaperRequestTimeout: 2800 * time.Millisecond,
-		Service:             "api",
+
+		GrownUpRequestTimeout: 2900 * time.Millisecond,
+		Service:               "api",
 	}
 	if *cfg != want {
 		t.Errorf("LoadFrom = %+v, want %+v", *cfg, want)
@@ -168,9 +176,11 @@ func TestRefusals(t *testing.T) {
 		{"shutdown under a second", []string{"API_SHUTDOWN_TIMEOUT=999ms"}, "API_SHUTDOWN_TIMEOUT"},
 		{"deployed shutdown at the grace", []string{"K_SERVICE=api", "API_SHUTDOWN_TIMEOUT=10s"}, "API_SHUTDOWN_TIMEOUT"},
 		{"zero request timeout", []string{"API_REQUEST_TIMEOUT=0s"}, "API_REQUEST_TIMEOUT"},
-		{"a request as long as the write", []string{"API_REQUEST_TIMEOUT=120s"}, "API_REQUEST_TIMEOUT"},
+		{"a request as long as the write", []string{"API_REQUEST_TIMEOUT=330s"}, "API_REQUEST_TIMEOUT"},
 		{"zero paper request timeout", []string{"API_PAPER_REQUEST_TIMEOUT=0s"}, "API_PAPER_REQUEST_TIMEOUT"},
-		{"a paper request as long as the write", []string{"API_PAPER_REQUEST_TIMEOUT=120s"}, "API_PAPER_REQUEST_TIMEOUT"},
+		{"a paper request as long as the write", []string{"API_PAPER_REQUEST_TIMEOUT=330s"}, "API_PAPER_REQUEST_TIMEOUT"},
+		{"zero grown-up request timeout", []string{"API_GROWN_UP_REQUEST_TIMEOUT=0s"}, "API_GROWN_UP_REQUEST_TIMEOUT"},
+		{"a grown-up request as long as the write", []string{"API_HTTP_WRITE_TIMEOUT=200s"}, "API_GROWN_UP_REQUEST_TIMEOUT"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

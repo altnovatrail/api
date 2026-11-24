@@ -147,8 +147,10 @@ const wordsReserve Micro = 18_200
 // their three attempts, and their reserve is that. The Check's value is that of
 // one model with its three pictures and an answer of a solution, verdicts and
 // hints; the words put another way of a task from paper take the words' value,
-// about a call of the last model of their cascade. The words after a correct
-// answer have no value here: tutor expects their tokens.
+// about a call of the last model of their cascade. The drawing of grown-up mode
+// takes a call of each of the two models of its cascade, whose strokes make a
+// long answer. The words after a correct answer have no value here: tutor
+// expects their tokens.
 var reserves = map[tutor.Call]Micro{
 	tutor.CallSheet:     14_000,
 	tutor.CallWords:     wordsReserve,
@@ -160,6 +162,7 @@ var reserves = map[tutor.Call]Micro{
 	tutor.CallStatement: 2_600,
 	tutor.CallChecking:  17_200,
 	tutor.CallPaperHint: wordsReserve,
+	tutor.CallDrawing:   75_000,
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected

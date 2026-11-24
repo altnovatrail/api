@@ -330,7 +330,8 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 // sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
 // essay, CallEssay, or its assessment, CallRubric, or the finding of the tasks
 // on the photo of a page, CallFinding, or the Check of a task from paper,
-// CallChecking, is admitted for a learner of category:
+// CallChecking, or the drawing of grown-up mode on one, CallDrawing, is
+// admitted for a learner of category:
 // by platform AI, or, when ownKeyProvider names one, by the own key of that
 // provider alone. It is admitted when tutor chooses, for the call, an entry
 // all of whose models the table admits at the deployment's stage or above. On
@@ -447,6 +448,13 @@ func (g *Gate) TellWords(ctx context.Context, w tutor.WordsRequest) tutor.WordsA
 // leaks and their form before they reach the learner (tutor.PaperBreach).
 func (g *Gate) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer {
 	return g.tutor.PaperWords(ctx, w)
+}
+
+// GrownUp asks tutor for the drawing of grown-up mode on a task from paper: the
+// tutor's words and its act on the sheet, the strokes to write and the IDs to
+// take off, or the outcome of a call that gave none.
+func (g *Gate) GrownUp(ctx context.Context, r tutor.GrownUpRequest) tutor.GrownUpAnswer {
+	return g.tutor.GrownUp(ctx, r)
 }
 
 // TellCorrectWords asks tutor for the words after a correct answer: the praise

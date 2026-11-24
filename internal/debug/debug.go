@@ -275,6 +275,7 @@ var callKinds = map[tutor.Call]v1.DebugCallKind{
 	tutor.CallStatement: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING,
 	tutor.CallChecking:  v1.DebugCallKind_DEBUG_CALL_KIND_TASK_CHECKING,
 	tutor.CallPaperHint: v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
+	tutor.CallDrawing:   v1.DebugCallKind_DEBUG_CALL_KIND_DRAWING,
 }
 
 func (a *Action) add(call *v1.DebugCall) {

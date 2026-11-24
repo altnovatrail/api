@@ -103,7 +103,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// privacy policy of the texts served says from which day the words after a
 	// correct answer go to a provider. On the stub no key reaches a provider, and
 	// the checks of a key have no limit.
-	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithPaperRequestTimeout(cfg.PaperRequestTimeout), learning.WithTexts(texts)}
+	options := []learning.Option{learning.WithRequestTimeout(cfg.RequestTimeout), learning.WithPaperRequestTimeout(cfg.PaperRequestTimeout),
+		learning.WithGrownUpRequestTimeout(cfg.GrownUpRequestTimeout), learning.WithTexts(texts)}
 	accounts := []account.Option{account.WithTexts(texts), account.WithForms(store), account.WithExport(exporter),
 		account.WithOwnKeys(gate)}
 	if declared.Stub {
@@ -147,7 +148,8 @@ func serve(ctx context.Context, args, environ []string, stdout, stderr io.Writer
 	// may still hold a connection, and the pool's Close waits for it, past the
 	// platform's grace if nothing bounded it.
 	defer closeWithin(cfg.CloseTimeout(), closeDeps)
-	deps.Log, deps.RequestTimeout, deps.PaperRequestTimeout = log, cfg.RequestTimeout, cfg.PaperRequestTimeout
+	deps.Log, deps.RequestTimeout, deps.PaperRequestTimeout, deps.GrownUpRequestTimeout = log, cfg.RequestTimeout, cfg.PaperRequestTimeout,
+		cfg.GrownUpRequestTimeout
 	routes := server.Routes(log, opens.AppOrigin, func(mux *http.ServeMux) {
 		rpc.Mount(mux, rpc.NewServer(deps, handlers))
 		mux.Handle(catalog.FilesPattern, cat.Files(log))

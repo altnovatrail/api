@@ -36,9 +36,9 @@ func TestCheckSaysWhatIsDeclared(t *testing.T) {
 		stderr  string
 	}{
 		{"nothing declared", []string{"CLOUD_RUN_JOB=check"}, nil, exitOK,
-			map[string]any{"message": "admission", "admission_table": "0.6", "facts_file": false, "rung": "full", "rung_set": false, "platform_keys": float64(0), "tutor_stub": false, "reading_mode": "pair"}, ""},
+			map[string]any{"message": "admission", "admission_table": "0.7", "facts_file": false, "rung": "full", "rung_set": false, "platform_keys": float64(0), "tutor_stub": false, "reading_mode": "pair"}, ""},
 		{"the first app's", []string{"API_ADMISSION_FACTS_FILE=" + known, "API_ADMISSION_RUNG=author"}, nil, exitOK,
-			map[string]any{"message": "admission", "admission_table": "0.6", "facts_file": true, "rung": "author", "rung_set": true}, ""},
+			map[string]any{"message": "admission", "admission_table": "0.7", "facts_file": true, "rung": "author", "rung_set": true}, ""},
 		{"a fact the table does not know", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_FACTS_FILE=" + unknown}, nil, exitFailure, nil,
 			`api: config: invalid: API_ADMISSION_FACTS_FILE: admission: the file of facts names, for "anthropic", the fact "data_procesing_agreement"`},
 		{"novatrail's", []string{"CLOUD_RUN_JOB=check", "API_ADMISSION_FACTS_FILE=" + known, "API_ADMISSION_RUNG=author",

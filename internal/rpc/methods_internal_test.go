@@ -10,9 +10,11 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/altnovatrail/api/internal/authn"
+	"github.com/altnovatrail/api/internal/authz"
 	"github.com/altnovatrail/api/internal/logging"
 )
 
@@ -89,5 +91,19 @@ func TestEveryValueOfARequestsLineIsLogged(t *testing.T) {
 	var line map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &line); err != nil || line["dropped_fields"] == nil {
 		t.Errorf("a method of no contract's shape was logged: %s", buf.String())
+	}
+}
+
+// Grown-up mode is an adult's action, which takes can_manage on the profile
+// whose attempt it is, as the other actions of an adult do; the learner's
+// question takes can_learn.
+func TestGrownUpModeTakesTheAdultsRight(t *testing.T) {
+	t.Parallel()
+
+	if r := methods[apiv1connect.AttemptServiceAskGrownUpProcedure]; r.right != authz.CanManage || r.fresh {
+		t.Errorf("AskGrownUp's rule = %+v, want can_manage with no fresh sign-in", r)
+	}
+	if r := methods[apiv1connect.AttemptServiceAskTutorProcedure]; r.right != authz.CanLearn {
+		t.Errorf("AskTutor's rule = %+v, want can_learn", r)
 	}
 }

@@ -414,6 +414,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	photographed := tutor.TaskFinding{Route: own, Photo: photo(t, 30, 40)}
 	again := tutor.PaperWordsRequest{Route: own, Ask: tutor.PaperAgain, Tasks: []tutor.PaperWordsTask{{}}, Task: 1, Language: "en", Style: "an adult"}
 	checked := tutor.PaperCheck{Route: own, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Tasks: 1, Language: "en"}
+	drawn := tutor.GrownUpRequest{Route: own, Question: "Draw", Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Language: "en"}
 	before := time.Now().UTC()
 	for ending, want := range map[string]struct {
 		kind    tutor.Kind
@@ -438,6 +439,7 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 			"FindTasks":        s.FindTasks(t.Context(), photographed, key).Outcome,
 			"TellPaperWords":   s.TellPaperWords(t.Context(), again, key).Outcome,
 			"CheckPaper":       s.CheckPaper(t.Context(), checked, key).Outcome,
+			"GrownUp":          s.GrownUp(t.Context(), drawn, key).Outcome,
 		} {
 			if o.Kind != want.kind || o.Limit != want.limit || len(o.Usage) != 0 || o.Err == nil || strings.Contains(o.Err.Error(), key) {
 				t.Errorf("%s on %q = %+v, want %v, limit %q, no usage, and an error with no key", call, ending, o, want.kind, want.limit)
@@ -494,6 +496,44 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		}
 		if f := s.FindTasks(t.Context(), photographed, key); f.Outcome.Kind != tutor.Answered || len(f.Frames) == 0 || f.Turn != 0 {
 			t.Errorf("FindTasks on %q = %+v, want frames on the photo unturned", key, f)
+		}
+	}
+}
+
+// The stub's act of grown-up mode is a red line a little under the lowest
+// stroke of the request, from its left to its right and no lower than the
+// work, or across the middle of the work when the request names none, with
+// words of its own in the request's language, English for one it has none of;
+// it takes off nothing and spends the drawing's expected price. A request with
+// no words, no crop of the task or a work that is no PNG fails with no usage.
+func TestTheStubDrawsUnderTheLowestStroke(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallDrawing: {ExpectedUSD: 0.07, Expected: true}}})
+	g := tutor.GrownUpRequest{Route: adult, Question: "Underline it", Statement: photo(t, 40, 30), Work: crop(t, 200, 100), Language: "ru-RU",
+		Strokes: []tutor.SheetStroke{{ID: 1, Points: []float32{10, 20, 60, 30}}, {ID: 2, Points: []float32{40, 95, 90, 45}}, {ID: 3}}}
+	a := s.GrownUp(t.Context(), g, "")
+	if a.Outcome.Kind != tutor.Answered || a.Words != "Заглушка: линия под последним штрихом." || len(a.Erase) != 0 || len(a.Strokes) != 1 {
+		t.Fatalf("the act = %+v, want one stroke and the Russian words", a)
+	}
+	if st := a.Strokes[0]; !slices.Equal(st.Points, []float32{40, 100, 90, 100}) || st.Color != "#e53935" || st.Width <= 0 {
+		t.Errorf("the stroke = %+v, want a red line under the second stroke, on the work's bottom edge", st)
+	}
+	if u := a.Outcome.Usage; len(u) != 1 || quota.USD(u[0].USD) != 70_000 || !u[0].Priced {
+		t.Errorf("the usage = %+v, want the drawing's expected price", u)
+	}
+	g.Strokes, g.Language = nil, "de"
+	if a := s.GrownUp(t.Context(), g, ""); a.Words != "Stub: a line under the last stroke." || len(a.Strokes) != 1 ||
+		!slices.Equal(a.Strokes[0].Points, []float32{50, 50, 150, 50}) {
+		t.Errorf("the act with no strokes = %+v, want a line across the middle in English", a)
+	}
+	for name, broken := range map[string]tutor.GrownUpRequest{
+		"no words":            {Route: adult, Question: " ", Statement: g.Statement, Work: g.Work},
+		"no crop of the task": {Route: adult, Question: "Draw", Work: g.Work},
+		"no PNG":              {Route: adult, Question: "Draw", Statement: g.Statement, Work: []byte("not a picture")},
+	} {
+		if a := s.GrownUp(t.Context(), broken, ""); a.Outcome.Kind != tutor.Failed || len(a.Outcome.Usage) != 0 || a.Outcome.Err == nil {
+			t.Errorf("%s: %+v, want a failure with no usage", name, a.Outcome)
 		}
 	}
 }

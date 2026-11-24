@@ -164,3 +164,16 @@ type checkFunc struct {
 func (f checkFunc) CheckPaper(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked {
 	return f.check(ctx, c, own)
 }
+
+// WithDrawing is what draws the tutor's act of grown-up mode, in place of
+// tutor: a test's own, for want of a provider. Whether the drawing is admitted
+// the admitter still says.
+func WithDrawing(draw func(ctx context.Context, g tutor.GrownUpRequest) tutor.GrownUpAnswer) Option {
+	return func(s *Service) { s.drawer = drawerFunc(draw) }
+}
+
+type drawerFunc func(ctx context.Context, g tutor.GrownUpRequest) tutor.GrownUpAnswer
+
+func (f drawerFunc) GrownUp(ctx context.Context, g tutor.GrownUpRequest, _ string) tutor.GrownUpAnswer {
+	return f(ctx, g)
+}

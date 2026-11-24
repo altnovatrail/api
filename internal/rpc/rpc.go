@@ -35,6 +35,8 @@ type Deps struct {
 	RequestTimeout time.Duration
 	// PaperRequestTimeout is the longest a request of paperMethods may run.
 	PaperRequestTimeout time.Duration
+	// GrownUpRequestTimeout is the longest a request of grown-up mode may run.
+	GrownUpRequestTimeout time.Duration
 }
 
 // Handlers are the methods of the contract that api serves. A service left
@@ -60,7 +62,7 @@ type Handlers struct {
 func NewServer(d Deps, h Handlers) *connect.Server {
 	gone := deletion.New(d.DB, d.Rights, d.Signin)
 	c := &checks{signin: d.Signin, db: d.DB, rights: d.Rights, userGone: gone.Account, now: time.Now}
-	server := connect.NewServer(logged(d.Log), limited(d.RequestTimeout, d.PaperRequestTimeout), c.intercept)
+	server := connect.NewServer(logged(d.Log), limited(d.RequestTimeout, d.PaperRequestTimeout, d.GrownUpRequestTimeout), c.intercept)
 	register(server, h)
 	return server
 }
@@ -120,20 +122,27 @@ var paperMethods = map[string]bool{
 }
 
 // limited cuts a request short at its time limit, that of paper for
-// paperMethods; a shorter Connect-Timeout-Ms of the client's still holds. No
+// paperMethods and grown-up mode's for AskGrownUp, whose drawing has a budget
+// of its own; a shorter Connect-Timeout-Ms of the client's still holds. No
 // limit given is the default one, never none, and never one that has run out
 // before the request began.
-func limited(timeout, paper time.Duration) connect.ServerInterceptor {
+func limited(timeout, paper, grownUp time.Duration) connect.ServerInterceptor {
 	if timeout <= 0 {
 		timeout = config.DefaultRequestTimeout
 	}
 	if paper <= 0 {
 		paper = config.DefaultPaperRequestTimeout
 	}
+	if grownUp <= 0 {
+		grownUp = config.DefaultGrownUpRequestTimeout
+	}
 	return func(next connect.ServerFunc) connect.ServerFunc {
 		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) error {
 			limit := timeout
-			if paperMethods[spec.Procedure] {
+			switch {
+			case spec.Procedure == apiv1connect.AttemptServiceAskGrownUpProcedure:
+				limit = grownUp
+			case paperMethods[spec.Procedure]:
 				limit = paper
 			}
 			ctx, cancel := context.WithTimeout(ctx, limit)

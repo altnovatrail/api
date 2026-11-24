@@ -61,6 +61,12 @@ func (d *debugStub) TellPaperWords(ctx context.Context, w tutor.PaperWordsReques
 	return told
 }
 
+func (d *debugStub) GrownUp(ctx context.Context, g tutor.GrownUpRequest, own string) tutor.GrownUpAnswer {
+	drawn := d.Stub.GrownUp(ctx, g, own)
+	d.recorded(g.Route, tutor.CallDrawing, `{"say": "?"}`)
+	return drawn
+}
+
 // In the debug mode the calls of a task from paper go by the account's first
 // model, past the list, and the store keeps each with its cost until it is
 // taken: the opening question as an action of words of one Check, a
@@ -116,6 +122,32 @@ func TestTheDebugModeRecordsATaskFromPaper(t *testing.T) {
 	}
 	if again := store.Take(l.accountID); len(again) != 0 {
 		t.Errorf("a second take = %v, want none", again)
+	}
+}
+
+// In the debug mode grown-up mode goes by the account's first model too, past
+// the list, as an action of words with one call of the drawing.
+func TestTheDebugModeRecordsGrownUpMode(t *testing.T) {
+	t.Parallel()
+
+	g := stubGate(t)
+	store := debug.New(true)
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(&debugStub{Stub: tutorstub.New(g), t: t}), learning.WithDebug(store),
+		learning.WithAdmits(func(tutor.Call) bool { return false })})
+	l := w.learner(t)
+	if _, err := store.SetChoice(l.accountID, &v1.DebugChoice{
+		First: &v1.DebugModelChoice{Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_LOW},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	if res, err := w.grownUp(t, l, l.adult, a, uuid.NewString(), "Draw"); err != nil || res.GetOutcome() != nil || len(res.GetStrokes()) != 1 {
+		t.Fatalf("grown-up mode = %v, %v; want the stub's act past the list", res, err)
+	}
+	taken := store.Take(l.accountID)
+	if len(taken) != 1 || taken[0].GetKind() != v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS || taken[0].GetAttemptId() != a ||
+		len(taken[0].GetCalls()) != 1 || taken[0].GetCalls()[0].GetKind() != v1.DebugCallKind_DEBUG_CALL_KIND_DRAWING {
+		t.Errorf("the actions = %v, want one of words with one call of the drawing", taken)
 	}
 }
 
