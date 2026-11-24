@@ -20,7 +20,8 @@
 // wider than tall none, and square a failure of AI. A task from paper it
 // reads for "Recognise" by the shape of its statement — wider than tall one
 // task, at least twice as tall as wide three, otherwise one word problem — and
-// checks by the shape of the work, which takes in the tracing paper: more than
+// checks by the shape of the work, which takes in the tracing paper, on as many
+// tasks as it is told, or, told none, as many as "Recognise" reads: more than
 // twice as wide as tall every task correct, wider but not twice the first not
 // yet, square every task so far correct, taller but not twice unreadable, and
 // at least twice as tall nothing written. Its words — a rung's questions, the
@@ -890,27 +891,36 @@ var checkWords = map[string]string{
 }
 
 // CheckPaper checks the work of c by the shape of its crop, which takes in the
-// tracing paper, the same for each of its c.Tasks tasks, each in a band of the
-// crop of its own, one under another: more than twice as wide as tall, each
-// task correct, stubKey read; wider but not twice, the first task incorrect,
-// a wrong value read, with one error, and the others correct; square, each
-// task with no answer yet, a start of the solution read and no error; taller
-// but not twice, each unreadable; at least twice as tall, each with no answer
-// and nothing read. Each slot has the hidden solution stubSolution, and the
-// ladder is the stub's questions in the language of c. Of tutor's checks
-// before its call the stub keeps those of the request's form: a frame of no
-// task or of more than 20, a crop or an instruction that is no picture and a
-// work that is no PNG fail with no usage. Past them an own key of an ending of
+// tracing paper, the same for each of its c.Tasks tasks — told none, as many as
+// ReadStatement reads on its statement, three on one at least twice as tall as
+// wide, else one —, each in a band of the crop of its own, one under another:
+// more than twice as wide as tall, each task correct, stubKey read; wider but
+// not twice, the first task incorrect, a wrong value read, with one error, and
+// the others correct; square, each task with no answer yet, a start of the
+// solution read and no error; taller but not twice, each unreadable; at least
+// twice as tall, each with no answer and nothing read. Each slot has the hidden
+// solution stubSolution, and the ladder is the stub's questions in the
+// language of c. Of tutor's checks before its call the stub keeps those of the
+// request's form: a count of tasks below 0 or above 20, a crop or an
+// instruction that is no picture and a work that is no PNG fail with no usage. Past them an own key of an ending of
 // the stub's, own being its value, is refused by it.
 func (s *Stub) CheckPaper(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked {
 	fail := func(err error) tutor.PaperChecked {
 		return tutor.PaperChecked{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	}
-	if c.Tasks < 1 || c.Tasks > maxCheckTasks {
+	if c.Tasks < 0 || c.Tasks > maxCheckTasks {
 		return fail(fmt.Errorf("tutorstub: the Check of %d tasks", c.Tasks))
 	}
-	if _, _, err := image.DecodeConfig(bytes.NewReader(c.Statement)); err != nil {
+	statement, _, err := image.DecodeConfig(bytes.NewReader(c.Statement))
+	if err != nil {
 		return fail(fmt.Errorf("tutorstub: the statement: %w", err))
+	}
+	tasks := c.Tasks
+	if tasks == 0 {
+		tasks = 1
+		if statement.Height >= 2*statement.Width {
+			tasks = len(severalTasks)
+		}
 	}
 	if len(c.Instruction) > 0 {
 		if _, _, err := image.DecodeConfig(bytes.NewReader(c.Instruction)); err != nil {
@@ -931,8 +941,8 @@ func (s *Stub) CheckPaper(ctx context.Context, c tutor.PaperCheck, own string) t
 	}
 	checked := tutor.PaperChecked{TutorWords: words, Hints: slices.Clone(hints),
 		Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallChecking, c.Route, 1)}}
-	for i := range c.Tasks {
-		band := &observationv1.CropBox{Ymin: int32(i * wholeCrop / c.Tasks), Ymax: int32((i + 1) * wholeCrop / c.Tasks), Xmax: wholeCrop}
+	for i := range tasks {
+		band := &observationv1.CropBox{Ymin: int32(i * wholeCrop / tasks), Ymax: int32((i + 1) * wholeCrop / tasks), Xmax: wholeCrop}
 		slot := tutor.SlotChecked{Task: i + 1, Confidence: "high", Solution: stubSolution, Answer: stubKey}
 		switch {
 		case cfg.Width > 2*cfg.Height:

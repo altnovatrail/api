@@ -307,7 +307,7 @@ func TestExplainDifferentlyOnPaperSpeaksOfTheFirstMistake(t *testing.T) {
 	if _, err := w.recognise(t, l, a, severalStatement, uuid.NewString()); err != nil {
 		t.Fatal(err)
 	}
-	w.submitPaper(t, l, a, wrongWork)
+	w.submitPaperOn(t, l, a, severalStatement, wrongWork)
 	const first = "Какой шаг своего решения ты проверишь первым?"
 	rung, err := w.paperRungWords(t, l, l.adult, a, 1)
 	if err != nil || rung.GetWords() != first || len(rung.GetMarks()) != 0 {

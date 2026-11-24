@@ -1002,7 +1002,9 @@ func slotsOf(c tutor.PaperChecked) string {
 }
 
 // The Check of a task from paper goes by the shape of the work, each task in a
-// band of its own, one under another: more than twice as wide as tall every
+// band of its own, one under another, as many as it is told, or told none
+// three on a statement at least twice as tall as wide and one on another: more
+// than twice as wide as tall every
 // task correct, wider but not twice the first incorrect at one error in its
 // band, square every task with a solution so far, taller but not twice
 // unreadable, and twice as tall nothing written. Each task has the hidden
@@ -1027,6 +1029,7 @@ func TestTheStubChecksATaskFromPaperByTheShapeOfItsWork(t *testing.T) {
 		{30, 30, 2, "no_answer:37 + 4 no_answer:37 + 4"},
 		{30, 40, 1, "unreadable:"},
 		{30, 90, 2, "no_answer: no_answer:"},
+		{90, 30, 0, "correct:85"},
 	} {
 		r := check(c.width, c.height, c.tasks, "en")
 		if got := slotsOf(r); r.Outcome.Kind != tutor.Answered || got != c.slots || len(r.Hints) != 3 || r.TutorWords == "" {
@@ -1036,13 +1039,17 @@ func TestTheStubChecksATaskFromPaperByTheShapeOfItsWork(t *testing.T) {
 			if slot.Task != i+1 || slot.Answer != "85" || slot.Solution == "" || slot.Confidence != "high" {
 				t.Errorf("a work of %dx%d, task %d: %+v, want its number and the hidden answer", c.width, c.height, i+1, slot)
 			}
-			if slot.Read != "" && slot.ReadBox.GetYmin() != int32(i*1000/c.tasks) {
+			if slot.Read != "" && slot.ReadBox.GetYmin() != int32(i*1000/max(1, c.tasks)) {
 				t.Errorf("a work of %dx%d, task %d read at %v, want its band", c.width, c.height, i+1, slot.ReadBox)
 			}
 		}
 		if u := r.Outcome.Usage; len(u) != 1 || u[0].USD != 0.02 {
 			t.Errorf("a work of %dx%d spent %+v, want the expected 0.02", c.width, c.height, u)
 		}
+	}
+	several := s.CheckPaper(t.Context(), tutor.PaperCheck{Route: adult, Statement: photo(t, 30, 60), Work: crop(t, 40, 30)}, "")
+	if got := slotsOf(several); got != "incorrect:851 correct:85 correct:85" || several.Slots[2].ReadBox.GetYmin() != 666 {
+		t.Errorf("a Check told no task on a tall statement = %q, want three tasks found, each in its band", got)
 	}
 	wrong := check(40, 30, 2, "en").Slots[0]
 	if len(wrong.Errors) != 1 || wrong.Errors[0].Box.GetYmax() != 500 || wrong.Errors[0].Kind == "" {
@@ -1053,7 +1060,7 @@ func TestTheStubChecksATaskFromPaperByTheShapeOfItsWork(t *testing.T) {
 		t.Errorf("the ladders = %q, %q, want Russian and English", ru.Hints, other.Hints)
 	}
 	for name, c := range map[string]tutor.PaperCheck{
-		"no task":                   {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30)},
+		"fewer than no task":        {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Tasks: -1},
 		"21 tasks":                  {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Tasks: 21},
 		"a statement of no picture": {Route: adult, Statement: []byte("no"), Work: crop(t, 90, 30), Tasks: 1},
 		"an instruction of none":    {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Instruction: []byte("no"), Tasks: 1},

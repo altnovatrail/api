@@ -3,6 +3,7 @@ package learning_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -43,11 +44,18 @@ var (
 	stubFirstQuestion = "Which step of your work would you check first?"
 )
 
-// submitPaper submits the work of crop's shape on the attempt under a new key.
+// submitPaper submits the work of crop's shape on the attempt under a new key,
+// on a statement of one formula.
 func (w *world) submitPaper(t *testing.T, l learner, attempt string, crop [2]int) *v1.SubmitWorkResponse {
 	t.Helper()
+	return w.submitPaperOn(t, l, attempt, formulaStatement, crop)
+}
+
+// submitPaperOn submits the work of crop's shape on the statement of its shape.
+func (w *world) submitPaperOn(t *testing.T, l learner, attempt string, statement, crop [2]int) *v1.SubmitWorkResponse {
+	t.Helper()
 	res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt, IdempotencyKey: uuid.NewString(),
-		Work: paperWork(t, formulaStatement, pngOf(t, crop[0], crop[1]))})
+		Work: paperWork(t, statement, pngOf(t, crop[0], crop[1]))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,8 +157,8 @@ func scriptedWorld(t *testing.T) (*world, *scripted, *admission.Gate) {
 	return worldOf(t, g, []learning.Option{learning.WithTutor(s)}), s, g
 }
 
-// A submission of a task from paper is one Check, told the task count, the
-// language of the interface, the learner's age category and the instruction.
+// A submission of a task from paper is one Check, told no task count before
+// the first and the last one's after it, the language of the interface, the learner's age category and the instruction.
 // A task not yet is a wrong answer with the value read at its box and the
 // tutor's words, and the attempt keeps the Check; a Check that came to an
 // outcome keeps nothing and counts nothing. The next Check is given the one
@@ -181,9 +189,9 @@ func TestATaskFromPaperIsOneCheck(t *testing.T) {
 		t.Errorf("the repeat of the wrong Check = %v (%v), want its answer, which its submission keeps", again, err)
 	}
 	asked := s.checks()
-	if len(asked) != 1 || asked[0].Tasks != 1 || asked[0].Language != "en" || asked[0].AgeCategory != "adult" ||
+	if len(asked) != 1 || asked[0].Tasks != 0 || asked[0].Language != "en" || asked[0].AgeCategory != "adult" ||
 		len(asked[0].Instruction) == 0 || len(asked[0].History) != 0 {
-		t.Fatalf("the Checks asked = %+v, want one of one task, in English, for an adult, with the instruction and no history", asked)
+		t.Fatalf("the Checks asked = %+v, want one of no task count, in English, for an adult, with the instruction and no history", asked)
 	}
 	if c := w.paperCheck(t, a); len(c.GetSlots()) != 1 || c.GetSlots()[0].GetVerdict() != "incorrect" || c.GetSlots()[0].GetAnswer() != "85" ||
 		len(c.GetHints()) != 3 || w.paperHistory(t, a) != 0 {
@@ -222,6 +230,9 @@ func TestATaskFromPaperIsOneCheck(t *testing.T) {
 		t.Errorf("the right value = %v, want correct, solved, the tutor's words and no next", right)
 	}
 	asked = s.checks()
+	if n := asked[len(asked)-1].Tasks; n != 1 {
+		t.Errorf("the last Check was told %d tasks, want the one the first gave", n)
+	}
 	if h := asked[len(asked)-1].History; len(h) != 1 || !slices.Equal(h[0].Verdicts, []string{"incorrect"}) || h[0].Words != stubWordsEnglish ||
 		!slices.Equal(h[0].Rungs, []string{stubFirstQuestion}) {
 		t.Errorf("the history of the last Check = %+v, want the first, its words and the rung shown", h)
@@ -286,21 +297,21 @@ func TestEachCheckOfPaperReplacesTheOneBefore(t *testing.T) {
 	}
 }
 
-// "Recognise" of several tasks tells the first Check how many the frame holds,
-// and the Check its own count after it: each task's item gets its verdict, its
-// value and the box where it was read, and one wrong task makes the Check one
-// wrong answer.
+// The first Check of a frame is told no task count, for the model to find
+// the tasks itself, whatever "Recognise" read, and each Check after it the
+// count of the last: each task's item gets its verdict, its value and the box
+// where it was read, and one wrong task makes the Check one wrong answer.
 func TestATaskFromPaperOfSeveralTasksIsCheckedTaskByTask(t *testing.T) {
 	t.Parallel()
 
 	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	if res, err := w.recognise(t, l, a, severalStatement, uuid.NewString()); err != nil || len(res.GetStatements()) != 3 {
-		t.Fatalf("Recognise = %v, %v; want three tasks", res, err)
+	if res, err := w.recognise(t, l, a, formulaStatement, uuid.NewString()); err != nil || len(res.GetStatements()) != 1 {
+		t.Fatalf("Recognise = %v, %v; want one task", res, err)
 	}
 	for i := range 2 {
-		res := w.submitPaper(t, l, a, wrongWork)
+		res := w.submitPaperOn(t, l, a, severalStatement, wrongWork)
 		items := res.GetItems()
 		if len(items) != 3 || res.GetOutcome() != nil || res.GetSolved() != nil || res.GetWrongAnswers() != int32(i+1) {
 			t.Fatalf("Check %d = %v, want three items, one wrong", i+1, res)
@@ -312,11 +323,92 @@ func TestATaskFromPaperOfSeveralTasksIsCheckedTaskByTask(t *testing.T) {
 			}
 		}
 	}
-	for i, c := range s.checks() {
-		if c.Tasks != 3 {
-			t.Errorf("Check %d was told %d tasks, want 3", i+1, c.Tasks)
-		}
+	if told := tasksTold(s.checks()); !slices.Equal(told, []int{0, 3}) {
+		t.Errorf("the Checks were told %v tasks, want none, then the three the first found", told)
 	}
+}
+
+// tasksTold is how many tasks each Check asked was told of, in order.
+func tasksTold(asked []tutor.PaperCheck) []int {
+	var told []int
+	for _, c := range asked {
+		told = append(told, c.Tasks)
+	}
+	return told
+}
+
+// checkOfTasks is a Check of the scripted stub that gives the verdicts, a task
+// each, the incorrect read "1" with an error and the correct "85".
+func checkOfTasks(verdicts ...string) *tutor.PaperChecked {
+	c := &tutor.PaperChecked{Outcome: tutor.Outcome{Kind: tutor.Answered}, TutorWords: stubWordsEnglish,
+		Hints: []string{"Which line would you check?", "What did you carry?"}}
+	for i, v := range verdicts {
+		slot := tutor.SlotChecked{Task: i + 1, Verdict: v, Read: "85", Solution: "37 + 48 = 85", Answer: "85", Confidence: "high",
+			ReadBox: &observationv1.CropBox{Ymin: int32(i * 100), Ymax: int32(i*100 + 90), Xmax: 1000}}
+		if v == "incorrect" {
+			slot.Read = "1"
+			slot.Errors = []tutor.CheckError{{Box: slot.ReadBox, Where: "the answer", Kind: "arithmetic"}}
+		}
+		c.Slots = append(c.Slots, slot)
+	}
+	return c
+}
+
+// The items of an attempt of a task from paper are the tasks of its latest
+// Check, however many the Checks before gave: a frame read as one task grows to
+// three, then shrinks to two, each Check told the count of the last, the
+// history keeping each turn as its own Check gave it, and the hints standing on
+// the latest Check's tasks.
+func TestTheTasksOfAFrameAreThoseOfTheLatestCheck(t *testing.T) {
+	t.Parallel()
+
+	w, s, _ := scriptedWorld(t)
+	l := w.learner(t)
+	a := w.beginPage(t, l, l.adult, 1)[0]
+	if res := w.submitPaper(t, l, a, wrongWork); len(res.GetItems()) != 1 {
+		t.Fatalf("the first Check = %v, want the one task the model found", res)
+	}
+	s.checked = checkOfTasks("correct", "incorrect", "correct")
+	grown := w.submitPaper(t, l, a, wrongWork)
+	if got := verdictsOf(grown); got != "correct not_yet correct" || grown.GetWrongAnswers() != 2 {
+		t.Errorf("the Check of three tasks = %v, want its three items, the second not yet", grown)
+	}
+	if c := w.paperCheck(t, a); len(c.GetSlots()) != 3 || w.paperHistory(t, a) != 1 {
+		t.Errorf("the Check kept = %v, want its three tasks and one before it", c)
+	}
+	if h := w.hint(t, l, l.adult, a); h.GetRung().GetWords() != "What did you carry?" {
+		t.Errorf("the hint after two wrong answers = %v, want the rung of the latest ladder", h)
+	}
+	s.checked = checkOfTasks("correct", "no_answer")
+	shrunk := w.submitPaper(t, l, a, wrongWork)
+	if got := verdictsOf(shrunk); got != "correct so_far_correct" || shrunk.GetWrongAnswers() != 2 || shrunk.GetSolved() != nil {
+		t.Errorf("the Check of two tasks = %v, want its two items, the second so far correct", shrunk)
+	}
+	s.checked = checkOfTasks("correct", "correct")
+	solved := w.submitPaper(t, l, a, rightWork)
+	if got := verdictsOf(solved); got != "correct correct" || solved.GetSolved() == nil {
+		t.Errorf("the Check of two correct = %v, want the attempt solved", solved)
+	}
+	asked := s.checks()
+	if told := tasksTold(asked); !slices.Equal(told, []int{0, 1, 3, 2}) {
+		t.Errorf("the Checks were told %v tasks, want none, then each the count of the one before", told)
+	}
+	var turns []int
+	for _, turn := range asked[3].History {
+		turns = append(turns, len(turn.Verdicts))
+	}
+	if !slices.Equal(turns, []int{1, 3, 2}) {
+		t.Errorf("the history of the last Check has turns of %v tasks, want 1, 3 and 2", turns)
+	}
+}
+
+// verdictsOf are the verdicts of the items of a SubmitWork answer.
+func verdictsOf(res *v1.SubmitWorkResponse) string {
+	var out []string
+	for _, item := range res.GetItems() {
+		out = append(out, item.GetVerdict())
+	}
+	return strings.Join(out, " ")
 }
 
 // The quota that does not hold the Check leaves the slot unchecked with its
@@ -450,7 +542,6 @@ func TestAKeptCheckThatCannotBeReadFailsTheRequest(t *testing.T) {
 	for name, call := range map[string]func() error{
 		"a Check":                func() error { return submit(page[0]) },
 		"a Check by its history": func() error { return submit(page[1]) },
-		"a Check by its reading": func() error { return submit(page[2]) },
 		"the words of rung 1":    func() error { _, err := w.paperRungWords(t, l, l.adult, page[0], 1); return err },
 		"explain differently":    func() error { _, err := w.explain(l, l.adult, page[0], 1); return err },
 		"Recognise by its reading": func() error {

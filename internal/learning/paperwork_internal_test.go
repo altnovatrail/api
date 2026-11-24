@@ -64,7 +64,8 @@ func verdicts(answer *v1.SubmitWorkResponse) string {
 // counts one wrong answer, however many are; one so far correct counts none
 // and solves nothing; a Check that read nothing of a solution in any slot is
 // CAUSE_NO_KEY, and one that gave no answer the outcome of why, each with
-// every slot unchecked and no tutor's words.
+// every slot unchecked and no tutor's words: the slots the Check gave, else
+// those it was told of, else one.
 func TestThePaperVerdictOfACheck(t *testing.T) {
 	t.Parallel()
 
@@ -91,8 +92,13 @@ func TestThePaperVerdictOfACheck(t *testing.T) {
 			Slots: []tutor.SlotChecked{slot(1, "correct", "85"), slot(2, "no_answer", "40 +")}}}, "correct so_far_correct", 1, false, 0, ""},
 		{"blank", paperChecking{check: tutor.PaperCheck{Tasks: 2}, checked: tutor.PaperChecked{Outcome: answered, TutorWords: "Start here.",
 			Slots: []tutor.SlotChecked{slot(1, "no_answer", ""), slot(2, "no_answer", "")}}}, "unchecked unchecked", 1, false, v1.Cause_CAUSE_NO_KEY, ""},
+		{"blank, the tasks found", paperChecking{checked: tutor.PaperChecked{Outcome: answered,
+			Slots: []tutor.SlotChecked{slot(1, "no_answer", ""), slot(2, "no_answer", ""), slot(3, "no_answer", "")}}},
+			"unchecked unchecked unchecked", 1, false, v1.Cause_CAUSE_NO_KEY, ""},
 		{"failed", paperChecking{check: tutor.PaperCheck{Tasks: 3}, checked: tutor.PaperChecked{Outcome: tutor.Outcome{Kind: tutor.Failed}}},
 			"unchecked unchecked unchecked", 1, false, v1.Cause_CAUSE_AI_FAILURE, ""},
+		{"failed, told no task", paperChecking{checked: tutor.PaperChecked{Outcome: tutor.Outcome{Kind: tutor.Failed}}},
+			"unchecked", 1, false, v1.Cause_CAUSE_AI_FAILURE, ""},
 		{"over the quota", paperChecking{check: tutor.PaperCheck{}, reserve: reserve{refused: &v1.Outcome{Cause: v1.Cause_CAUSE_QUOTA}}},
 			"unchecked", 1, false, v1.Cause_CAUSE_QUOTA, ""},
 	} {
@@ -187,9 +193,8 @@ func TestTheOpeningWordsOfACheck(t *testing.T) {
 	}
 }
 
-// The Check is told as many tasks as the last Check gave, else as many as
-// "Recognise" read, else one, at most 20; a kept Check or reading this build
-// cannot read fails.
+// The Check is told as many tasks as the last Check gave, at most 20, else
+// none, whatever "Recognise" read; a kept Check this build cannot read fails.
 func TestTheTasksOfAFrameAreThoseCountedSoFar(t *testing.T) {
 	t.Parallel()
 
@@ -211,18 +216,16 @@ func TestTheTasksOfAFrameAreThoseCountedSoFar(t *testing.T) {
 		want int
 	}{
 		{"by the Check", store.Attempt{PaperCheck: marshal(&paperv1.Check{Slots: slots[:2]}), PaperReading: three}, 2},
-		{"by the reading", store.Attempt{PaperReading: three}, 3},
-		{"by none", store.Attempt{}, 1},
+		{"not by the reading", store.Attempt{PaperReading: three}, 0},
+		{"by none", store.Attempt{}, 0},
 		{"at most 20", store.Attempt{PaperCheck: marshal(&paperv1.Check{Slots: slots})}, 20},
 	} {
 		if got, err := tasksOf(tc.row); err != nil || got != tc.want {
 			t.Errorf("%s: %d tasks (%v), want %d", tc.name, got, err, tc.want)
 		}
 	}
-	for name, row := range map[string]store.Attempt{"a Check": {PaperCheck: []byte{0xff}}, "a reading": {PaperReading: []byte{0xff}}} {
-		if _, err := tasksOf(row); err == nil {
-			t.Errorf("%s that cannot be read counts tasks", name)
-		}
+	if _, err := tasksOf(store.Attempt{PaperCheck: []byte{0xff}}); err == nil {
+		t.Error("a Check that cannot be read counts tasks")
 	}
 }
 

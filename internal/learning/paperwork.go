@@ -259,24 +259,15 @@ func (s *Service) callCheck(ctx context.Context, c paperChecking, own string) pa
 }
 
 // tasksOf is how many tasks the frame of the attempt row holds, as the Check is
-// told: as many as its last Check gave, else as many as "Recognise" read, else
-// one, since nothing counts the tasks of a frame before its first Check.
+// told: as many as its last Check gave, else 0, for the model to find them
+// itself. "Recognise" may read a frame round a column of sums as fewer tasks
+// than it holds, so its count is not given.
 func tasksOf(row store.Attempt) (int, error) {
 	check, err := keptCheck(row)
 	if err != nil {
 		return 0, err
 	}
-	if n := len(check.GetSlots()); n > 0 {
-		return min(n, maxPaperTasks), nil
-	}
-	reading, err := keptReading(row)
-	if err != nil {
-		return 0, err
-	}
-	if n := len(reading.GetTasks()); n > 0 {
-		return min(n, maxPaperTasks), nil
-	}
-	return 1, nil
+	return min(len(check.GetSlots()), maxPaperTasks), nil
 }
 
 // keptCheck is the Check the attempt keeps, or none before its first.
@@ -368,12 +359,13 @@ func checkOf(checked tutor.PaperChecked) *paperv1.Check {
 }
 
 // paperVerdict is the verdict of the Check c on the attempt row of a task from
-// paper, in the contract's words: an item for each task of the frame, the task
-// n the item n, each with the verdict of its slot (slotVerdict); the Check's
-// tutor's words; a wrong answer counted when any task is not yet; and the
-// solved task, empty, when every task is correct. A Check that read nothing of
-// a solution in any slot, and one that did not answer, leave every slot
-// unchecked with the outcome of why.
+// paper, in the contract's words: an item for each task the Check gave, the
+// task n the item n, each with the verdict of its slot (slotVerdict), however
+// many the Checks before gave; the Check's tutor's words; a wrong answer
+// counted when any task is not yet; and the solved task, empty, when every
+// task is correct. A Check that read nothing of a solution in any slot, and
+// one that did not answer, leave unchecked, with the outcome of why, an item
+// for each task the Check gave, else for each it was told of, else one.
 func paperVerdict(row store.Attempt, c paperChecking) *v1.SubmitWorkResponse {
 	answer := &v1.SubmitWorkResponse{WrongAnswers: int32(row.WrongAnswers)}
 	outcome := c.outcome()
@@ -381,7 +373,11 @@ func paperVerdict(row store.Attempt, c paperChecking) *v1.SubmitWorkResponse {
 		outcome = &v1.Outcome{Cause: v1.Cause_CAUSE_NO_KEY}
 	}
 	if outcome != nil {
-		for n := range max(1, c.check.Tasks) {
+		tasks := len(c.checked.Slots)
+		if tasks == 0 {
+			tasks = max(1, c.check.Tasks)
+		}
+		for n := range tasks {
 			answer.Items = append(answer.Items, &v1.ItemVerdict{Verdict: string(verdict.Unchecked),
 				AnswerSlots: []*v1.AnswerSlotVerdict{{AnswerSlot: taskPlace(n + 1), Verdict: string(verdict.Unchecked)}}})
 		}
