@@ -18,7 +18,7 @@ import (
 )
 
 // Micro is an amount of US dollars by tutor's estimate, in whole micro-dollars,
-// as the export writes the counters (exportv4.QuotaCounter): a sum of them adds
+// as the export writes the counters (exportv5.QuotaCounter): a sum of them adds
 // up the same in every order, which a float does not.
 type Micro int64
 
@@ -142,25 +142,24 @@ const wordsReserve Micro = 18_200
 // same prompt and model with no picture, so no dearer, and tutor expects no
 // tokens of it —, the essay's reading and assessment half each of $0.030,
 // tutor's price of an essay, and a page of a workbook by each of its crops, as
-// a sheet. The four calls of a task from paper keep their values of one model
+// a sheet. The three calls of a task from paper keep their values of one model
 // each, should tutor give no expected price: it expects the tokens of each of
-// their three attempts, and their reserve is that; so do the tutor's words of a
-// task from paper, with the work and without it, the words' value, about a call
-// of the last model of their cascade. The words after a correct answer have no
-// value here: tutor expects their tokens.
+// their three attempts, and their reserve is that. The Check's value is that of
+// one model with its three pictures and an answer of a solution, verdicts and
+// hints; the words put another way of a task from paper take the words' value,
+// about a call of the last model of their cascade. The words after a correct
+// answer have no value here: tutor expects their tokens.
 var reserves = map[tutor.Call]Micro{
-	tutor.CallSheet:      14_000,
-	tutor.CallWords:      wordsReserve,
-	tutor.CallHint:       wordsReserve,
-	tutor.CallEssay:      15_000,
-	tutor.CallRubric:     15_000,
-	tutor.CallWorkbook:   14_000,
-	tutor.CallFinding:    52_000,
-	tutor.CallStatement:  2_600,
-	tutor.CallSolving:    8_600,
-	tutor.CallPaper:      8_600,
-	tutor.CallPaperWords: wordsReserve,
-	tutor.CallPaperHint:  wordsReserve,
+	tutor.CallSheet:     14_000,
+	tutor.CallWords:     wordsReserve,
+	tutor.CallHint:      wordsReserve,
+	tutor.CallEssay:     15_000,
+	tutor.CallRubric:    15_000,
+	tutor.CallWorkbook:  14_000,
+	tutor.CallFinding:   52_000,
+	tutor.CallStatement: 2_600,
+	tutor.CallChecking:  17_200,
+	tutor.CallPaperHint: wordsReserve,
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected

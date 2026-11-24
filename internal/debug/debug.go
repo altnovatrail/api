@@ -16,13 +16,11 @@ import (
 	"time"
 
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
-	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/altnovatrail/tutor/admission"
 	"github.com/altnovatrail/tutor/provider"
 	"github.com/altnovatrail/tutor/provider/claude/catalog"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -47,8 +45,8 @@ type Store struct {
 }
 
 type account struct {
-	first, second *admission.Model
-	actions       []*v1.DebugAction
+	first   *admission.Model
+	actions []*v1.DebugAction
 }
 
 // New is a Store with no choice: each call has its model of the list. every
@@ -122,12 +120,12 @@ func effortName(e v1.DebugEffort) (string, bool) {
 	return "", false
 }
 
-// Choice is the account's choice now.
+// Choice is the account's choice now: its first model alone, since the Check
+// is one call of one model and has no second.
 func (s *Store) Choice(accountID string) *v1.DebugChoice {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	a := s.seen(accountID)
-	return &v1.DebugChoice{First: choiceOf(a.first), Second: choiceOf(a.second)}
+	return &v1.DebugChoice{First: choiceOf(s.seen(accountID).first)}
 }
 
 // Chosen is whether the account has a first model, which bypasses the admission
@@ -152,19 +150,15 @@ func choiceOf(m *admission.Model) *v1.DebugModelChoice {
 // not take, or thinking off where the model or the effort keeps it on.
 var ErrChoice = errors.New("debug: not a choice of the models")
 
-// SetChoice sets the account's choice, from its next action on.
+// SetChoice sets the account's choice, from its next action on. A second model
+// is not read: the Check has no second reader.
 func (s *Store) SetChoice(accountID string, c *v1.DebugChoice) (*v1.DebugChoice, error) {
 	first, err := modelOf(c.GetFirst())
 	if err != nil {
 		return nil, fmt.Errorf("first: %w", err)
 	}
-	second, err := modelOf(c.GetSecond())
-	if err != nil {
-		return nil, fmt.Errorf("second: %w", err)
-	}
 	s.mu.Lock()
-	a := s.of(accountID)
-	a.first, a.second = first, second
+	s.of(accountID).first = first
 	s.mu.Unlock()
 	return s.Choice(accountID), nil
 }
@@ -205,7 +199,6 @@ type Action struct {
 	store   *Store
 	account string
 	first   *admission.Model
-	second  *admission.Model
 	ownKey  bool
 	mu      sync.Mutex
 	action  *v1.DebugAction
@@ -219,7 +212,7 @@ func (s *Store) Begin(accountID string, kind v1.DebugActionKind, attemptID strin
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := s.seen(accountID)
-	return &Action{store: s, account: accountID, first: a.first, second: a.second,
+	return &Action{store: s, account: accountID, first: a.first,
 		action: &v1.DebugAction{Kind: kind, AttemptId: attemptID, At: timestamppb.New(at)}}
 }
 
@@ -229,12 +222,9 @@ func (a *Action) Route(r tutor.Route) tutor.Route {
 		return r
 	}
 	a.ownKey = r.AI == admissionv0.AiRouteOwnKey
-	r.Debug = &tutor.Debug{First: a.first, Second: a.second, Record: a.record}
+	r.Debug = &tutor.Debug{First: a.first, Record: a.record}
 	return r
 }
-
-// Pair says whether the action reads the work by two readers.
-func (a *Action) Pair() bool { return a != nil && a.second != nil }
 
 // Chosen is whether the action has a first model, by which tutor takes a call
 // the admission list refuses.
@@ -243,7 +233,7 @@ func (a *Action) Chosen() bool { return a != nil && a.first != nil }
 // record is tutor's record of a call of a model; the calls of one action may
 // come from two goroutines at once.
 func (a *Action) record(c tutor.DebugCall) {
-	call := &v1.DebugCall{Kind: callKinds[c.Call], Reader: int32(c.Reader), Attempt: int32(c.Attempt), Model: c.Model.ID,
+	call := &v1.DebugCall{Kind: callKinds[c.Call], Attempt: int32(c.Attempt), Model: c.Model.ID,
 		Effort: effortOf[c.Model.Effort], Thinking: !c.Model.NoThinking, Answer: c.Answer}
 	if u := c.Usage; u != nil {
 		var written int64
@@ -281,44 +271,16 @@ func (a *Action) cause(err error) v1.Cause {
 }
 
 var callKinds = map[tutor.Call]v1.DebugCallKind{
-	tutor.CallFinding:    v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING,
-	tutor.CallStatement:  v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING,
-	tutor.CallSolving:    v1.DebugCallKind_DEBUG_CALL_KIND_TASK_SOLVING,
-	tutor.CallPaper:      v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
-	tutor.CallPaperWords: v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
-	tutor.CallPaperHint:  v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
-}
-
-// Solved records the call of module-kit's solver on the formulas the
-// statement's tasks read into: the key of the crop as it gave it, each task
-// with its statement and the solver's answer, none where it gave none.
-func (a *Action) Solved(key *paperv1.Key, took time.Duration) {
-	if a == nil {
-		return
-	}
-	call := &v1.DebugCall{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, DurationMs: took.Milliseconds()}
-	if key != nil {
-		// A key of the contract always marshals.
-		written, _ := protojson.Marshal(key)
-		call.Answer = string(written)
-	}
-	a.add(call)
+	tutor.CallFinding:   v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING,
+	tutor.CallStatement: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING,
+	tutor.CallChecking:  v1.DebugCallKind_DEBUG_CALL_KIND_TASK_CHECKING,
+	tutor.CallPaperHint: v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
 }
 
 func (a *Action) add(call *v1.DebugCall) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.action.Calls = append(a.action.Calls, call)
-}
-
-// Differ records whether the two readers read a place of the work differently.
-func (a *Action) Differ(differ bool) {
-	if a == nil {
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.action.ReadersDiffer = differ
 }
 
 // End keeps the action for the account's next take, when it made a call: a

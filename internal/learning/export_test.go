@@ -67,8 +67,8 @@ func (f tellerFunc) TellWords(ctx context.Context, w tutor.WordsRequest, _ strin
 	return f(ctx, w)
 }
 
-// WithPaperWords is what words the tutor's words of a task from paper, in place
-// of tutor: a test's own, admitted for every learner and route.
+// WithPaperWords is what words "explain differently" on a task from paper, in
+// place of tutor: a test's own, admitted for every learner and route.
 func WithPaperWords(tell func(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer) Option {
 	return func(s *Service) { s.paperWords = paperTellerFunc(tell) }
 }
@@ -76,7 +76,7 @@ func WithPaperWords(tell func(ctx context.Context, w tutor.PaperWordsRequest) tu
 // paperTellerFunc is a function as a paperTeller that admits every request.
 type paperTellerFunc func(ctx context.Context, w tutor.PaperWordsRequest) tutor.WordsAnswer
 
-func (f paperTellerFunc) PaperWords(bool, formatv0.AgeCategory, string) bool { return true }
+func (f paperTellerFunc) PaperWords(formatv0.AgeCategory, string) bool { return true }
 
 func (f paperTellerFunc) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, _ string) tutor.WordsAnswer {
 	return f(ctx, w)
@@ -149,8 +149,18 @@ func (f assessorFunc) AssessEssay(ctx context.Context, r tutor.RubricAssessment,
 	return f(ctx, r)
 }
 
-// OpeningChecked is the kept opening question the learner gets once the
-// attempt knows the tasks, in language.
-func OpeningChecked(kept, language string, tasks []tutor.PaperWordsTask) (string, bool) {
-	return openingChecked(kept, &paperTelling{tasks: tasks, language: language})
+// WithPaperCheck is what checks the work on a task from paper, in place of
+// tutor's Check: a test's own, beside the reading of "Recognise" of the options
+// before it. own is the value of the request's own key.
+func WithPaperCheck(check func(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked) Option {
+	return func(s *Service) { s.paper = checkFunc{paperChecker: s.paper, check: check} }
+}
+
+type checkFunc struct {
+	paperChecker
+	check func(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked
+}
+
+func (f checkFunc) CheckPaper(ctx context.Context, c tutor.PaperCheck, own string) tutor.PaperChecked {
+	return f.check(ctx, c, own)
 }

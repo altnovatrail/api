@@ -1,15 +1,12 @@
 package debug_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
-	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/admissionv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/altnovatrail/tutor/admission"
@@ -40,7 +37,7 @@ func TestTheModels(t *testing.T) {
 
 // A choice holds per account; an effort not named is medium; a model the catalog
 // does not name, an effort out of the enum, or thinking off where it stays on is
-// refused, and the choice held stays.
+// refused, and the choice held stays. A second model is not read.
 func TestTheChoice(t *testing.T) {
 	t.Parallel()
 
@@ -48,7 +45,8 @@ func TestTheChoice(t *testing.T) {
 	if c := s.Choice("a"); c.GetFirst() != nil || c.GetSecond() != nil {
 		t.Fatalf("a new account's choice = %v, want none", c)
 	}
-	set, err := s.SetChoice("a", &v1.DebugChoice{First: &v1.DebugModelChoice{Model: "claude-opus-5-5", Thinking: true}})
+	set, err := s.SetChoice("a", &v1.DebugChoice{First: &v1.DebugModelChoice{Model: "claude-opus-5-5", Thinking: true},
+		Second: &v1.DebugModelChoice{Model: "claude-opus-9"}})
 	if err != nil || set.GetFirst().GetEffort() != v1.DebugEffort_DEBUG_EFFORT_MEDIUM || set.GetSecond() != nil {
 		t.Fatalf("SetChoice = %v, %v; want Opus at medium", set, err)
 	}
@@ -61,7 +59,7 @@ func TestTheChoice(t *testing.T) {
 		"Opus not thinking": {Model: "claude-opus-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_LOW},
 		"Haiku at xhigh":    {Model: "claude-haiku-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_XHIGH},
 	} {
-		if _, err := s.SetChoice("a", &v1.DebugChoice{Second: c}); !errors.Is(err, debug.ErrChoice) {
+		if _, err := s.SetChoice("a", &v1.DebugChoice{First: c}); !errors.Is(err, debug.ErrChoice) {
 			t.Errorf("%s: SetChoice error = %v, want ErrChoice", name, err)
 		}
 	}
@@ -77,11 +75,9 @@ func TestAnAction(t *testing.T) {
 	t.Parallel()
 
 	var none *debug.Store
-	if a := none.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, "x", time.Now()); a != nil || a.Pair() || a.Chosen() || none.Chosen("a") {
+	if a := none.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, "x", time.Now()); a != nil || a.Chosen() || none.Chosen("a") {
 		t.Fatal("a nil store began an action")
 	} else {
-		a.Solved(nil, time.Second)
-		a.Differ(true)
 		a.End()
 		if r := a.Route(tutor.Route{}); r.Debug != nil {
 			t.Error("a nil action set the mode")
@@ -90,8 +86,7 @@ func TestAnAction(t *testing.T) {
 
 	s := debug.New(false)
 	if _, err := s.SetChoice("a", &v1.DebugChoice{
-		First:  &v1.DebugModelChoice{Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH},
-		Second: &v1.DebugModelChoice{Model: "claude-haiku-5-5", Thinking: true},
+		First: &v1.DebugModelChoice{Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -101,10 +96,10 @@ func TestAnAction(t *testing.T) {
 	if !s.Chosen("a") || s.Chosen("b") || !a.Chosen() {
 		t.Error("the first model chosen is not the account's alone")
 	}
-	if !a.Pair() || r.Debug == nil || *r.Debug.First != sonnet || r.Debug.Second.ID != "claude-haiku-5-5" {
+	if r.Debug == nil || *r.Debug.First != sonnet {
 		t.Fatalf("the route = %+v", r.Debug)
 	}
-	r.Debug.Record(tutor.DebugCall{Call: tutor.CallPaper, Reader: 1, Attempt: 1, Model: sonnet, Answer: "{}",
+	r.Debug.Record(tutor.DebugCall{Call: tutor.CallChecking, Attempt: 1, Model: sonnet, Answer: "{}",
 		Usage: &tutor.Usage{Model: "claude-sonnet-5-5-20261101", InputTokens: 7, CacheWrites: []provider.CacheWrite{{Tokens: 3}, {Tokens: 4}},
 			OutputTokens: 5, USD: 0.0000011, Latency: 1500 * time.Millisecond, Retries: 1}})
 	// The attempts of a cascade keep their places.
@@ -113,9 +108,7 @@ func TestAnAction(t *testing.T) {
 	}
 	// A call that broke off before the provider named its model.
 	r.Debug.Record(tutor.DebugCall{Call: tutor.CallStatement, Attempt: 3, Model: sonnet, Err: errors.New("down"), Usage: &tutor.Usage{OutputTokens: 2}})
-	a.Solved(&paperv1.Key{Tasks: []*paperv1.TaskKey{{Statement: "37 + 48 =", Provenance: paperv1.Provenance_PROVENANCE_SOLVER,
-		Answer: &paperv1.Answer{Kind: &paperv1.Answer_Number{Number: &paperv1.Number{Value: "85"}}}}}}, time.Millisecond)
-	a.Differ(true)
+	r.Debug.Record(tutor.DebugCall{Call: tutor.CallPaperHint, Attempt: 1, Model: sonnet, Answer: "{}"})
 	a.End()
 	s.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_FIND_TASKS, "", time.Now()).End()
 
@@ -123,21 +116,15 @@ func TestAnAction(t *testing.T) {
 	if len(taken) != 1 {
 		t.Fatalf("taken %v, want the one action with calls", taken)
 	}
-	want := &v1.DebugAction{Kind: v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, AttemptId: "attempt", At: taken[0].GetAt(), ReadersDiffer: true,
+	want := &v1.DebugAction{Kind: v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, AttemptId: "attempt", At: taken[0].GetAt(),
 		Calls: []*v1.DebugCall{
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING, Reader: 1, Attempt: 1, Model: "claude-sonnet-5-5-20261101", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH,
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_TASK_CHECKING, Attempt: 1, Model: "claude-sonnet-5-5-20261101", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH,
 				Answer: "{}", InputTokens: 7, CacheWriteTokens: 7, OutputTokens: 5, DurationMs: 1500, Retries: 1, CostMicroUsd: 2},
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 1, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_LIMIT_REACHED},
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 2, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Failure: v1.Cause_CAUSE_KEY_REFUSED},
 			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING, Attempt: 3, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, OutputTokens: 2, Failure: v1.Cause_CAUSE_AI_FAILURE},
-			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_SOLVER, Attempt: 1, Answer: `{"tasks":[{"statement":"37 + 48 =","provenance":"PROVENANCE_SOLVER","answer":{"number":{"value":"85"}}}]}`, DurationMs: 1},
+			{Kind: v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS, Attempt: 1, Model: "claude-sonnet-5-5", Effort: v1.DebugEffort_DEBUG_EFFORT_HIGH, Answer: "{}"},
 		}}
-	// protojson spaces its output differently from one build to another.
-	var solved bytes.Buffer
-	if err := json.Compact(&solved, []byte(taken[0].GetCalls()[4].GetAnswer())); err != nil {
-		t.Fatal(err)
-	}
-	taken[0].GetCalls()[4].Answer = solved.String()
 	if taken[0].GetAt().AsTime().Unix() != 100 || !proto.Equal(taken[0], want) {
 		t.Errorf("the action =\n%v\nwant\n%v", taken[0], want)
 	}
@@ -155,7 +142,7 @@ func TestAnAction(t *testing.T) {
 
 	for i := range 105 {
 		b := s.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, fmt.Sprint(i), time.Now())
-		b.Solved(nil, 0)
+		b.Route(tutor.Route{}).Debug.Record(tutor.DebugCall{Call: tutor.CallChecking, Attempt: 1})
 		b.End()
 	}
 	if kept := s.Take("a"); len(kept) != 100 || kept[0].GetAttemptId() != "5" {

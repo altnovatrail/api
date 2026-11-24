@@ -68,6 +68,9 @@ func TestTheTasksAreFoundOnThePhotoOfAPage(t *testing.T) {
 		if i > 0 && f.GetBox().GetYmin() < found.GetFrames()[i-1].GetBox().GetYmax() {
 			t.Errorf("frame %d = %v, want the order of the page", i+1, f)
 		}
+		if (f.GetInstruction() != nil) != (i == 0) {
+			t.Errorf("frame %d = %v, want an instruction above the first alone", i+1, f)
+		}
 	}
 	var kept []byte
 	if err := w.pool.QueryRow(t.Context(), `SELECT response FROM idempotency_keys WHERE key = $1`, key).Scan(&kept); err != nil || len(kept) != 0 {
@@ -351,16 +354,15 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 	_, err = closed.paper.BeginPaperAttempts(m.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: m.adult, IdempotencyKey: uuid.NewString(), Tasks: 1})
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
 
-	// The admission is that of the calls without which a Check gives no verdict:
-	// the statement and the work read; the reading of a sheet admits none.
+	// The admission is that of the Check, without which a task gives no verdict;
+	// the reading of the statement or of a sheet admits none.
 	for name, tc := range map[string]struct {
 		admitted []tutor.Call
 		begins   bool
 	}{
-		"the statement and the work": {[]tutor.Call{tutor.CallStatement, tutor.CallPaper}, true},
-		"the work alone":             {[]tutor.Call{tutor.CallPaper, tutor.CallSolving}, false},
-		"the statement alone":        {[]tutor.Call{tutor.CallStatement, tutor.CallSolving}, false},
-		"the reading of a sheet":     {[]tutor.Call{tutor.CallSheet}, false},
+		"the Check":              {[]tutor.Call{tutor.CallChecking}, true},
+		"the statement alone":    {[]tutor.Call{tutor.CallStatement, tutor.CallPaperHint}, false},
+		"the reading of a sheet": {[]tutor.Call{tutor.CallSheet}, false},
 	} {
 		w := worldOf(t, gate(t, adultFacts, config.RungAuthor), []learning.Option{
 			learning.WithAdmits(func(call tutor.Call) bool { return slices.Contains(tc.admitted, call) })})
@@ -405,11 +407,6 @@ func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 				Crop: pngOf(t, 40, 10)})
 			return err
 		},
-		"GetCorrectAnswerWords": func() error {
-			_, err := w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: a,
-				IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, 40, 10))})
-			return err
-		},
 		"PutWork": func() error {
 			_, err := w.put(l, l.adult, storedWork(a, "strokes"))
 			return err
@@ -424,6 +421,10 @@ func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 			t.Errorf("%s on an attempt of paper: %v, want invalid_argument", name, err)
 		}
 	}
+	// The Check gives its own words, and nothing comes after a correct answer.
+	_, err = w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: a,
+		IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, 40, 10))})
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	if w.closeOf(t, a) != "" {
 		t.Errorf("the attempt of paper closed %q, want it open", w.closeOf(t, a))
 	}

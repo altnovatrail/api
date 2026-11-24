@@ -42,7 +42,7 @@ func (g gate) Reads(call tutor.Call, _ formatv0.AgeCategory, _ string) bool { re
 
 func (g gate) Words(bool, formatv0.AgeCategory, string) bool { return g.admitted }
 
-func (g gate) PaperWords(bool, formatv0.AgeCategory, string) bool { return g.admitted }
+func (g gate) PaperWords(formatv0.AgeCategory, string) bool { return g.admitted }
 
 func (g gate) CorrectWords(formatv0.AgeCategory, string) bool { return g.admitted }
 
@@ -52,14 +52,15 @@ func (g gate) Reading() tutor.Reading { return g.reading }
 
 // priced is a gate that admits, and expects a sheet to cost $0.020001, which
 // the two readers do not share evenly, the words with the work a cent, the
-// hint without it half a cent, and the words after a correct answer $0.013524.
+// hint without it half a cent, the words after a correct answer $0.013524, the
+// Check of a task from paper two cents and its words put another way $0.015.
 var priced = gate{admitted: true, prices: map[tutor.Call]tutor.CallPrice{
-	tutor.CallSheet:      {ExpectedUSD: 0.020001, Expected: true},
-	tutor.CallWords:      {ExpectedUSD: 0.01, Expected: true},
-	tutor.CallHint:       {ExpectedUSD: 0.005, Expected: true},
-	tutor.CallCorrect:    {ExpectedUSD: 0.013524, Expected: true},
-	tutor.CallPaperWords: {ExpectedUSD: 0.02, Expected: true},
-	tutor.CallPaperHint:  {ExpectedUSD: 0.015, Expected: true},
+	tutor.CallSheet:     {ExpectedUSD: 0.020001, Expected: true},
+	tutor.CallWords:     {ExpectedUSD: 0.01, Expected: true},
+	tutor.CallHint:      {ExpectedUSD: 0.005, Expected: true},
+	tutor.CallCorrect:   {ExpectedUSD: 0.013524, Expected: true},
+	tutor.CallChecking:  {ExpectedUSD: 0.02, Expected: true},
+	tutor.CallPaperHint: {ExpectedUSD: 0.015, Expected: true},
 }}
 
 var adult = tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
@@ -245,45 +246,38 @@ func TestTheStubWordsItsOwnQuestions(t *testing.T) {
 	}
 }
 
-// The words of a task from paper are the stub's own questions too: a rung's
-// with the box of the band of its task, as ReadPaper reads the tasks of a crop,
-// the opening question and a rung put another way with none, each spending the
-// expected price of its kind of call. A request tutor refuses before its call
-// fails with no usage.
+// "Explain differently" on a task from paper is the stub's own questions too,
+// one not asked yet, with no box, at the expected price of its call. A request
+// tutor refuses before its call fails with no usage.
 func TestTheStubWordsATaskFromPaper(t *testing.T) {
 	t.Parallel()
 
 	s := tutorstub.New(priced)
-	tasks := []tutor.PaperWordsTask{{Statement: "37 + 48 ="}, {Statement: "40 + 45 ="}, {Statement: "50 + 36 ="}}
-	rung := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperRung, Crop: crop(t, 40, 90),
-		Tasks: tasks, Task: 2, Rung: 1, Language: "ru", Style: "a child"}, "")
-	if b := rung.Box; rung.Outcome.Kind != tutor.Answered || len(words.Hint(rung.Question, "ru", "")) > 0 ||
-		b.GetYmin() != 333 || b.GetYmax() != 666 || b.GetXmin() != 0 || b.GetXmax() != 1000 {
-		t.Errorf("the rung's words = %+v, want a Russian question with the band of the second task", rung)
+	tasks := []tutor.PaperWordsTask{{Statement: "37 + 48 =", Answer: "85"}, {Statement: "40 + 45 ="}}
+	first := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 2, Rung: 1,
+		Language: "ru", Style: "a child"}, "")
+	if first.Outcome.Kind != tutor.Answered || len(words.Hint(first.Question, "ru", "")) > 0 || first.Box != nil {
+		t.Errorf("the words = %+v, want a Russian question with no box", first)
 	}
-	if u := rung.Outcome.Usage; len(u) != 1 || u[0].USD != 0.02 {
-		t.Errorf("the rung's words spent %+v, want the expected 0.02", u)
-	}
-	opening := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperOpening, Statement: photo(t, 40, 30),
-		Language: "en", Style: "an adult", Asked: []string{rung.Question}}, "")
-	if u := opening.Outcome.Usage; opening.Outcome.Kind != tutor.Answered || opening.Box != nil || len(u) != 1 || u[0].USD != 0.015 {
-		t.Errorf("the opening question = %+v, want a question with no box at the expected 0.015", opening)
+	if u := first.Outcome.Usage; len(u) != 1 || u[0].USD != 0.015 {
+		t.Errorf("the words spent %+v, want the expected 0.015", u)
 	}
 	again := s.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 1, Rung: 2,
-		Language: "ru", Style: "a child", Asked: []string{rung.Question}}, "")
-	if again.Outcome.Kind != tutor.Answered || again.Question == rung.Question || again.Box != nil {
-		t.Errorf("the rung put another way = %+v, want another question with no box", again)
+		Language: "ru", Style: "a child", Asked: []string{first.Question}}, "")
+	if again.Outcome.Kind != tutor.Answered || again.Question == first.Question {
+		t.Errorf("the words put another way again = %+v, want another question", again)
 	}
 	for name, w := range map[string]tutor.PaperWordsRequest{
-		"no style":           {Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 1, Rung: 1, Language: "en"},
-		"a rung with no PNG": {Route: adult, Ask: tutor.PaperRung, Crop: []byte("no picture"), Tasks: tasks, Task: 1, Rung: 1, Language: "en", Style: "s"},
-		"no crop of a task":  {Route: adult, Ask: tutor.PaperOpening, Language: "en", Style: "s"},
+		"no style":       {Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 1, Rung: 1, Language: "en"},
+		"no task":        {Route: adult, Ask: tutor.PaperAgain, Tasks: tasks, Task: 3, Rung: 1, Language: "en", Style: "s"},
+		"another kind":   {Route: adult, Ask: tutor.PaperAgain + 1, Tasks: tasks, Task: 1, Rung: 1, Language: "en", Style: "s"},
+		"no task at all": {Route: adult, Ask: tutor.PaperAgain, Task: 1, Rung: 1, Language: "en", Style: "s"},
 	} {
 		if got := s.TellPaperWords(t.Context(), w, ""); got.Outcome.Kind != tutor.Failed || len(got.Outcome.Usage) != 0 {
 			t.Errorf("%s: %+v, want a failure before the call", name, got)
 		}
 	}
-	if !s.PaperWords(true, formatv0.AgeCategoryAdult, "") || tutorstub.New(gate{}).PaperWords(false, formatv0.AgeCategoryAdult, "") {
+	if !s.PaperWords(formatv0.AgeCategoryAdult, "") || tutorstub.New(gate{}).PaperWords(formatv0.AgeCategoryAdult, "") {
 		t.Error("PaperWords is not the gate's admission")
 	}
 }
@@ -404,7 +398,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 	sheetOfEssay := tutor.EssayReading{Route: own, Task: &open.Task{}, Crop: crop(t, 40, 10)}
 	assessed := assessment(own, "en", 2)
 	photographed := tutor.TaskFinding{Route: own, Photo: photo(t, 30, 40)}
-	opening := tutor.PaperWordsRequest{Route: own, Ask: tutor.PaperOpening, Statement: photo(t, 40, 30), Language: "en", Style: "an adult"}
+	again := tutor.PaperWordsRequest{Route: own, Ask: tutor.PaperAgain, Tasks: []tutor.PaperWordsTask{{}}, Task: 1, Language: "en", Style: "an adult"}
+	checked := tutor.PaperCheck{Route: own, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Tasks: 1, Language: "en"}
 	before := time.Now().UTC()
 	for ending, want := range map[string]struct {
 		kind    tutor.Kind
@@ -427,7 +422,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 			"ReadEssay":        s.ReadEssay(t.Context(), sheetOfEssay, essay(), key).Outcome,
 			"AssessEssay":      s.AssessEssay(t.Context(), assessed, key).Outcome,
 			"FindTasks":        s.FindTasks(t.Context(), photographed, key).Outcome,
-			"TellPaperWords":   s.TellPaperWords(t.Context(), opening, key).Outcome,
+			"TellPaperWords":   s.TellPaperWords(t.Context(), again, key).Outcome,
+			"CheckPaper":       s.CheckPaper(t.Context(), checked, key).Outcome,
 		} {
 			if o.Kind != want.kind || o.Limit != want.limit || len(o.Usage) != 0 || o.Err == nil || strings.Contains(o.Err.Error(), key) {
 				t.Errorf("%s on %q = %+v, want %v, limit %q, no usage, and an error with no key", call, ending, o, want.kind, want.limit)
@@ -522,7 +518,8 @@ func photo(t *testing.T, width, height int) []byte {
 }
 
 // The shape of the photo says what the stub finds: taller than wide, five tasks
-// one under another, in the order of the page; wider than tall, none; square, a
+// one under another, in the order of the page, the first under an instruction;
+// wider than tall, none; square, a
 // failure of AI that spent. A PNG is a photo too, and what is no picture fails
 // before the call, with no usage.
 func TestTheStubFindsTheTasksByTheShapeOfThePhoto(t *testing.T) {
@@ -537,6 +534,9 @@ func TestTheStubFindsTheTasksByTheShapeOfThePhoto(t *testing.T) {
 		if f.GetYmin() >= f.GetYmax() || f.GetXmin() >= f.GetXmax() || f.GetYmax() > 1000 || i > 0 && f.GetYmin() < found.Frames[i-1].GetYmax() {
 			t.Errorf("frame %d is %v, want a box below the one before it, within the page", i+1, f)
 		}
+	}
+	if in := found.Instructions; len(in) != 5 || in[0].GetYmax() > found.Frames[0].GetYmin() || in[1] != nil {
+		t.Errorf("the instructions = %v, want one above the first task alone", in)
 	}
 	if found := s.FindTasks(t.Context(), tutor.TaskFinding{Route: adult, Photo: crop(t, 400, 300)}, ""); found.Outcome.Kind != tutor.Answered || len(found.Frames) != 0 {
 		t.Errorf("a landscape PNG: %+v, want no task", found)
@@ -968,13 +968,10 @@ func TestTheStubReadsByOneReaderInTheModeSingle(t *testing.T) {
 }
 
 // A task from paper by shapes: the statement wider than tall reads into one
-// task of the formula the solver takes, at least twice as tall into three, and
-// any other into one of none; a square statement has no one answer, any other
-// the stub's number for each task asked; the work of one task reads the key
-// more than twice as wide as tall, a wrong value wider but not twice, illegible
-// square or taller, and of several the key in each, with its band of the crop.
-// Each call spends its expected price, and what is no picture fails before it.
-func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
+// task of a formula, at least twice as tall into three, and any other into one
+// of none, each at its expected price, and what is no picture fails before the
+// call.
+func TestTheStubReadsAStatementByItsShape(t *testing.T) {
 	t.Parallel()
 
 	s := tutorstub.New(gate{prices: map[tutor.Call]tutor.CallPrice{tutor.CallStatement: {ExpectedUSD: 0.002, Expected: true}}})
@@ -993,38 +990,77 @@ func TestTheStubChecksATaskFromPaperByShapes(t *testing.T) {
 	if r := s.ReadStatement(t.Context(), tutor.PaperTask{Route: adult, Statement: []byte("no")}, ""); r.Outcome.Kind != tutor.Failed || len(r.Outcome.Usage) != 0 {
 		t.Errorf("no picture: %+v, want a failure before the call", r)
 	}
-	asked := []tutor.TaskToSolve{{Number: 1, Statement: "a"}, {Number: 3, Statement: "c"}}
-	if r := s.SolveTask(t.Context(), task(300, 400), asked, ""); r.Outcome.Kind != tutor.Answered || len(r.Answers) != 2 || r.Answers[3].GetNumber().GetValue() != "85" {
-		t.Errorf("a tall statement solved: %+v, want 85 for each", r)
+}
+
+// slotsOf are the verdicts and values a Check gave, one "verdict:read" a task.
+func slotsOf(c tutor.PaperChecked) string {
+	var out []string
+	for _, s := range c.Slots {
+		out = append(out, s.Verdict+":"+s.Read)
 	}
-	if r := s.SolveTask(t.Context(), task(300, 300), asked, ""); r.Outcome.Kind != tutor.Answered || r.Answers[1] != nil {
-		t.Errorf("a square statement solved: %+v, want no answer", r)
-	}
-	if r := s.SolveTask(t.Context(), task(300, 400), asked, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused || len(r.Answers) != 0 {
-		t.Errorf("a refused key: %+v", r)
+	return strings.Join(out, " ")
+}
+
+// The Check of a task from paper goes by the shape of the work, each task in a
+// band of its own, one under another: more than twice as wide as tall every
+// task correct, wider but not twice the first incorrect at one error in its
+// band, square every task with a solution so far, taller but not twice
+// unreadable, and twice as tall nothing written. Each task has the hidden
+// solution and answer, the ladder is the stub's questions in the language
+// asked, English for one it has none of, and the tutor's words theirs; the
+// Check spends its expected price. What tutor refuses before its call fails
+// with no usage.
+func TestTheStubChecksATaskFromPaperByTheShapeOfItsWork(t *testing.T) {
+	t.Parallel()
+
+	s := tutorstub.New(priced)
+	check := func(width, height, tasks int, language string) tutor.PaperChecked {
+		return s.CheckPaper(t.Context(), tutor.PaperCheck{Route: adult, Statement: photo(t, 40, 30), Work: crop(t, width, height),
+			Instruction: photo(t, 40, 10), Tasks: tasks, Language: language}, "")
 	}
 	for _, c := range []struct {
-		width, height int
-		value         string
-	}{{90, 30, "85"}, {40, 30, "851"}, {30, 30, ""}, {30, 40, ""}} {
-		r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, c.width, c.height), Tasks: []string{"37 + 48 ="}}, "")
-		if r.Outcome.Kind != tutor.Answered || len(r.Observations) != 1 || r.Observations[0].GetAnswerSlots()[0].GetValue() != c.value ||
-			(c.value == "") != (r.Observations[0].GetAnswerSlots()[0].GetUnreadable() == observationv1.Unreadable_UNREADABLE_ILLEGIBLE) {
-			t.Errorf("a work of %dx%d: %+v, want %q by one reader", c.width, c.height, r, c.value)
+		width, height, tasks int
+		slots                string
+	}{
+		{90, 30, 1, "correct:85"},
+		{40, 30, 3, "incorrect:851 correct:85 correct:85"},
+		{30, 30, 2, "no_answer:37 + 4 no_answer:37 + 4"},
+		{30, 40, 1, "unreadable:"},
+		{30, 90, 2, "no_answer: no_answer:"},
+	} {
+		r := check(c.width, c.height, c.tasks, "en")
+		if got := slotsOf(r); r.Outcome.Kind != tutor.Answered || got != c.slots || len(r.Hints) != 3 || r.TutorWords == "" {
+			t.Errorf("a work of %dx%d: %+v, want %s with a ladder and words", c.width, c.height, r, c.slots)
+		}
+		for i, slot := range r.Slots {
+			if slot.Task != i+1 || slot.Answer != "85" || slot.Solution == "" || slot.Confidence != "high" {
+				t.Errorf("a work of %dx%d, task %d: %+v, want its number and the hidden answer", c.width, c.height, i+1, slot)
+			}
+			if slot.Read != "" && slot.ReadBox.GetYmin() != int32(i*1000/c.tasks) {
+				t.Errorf("a work of %dx%d, task %d read at %v, want its band", c.width, c.height, i+1, slot.ReadBox)
+			}
+		}
+		if u := r.Outcome.Usage; len(u) != 1 || u[0].USD != 0.02 {
+			t.Errorf("a work of %dx%d spent %+v, want the expected 0.02", c.width, c.height, u)
 		}
 	}
-	r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 30, 90), Tasks: []string{"a", "b", "c"}}, "")
-	if slots := r.Observations[0].GetAnswerSlots(); r.Outcome.Kind != tutor.Answered || len(slots) != 3 || slots[2].GetAnswerSlot().GetItem() != 3 ||
-		slots[2].GetValue() != "85" || slots[1].GetCropBox().GetYmin() != 333 || slots[1].GetCropBox().GetYmax() != 666 {
-		t.Errorf("a work of three tasks: %+v, want 85 in each, in its band", r)
+	wrong := check(40, 30, 2, "en").Slots[0]
+	if len(wrong.Errors) != 1 || wrong.Errors[0].Box.GetYmax() != 500 || wrong.Errors[0].Kind == "" {
+		t.Errorf("the wrong task = %+v, want one error in its band", wrong)
 	}
-	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30)}, ""); r.Outcome.Kind != tutor.Failed {
-		t.Errorf("no task: %+v, want a failure", r)
+	ru, other := check(90, 30, 1, "ru-RU"), check(90, 30, 1, "fr")
+	if len(words.Hint(ru.Hints[0], "ru", "")) > 0 || ru.Hints[0] == other.Hints[0] || ru.TutorWords == other.TutorWords || other.Hints[0] != check(90, 30, 1, "en").Hints[0] {
+		t.Errorf("the ladders = %q, %q, want Russian and English", ru.Hints, other.Hints)
 	}
-	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: photo(t, 40, 30), Tasks: []string{"a"}}, ""); r.Outcome.Kind != tutor.Failed {
-		t.Errorf("a JPEG of the work: %+v, want a failure", r)
-	}
-	if r := s.ReadPaper(t.Context(), tutor.PaperReading{Route: adult, Crop: crop(t, 40, 30), Tasks: []string{"a"}}, "sk-ant-synthetic"+tutorstub.KeyRefused); r.Outcome.Kind != tutor.KeyRefused {
-		t.Errorf("a refused key: %+v", r)
+	for name, c := range map[string]tutor.PaperCheck{
+		"no task":                   {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30)},
+		"21 tasks":                  {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Tasks: 21},
+		"a statement of no picture": {Route: adult, Statement: []byte("no"), Work: crop(t, 90, 30), Tasks: 1},
+		"an instruction of none":    {Route: adult, Statement: photo(t, 40, 30), Work: crop(t, 90, 30), Instruction: []byte("no"), Tasks: 1},
+		"a JPEG of the work":        {Route: adult, Statement: photo(t, 40, 30), Work: photo(t, 90, 30), Tasks: 1},
+	} {
+		if r := s.CheckPaper(t.Context(), c, ""); r.Outcome.Kind != tutor.Failed || len(r.Outcome.Usage) != 0 || len(r.Slots) != 0 {
+			t.Errorf("%s: %+v, want a failure before the call", name, r)
+		}
 	}
 }

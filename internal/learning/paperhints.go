@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
-	"github.com/altnovatrail/module-kit/verdict"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
+	paperv1 "github.com/altnovatrail/spec/contracts/novatrail/paper/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
@@ -21,12 +21,12 @@ import (
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// paperTeller words the tutor's words of a task from paper, as the gate of
-// admission does through tutor: whether they are admitted for a learner — with
-// the work, a rung's, or without it, the opening question and a rung put
-// another way — and the call. own is as wordsTeller has it.
+// paperTeller words "explain differently" on a task from paper, as the gate of
+// admission does through tutor: whether it is admitted for a learner, and the
+// call. own is as wordsTeller has it. The other words of a task from paper are
+// the Check's.
 type paperTeller interface {
-	PaperWords(withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool
+	PaperWords(category formatv0.AgeCategory, ownKeyProvider string) bool
 	TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer
 }
 
@@ -34,33 +34,34 @@ func (g gateTutor) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest
 	return g.Gate.TellPaperWords(ctx, w)
 }
 
-// openingRung is the rung whose words the attempt keeps of the opening question
-// of a task from paper: the model's alone.
+// openingRung is the rung of tutor's fallback text of the opening question of a
+// task from paper, which a Check that gave no ladder leaves.
 const openingRung = 0
 
 // wordsLanguage is the language of the words of a task from paper of a profile
 // with no language of its interface.
 const wordsLanguage = "en"
 
-// paperTelling is what a request for the words of a task from paper adds to its
-// telling: the tasks of the crop, each with its key and the value read of the
-// submission that gave the rung; the number of the rung's task, the first whose
-// slot is "not_yet" there, from 1, or 0 when none is; the language of the
-// profile's interface, which the words are in; whether its hint mode shows
-// where; and the call.
+// paperTelling is what "explain differently" on a task from paper adds to its
+// telling: the tasks of the frame as the Check the attempt keeps gave them, each
+// with its statement as "Recognise" read it, the model's hidden solution and
+// answer and what was read; the number of the rung's task, the first the Check
+// did not judge correct, from 1, or 0 when none is; the language of the
+// profile's interface, which the words are in; the words of the rung's ladder;
+// and the call.
 type paperTelling struct {
-	tasks     []tutor.PaperWordsTask
-	task      int
-	language  string
-	showWhere bool
-	request   tutor.PaperWordsRequest
+	tasks    []tutor.PaperWordsTask
+	task     int
+	language string
+	rung     store.Words
+	request  tutor.PaperWordsRequest
 }
 
-// paperAdmitted says whether the words of a task from paper may be called for a
-// learner of category: the gate admits them, or the debug mode's first model
-// takes them past the list.
-func (s *Service) paperAdmitted(ctx context.Context, withWork bool, category formatv0.AgeCategory, ownKeyProvider string) bool {
-	return s.paperWords.PaperWords(withWork, category, ownKeyProvider) || s.debugChosen(ctx)
+// paperAdmitted says whether "explain differently" on a task from paper may be
+// called for a learner of category: the gate admits it, or the debug mode's
+// first model takes it past the list.
+func (s *Service) paperAdmitted(ctx context.Context, category formatv0.AgeCategory, ownKeyProvider string) bool {
+	return s.paperWords.PaperWords(category, ownKeyProvider) || s.debugChosen(ctx)
 }
 
 // holdAny is the profile's open attempt held in tx, of a module as hold holds it
@@ -75,64 +76,165 @@ func (s *Service) holdAny(ctx context.Context, tx pgx.Tx, profileID, attemptID s
 	return h, err
 }
 
-// paperTold is what the words of rung on the attempt h of a task from paper
-// speak of: the tasks of the key the attempt keeps, none before it has one, with
-// the values read of the submission that gave the rung, and the first of them
-// "not_yet" there, and what the words take of the profile's settings. The
-// opening question reads no submission.
-func paperTold(ctx context.Context, tx pgx.Tx, profileID string, h held, rung int) (*paperTelling, error) {
+// paperLanguage is the language of the words of a task from paper of the
+// profile, and whether its hint mode shows where.
+func paperLanguage(ctx context.Context, tx pgx.Tx, profileID string) (string, bool, error) {
 	language, showWhere, err := store.PaperWordsOf(ctx, tx, profileID)
+	return cmp.Or(language, wordsLanguage), showWhere, err
+}
+
+// paperTold is what "explain differently" on rung of the attempt h of a task
+// from paper speaks of: the tasks of the Check the attempt keeps, none before
+// its first, each with its statement where "Recognise" read as many tasks as
+// the Check gave, and the hidden answer of a task not yet correct alone, the
+// answer of one correct being the learner's own; the rung's task; the
+// profile's language; and the rung's words of the ladder.
+func paperTold(ctx context.Context, tx pgx.Tx, profileID string, h held, rung int) (*paperTelling, error) {
+	language, _, err := paperLanguage(ctx, tx, profileID)
 	if err != nil {
 		return nil, err
 	}
-	k, err := keptKey(h.row)
+	check, err := keptCheck(h.row)
 	if err != nil {
 		return nil, err
 	}
-	p := &paperTelling{language: cmp.Or(language, wordsLanguage), showWhere: showWhere}
-	for _, t := range k.GetTasks() {
-		p.tasks = append(p.tasks, tutor.PaperWordsTask{Statement: t.GetStatement(), Key: t.GetAnswer()})
-	}
-	if rung == openingRung {
-		return p, nil
-	}
-	answers, err := store.Answers(ctx, tx, profileID, h.row.ID)
+	reading, err := keptReading(h.row)
 	if err != nil {
 		return nil, err
 	}
-	for _, written := range answers {
-		answer := &v1.SubmitWorkResponse{}
-		if err := proto.Unmarshal(written, answer); err != nil {
-			return nil, err
+	statements := readStatements(reading)
+	p := &paperTelling{language: language, rung: ladderRung(check, rung, language)}
+	for i, slot := range check.GetSlots() {
+		t := tutor.PaperWordsTask{Solution: slot.GetSolution(), Answer: slot.GetAnswer(), Read: slot.GetRead()}
+		if len(statements) == len(check.GetSlots()) {
+			t.Statement = statements[i]
 		}
-		if answer.GetWrongAnswers() != int32(rung) {
-			continue
+		if slot.GetVerdict() == checkCorrect {
+			t.Answer = ""
+		} else if p.task == 0 {
+			p.task = i + 1
 		}
-		// The task n is the item n, of its one slot (taskPlace).
-		for i, item := range answer.GetItems() {
-			if i >= len(p.tasks) || len(item.GetAnswerSlots()) == 0 {
-				continue
-			}
-			slot := item.GetAnswerSlots()[0]
-			p.tasks[i].Read = slot.GetValue()
-			if p.task == 0 && slot.GetVerdict() == string(verdict.NotYet) {
-				p.task = i + 1
-			}
-		}
-		break
+		p.tasks = append(p.tasks, t)
 	}
 	return p, nil
 }
 
-// paperTurnedDown is the check that turns the words of a task from paper down,
-// in a word of logging.WordsChecks, or none when they may reach the learner, as
-// turnedDown is of a task of a module: empty words, a key of a task of the crop
-// or the model's own answer of one in them, or their form (tutor.PaperBreach).
+// ladderRung is the words of rung of the ladder of the Check c, the last rung
+// past the ladder's end: the model's, or the fallback text tutor put in place
+// of a rung that named a hidden answer; with no ladder, the rung's fallback
+// text in language.
+func ladderRung(c *paperv1.Check, rung int, language string) store.Words {
+	hints := c.GetHints()
+	if len(hints) == 0 {
+		return store.Words{Source: store.SourceFallback, Text: tutor.PaperFallback(rung, language)}
+	}
+	n := min(max(rung, 1), len(hints))
+	if hints[n-1] == tutor.PaperFallback(n, language) {
+		return store.Words{Source: store.SourceFallback, Text: hints[n-1]}
+	}
+	return store.Words{Source: store.SourceModel, Text: hints[n-1]}
+}
+
+// paperRung is the rung of the attempt h of a task from paper now — the k-th
+// wrong answer's rung k, the first before any — with the words of the ladder
+// the attempt keeps for it, and what the attempt keeps of the rung once it was
+// given, which found says.
+func paperRung(ctx context.Context, tx pgx.Tx, profileID string, h held) (int, store.Words, store.Rung, bool, error) {
+	rung := max(rungOf(h.row.WrongAnswers), 1)
+	kept, found, err := store.RungOf(ctx, tx, profileID, h.row.ID, rung)
+	if err != nil {
+		return 0, store.Words{}, store.Rung{}, false, err
+	}
+	language, _, err := paperLanguage(ctx, tx, profileID)
+	if err != nil {
+		return 0, store.Words{}, store.Rung{}, false, err
+	}
+	check, err := keptCheck(h.row)
+	return rung, ladderRung(check, rung, language), kept, found, err
+}
+
+// paperHint is "Hint" on the attempt h of a task from paper, held in tx: before
+// its first Check, which gives it its ladder, empty techniques, since it has
+// none and asks GetOpeningWords for its words; after it, the current rung of
+// the ladder, the first while there is no wrong answer, which the attempt then
+// keeps as given, since GetRungWords is asked only after a wrong answer.
+func paperHint(ctx context.Context, tx pgx.Tx, profileID string, h held) (*v1.GetHintResponse, error) {
+	if h.row.PaperCheck == nil && h.row.WrongAnswers == 0 {
+		return &v1.GetHintResponse{Hint: &v1.GetHintResponse_Techniques{Techniques: &v1.Techniques{}}}, nil
+	}
+	rung, words, kept, found, err := paperRung(ctx, tx, profileID, h)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		words = kept.Current()
+	} else if h.row.WrongAnswers == 0 {
+		if err := store.WriteRung(ctx, tx, profileID, h.row.ID, rung, words); err != nil {
+			return nil, err
+		}
+	}
+	return &v1.GetHintResponse{Hint: &v1.GetHintResponse_Rung{Rung: &v1.RungHint{Rung: int32(rung), Words: words.Text}}}, nil
+}
+
+// paperRungWords gives the words of the rung a wrong answer gave on a task from
+// paper, with no call of AI and no work, under the request's idempotency key:
+// the rung of the ladder the attempt keeps, which the attempt keeps as given,
+// with the wavy line under the box of the first mistake of the Check in the
+// hint mode "Show where", with the model's words alone. A rung given already,
+// or a repeat, gets the words the attempt keeps, with no marks.
+func (s *Service) paperRungWords(ctx context.Context, req *v1.GetRungWordsRequest, key rpc.Key) (*v1.GetRungWordsResponse, error) {
+	profileID := req.GetProfileId()
+	return rpc.Once(ctx, s.db, key, req, func(tx pgx.Tx, _ string) (*v1.GetRungWordsResponse, store.KeyTarget, error) {
+		h, err := s.holdAny(ctx, tx, profileID, req.GetAttemptId(), s.clock())
+		if err != nil {
+			return nil, store.KeyTarget{}, err
+		}
+		target := store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}
+		if err := named(ctx, h, req.WrongAnswers, false); err != nil {
+			return nil, target, err
+		}
+		if h.row.WrongAnswers > lastRung {
+			return nil, target, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
+		}
+		rung, words, kept, found, err := paperRung(ctx, tx, profileID, h)
+		if err != nil {
+			return nil, target, err
+		}
+		answer := keptRung(rung, kept)
+		if !found {
+			if err := store.WriteRung(ctx, tx, profileID, h.row.ID, rung, words); err != nil {
+				return nil, target, err
+			}
+			answer = &v1.GetRungWordsResponse{Rung: int32(rung), Words: words.Text}
+			_, showWhere, err := store.PaperWordsOf(ctx, tx, profileID)
+			if err != nil {
+				return nil, target, err
+			}
+			check, err := keptCheck(h.row)
+			if err != nil {
+				return nil, target, err
+			}
+			if box := firstMistake(check); showWhere && box != nil && words.Source == store.SourceModel {
+				answer.Marks = []*v1.Mark{{Kind: v1.MarkKind_MARK_KIND_WAVY_LINE, Place: &v1.Mark_CropBox{CropBox: box}}}
+			}
+		}
+		// An answer of the contract always marshals; the record keeps no words.
+		target.Response, _ = proto.Marshal(&v1.GetRungWordsResponse{Rung: answer.GetRung()})
+		return answer, target, nil
+	})
+}
+
+// paperTurnedDown is the check that turns "explain differently" on a task from
+// paper down, in a word of logging.WordsChecks, or none when the words may
+// reach the learner, as turnedDown is of a task of a module: empty words, a
+// hidden answer of a task not yet correct in them, or their form
+// (tutor.PaperBreach), the statements "Recognise" read and the values read
+// being no leak.
 func paperTurnedDown(p *paperTelling, a tutor.WordsAnswer) string {
 	if strings.TrimSpace(a.Question) == "" {
 		return logging.WordsCheckEmpty
 	}
-	switch tutor.PaperBreach(a.Question, p.language, p.tasks, a.Answers) {
+	switch tutor.PaperBreach(a.Question, p.language, p.tasks) {
 	case tutor.BreachLeak:
 		return logging.WordsCheckLeak
 	case tutor.BreachForm:
@@ -141,29 +243,29 @@ func paperTurnedDown(p *paperTelling, a tutor.WordsAnswer) string {
 	return ""
 }
 
-// paperRequest is the call of the words of t on a task from paper, by the
-// route, with the crop of the work of a rung, none to put it another way, and
-// the tutor's questions asked so far.
-func paperRequest(t telling, route tutor.Route, crop []byte, asked []string) tutor.PaperWordsRequest {
+// paperRequest is the call of "explain differently" of t on a task from paper,
+// by the route, with the tutor's questions asked so far, the rung's words the
+// learner reads last, which the call puts another way.
+func paperRequest(t telling, route tutor.Route, asked []string) tutor.PaperWordsRequest {
 	p := t.paper
-	ask := tutor.PaperRung
-	if len(crop) == 0 {
-		ask = tutor.PaperAgain
+	if n := len(asked); t.read.Text != "" && (n == 0 || asked[n-1] != t.read.Text) {
+		asked = append(asked, t.read.Text)
 	}
-	return tutor.PaperWordsRequest{Route: route, Ask: ask, Crop: crop, Tasks: p.tasks, Task: p.task, Rung: t.rung,
+	return tutor.PaperWordsRequest{Route: route, Ask: tutor.PaperAgain, Tasks: p.tasks, Task: max(p.task, 1), Rung: t.rung,
 		Language: p.language, Style: styles[formatv0.AgeCategory(route.Category)], Asked: asked}
 }
 
-// GetOpeningWords gives the tutor's opening question on a task from paper
-// before its first wrong answer: one call of AI on the attempt, with the task's
-// crop as printed and the tasks of the key, when the attempt keeps one, whose
-// words, once they passed the leak check and the form check, the attempt keeps
-// as its rung 0 until it closes, and every later request gets with no AI. The
-// fallback text, which a call that gives no words or words that fail a check
-// leave, is not kept: a request with a new key calls again. A repeat under the
-// key gets the words kept, or the fallback text with the outcome it got. When
-// the deployment admits the words, the call runs between two transactions, as
-// GetRungWords does (rpc.Across).
+// GetOpeningWords is "Hint" on a task from paper before its first Check: the
+// work as it stands goes to the Check, one call of AI on the attempt, which
+// keeps the Check and its ladder as after a submission, but shows no verdict
+// and counts no wrong answer; the answer is the ladder's first rung, which the
+// attempt keeps as given, or the tutor's words when that rung is a fallback
+// text. A Check that gives no answer leaves the opening question's fallback
+// text, with the outcome, and keeps nothing: a request with a new key calls
+// again. Once the attempt keeps a ladder, a request is "not current", and a
+// repeat under the key gets the first rung kept. When the deployment admits
+// the Check, the call runs between two transactions, as SubmitWork does
+// (rpc.Across).
 func (a *AttemptService) GetOpeningWords(ctx context.Context, req *v1.GetOpeningWordsRequest) (*v1.GetOpeningWordsResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -190,40 +292,31 @@ func (a *AttemptService) GetOpeningWords(ctx context.Context, req *v1.GetOpening
 		},
 	}
 	route := act.Route(routeOf(category, req.GetOwnKey()))
-	admitted := s.paperAdmitted(ctx, false, category, req.GetOwnKey().GetProvider())
-	prepare := func(tx pgx.Tx) (telling, error) {
-		t, err := s.openingAsked(ctx, tx, req, route, admitted)
-		if err == nil {
-			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
-		}
-		if err == nil && admitted && t.ready == nil {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
-		}
-		return t, err
+	admitted := s.admits.Reads(tutor.CallChecking, category, req.GetOwnKey().GetProvider()) || s.debugChosen(ctx)
+	prepare := func(tx pgx.Tx) (paperChecking, error) {
+		return s.openingAsked(ctx, tx, req, route, category, admitted)
 	}
 	var answer *v1.GetOpeningWordsResponse
 	if admitted {
-		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[telling, *v1.GetOpeningWordsResponse]{
-			Prepare: func(tx pgx.Tx, _ string) (telling, store.KeyTarget, error) {
-				t, err := prepare(tx)
-				return t, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID}, err
+		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[paperChecking, *v1.GetOpeningWordsResponse]{
+			Prepare: func(tx pgx.Tx, _ string) (paperChecking, store.KeyTarget, error) {
+				c, err := prepare(tx)
+				return c, store.KeyTarget{ProfileID: profileID, AttemptID: c.attemptID}, err
 			},
-			Call: func(ctx context.Context, t telling) telling { return s.call(ctx, t, req.GetOwnKey().GetKey()) },
-			Finish: func(tx pgx.Tx, t telling) (*v1.GetOpeningWordsResponse, store.KeyTarget, error) {
-				return s.openingTold(ctx, tx, profileID, t)
+			Call: func(ctx context.Context, c paperChecking) paperChecking {
+				return s.callCheck(ctx, c, req.GetOwnKey().GetKey())
+			},
+			Finish: func(tx pgx.Tx, c paperChecking) (*v1.GetOpeningWordsResponse, store.KeyTarget, error) {
+				return s.openingTold(ctx, tx, profileID, c)
 			},
 		})
 	} else {
 		answer, err = rpc.Once(ctx, s.db, key, req, func(tx pgx.Tx, _ string) (*v1.GetOpeningWordsResponse, store.KeyTarget, error) {
-			t, err := prepare(tx)
+			c, err := prepare(tx)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			if t.ready == nil {
-				// No model is admitted for the words: no call, and the fallback text.
-				t.answer = tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.NotAdmitted}}
-			}
-			return s.openingTold(ctx, tx, profileID, t)
+			return s.openingTold(ctx, tx, profileID, c)
 		})
 	}
 	if err != nil {
@@ -236,77 +329,107 @@ func (a *AttemptService) GetOpeningWords(ctx context.Context, req *v1.GetOpening
 }
 
 // openingAsked checks a request for the opening question before anything is
-// called: an open attempt of a task from paper with no wrong answer, and the
-// task's crop. The words the attempt keeps already are answered with no call.
-func (s *Service) openingAsked(ctx context.Context, tx pgx.Tx, req *v1.GetOpeningWordsRequest, route tutor.Route, admitted bool) (telling, error) {
+// called: an open attempt of a task from paper that keeps no ladder and has no
+// wrong answer, and its work. With the Check admitted, it gives the Check's
+// call; without, the fallback text with the outcome "not admitted", and no
+// call.
+func (s *Service) openingAsked(ctx context.Context, tx pgx.Tx, req *v1.GetOpeningWordsRequest, route tutor.Route, category formatv0.AgeCategory, admitted bool) (paperChecking, error) {
 	profileID := req.GetProfileId()
 	h, err := s.holdAny(ctx, tx, profileID, req.GetAttemptId(), s.clock())
+	c := paperChecking{attemptID: h.row.ID}
 	switch {
 	case err != nil:
-		return telling{}, err
+		return c, err
 	case !h.row.Paper:
-		return telling{h: h}, rpc.Malformed("attempt_id")
-	case h.row.WrongAnswers > 0:
-		return telling{h: h}, notCurrent(ctx, h.row.WrongAnswers)
-	case !photoTaken(req.GetStatement()):
-		return telling{h: h}, rpc.Malformed("statement")
+		return c, rpc.Malformed("attempt_id")
+	case h.row.WrongAnswers > 0 || h.row.PaperCheck != nil:
+		return c, notCurrent(ctx, h.row.WrongAnswers)
 	}
-	t := telling{h: h, rung: openingRung}
-	kept, found, err := store.RungOf(ctx, tx, profileID, h.row.ID, openingRung)
-	if err != nil {
-		return t, err
-	}
-	if t.paper, err = paperTold(ctx, tx, profileID, h, openingRung); err != nil {
-		return t, err
-	}
-	if found && kept.Words.Text != "" {
-		words, repeated := openingChecked(kept.Words.Text, t.paper)
-		t.ready = &v1.GetOpeningWordsResponse{Words: words, Repeated: repeated}
-		return t, nil
+	work := req.GetWork().GetPaper()
+	if err := paperWorkTaken(work); err != nil {
+		return c, err
 	}
 	if !admitted {
-		return t, err
+		language, _, err := paperLanguage(ctx, tx, profileID)
+		c.ready = &v1.GetOpeningWordsResponse{Words: tutor.PaperFallback(openingRung, language),
+			Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}}
+		return c, err
 	}
-	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
-		return t, connect.NewError(connect.CodeDeadlineExceeded, "too little time to word the opening question")
-	}
-	p := t.paper
-	p.request = tutor.PaperWordsRequest{Route: route, Ask: tutor.PaperOpening, Statement: req.GetStatement(), Tasks: p.tasks,
-		Language: p.language, Style: styles[formatv0.AgeCategory(route.Category)]}
-	return t, nil
+	return s.checkAsked(ctx, tx, profileID, h.row, work, route, category, req.ClockOffsetMinutes)
 }
 
-// openingTold writes what came of the opening question of t and answers it, on
-// the attempt held again after a call: the model's words, which the attempt
-// keeps, or the fallback text, which it does not. The record of the key holds
-// no words.
-func (s *Service) openingTold(ctx context.Context, tx pgx.Tx, profileID string, t telling) (*v1.GetOpeningWordsResponse, store.KeyTarget, error) {
-	answer, ok := t.ready.(*v1.GetOpeningWordsResponse)
-	if !ok && t.called {
-		_, kept, found, err := s.heldAgain(ctx, tx, profileID, t)
-		switch {
-		case err != nil:
+// openingTold writes what came of the Check of the opening question c and
+// answers it, on the attempt held again after the call: the Check kept, and
+// its first rung given (openingWords); or the fallback text with the outcome
+// of a Check that gave none, nothing kept. A Check another request kept
+// meanwhile answers with its own first rung, repeated. The record of the key
+// holds no words.
+func (s *Service) openingTold(ctx context.Context, tx pgx.Tx, profileID string, c paperChecking) (*v1.GetOpeningWordsResponse, store.KeyTarget, error) {
+	answer := c.ready
+	if answer == nil {
+		row, err := s.holdPaper(ctx, tx, profileID, c.attemptID, s.clock())
+		if err != nil {
 			return nil, store.KeyTarget{}, err
-		case found && kept.Words.Text != "":
-			answer, ok = &v1.GetOpeningWordsResponse{Words: kept.Words.Text, Repeated: true}, true
 		}
-	}
-	if !ok {
-		words, outcome := worded(ctx, t)
-		if words.Source == store.SourceModel {
-			if err := store.WriteRung(ctx, tx, profileID, t.h.row.ID, openingRung, words); err != nil {
+		language := c.check.Language
+		switch outcome := c.outcome(); {
+		case row.PaperCheck != nil:
+			words, err := openingOf(ctx, tx, profileID, held{row: row}, language)
+			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
+			answer = &v1.GetOpeningWordsResponse{Words: words, Repeated: true}
+		case outcome != nil:
+			answer = &v1.GetOpeningWordsResponse{Words: tutor.PaperFallback(openingRung, language), Outcome: outcome}
+		default:
+			if err := keepCheck(ctx, tx, profileID, row, c.checked); err != nil {
+				return nil, store.KeyTarget{}, err
+			}
+			words := openingWords(c.checked.Hints, c.checked.TutorWords, language)
+			if err := store.WriteRung(ctx, tx, profileID, row.ID, 1, words); err != nil {
+				return nil, store.KeyTarget{}, err
+			}
+			answer = &v1.GetOpeningWordsResponse{Words: words.Text}
 		}
-		answer = &v1.GetOpeningWordsResponse{Words: words.Text, Outcome: outcome}
 	}
 	// An answer of the contract always marshals.
 	written, _ := proto.Marshal(&v1.GetOpeningWordsResponse{Outcome: answer.GetOutcome()})
-	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: t.h.row.ID, Response: written}, nil
+	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: c.attemptID, Response: written}, nil
 }
 
-// openingKept is the opening question a repeat gets, held in tx: the words the
-// attempt keeps, and so repeated, or the fallback text.
+// openingWords is what the opening question gives of a Check's ladder hints
+// and tutor's words: its first rung, or the tutor's words where that rung is a
+// fallback text, or there is no ladder; the fallback text of the opening
+// question when the Check gave neither.
+func openingWords(hints []string, tutorWords, language string) store.Words {
+	first := ladderRung(&paperv1.Check{Hints: hints}, 1, language)
+	switch {
+	case first.Source == store.SourceModel:
+		return first
+	case strings.TrimSpace(tutorWords) != "":
+		return store.Words{Source: store.SourceModel, Text: tutorWords}
+	case len(hints) > 0:
+		return first
+	}
+	return store.Words{Source: store.SourceFallback, Text: tutor.PaperFallback(openingRung, language)}
+}
+
+// openingOf is the opening question of the attempt h, which keeps a Check: the
+// first rung as the attempt keeps it once given, or as the Check gives it.
+func openingOf(ctx context.Context, tx pgx.Tx, profileID string, h held, language string) (string, error) {
+	kept, found, err := store.RungOf(ctx, tx, profileID, h.row.ID, 1)
+	if err != nil || found {
+		return kept.Current().Text, err
+	}
+	check, err := keptCheck(h.row)
+	if err != nil {
+		return "", err
+	}
+	return openingWords(check.GetHints(), check.GetTutorWords(), language).Text, nil
+}
+
+// openingKept is the opening question a repeat gets, held in tx: the first rung
+// of the ladder the attempt keeps, and so repeated, or the fallback text.
 func (s *Service) openingKept(ctx context.Context, tx pgx.Tx, profileID, attemptID string) (string, bool, error) {
 	h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
 	if refusal, ok := rpc.Kept(err); ok {
@@ -316,29 +439,13 @@ func (s *Service) openingKept(ctx context.Context, tx pgx.Tx, profileID, attempt
 	if err != nil {
 		return "", false, err
 	}
-	kept, found, err := store.RungOf(ctx, tx, profileID, h.row.ID, openingRung)
+	language, _, err := paperLanguage(ctx, tx, profileID)
 	if err != nil {
 		return "", false, err
 	}
-	if found && kept.Words.Text != "" {
-		p, err := paperTold(ctx, tx, profileID, h, openingRung)
-		if err != nil {
-			return "", false, err
-		}
-		words, repeated := openingChecked(kept.Words.Text, p)
-		return words, repeated, nil
+	if h.row.PaperCheck == nil {
+		return tutor.PaperFallback(openingRung, language), false, nil
 	}
-	language, _, err := store.PaperWordsOf(ctx, tx, profileID)
-	return tutor.PaperFallback(openingRung, cmp.Or(language, wordsLanguage)), false, err
-}
-
-// openingChecked is the kept opening question p gives the learner, and whether
-// it is the one kept: words worded before a Check derived a key were checked by
-// the model's own answers alone, so a key derived since checks them again, and
-// words that give it away are the fallback text in their place.
-func openingChecked(kept string, p *paperTelling) (string, bool) {
-	if tutor.PaperBreach(kept, p.language, p.tasks, nil) == tutor.BreachLeak {
-		return tutor.PaperFallback(openingRung, p.language), false
-	}
-	return kept, true
+	words, err := openingOf(ctx, tx, profileID, h, language)
+	return words, true, err
 }
