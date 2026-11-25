@@ -165,6 +165,18 @@ func (f checkFunc) CheckPaper(ctx context.Context, c tutor.PaperCheck, own strin
 	return f.check(ctx, c, own)
 }
 
+// WithFinding is what finds the tasks on a page from paper, in place of
+// tutor: a test's own. Whether the finding is admitted the admitter still says.
+func WithFinding(find func(ctx context.Context, f tutor.TaskFinding) tutor.TasksFound) Option {
+	return func(s *Service) { s.finder = finderFunc(find) }
+}
+
+type finderFunc func(ctx context.Context, f tutor.TaskFinding) tutor.TasksFound
+
+func (f finderFunc) FindTasks(ctx context.Context, g tutor.TaskFinding, _ string) tutor.TasksFound {
+	return f(ctx, g)
+}
+
 // WithDrawing is what draws the tutor's act of grown-up mode, in place of
 // tutor: a test's own, for want of a provider. Whether the drawing is admitted
 // the admitter still says.

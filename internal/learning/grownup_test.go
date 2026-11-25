@@ -331,7 +331,7 @@ func TestGrownUpModeStoppedLeavesNothingGoing(t *testing.T) {
 	if err := <-done; err == nil {
 		t.Error("a stopped request answered, want its error")
 	}
-	if profile, _ := n.counted(t, l.accountID, l.child); profile.Reserved != 0 {
+	if profile := n.stopped(t, l.accountID, l.child, key); profile.Reserved != 0 {
 		t.Errorf("the counter after Stop = %+v, want no reserve left", profile)
 	}
 	mu.Lock()
