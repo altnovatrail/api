@@ -105,6 +105,26 @@ func (w *world) counted(t *testing.T, accountID, profileID string) (profile, acc
 	return profile, account
 }
 
+// stopped is the profile's counter once the server is done with a request its
+// client called off under key: the client's call ends as the context goes, the
+// server's handler a moment later, which settles the reserve and frees the key.
+// It fails the test if that takes more than five seconds.
+func (w *world) stopped(t *testing.T, accountID, profileID, key string) quota.Counter {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		profile, _ := w.counted(t, accountID, profileID)
+		var going int
+		if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM idempotency_keys WHERE key = $1 AND response IS NULL`, key).Scan(&going); err != nil {
+			t.Fatal(err)
+		}
+		if (profile.Reserved == 0 && going == 0) || time.Now().After(deadline) {
+			return profile
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // spend gives the account a family day that holds now, with spent on its
 // counter, as the requests of the day would have: the day it gives.
 func (w *world) spend(t *testing.T, accountID string, spent quota.Micro) quota.Day {

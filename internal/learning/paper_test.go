@@ -7,6 +7,7 @@ import (
 	"image/jpeg"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect/v2"
@@ -427,5 +428,55 @@ func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	if w.closeOf(t, a) != "" {
 		t.Errorf("the attempt of paper closed %q, want it open", w.closeOf(t, a))
+	}
+}
+
+// A request about the page the client calls off — Stop — cuts its finding
+// short and leaves nothing going: the reserve of its call settled, and the next
+// request, under a new key, found as any.
+func TestFindTasksStoppedLeavesNothingGoing(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{}, 1)
+	var mu sync.Mutex
+	blocking := true
+	find := func(ctx context.Context, _ tutor.TaskFinding) tutor.TasksFound {
+		mu.Lock()
+		block := blocking
+		mu.Unlock()
+		if !block {
+			return tutor.TasksFound{Outcome: tutor.Outcome{Kind: tutor.Answered},
+				Frames: []*observationv1.CropBox{{Ymin: 0, Xmin: 0, Ymax: 500, Xmax: 500}}}
+		}
+		started <- struct{}{}
+		<-ctx.Done()
+		return tutor.TasksFound{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: ctx.Err()}}
+	}
+	n := worldOf(t, gate(t, childFacts, config.RungFull), []learning.Option{learning.WithAdmits(func(tutor.Call) bool { return true }),
+		learning.WithFinding(find)})
+	l := n.learner(t)
+	req := &v1.FindTasksRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(), Photo: photoOf(t, 300, 400), Request: "the left column",
+		Found: []*v1.TaskFrame{{Box: &observationv1.CropBox{Ymin: 0, Xmin: 0, Ymax: 1000, Xmax: 1000}}}}
+	ctx, stop := context.WithCancel(l.ctx)
+	done := make(chan error, 1)
+	go func() {
+		_, err := n.paper.FindTasks(ctx, req)
+		done <- err
+	}()
+	<-started
+	stop()
+	if err := <-done; err == nil {
+		t.Error("a stopped request answered, want its error")
+	}
+	if profile := n.stopped(t, l.accountID, l.child, req.GetIdempotencyKey()); profile.Reserved != 0 {
+		t.Errorf("the counter after Stop = %+v, want no reserve left", profile)
+	}
+	mu.Lock()
+	blocking = false
+	mu.Unlock()
+	req.IdempotencyKey = uuid.NewString()
+	res, err := n.paper.FindTasks(l.ctx, req)
+	if err != nil || res.GetRepeated() || len(res.GetFrames()) != 1 {
+		t.Errorf("the request again = %v, %v; want its frame found", res, err)
 	}
 }

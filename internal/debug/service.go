@@ -48,7 +48,7 @@ func (s *Service) GetDebug(ctx context.Context, _ *v1.GetDebugRequest) (*v1.GetD
 		return nil, err
 	}
 	answer := &v1.GetDebugResponse{Models: Models(), Choice: s.store.Choice(id)}
-	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallChecking, tutor.CallPaperHint} {
+	for _, call := range []tutor.Call{tutor.CallFinding, tutor.CallStatement, tutor.CallChecking, tutor.CallPaperHint, tutor.CallDrawing} {
 		for _, m := range s.admitted(call) {
 			answer.Admitted = append(answer.Admitted, &v1.DebugAdmitted{Kind: callKinds[call], Model: choiceOf(&m)})
 		}

@@ -61,6 +61,9 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	if err != nil {
 		return nil, err
 	}
+	if ctx, err = askedLanguage(ctx, req.GetWordsLanguage()); err != nil {
+		return nil, err
+	}
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}

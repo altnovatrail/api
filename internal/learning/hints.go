@@ -44,9 +44,13 @@ func (a *AttemptService) GetHint(ctx context.Context, req *v1.GetHintRequest) (*
 	if _, err := s.learner(ctx, req.GetProfileId()); err != nil {
 		return nil, err
 	}
+	ctx, err := askedLanguage(ctx, req.GetWordsLanguage())
+	if err != nil {
+		return nil, err
+	}
 	profileID := req.GetProfileId()
 	var answer *v1.GetHintResponse
-	err := s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+	err = s.write(ctx, func(tx pgx.Tx, now time.Time) error {
 		h, err := s.holdAny(ctx, tx, profileID, req.GetAttemptId(), now)
 		switch {
 		case err != nil:
@@ -360,6 +364,9 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 	if err != nil {
 		return nil, err
 	}
+	if ctx, err = askedLanguage(ctx, req.GetWordsLanguage()); err != nil {
+		return nil, err
+	}
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
@@ -573,6 +580,9 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
 	if err != nil {
+		return nil, err
+	}
+	if ctx, err = askedLanguage(ctx, req.GetWordsLanguage()); err != nil {
 		return nil, err
 	}
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {

@@ -149,14 +149,14 @@ func TestTheReportSaysWhatWasDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.6", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.7", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
 		t.Errorf("Report = %+v, want %+v", r, want)
 	}
 	_, r, err = admission.Load(config.Admission{Rung: config.RungFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.6", Rung: "full", Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.7", Rung: "full", Reading: "pair"}); r != want {
 		t.Errorf("Report of nothing declared = %+v, want %+v", r, want)
 	}
 }
@@ -340,9 +340,10 @@ func TestTheGateAdmitsPaperWordsWhereTutorChooses(t *testing.T) {
 }
 
 // The gate finds the tasks on a page, reads the statement of a task from
-// paper, checks the work on it and words its tutor's words by tutor, which
-// calls no model where no facts admit the call, for a Check of no task, or for
-// words with no style.
+// paper, checks the work on it, words its tutor's words and draws its act of
+// grown-up mode by tutor, which calls no model where no facts admit the call,
+// for a Check of no task, for words with no style, or for a drawing with no
+// work.
 func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
 	t.Parallel()
 
@@ -354,6 +355,7 @@ func TestTheGateChecksATaskFromPaperByTutor(t *testing.T) {
 		"ReadStatement":  g.ReadStatement(t.Context(), page).Outcome,
 		"CheckPaper":     g.CheckPaper(t.Context(), tutor.PaperCheck{Route: adult, Statement: []byte("a page")}).Outcome,
 		"TellPaperWords": g.TellPaperWords(t.Context(), tutor.PaperWordsRequest{Route: adult, Ask: tutor.PaperAgain}).Outcome,
+		"GrownUp":        g.GrownUp(t.Context(), tutor.GrownUpRequest{Route: adult, Question: "Draw", Statement: []byte("a page")}).Outcome,
 	} {
 		if o.Kind == tutor.Answered || len(o.Usage) != 0 {
 			t.Errorf("%s = %v, want no answer and no call", name, o.Kind)

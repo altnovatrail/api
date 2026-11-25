@@ -1,11 +1,11 @@
 // Package tutorstub is the stub of tutor in api's dev mode: it stands behind
 // the ports through which api calls tutor — the readings of a sheet, a workbook
 // page and an essay, the assessment of an essay, the tutor's words, the finding
-// of the tasks on the photo of a page and the check of a task from paper — so
-// that a run of the path on the dev projects calls no provider and costs
-// nothing. Admission and the prices stay tutor's own, on the real table, by the
-// gate the dev mode builds with the stub's adapter (admission.StubAdapters);
-// only the calls are the stub's.
+// of the tasks on the photo of a page, the check of a task from paper and the
+// drawing of grown-up mode on one — so that a run of the path on the dev
+// projects calls no provider and costs nothing. Admission and the prices stay
+// tutor's own, on the real table, by the gate the dev mode builds with the
+// stub's adapter (admission.StubAdapters); only the calls are the stub's.
 //
 // The stub reads a sheet by the shape of its crop: wider than tall is the right
 // value, taller than wide a wrong one — the slot's first trap value, or the
@@ -27,6 +27,7 @@
 // at least twice as tall nothing written. Its words — a rung's questions, the
 // Check's words and ladder, the praise after a correct answer and the feedback
 // on an essay — are its own, which pass the leak check and the form check.
+// Its act of grown-up mode is a red line under the lowest stroke of the sheet.
 // Each call spends what tutor expects a call of its kind to cost on its route,
 // so that the quota runs out as on the models.
 //
@@ -549,18 +550,22 @@ func (s *Stub) PaperWords(category formatv0.AgeCategory, ownKeyProvider string) 
 }
 
 // TellPaperWords words "explain differently" on a task from paper with a
-// question of the stub's own in the language of w, as TellWords does. Of
+// question of the stub's own in the language of w, as TellWords does, and
+// answers a learner's question with words of its own in that language, which
+// name no number, so that app walks the conversation without a model. Of
 // tutor's checks before its call the stub keeps those of the request's form:
-// another kind of words, no style or a task not in the frame fails with no
-// usage. Past them an own key of an ending of the stub's, own being its value,
-// is refused by it.
+// another kind of words, a question with no words, no style or a task not in
+// the frame fails with no usage. Past them an own key of an ending of the
+// stub's, own being its value, is refused by it.
 func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, own string) tutor.WordsAnswer {
 	fail := func(err error) tutor.WordsAnswer {
 		return tutor.WordsAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
 	}
 	switch {
-	case w.Ask != tutor.PaperAgain:
+	case w.Ask != tutor.PaperAgain && w.Ask != tutor.PaperQuestion:
 		return fail(fmt.Errorf("tutorstub: no kind of words of paper %d", w.Ask))
+	case w.Ask == tutor.PaperQuestion && strings.TrimSpace(w.Question) == "":
+		return fail(errors.New("tutorstub: the question has no words"))
 	case strings.TrimSpace(w.Style) == "":
 		return fail(errors.New("tutorstub: the words have no style of presentation"))
 	case w.Task < 1 || w.Task > len(w.Tasks):
@@ -568,6 +573,14 @@ func (s *Stub) TellPaperWords(ctx context.Context, w tutor.PaperWordsRequest, ow
 	}
 	if o, refused := refusal(ctx, own); refused {
 		return tutor.WordsAnswer{Outcome: o}
+	}
+	if w.Ask == tutor.PaperQuestion {
+		said := answers["en"]
+		if a, ok := answers[base(w.Language)]; ok {
+			said = a
+		}
+		return tutor.WordsAnswer{Question: said[len(w.Turns)/2%len(said)], Outcome: tutor.Outcome{Kind: tutor.Answered,
+			Usage: s.usage(tutor.CallPaperHint, w.Route, 1)}}
 	}
 	list := questions["en"]
 	if l, ok := questions[base(w.Language)]; ok {
@@ -597,6 +610,98 @@ var questions = map[string][]string{
 		"Что нужно найти в этой задаче?",
 		"Что дано в задаче, если сказать своими словами?",
 	},
+}
+
+// answers are the stub's answers to a learner's question, by language, each
+// the next by the turns before it: one question each, without a number, as the
+// form check and the leak check take them.
+var answers = map[string][]string{
+	"en": {
+		"What did you do in the last line of your work?",
+		"Which part of the task is still unclear to you?",
+	},
+	"ru": {
+		"Что происходит в последней строке твоего решения?",
+		"Какая часть задачи тебе ещё непонятна?",
+	},
+}
+
+// The stub's act of grown-up mode: the colour and the width of its line, and how
+// far under the lowest stroke it goes, in pixels of the crop of the work.
+const (
+	drawnColor = "#e53935"
+	drawnWidth = 4
+	drawnBelow = 12
+)
+
+// drawnWords are the stub's words about its act, by language.
+var drawnWords = map[string]string{
+	"en": "Stub: a line under the last stroke.",
+	"ru": "Заглушка: линия под последним штрихом.",
+}
+
+// GrownUp acts on the sheet in grown-up mode with an act of its own, so that
+// app walks the mode without a model: one red line under the lowest stroke
+// the request names, as wide as it, a little below it and kept on the work, or
+// across the middle of the work when it names none, with words of its own in
+// the language of g, English when it has none of it. It takes off nothing. Of
+// tutor's checks before its call the stub keeps those of the request's form: a
+// request with no words, no crop of the task, or a work that is no PNG fails
+// with no usage. Past them an own key of an ending of the stub's, own being
+// its value, is refused by it.
+func (s *Stub) GrownUp(ctx context.Context, g tutor.GrownUpRequest, own string) tutor.GrownUpAnswer {
+	fail := func(err error) tutor.GrownUpAnswer {
+		return tutor.GrownUpAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: err}}
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(g.Work))
+	switch {
+	case strings.TrimSpace(g.Question) == "":
+		return fail(errors.New("tutorstub: the request has no words"))
+	case len(g.Statement) == 0:
+		return fail(errors.New("tutorstub: the drawing has no crop of the task"))
+	case err != nil:
+		return fail(fmt.Errorf("tutorstub: the work: %w", err))
+	}
+	if o, refused := refusal(ctx, own); refused {
+		return tutor.GrownUpAnswer{Outcome: o}
+	}
+	width, height := float32(cfg.Width), float32(cfg.Height)
+	line := []float32{width / 4, height / 2, width * 3 / 4, height / 2}
+	if lowest, ok := lowestStroke(g.Strokes); ok {
+		y := min(lowest.bottom+drawnBelow, height)
+		line = []float32{lowest.left, y, max(lowest.right, lowest.left+1), y}
+	}
+	said, ok := drawnWords[base(g.Language)]
+	if !ok {
+		said = drawnWords["en"]
+	}
+	return tutor.GrownUpAnswer{Words: said, Strokes: []tutor.TutorStroke{{Points: line, Color: drawnColor, Width: drawnWidth}},
+		Outcome: tutor.Outcome{Kind: tutor.Answered, Usage: s.usage(tutor.CallDrawing, g.Route, 1)}}
+}
+
+// span is the box of a stroke's points: its left and right edges and its
+// bottom, in pixels of the crop.
+type span struct{ left, right, bottom float32 }
+
+// lowestStroke is the box of the stroke whose lowest point is lowest on the
+// work, the first of them on a tie; none when no stroke has a point.
+func lowestStroke(strokes []tutor.SheetStroke) (span, bool) {
+	var lowest span
+	found := false
+	for _, st := range strokes {
+		if len(st.Points) < 2 {
+			continue
+		}
+		b := span{left: st.Points[0], right: st.Points[0], bottom: st.Points[1]}
+		for i := 0; i+1 < len(st.Points); i += 2 {
+			x, y := st.Points[i], st.Points[i+1]
+			b.left, b.right, b.bottom = min(b.left, x), max(b.right, x), max(b.bottom, y)
+		}
+		if !found || b.bottom > lowest.bottom {
+			lowest, found = b, true
+		}
+	}
+	return lowest, found
 }
 
 // CorrectWords says whether the tutor's words after a correct answer are

@@ -1,7 +1,6 @@
 package learning
 
 import (
-	"cmp"
 	"context"
 	"time"
 
@@ -210,16 +209,31 @@ func paperWorkTaken(work *v1.PaperWork) error {
 
 // checkAsked is the Check of work on the attempt row of a task from paper,
 // held in tx, by route, before anything is called: the frame's tasks
-// (tasksOf), the language of the profile's interface, the learner's age
+// (tasksOf), the language of the words (paperLanguage), the learner's age
 // category, the history the attempt keeps, and on platform AI the reserve of
 // its quota on the family day of offset. The request's deadline leaves time for
 // the call and the transaction after it.
 func (s *Service) checkAsked(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, work *v1.PaperWork, route tutor.Route, category formatv0.AgeCategory, offset *int32) (paperChecking, error) {
+	c, err := checkBuilt(ctx, tx, profileID, row, work, route, category)
+	if err != nil {
+		return c, err
+	}
+	day, err := s.familyDay(ctx, tx, route, offset)
+	if err != nil {
+		return c, err
+	}
+	c.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallChecking, 1, day)
+	return c, err
+}
+
+// checkBuilt is the Check of work on the attempt row, as checkAsked gives it,
+// with no reserve taken.
+func checkBuilt(ctx context.Context, tx pgx.Tx, profileID string, row store.Attempt, work *v1.PaperWork, route tutor.Route, category formatv0.AgeCategory) (paperChecking, error) {
 	c := paperChecking{attemptID: row.ID}
 	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
 		return c, connect.NewError(connect.CodeDeadlineExceeded, "too little time to check the work")
 	}
-	language, _, err := store.PaperWordsOf(ctx, tx, profileID)
+	language, _, err := paperLanguage(ctx, tx, profileID)
 	if err != nil {
 		return c, err
 	}
@@ -232,13 +246,8 @@ func (s *Service) checkAsked(ctx context.Context, tx pgx.Tx, profileID string, r
 		return c, err
 	}
 	c.check = tutor.PaperCheck{Route: route, Statement: work.GetStatement(), Work: work.GetCrop(), Instruction: work.GetInstruction(),
-		Tasks: tasks, Language: cmp.Or(language, wordsLanguage), AgeCategory: string(category), History: history}
-	day, err := s.familyDay(ctx, tx, route, offset)
-	if err != nil {
-		return c, err
-	}
-	c.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallChecking, 1, day)
-	return c, err
+		Tasks: tasks, Language: language, AgeCategory: string(category), History: history}
+	return c, nil
 }
 
 // callCheck makes the Check of c until finishReserve before the request's

@@ -33,7 +33,10 @@ const (
 	// VarPaperRequestTimeout is the time limit of the methods of a task from paper
 	// that ask up to three models in turn.
 	VarPaperRequestTimeout = "API_PAPER_REQUEST_TIMEOUT"
-	VarService             = "K_SERVICE"
+	// VarGrownUpRequestTimeout is the time limit of a request of grown-up mode,
+	// whose drawing writes a whole solution as strokes.
+	VarGrownUpRequestTimeout = "API_GROWN_UP_REQUEST_TIMEOUT"
+	VarService               = "K_SERVICE"
 
 	// VarMigrateDatabaseURL is the direct connection string of the database api,
 	// which migrate takes: a secret, read from the variable or from the file its
@@ -48,16 +51,17 @@ const (
 // carries — credentials of other systems, tokens, the shell's own variables —
 // is read, so a future dump of what was read can carry none of them.
 var declared = map[string]struct{}{
-	VarPort:                {},
-	VarLogLevel:            {},
-	VarReadHeaderTimeout:   {},
-	VarReadTimeout:         {},
-	VarWriteTimeout:        {},
-	VarIdleTimeout:         {},
-	VarShutdownTimeout:     {},
-	VarRequestTimeout:      {},
-	VarPaperRequestTimeout: {},
-	VarService:             {},
+	VarPort:                  {},
+	VarLogLevel:              {},
+	VarReadHeaderTimeout:     {},
+	VarReadTimeout:           {},
+	VarWriteTimeout:          {},
+	VarIdleTimeout:           {},
+	VarShutdownTimeout:       {},
+	VarRequestTimeout:        {},
+	VarPaperRequestTimeout:   {},
+	VarGrownUpRequestTimeout: {},
+	VarService:               {},
 
 	VarMigrateDatabaseURL:                     {},
 	VarMigrateDatabaseURL + fileSuffix:        {},
@@ -72,14 +76,20 @@ const (
 	DefaultLogLevel          = "info"
 	DefaultReadHeaderTimeout = 5 * time.Second
 	DefaultReadTimeout       = 30 * time.Second
-	DefaultWriteTimeout      = 120 * time.Second
-	DefaultIdleTimeout       = 120 * time.Second
-	DefaultShutdownTimeout   = 9 * time.Second
-	DefaultRequestTimeout    = 30 * time.Second
+	// DefaultWriteTimeout is above the longest request, grown-up mode's, so that
+	// the answer of a request its deadline cut short still goes out.
+	DefaultWriteTimeout    = 330 * time.Second
+	DefaultIdleTimeout     = 120 * time.Second
+	DefaultShutdownTimeout = 9 * time.Second
+	DefaultRequestTimeout  = 30 * time.Second
 	// DefaultPaperRequestTimeout holds six calls of models one after another, the
 	// statement's three attempts and then the solution's, of up to 8 s each on the
 	// author's pages, with room to spare.
 	DefaultPaperRequestTimeout = 90 * time.Second
+	// DefaultGrownUpRequestTimeout is the drawing's own budget, which spec's
+	// contract gives AskGrownUp: a model that writes a whole solution as strokes
+	// may think for minutes, and the second model of its cascade asks after it.
+	DefaultGrownUpRequestTimeout = 300 * time.Second
 )
 
 // MinShutdownTimeout is the shortest way out a service may be given: the close
@@ -123,6 +133,10 @@ type Config struct {
 	// SubmitWork, whose calls of a task from paper ask up to three models in turn;
 	// it is under WriteTimeout too.
 	PaperRequestTimeout time.Duration
+	// GrownUpRequestTimeout is RequestTimeout of AskGrownUp, whose drawing asks up
+	// to two models in turn, each writing strokes at length; it is under
+	// WriteTimeout too.
+	GrownUpRequestTimeout time.Duration
 
 	// Service is the name K_SERVICE carries. Cloud Run sets it on every
 	// service and a developer's machine does not, which is what makes it the
@@ -132,6 +146,12 @@ type Config struct {
 
 // Deployed reports whether the process is running as a deployed service.
 func (c *Config) Deployed() bool { return c.Service != "" }
+
+// LongestRequest is the longest any request may run: a record a request left
+// going is of one that fell once it is older.
+func (c *Config) LongestRequest() time.Duration {
+	return max(c.RequestTimeout, c.PaperRequestTimeout, c.GrownUpRequestTimeout)
+}
 
 // DrainTimeout is the part of the way out the server waits for the requests
 // still in flight: three quarters of it. The drain and the close after it
@@ -176,6 +196,7 @@ func LoadFrom(environ []string) (*Config, error) {
 		{VarShutdownTimeout, &cfg.ShutdownTimeout, DefaultShutdownTimeout},
 		{VarRequestTimeout, &cfg.RequestTimeout, DefaultRequestTimeout},
 		{VarPaperRequestTimeout, &cfg.PaperRequestTimeout, DefaultPaperRequestTimeout},
+		{VarGrownUpRequestTimeout, &cfg.GrownUpRequestTimeout, DefaultGrownUpRequestTimeout},
 	} {
 		if *timeout.into, err = duration(env, timeout.name, timeout.value); err != nil {
 			problems = append(problems, err)
@@ -302,6 +323,7 @@ func (c *Config) validateTimeouts() error {
 		{VarShutdownTimeout, c.ShutdownTimeout},
 		{VarRequestTimeout, c.RequestTimeout},
 		{VarPaperRequestTimeout, c.PaperRequestTimeout},
+		{VarGrownUpRequestTimeout, c.GrownUpRequestTimeout},
 	} {
 		if timeout.value <= 0 {
 			return fmt.Errorf("%w: %s must be a positive duration, got %v", ErrInvalid, timeout.name, timeout.value)
@@ -310,7 +332,8 @@ func (c *Config) validateTimeouts() error {
 	for _, request := range []struct {
 		name  string
 		value time.Duration
-	}{{VarRequestTimeout, c.RequestTimeout}, {VarPaperRequestTimeout, c.PaperRequestTimeout}} {
+	}{{VarRequestTimeout, c.RequestTimeout}, {VarPaperRequestTimeout, c.PaperRequestTimeout},
+		{VarGrownUpRequestTimeout, c.GrownUpRequestTimeout}} {
 		if request.value >= c.WriteTimeout {
 			return fmt.Errorf("%w: %s must be under %s, %v, got %v",
 				ErrInvalid, request.name, VarWriteTimeout, c.WriteTimeout, request.value)

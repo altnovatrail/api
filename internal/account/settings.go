@@ -1,15 +1,13 @@
 package account
 
 import (
-	"errors"
-	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
-	"golang.org/x/text/language"
 
+	"github.com/altnovatrail/api/internal/langtag"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
@@ -19,8 +17,6 @@ const (
 	maxPseudonym = 30
 	maxAvatar    = 64
 	maxGrade     = 12
-	// maxTag is the longest language tag kept: as long as the avatar's code.
-	maxTag = 64
 )
 
 // newProfile is a profile of the category and country with the defaults of the
@@ -89,7 +85,7 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 		switch tag := s.GetInterfaceLanguage(); {
 		case tag == "":
 			p.InterfaceLanguage = nil
-		case !wellFormed(tag):
+		case !langtag.WellFormed(tag):
 			return rpc.Malformed("interface_language")
 		default:
 			p.InterfaceLanguage = &tag
@@ -136,24 +132,6 @@ func applyVoicing(p *store.Profile, v *v1.Voicing) error {
 	}
 	return nil
 }
-
-// wellFormed says whether tag is a well-formed tag of BCP 47, which api keeps
-// with no list of its own: subtags of letters and digits joined by hyphens, as
-// RFC 5646 writes them, of no more than maxTag, that the library parses. A
-// subtag it does not know is still well-formed. The library alone would take an
-// underscore for a hyphen, and a tag of any length.
-func wellFormed(tag string) bool {
-	if len(tag) > maxTag || !tagShape.MatchString(tag) {
-		return false
-	}
-	_, err := language.Parse(tag)
-	var unknown language.ValueError
-	return err == nil || errors.As(err, &unknown)
-}
-
-// tagShape is the shape of a tag of BCP 47: subtags of 1 to 8 letters and
-// digits, joined by hyphens.
-var tagShape = regexp.MustCompile(`^[A-Za-z0-9]{1,8}(-[A-Za-z0-9]{1,8})*$`)
 
 // ascii says whether s is printable ASCII alone.
 func ascii(s string) bool {

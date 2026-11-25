@@ -77,18 +77,27 @@ func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, r
 // assessment's, which an essay that cannot be read gives back whole. A refusal
 // is the reading's.
 func (s *Service) reserveEssay(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, day quota.Day) (reading, assessing reserve, err error) {
+	return s.reservePair(ctx, tx, profileID, route, tutor.CallEssay, tutor.CallRubric, day)
+}
+
+// reservePair reserves two calls on platform AI by route that go one after the
+// other in one request, as reserveFor reserves one: one charge of the two
+// prices, which the quota holds whole or not at all, given as the two parts each
+// call settles by itself; a second call that does not go is given back whole
+// (release). A refusal is the first's.
+func (s *Service) reservePair(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, first, second tutor.Call, day quota.Day) (reserve, reserve, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, reserve{}, nil
 	}
-	read := quota.Reserve(tutor.CallEssay, s.price(tutor.CallEssay, route), 1)
-	assess := quota.Reserve(tutor.CallRubric, s.price(tutor.CallRubric, route), 1)
-	both, err := s.reserveOf(ctx, tx, profileID, read+assess, day)
+	one := quota.Reserve(first, s.price(first, route), 1)
+	two := quota.Reserve(second, s.price(second, route), 1)
+	both, err := s.reserveOf(ctx, tx, profileID, one+two, day)
 	if err != nil || !both.taken {
 		return both, reserve{}, err
 	}
-	reading, assessing = both, both
-	reading.charge.Amount, assessing.charge.Amount = read, assess
-	return reading, assessing, nil
+	a, b := both, both
+	a.charge.Amount, b.charge.Amount = one, two
+	return a, b, nil
 }
 
 // reserveOf is reserveFor of the amount on platform AI.

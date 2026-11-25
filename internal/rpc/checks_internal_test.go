@@ -74,11 +74,17 @@ func TestACallWithNoCallInfoIsUnauthenticated(t *testing.T) {
 }
 
 // timeLeft is the time a request of the procedure has under limited by the
-// limits given.
+// limits given, grown-up mode's its default.
 func timeLeft(t *testing.T, timeout, paper time.Duration, procedure string) time.Duration {
 	t.Helper()
+	return timeLeftOf(t, timeout, paper, 0, procedure)
+}
+
+// timeLeftOf is timeLeft with grown-up mode's limit given too.
+func timeLeftOf(t *testing.T, timeout, paper, grownUp time.Duration, procedure string) time.Duration {
+	t.Helper()
 	var left time.Duration
-	_ = limited(timeout, paper)(func(ctx context.Context, _ connect.Spec, _ connect.ServerStream) error {
+	_ = limited(timeout, paper, grownUp)(func(ctx context.Context, _ connect.Spec, _ connect.ServerStream) error {
 		deadline, ok := ctx.Deadline()
 		if ok {
 			left = time.Until(deadline)
@@ -89,8 +95,8 @@ func timeLeft(t *testing.T, timeout, paper time.Duration, procedure string) time
 }
 
 // No time limit given is the default one, not none and not one already out:
-// 30 s, and 90 s for the methods of a task from paper that ask up to three
-// models in turn.
+// 30 s, 90 s for the methods of a task from paper that ask up to three models
+// in turn, and 300 s for grown-up mode.
 func TestNoTimeLimitIsTheDefault(t *testing.T) {
 	t.Parallel()
 
@@ -102,10 +108,13 @@ func TestNoTimeLimitIsTheDefault(t *testing.T) {
 			t.Errorf("the time left of %s under no limit given = %v, want the default 90s", p, left)
 		}
 	}
+	if left := timeLeft(t, 0, 0, apiv1connect.AttemptServiceAskGrownUpProcedure); left < 299*time.Second || left > 300*time.Second {
+		t.Errorf("the time left of AskGrownUp under no limit given = %v, want the default 300s", left)
+	}
 }
 
-// The methods of a task from paper run for the limit of paper, and every other
-// for the limit of a request.
+// The methods of a task from paper run for the limit of paper, grown-up mode
+// for its own, and every other for the limit of a request.
 func TestPaperMethodsRunForTheirLimit(t *testing.T) {
 	t.Parallel()
 
@@ -114,6 +123,12 @@ func TestPaperMethodsRunForTheirLimit(t *testing.T) {
 	}
 	if left := timeLeft(t, 5*time.Second, 50*time.Second, apiv1connect.PaperServiceBeginPaperAttemptsProcedure); left > 5*time.Second {
 		t.Errorf("BeginPaperAttempts has %v, want 5s", left)
+	}
+	if left := timeLeftOf(t, 5*time.Second, 50*time.Second, 70*time.Second, apiv1connect.AttemptServiceAskGrownUpProcedure); left < 69*time.Second || left > 70*time.Second {
+		t.Errorf("AskGrownUp has %v, want 70s, grown-up mode's", left)
+	}
+	if left := timeLeftOf(t, 5*time.Second, 50*time.Second, 70*time.Second, apiv1connect.AttemptServiceAskTutorProcedure); left < 49*time.Second || left > 50*time.Second {
+		t.Errorf("AskTutor has %v, want 50s, paper's", left)
 	}
 }
 
