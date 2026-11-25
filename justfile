@@ -113,7 +113,6 @@ THIRD_PARTY := """
     cloud.google.com/go/storage=go-storage
     connectrpc.com/connect/v2=connect-v2
     firebase.google.com/go/v4=go-v4
-    github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp=GoogleCloudPlatform-opentelemetry-operations-go-detectors-gcp
     github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric=GoogleCloudPlatform-opentelemetry-operations-go-exporter-metric
     github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping=GoogleCloudPlatform-opentelemetry-operations-go-internal-resourcemapping
     github.com/IBM/pgxpoolprometheus=IBM-pgxpoolprometheus

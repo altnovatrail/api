@@ -8,7 +8,7 @@
 # names and the tests run on; distroless names no versions in its tags, so the runtime is pinned
 # by its digest and the tag names the variant taken. Dependabot raises both digests.
 
-FROM golang:1.27.4-trixie@sha256:b54b2639de8c1bfe538ec5ffc45f29b1932235ac5f6d63c059853646677112d9 AS build
+FROM golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS build
 
 WORKDIR /src
 
@@ -33,7 +33,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false \
 # The runtime holds the binary and nothing of its own beyond certificates, tzdata and /tmp: no
 # shell, no package manager, and the user nonroot, uid 65532. Every job of the operator is a
 # command of the same binary, so the image serves by default and runs any other command named.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329 AS runtime
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5 AS runtime
 
 EXPOSE 8080
 ENTRYPOINT ["/api"]
