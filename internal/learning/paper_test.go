@@ -3,8 +3,10 @@ package learning_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"image"
 	"image/jpeg"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
+	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/google/uuid"
 
@@ -479,4 +482,76 @@ func TestFindTasksStoppedLeavesNothingGoing(t *testing.T) {
 	if err != nil || res.GetRepeated() || len(res.GetFrames()) != 1 {
 		t.Errorf("the request again = %v, %v; want its frame found", res, err)
 	}
+}
+
+// A module solved on the sheet begins as a page of its tasks: the catalog marks
+// it so, the answer gives each task open, in the order of their IDs, with the
+// digest of its current version, and the engine chooses none of them. Each task
+// is checked as a task from paper is, and gives no evidence. A request that
+// names a module not on the sheet, tasks beside it, or one not connected is
+// refused.
+func TestAModuleOnTheSheetBeginsAsAPage(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newStubWorld(t)
+	w.set.Sheet(module)
+	l := w.learner(t)
+	connected, err := w.modules.ListConnectedModules(l.ctx, &v1.ListConnectedModulesRequest{ProfileId: l.adult})
+	if err != nil || len(connected.GetModules()) != 1 || !connected.GetModules()[0].GetOnSheet() {
+		t.Fatalf("ListConnectedModules = %v, %v; want the module on the sheet", connected, err)
+	}
+	var want []string
+	for _, id := range slices.Sorted(maps.Keys(w.current.View.Tasks)) {
+		task := w.current.View.Tasks[id]
+		categories := task.AgeCategories
+		if len(categories) == 0 {
+			categories = w.current.View.Manifest.Audience.AgeCategories
+		}
+		if len(w.current.View.Instances[id]) == 0 && slices.Contains(categories, formatv0.AgeCategoryAdult) && len(want) < 20 {
+			want = append(want, string(id))
+		}
+	}
+	res, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		PageId: "module.example.choices", ModuleId: module})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, view := range res.GetTasks() {
+		var task struct{ ID string }
+		if err := json.Unmarshal(view.GetJson(), &task); err != nil || view.GetModuleFormatVersion() == "" {
+			t.Fatalf("an open view %s: %v", view.GetJson(), err)
+		}
+		got = append(got, task.ID)
+	}
+	if len(want) == 0 || !slices.Equal(got, want) || len(res.GetAttemptIds()) != len(want) || res.GetPackageDigest() != string(w.current.Digest) {
+		t.Fatalf("the page of the module = %v, %d attempts, %s; want %v on %s", got, len(res.GetAttemptIds()), res.GetPackageDigest(), want, w.current.Digest)
+	}
+	if c, err := w.chooseNext(l, l.adult); err != nil || c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING {
+		t.Errorf("something else with the module on the sheet alone = %v, %v; want nothing", c, err)
+	}
+	attempt := res.GetAttemptIds()[0]
+	if v := slotOf(t, w.submitPaper(t, l, attempt, rightWork)); v.GetVerdict() != "correct" {
+		t.Errorf("the Check of a task of the module = %v, want correct", v)
+	}
+	if n := w.evidenceOf(t, attempt); n != 0 {
+		t.Errorf("the journal holds %d pieces of evidence of a task of the module, want none", n)
+	}
+
+	for name, tc := range map[string]struct {
+		req   *v1.BeginPaperAttemptsRequest
+		field string
+	}{
+		"tasks beside the module":   {&v1.BeginPaperAttemptsRequest{ModuleId: module, Tasks: 1}, "tasks"},
+		"a module not on the sheet": {&v1.BeginPaperAttemptsRequest{ModuleId: "example/other"}, "module_id"},
+	} {
+		tc.req.ProfileId, tc.req.IdempotencyKey, tc.req.PageId = l.adult, uuid.NewString(), "module.example"
+		if _, err := w.paper.BeginPaperAttempts(l.ctx, tc.req); connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), tc.field) {
+			t.Errorf("%s: %v, want %s refused", name, err, tc.field)
+		}
+	}
+	w.set.Sheet(module, "example/other")
+	_, err = w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		PageId: "module.example.other", ModuleId: "example/other"})
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
 }

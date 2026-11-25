@@ -36,6 +36,9 @@ type Set struct {
 	// listed is each module of the deployment's list, or nil for no list: the
 	// whole index.
 	listed map[formatv0.ModuleID]bool
+	// sheet is each module solved on the sheet of a task from paper, when a
+	// test names them: nil is the platform's own, onSheet.
+	sheet map[formatv0.ModuleID]bool
 }
 
 // File is the path in the folder of the file of a device part of digest.

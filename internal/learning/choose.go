@@ -35,7 +35,8 @@ type after struct {
 
 // engineModules is the modules of the engine for a learner of category: those
 // connected to the profile that have a current version for the learner, with
-// that version, and which the deployment's list names.
+// that version, and which the deployment's list names; none solved on the sheet
+// of a task from paper, whose tasks a model checks.
 func (s *Service) engineModules(ctx context.Context, tx pgx.Tx, profileID string, category formatv0.AgeCategory) ([]*modulepackage.Package, error) {
 	connected, err := store.ConnectedModules(ctx, tx, profileID)
 	if err != nil {
@@ -49,6 +50,9 @@ func (s *Service) engineModules(ctx context.Context, tx pgx.Tx, profileID string
 func (s *Service) engineOf(connected []store.ConnectedModule, category formatv0.AgeCategory) []*modulepackage.Package {
 	var pkgs []*modulepackage.Package
 	for _, c := range connected {
+		if s.set.OnSheet(formatv0.ModuleID(c.ModuleID)) {
+			continue
+		}
 		if pkg, ok := s.set.OfferedFor(formatv0.ModuleID(c.ModuleID), category); ok {
 			pkgs = append(pkgs, pkg)
 		}

@@ -39,7 +39,7 @@ const boardModule = "novatrail/check-board"
 // segment, a task of the pool tapped with its leading question asked for, a
 // wrong answer and its rung's words, then the key — gives evidence of kind 2
 // that holds the question. A task with a time of day describes its slot as one.
-// The module of the board begins too, on the stub of tutor, as boardIsLearnedOn
+// The module of the board begins on the sheet, on the stub of tutor, as boardIsLearnedOn
 // tells, so does every task of the module of workbook pages for a child, as
 // workbookIsLearnedOn tells, so does every task with a rubric of the module of
 // essays for an adult, as essaysAreLearnedOn tells, and the catalog of
@@ -145,11 +145,11 @@ func TestThePinnedReleaseIsLearnedOn(t *testing.T) {
 }
 
 // boardIsLearnedOn walks the owner's path on the module of tutor's board in the
-// dev mode, the gate and the stub of tutor as just dev builds them: every task
-// and lesson of it reaches the engine for an adult, the owner's catalog gives
-// its current version, it connects, its lesson opens and its first task segment
-// begins, and the sheet is read — a tall crop not yet, with the words of rung 1
-// on the work, then a wide one correct — and gives its evidence.
+// dev mode, the gate and the stub of tutor as just dev builds them: the owner's
+// catalog gives its current version, it connects as a module solved on the
+// sheet, its page begins with every task of it open, the engine chooses none,
+// and a task is checked as a task from paper is — not yet, then correct — with
+// no evidence.
 func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	pkg, ok := set.Current(boardModule)
 	if !ok {
@@ -157,12 +157,6 @@ func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	}
 	g := stubGate(t)
 	w := worldOn(t, set, g, []learning.Option{learning.WithTutor(tutorstub.New(g))})
-	pool, lessons, err := w.service.Candidates(pkg, formatv0.AgeCategoryAdult, "")
-	if err != nil || len(pool) != len(pkg.View.Tasks) || lessons != len(pkg.View.Lessons) {
-		t.Errorf("the engine gets %d tasks of %d and %d lessons of %d of %s, %v; want all", len(pool), len(pkg.View.Tasks),
-			lessons, len(pkg.View.Lessons), boardModule, err)
-	}
-
 	l := w.learner(t)
 	catalog, err := w.modules.ListCatalog(l.ctx, &v1.ListCatalogRequest{ProfileId: l.adult})
 	if err != nil || !slices.ContainsFunc(catalog.GetModules(), func(m *v1.CatalogModule) bool {
@@ -170,50 +164,27 @@ func boardIsLearnedOn(t *testing.T, set *packages.Set) {
 	}) {
 		t.Fatalf("ListCatalog = %v, %v; want %s on its current version", catalog, err, boardModule)
 	}
-	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: boardModule}); err != nil {
-		t.Fatal(err)
+	connected, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.adult, ModuleId: boardModule})
+	if err != nil || len(connected.GetModules()) != 1 || !connected.GetModules()[0].GetOnSheet() {
+		t.Fatalf("ConnectModule = %v, %v; want %s on the sheet", connected, err, boardModule)
 	}
-	lesson := slices.Sorted(maps.Keys(pkg.View.Lessons))[0]
-	opened, err := w.learning.OpenLesson(l.ctx, &v1.OpenLessonRequest{ProfileId: l.adult,
-		ChoiceId: w.lessonChoiceOf(t, l.adult, boardModule, string(lesson))})
-	if err != nil {
-		t.Fatalf("OpenLesson %s: %v", lesson, err)
+	page, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{ProfileId: l.adult, IdempotencyKey: uuid.NewString(),
+		PageId: "module.novatrail.check-board", ModuleId: boardModule})
+	if err != nil || len(page.GetTasks()) != len(pkg.View.Tasks) || len(page.GetAttemptIds()) != len(pkg.View.Tasks) {
+		t.Fatalf("the page of %s = %d tasks, %v; want all %d", boardModule, len(page.GetTasks()), err, len(pkg.View.Tasks))
 	}
-	start, err := w.segment(l, l.adult, opened.GetRun().GetLessonRunId(), firstTaskSegment(pkg.View.Lessons[lesson]))
-	if err != nil {
-		t.Fatalf("the first task segment of %s did not begin: %v", lesson, err)
+	if c, err := w.chooseNext(l, l.adult); err != nil || c.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING {
+		t.Errorf("something else with the board alone = %v, %v; want nothing", c, err)
 	}
-	attempt := start.GetAttemptId()
-	submit := func(width, height int) *v1.SubmitWorkResponse {
-		t.Helper()
-		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: attempt,
-			IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, width, height))})
-		if err != nil {
-			t.Fatalf("SubmitWork of %s: %v", lesson, err)
-		}
-		return res
+	attempt := page.GetAttemptIds()[0]
+	if v := slotOf(t, w.submitPaper(t, l, attempt, wrongWork)); v.GetVerdict() != "not_yet" {
+		t.Fatalf("a wrong work = %v; want not yet", v)
 	}
-	if res := submit(10, 40); !strings.HasPrefix(verdicts(res), "not_yet") || res.GetWrongAnswers() != 1 {
-		t.Fatalf("a tall crop = %s, %d wrong; want not yet, one wrong", verdicts(res), res.GetWrongAnswers())
+	if v := slotOf(t, w.submitPaper(t, l, attempt, rightWork)); v.GetVerdict() != "correct" || w.closeOf(t, attempt) != "correct" {
+		t.Fatalf("a right work = %v, the attempt closed %q; want correct and closed correct", v, w.closeOf(t, attempt))
 	}
-	wrong := int32(1)
-	words, err := w.attempts.GetRungWords(l.ctx, &v1.GetRungWordsRequest{ProfileId: l.adult, AttemptId: attempt,
-		IdempotencyKey: uuid.NewString(), WrongAnswers: &wrong, Work: sheet(pngOf(t, 10, 40))})
-	// The rung's fallback is the module's first template: the stub's words, not it,
-	// and no words turned down by a check.
-	fallback := string(pkg.View.Manifest.RungTemplates[0])
-	if err != nil || words.GetWords() == "" || words.GetWords() == fallback || words.GetOutcome() != nil ||
-		strings.Contains(w.log.String(), "words_check") {
-		t.Errorf("the words of rung 1 on the work = %v, %v; want the stub's, not the fallback %q", words, err, fallback)
-	}
-	if res := submit(40, 10); !strings.HasPrefix(verdicts(res), "correct") || w.closeOf(t, attempt) != "correct" {
-		t.Fatalf("a wide crop = %s, the attempt closed %q; want correct and closed correct", verdicts(res), w.closeOf(t, attempt))
-	}
-	if _, err := w.progress.GetProgress(l.ctx, &v1.GetProgressRequest{ProfileId: l.adult}); err != nil {
-		t.Fatal(err)
-	}
-	if n := w.evidenceOf(t, attempt); n != 1 {
-		t.Errorf("the journal holds %d pieces of evidence of the board's attempt, want 1", n)
+	if n := w.evidenceOf(t, attempt); n != 0 {
+		t.Errorf("the journal holds %d pieces of evidence of the board's attempt, want none", n)
 	}
 }
 
