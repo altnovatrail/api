@@ -1,6 +1,10 @@
 package packages
 
-import "github.com/altnovatrail/spec/types/formatv0"
+import (
+	"slices"
+
+	"github.com/altnovatrail/spec/types/formatv0"
+)
 
 // onSheet is the modules solved on the sheet of a task from paper: a model
 // checks each of their tasks, as it checks a task from paper, and none is
@@ -26,4 +30,18 @@ func (s *Set) Sheet(ids ...formatv0.ModuleID) {
 	for _, id := range ids {
 		s.sheet[id] = true
 	}
+}
+
+// SheetDigests is every digest of a package of a module solved on the sheet,
+// in the order of their bytes: the engine begins none of their tasks, so the
+// job after a rollout closes the attempts it began on them before.
+func (s *Set) SheetDigests() []string {
+	var out []string
+	for digest, pkg := range s.Packages {
+		if s.OnSheet(pkg.View.Manifest.ID) {
+			out = append(out, string(digest))
+		}
+	}
+	slices.Sort(out)
+	return out
 }

@@ -381,3 +381,30 @@ func TestARunWhoseAttemptClosedMeanwhileEndsByItself(t *testing.T) {
 		t.Errorf("attempt %s, run %s; want the attempt abandoned and the run unchecked", w.closed(t, attempt), w.ended(t, run))
 	}
 }
+
+// The job after a rollout closes "unchecked" the open attempts the engine began
+// on a package of a module solved on the sheet, which it begins no more, and
+// leaves a task from paper open.
+func TestTheJobAfterARolloutClosesTheEnginesAttemptsOfAModuleOnTheSheet(t *testing.T) {
+	t.Parallel()
+
+	w := newWorldOn(t, "")
+	w.set.Sheet("example/choices")
+	today := time.Now().UTC()
+	account := w.account(t, "uid-learner", today)
+	profile := w.profile(t, account, today, false)
+	engines := w.attempt(t, profile, string(choices.Digest), "", "1 minute")
+	paper := w.id(t, `INSERT INTO attempts (profile_id, kind, paper_page, started_at, last_action_at)
+		VALUES ($1, 'paper', 'page', now(), now()) RETURNING id`, profile)
+
+	report := w.after(t)
+	if s := step(t, report, logging.StepGoneAttempts); !report.Clean() || s.Done != 1 {
+		t.Fatalf("report = %+v, want the engine's attempt closed", report)
+	}
+	if got := w.closed(t, engines); got != "unchecked" {
+		t.Errorf("the engine's attempt closed %s, want unchecked", got)
+	}
+	if got := w.closed(t, paper); got != "open" {
+		t.Errorf("the task from paper closed %s, want it left open", got)
+	}
+}
