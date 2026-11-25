@@ -292,3 +292,53 @@ func TestTheStubDrawsALineUnderTheLowestStroke(t *testing.T) {
 		t.Errorf("the counter = %+v, want two drawings spent", profile)
 	}
 }
+
+// A request of grown-up mode the client calls off — Stop — cuts its call short,
+// and leaves nothing going: the reserve of its call settled, and the key free,
+// so that the same request sent again, under the same key, is drawn anew.
+func TestGrownUpModeStoppedLeavesNothingGoing(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{}, 1)
+	var mu sync.Mutex
+	blocking := true
+	draw := func(ctx context.Context, g tutor.GrownUpRequest) tutor.GrownUpAnswer {
+		mu.Lock()
+		block := blocking
+		mu.Unlock()
+		if !block {
+			return drawnAct
+		}
+		started <- struct{}{}
+		<-ctx.Done()
+		return tutor.GrownUpAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed, Err: ctx.Err()}}
+	}
+	n := worldOf(t, gate(t, childFacts, config.RungFull), []learning.Option{learning.WithAdmits(func(tutor.Call) bool { return true }),
+		learning.WithDrawing(draw)})
+	l := n.learner(t)
+	a := n.beginPage(t, l, l.child, 1)[0]
+	key := uuid.NewString()
+	req := &v1.AskGrownUpRequest{ProfileId: l.child, AttemptId: a, IdempotencyKey: key, Question: "Draw the solution",
+		Work: paperWork(t, formulaStatement, pngOf(t, 200, 100))}
+	ctx, stop := context.WithCancel(l.ctx)
+	done := make(chan error, 1)
+	go func() {
+		_, err := n.attempts.AskGrownUp(ctx, req)
+		done <- err
+	}()
+	<-started
+	stop()
+	if err := <-done; err == nil {
+		t.Error("a stopped request answered, want its error")
+	}
+	if profile, _ := n.counted(t, l.accountID, l.child); profile.Reserved != 0 {
+		t.Errorf("the counter after Stop = %+v, want no reserve left", profile)
+	}
+	mu.Lock()
+	blocking = false
+	mu.Unlock()
+	res, err := n.attempts.AskGrownUp(l.ctx, req)
+	if err != nil || res.GetRepeated() || res.GetWords() != drawnAct.Words {
+		t.Errorf("the same request again = %v, %v; want it drawn anew", res, err)
+	}
+}
