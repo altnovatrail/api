@@ -312,19 +312,16 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 // a template is left out, as its instance would need a seed the attempt of a
 // page does not keep.
 func sheetTasks(pkg *modulepackage.Package, category formatv0.AgeCategory) ([]*v1.OpenView, error) {
-	var views []*v1.OpenView
-	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
-		task := pkg.View.Tasks[id]
-		if len(pkg.View.Instances[id]) > 0 || !suits(pkg, task, category) {
-			continue
-		}
-		view, err := openTask(pkg, task)
+	ids := slices.DeleteFunc(slices.Sorted(maps.Keys(pkg.View.Tasks)), func(id formatv0.TaskID) bool {
+		return len(pkg.View.Instances[id]) > 0 || !suits(pkg, pkg.View.Tasks[id], category)
+	})
+	views := make([]*v1.OpenView, 0, min(len(ids), maxPaperTasks))
+	for _, id := range ids[:min(len(ids), maxPaperTasks)] {
+		view, err := openTask(pkg, pkg.View.Tasks[id])
 		if err != nil {
 			return nil, err
 		}
-		if views = append(views, view); len(views) == maxPaperTasks {
-			break
-		}
+		views = append(views, view)
 	}
 	return views, nil
 }
