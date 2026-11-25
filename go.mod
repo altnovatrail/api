@@ -10,7 +10,7 @@ require (
 	github.com/altnovatrail/module-kit v0.3.16
 	github.com/altnovatrail/spec v0.21.0
 	github.com/altnovatrail/spec/contracts v0.21.0
-	github.com/altnovatrail/tutor v0.1.66
+	github.com/altnovatrail/tutor v0.1.67
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.13.0
@@ -101,7 +101,7 @@ require (
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tidwall/gjson v1.20.0 // indirect
+	github.com/tidwall/gjson v1.20.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
