@@ -10,7 +10,7 @@ require (
 	github.com/altnovatrail/module-kit v0.3.16
 	github.com/altnovatrail/spec v0.21.2
 	github.com/altnovatrail/spec/contracts v0.21.2
-	github.com/altnovatrail/tutor v0.1.67
+	github.com/altnovatrail/tutor v0.1.68
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.13.0
