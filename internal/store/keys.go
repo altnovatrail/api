@@ -190,3 +190,47 @@ func DropRecord(ctx context.Context, tx pgx.Tx, accountID, key string, made time
 	}
 	return nil
 }
+
+// NoteModel writes into the account's record going made at made the place of the
+// model that now reads its request's work, from 0, and the length of the call's
+// list: what CheckProgress gives while the request goes on. A record no longer
+// going, or no longer this request's, is left as it is.
+func NoteModel(ctx context.Context, tx pgx.Tx, accountID, key string, made time.Time, model, models int) error {
+	if _, err := tx.Exec(ctx, `UPDATE idempotency_keys SET model = $4, models = $5
+		WHERE account_id = $1 AND key = $2 AND created_at = $3 AND state = 'going'`,
+		accountID, key, made, model, models); err != nil {
+		return fmt.Errorf("store: note the model: %w", err)
+	}
+	return nil
+}
+
+// Progress is how far a request going has got: whether one is going, and the
+// place of the model that reads its work, from 0, of a list of models; both 0
+// while it has noted none.
+type Progress struct {
+	Going         bool
+	Model, Models int
+}
+
+// CheckProgress is the progress of the request of method going on the
+// profile's attempt under the account, the latest of them, made less than
+// goingFor ago: an older one is of a request that fell. None is going false.
+func CheckProgress(ctx context.Context, db Querier, accountID, profileID, attemptID, method string, goingFor time.Duration) (Progress, error) {
+	var model, models *int16
+	err := db.QueryRow(ctx, `SELECT model, models FROM idempotency_keys
+		WHERE account_id = $1 AND profile_id = $2 AND attempt_id = $3 AND method = $4 AND state = 'going'
+			AND created_at > now() - make_interval(secs => $5)
+		ORDER BY created_at DESC LIMIT 1`,
+		accountID, profileID, attemptID, method, goingFor.Seconds()).Scan(&model, &models)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Progress{}, nil
+	case err != nil:
+		return Progress{}, fmt.Errorf("store: read the progress: %w", err)
+	}
+	p := Progress{Going: true}
+	if model != nil && models != nil {
+		p.Model, p.Models = int(*model), int(*models)
+	}
+	return p, nil
+}

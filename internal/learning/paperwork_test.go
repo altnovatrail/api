@@ -632,7 +632,7 @@ func TestACheckOfPaperGoesForTheTimeLimitOfPaper(t *testing.T) {
 		return req
 	}
 	_, err := w.attempts.SubmitWork(l.ctx, fell("2 minutes"))
-	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, err, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 	if res, err := w.attempts.SubmitWork(l.ctx, fell("6 minutes")); err != nil || slotOf(t, res).GetVerdict() != "not_yet" {
 		t.Errorf("the repeat of a request that fell = %v, %v; want it checked again", res, err)
 	}

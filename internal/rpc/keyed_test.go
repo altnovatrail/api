@@ -53,7 +53,7 @@ func TestARequestUnderAKeyActsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = rpc.Once(ctx, w.pool, key, going, act)
-	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, err, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 
 	_, err = rpc.Once(ctx, w.pool, key, &v1.SubmitWorkRequest{}, act)
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
@@ -187,13 +187,22 @@ func TestARequestAcrossItsCallRecordsItGoing(t *testing.T) {
 	key := rpc.Key{Method: "/novatrail.api.v1.AttemptService/SubmitWork", GoingFor: time.Minute}
 	calls := 0
 	var stillGoing error
+	var model, models int
 	phases := func(finish error) rpc.Phases[int, *v1.SubmitWorkResponse] {
 		return rpc.Phases[int, *v1.SubmitWorkResponse]{
 			Prepare: func(pgx.Tx, string) (int, store.KeyTarget, error) {
 				return 1, store.KeyTarget{ProfileID: p.profileID}, nil
 			},
-			Call: func(_ context.Context, n int) int {
+			Call: func(callCtx context.Context, n int) int {
 				calls++
+				// The call notes a later model in its record going; outside a call, a
+				// note does nothing.
+				rpc.NoteModel(callCtx, 1, 3)
+				rpc.NoteModel(ctx, 2, 3)
+				if err := w.pool.QueryRow(t.Context(), `SELECT model, models FROM idempotency_keys WHERE account_id = $1 AND key = 'across'`,
+					p.accountID).Scan(&model, &models); err != nil {
+					t.Error(err)
+				}
 				// A repeat beside it, while it calls.
 				_, stillGoing = rpc.Across(ctx, w.pool, key, &v1.SubmitWorkRequest{IdempotencyKey: "across"},
 					rpc.Phases[int, *v1.SubmitWorkResponse]{})
@@ -212,7 +221,10 @@ func TestARequestAcrossItsCallRecordsItGoing(t *testing.T) {
 	if err != nil || got.GetWrongAnswers() != 2 {
 		t.Fatalf("Across = %v, %v; want the answer of the last part", got, err)
 	}
-	refusedAs(t, stillGoing, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, stillGoing, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
+	if model != 1 || models != 3 {
+		t.Errorf("the record going noted model %d of %d, want 1 of 3", model, models)
+	}
 	again, err := rpc.Across(ctx, w.pool, key, req, phases(nil))
 	if err != nil || !proto.Equal(got, again) || calls != 1 {
 		t.Errorf("the repeat = %v, %v after %d calls; want the answer after one", again, err, calls)

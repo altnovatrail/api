@@ -153,3 +153,69 @@ func TestAKeyGoesThenIsDoneOrDropped(t *testing.T) {
 		return nil
 	})
 }
+
+// The progress of a request going on an attempt is its record's, the latest of
+// that method under the account, with the model noted by its own mark alone:
+// none noted is going with no model, and a record older than goingFor, or
+// done, or of another method, is none going.
+func TestTheProgressOfARequestGoingIsItsRecords(t *testing.T) {
+	t.Parallel()
+
+	e := newE3(t)
+	ctx := t.Context()
+	var attempt string
+	if err := e.pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, kind) VALUES ($1, 'paper') RETURNING id`, e.profileID).Scan(&attempt); err != nil {
+		t.Fatal(err)
+	}
+	target := store.KeyTarget{ProfileID: e.profileID, AttemptID: attempt}
+	in := func(fn func(tx pgx.Tx) error) {
+		t.Helper()
+		if err := pgx.BeginFunc(ctx, e.pool, fn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	progress := func(method string, goingFor time.Duration) store.Progress {
+		t.Helper()
+		p, err := store.CheckProgress(ctx, e.pool, e.accountID, e.profileID, attempt, method, goingFor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	if p := progress("/m", time.Minute); p.Going {
+		t.Errorf("with no record: %+v, want none going", p)
+	}
+	var made time.Time
+	in(func(tx pgx.Tx) error {
+		var err error
+		made, err = store.RecordGoing(ctx, tx, e.accountID, "k", "/m", "sha256:01", target)
+		return err
+	})
+	if p := progress("/m", time.Minute); p != (store.Progress{Going: true}) {
+		t.Errorf("with no model noted: %+v, want going with none", p)
+	}
+	in(func(tx pgx.Tx) error {
+		if err := store.NoteModel(ctx, tx, e.accountID, "k", made.Add(time.Microsecond), 2, 3); err != nil {
+			return err
+		}
+		return store.NoteModel(ctx, tx, e.accountID, "k", made, 1, 3)
+	})
+	if p := progress("/m", time.Minute); p != (store.Progress{Going: true, Model: 1, Models: 3}) {
+		t.Errorf("with the second model noted: %+v, want it of three", p)
+	}
+	if p := progress("/other", time.Minute); p.Going {
+		t.Errorf("of another method: %+v, want none going", p)
+	}
+	if _, err := e.pool.Exec(ctx, `UPDATE idempotency_keys SET created_at = now() - interval '2 minutes' WHERE key = 'k'`); err != nil {
+		t.Fatal(err)
+	}
+	if p := progress("/m", time.Minute); p.Going {
+		t.Errorf("older than goingFor: %+v, want none going", p)
+	}
+	if _, err := e.pool.Exec(ctx, `UPDATE idempotency_keys SET state = $1, response = $2 WHERE key = $3`, store.KeyDone, []byte{1}, "k"); err != nil {
+		t.Fatal(err)
+	}
+	if p := progress("/m", time.Hour); p.Going {
+		t.Errorf("done: %+v, want none going", p)
+	}
+}

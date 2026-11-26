@@ -209,6 +209,9 @@ const (
 	MomentTariff    = "tariff"
 	MomentReopen    = "reopen"
 	MomentDebug     = "debug_access"
+	// MomentProgress is the note of a later model of a Check going, a warning:
+	// the Check goes on.
+	MomentProgress = "check_progress"
 )
 
 // The steps of the daily job and of the job after a rollout: the value set of
@@ -288,7 +291,7 @@ var fields = map[string]rule{
 	FieldDeployed:         {kind: slog.KindBool},
 	FieldStarted:          {kind: slog.KindBool},
 	FieldCutShort:         {kind: slog.KindBool},
-	FieldMoment:           {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen, MomentDebug}},
+	FieldMoment:           {kind: slog.KindString, values: []string{MomentStartup, MomentServe, MomentShutdown, MomentMigrate, MomentInvite, MomentCountries, MomentSweep, MomentPackages, MomentAfter, MomentConsents, MomentReports, MomentTariff, MomentReopen, MomentDebug, MomentProgress}},
 	FieldErrorKind:        {kind: slog.KindLogValuer},
 	FieldPanicKind:        {kind: slog.KindLogValuer},
 	FieldApplied:          {kind: slog.KindInt64},

@@ -170,6 +170,9 @@ type note struct {
 	platformLimit bool
 	// calls are the calls of AI the request made.
 	calls []AICall
+	// progress is the failure of the note of a later model of its call, which
+	// failed nothing else.
+	progress error
 }
 
 type noteKey struct{}
@@ -229,6 +232,10 @@ func logged(log *slog.Logger) connect.ServerInterceptor {
 			}
 			if n.quotaSpent != "" {
 				log.InfoContext(ctx, logging.EventQuotaExhausted, logging.FieldMethod, spec.Procedure, logging.FieldQuotaCap, n.quotaSpent)
+			}
+			if n.progress != nil {
+				log.WarnContext(ctx, logging.EventFailure, logging.FieldMoment, logging.MomentProgress,
+					logging.FieldErrorKind, logging.ErrorKind(n.progress))
 			}
 			for _, c := range n.calls {
 				if len(c.Usage) == 0 {
