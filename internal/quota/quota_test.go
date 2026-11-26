@@ -32,15 +32,15 @@ func TestDollarsAreMicroDollarsRoundedUp(t *testing.T) {
 	}
 }
 
-// The tariff of the closed slice caps a profile at $0.50 and an account at
-// $1.50, and the probe at a few cents with room for a typical task; an account
+// The tariff of the closed slice caps a profile at $1.00 and an account at
+// $3.00, and the probe at a few cents with room for a typical task; an account
 // with no tariff, or one the table does not know, has no caps, and platform AI
 // is closed to it.
 func TestATariffHasItsCapsAndNoneIsClosed(t *testing.T) {
 	t.Parallel()
 
 	for _, off := range []bool{false, true} {
-		if caps, ok := quota.CapsOf(quota.ClosedSlice, off); !ok || caps.Profile != 500_000 || caps.Account != 1_500_000 {
+		if caps, ok := quota.CapsOf(quota.ClosedSlice, off); !ok || caps.Profile != 1_000_000 || caps.Account != 3_000_000 {
 			t.Errorf("the caps of the closed slice, off a deployment %v = %+v, %v", off, caps, ok)
 		}
 		probe, ok := quota.CapsOf(quota.Probe, off)

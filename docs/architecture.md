@@ -697,8 +697,8 @@ In the code: the reserve is taken by the first transaction of the request — th
 | "self" | 30% of tasks have one error. Per task — a check and praise, per error — one more check and the words of a rung: 26 checks and 26 words calls, praise counted as the words of a rung | ≈ 26 × ($0.0086 + $0.0152) ≈ $0.62; with praise at $0.0135, ≈ $0.58 |
 | "by steps" | in format v0 "step done" does not read the work, and the tutor at a step speaks without AI: only "Check" reads, as in the mode "self" | ≈ $0.62, as "self" |
 
-- The profile's cap of `closed_slice` in `internal/quota` is sized by this estimate, about 16 tasks in any mode, and О-14 holds the same estimate.
-- At an account's cap of $1.50 a day, the size of `closed_slice` by this estimate, an account's worst month is 30 × $1.50 = $45. With days no shorter than 20 hours there are no more than 36 days in 30 calendar days, so the worst month is no more than $54, plus overspending. The budget of the closed slice is the number of accounts × $54, and from above it is held by the workspace's limit at the provider.
+- The profile's cap of `closed_slice` in `internal/quota` is sized by this estimate, about 32 tasks in any mode, and О-14 holds the same estimate.
+- At an account's cap of $3.00 a day, the size of `closed_slice`, an account's worst month is 30 × $3.00 = $90. With days no shorter than 20 hours there are no more than 36 days in 30 calendar days, so the worst month is no more than $108, plus overspending. The budget of the closed slice is the number of accounts × $108, and from above it is held by the workspace's limit at the provider.
 - Stage 3 does not inherit these caps. If Plus for $10 a month with a quota five times the free one pays for the worst month, a free day is no more than $10 / (5 × 36) ≈ $0.056 at 36 days in a month, less than two tasks in the mode "self" at ≈ $0.031 per task. So checking must get cheaper by about an order of magnitude, or the prices will be different: this is an input for О-14.
 
 **What is kept and for how long** — the rows "account" and "quota counters" of the table of the data `api` stores:

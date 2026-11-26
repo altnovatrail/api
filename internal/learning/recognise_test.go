@@ -218,7 +218,7 @@ func TestRecogniseRefusesBeforeAnyCall(t *testing.T) {
 		Statement: []byte("no picture")}); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Errorf("a crop that is no picture = %v, want invalid_argument", err)
 	}
-	day := w.spend(t, l.accountID, 1_500_000)
+	day := w.spend(t, l.accountID, 3_000_000)
 	_, err := w.recognise(t, l, a, formulaStatement, uuid.NewString())
 	if r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_QUOTA); !r.GetNextFamilyDay().AsTime().Equal(day.End) {
 		t.Errorf("the quota's refusal = %v, want the next day", r)

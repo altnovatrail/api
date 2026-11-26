@@ -247,7 +247,7 @@ func TestTheWordsAfterACorrectAnswerOnTheQuotaAndAnOwnKey(t *testing.T) {
 	w := newPraiseWorld(t, ps, rs, onPolicy3)
 	l := w.learner(t)
 	a := w.correctOn(t, l, rs)
-	day := w.spend(t, l.accountID, 1_500_000)
+	day := w.spend(t, l.accountID, 3_000_000)
 	res, err := w.praised(l, l.adult, a, sheet(crop(t)))
 	if err != nil || res.Words != nil || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA ||
 		!res.GetOutcome().GetNextFamilyDay().AsTime().Equal(day.End) || ps.count() != 0 {

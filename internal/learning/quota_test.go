@@ -285,7 +285,7 @@ func TestASpentQuotaMakesNoCall(t *testing.T) {
 	// The attempt of handwriting begins with room for a typical task, and waits
 	// once the quota is spent.
 	sheetAttempt := w.begin(t, l, l.adult, "apples").GetAttemptId()
-	day := w.spend(t, l.accountID, 1_500_000)
+	day := w.spend(t, l.accountID, 3_000_000)
 	calls := ts.count()
 
 	rs.give(answered(read("7"), read("7")))
@@ -571,7 +571,7 @@ func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
 
 	run := begun(l.adult)
 	gives(l.adult, run)
-	day := w.spend(t, l.accountID, 1_500_000)
+	day := w.spend(t, l.accountID, 3_000_000)
 	waits(l.adult, v1.Cause_CAUSE_QUOTA)
 	if w.endOf(t, run) != "" {
 		t.Error("the run that waits has ended")
@@ -697,7 +697,7 @@ func TestAnOwnKeyChoosesByItsRoute(t *testing.T) {
 	if res, err := w.submit(l, l.adult, pick.GetAttemptId(), tap(1, 1, "three and four")); err != nil || res.GetSolved() == nil {
 		t.Fatalf("the segment of a tap = %v (%v), want it solved", res, err)
 	}
-	w.spend(t, l.accountID, 1_500_000)
+	w.spend(t, l.accountID, 3_000_000)
 
 	// On platform AI the run waits; by the own key it comes next, and its segment
 	// of handwriting begins by that key.

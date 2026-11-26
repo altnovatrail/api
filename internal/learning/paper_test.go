@@ -231,7 +231,7 @@ func TestTheFindingRefusesWhatTheContractRefuses(t *testing.T) {
 		t.Errorf("the profile spent %+v, want the one call on platform AI, and none of the own key", spent)
 	}
 
-	day := w.spend(t, l.accountID, 1_500_000)
+	day := w.spend(t, l.accountID, 3_000_000)
 	_, err = w.findTasks(l, l.adult, photoOf(t, 30, 40), uuid.NewString())
 	if r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_QUOTA); !r.GetNextFamilyDay().AsTime().Equal(day.End) {
 		t.Errorf("the quota's refusal = %v, want the next day", r)
@@ -343,7 +343,7 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 
 	w, _ := newStubWorld(t)
 	l := w.learner(t)
-	day := w.spend(t, l.accountID, 1_500_000)
+	day := w.spend(t, l.accountID, 3_000_000)
 	_, err := w.paper.BeginPaperAttempts(l.ctx, &v1.BeginPaperAttemptsRequest{PageId: uuid.NewString(), ProfileId: l.adult, IdempotencyKey: uuid.NewString(), Tasks: 2})
 	if r := refusedAs(t, err, connect.CodeResourceExhausted, v1.Cause_CAUSE_QUOTA); !r.GetNextFamilyDay().AsTime().Equal(day.End) {
 		t.Errorf("the quota's refusal = %v, want the next day", r)

@@ -323,7 +323,7 @@ func workbookIsLearnedOn(t *testing.T, set *packages.Set) {
 	}
 	for _, id := range slices.Sorted(maps.Keys(pkg.View.Tasks)) {
 		// A page reserves 14,000 micro-dollars a box, up to 16 boxes here, and the
-		// closed slice holds a child's $0.50 a family day: each task begins on
+		// closed slice holds a child's $1.00 a family day: each task begins on
 		// counters spent anew, as on a new family day.
 		w.exec(t, `UPDATE profile_quota SET spent_micro_usd = 0 WHERE profile_id = $1`, l.child)
 		w.exec(t, `UPDATE account_quota SET spent_micro_usd = 0 WHERE account_id = $1`, l.accountID)
