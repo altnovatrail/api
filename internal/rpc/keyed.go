@@ -307,7 +307,7 @@ func keyRefusal(ctx context.Context, err error) error {
 	case errors.Is(err, errKeyUsed):
 		return Refuse(ctx, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_ALREADY_USED)
 	case errors.Is(err, errStillGoing):
-		return Refuse(ctx, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+		return Refuse(ctx, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 	}
 	return err
 }

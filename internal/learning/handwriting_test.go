@@ -230,7 +230,7 @@ func TestASubmissionUnderItsKeyIsReadOnce(t *testing.T) {
 	}()
 	<-reading
 	_, err := w.attempts.SubmitWork(l.ctx, req)
-	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, err, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 	close(release)
 	if err := <-first; err != nil {
 		t.Fatal(err)

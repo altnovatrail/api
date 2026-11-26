@@ -253,7 +253,7 @@ func TestARequestStillGoingIsToldSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := w.verify(ctx, "going", thePIN)
-	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, err, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 }
 
 func TestRepeatsAtOnceAreOneAction(t *testing.T) {

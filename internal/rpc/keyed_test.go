@@ -53,7 +53,7 @@ func TestARequestUnderAKeyActsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = rpc.Once(ctx, w.pool, key, going, act)
-	refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, err, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 
 	_, err = rpc.Once(ctx, w.pool, key, &v1.SubmitWorkRequest{}, act)
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
@@ -221,7 +221,7 @@ func TestARequestAcrossItsCallRecordsItGoing(t *testing.T) {
 	if err != nil || got.GetWrongAnswers() != 2 {
 		t.Fatalf("Across = %v, %v; want the answer of the last part", got, err)
 	}
-	refusedAs(t, stillGoing, connect.CodeUnavailable, v1.Cause_CAUSE_STILL_GOING)
+	refusedAs(t, stillGoing, connect.CodeAborted, v1.Cause_CAUSE_STILL_GOING)
 	if model != 1 || models != 3 {
 		t.Errorf("the record going noted model %d of %d, want 1 of 3", model, models)
 	}
