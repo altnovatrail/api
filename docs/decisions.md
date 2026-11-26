@@ -2714,13 +2714,13 @@ That canvas-api went without Centrifugo in one of its epics is no argument: it k
 
 ## The essays without the reminder of names
 
-**R92. `modules.json` pins `modules` v0.2.12 with the index `sha256:cb16bb45…1d71a`: in window 0.4 it has seven packages, and the current versions are those of v0.2.7 but `novatrail/english-essays` 0.2.1, the essays without the paragraph on names in five task statements. `api`'s code does not change, and the merge makes a release of `api`, since `modules.json` is among the paths `release.yml` builds a release from.**
-- **What the release carries:** the index of v0.2.12 is that of v0.2.7 with one more entry, `novatrail/english-essays` 0.2.1, format 0.4, package `sha256:5975e7c5…de9fb5`; the releases v0.2.8–v0.2.11 add no package. The paragraph "Do not write your name or the real name of anyone you know." left five statements, since `app` shows that reminder above Check; `module-kit diff` names it a patch.
-- **What was decided:** the pinning as any release of `modules` is pinned, by the digest of its index, with its packages of the window in the image; the tests take each module's current version from the index, so none names 0.2.0 and none changes; the essays come back to the catalog of `novatrail` by `infra`'s list of the deployment's modules after this release (Д47); the change of `canvas.digit_height` waits on `tutor` and is not in it.
+**R92. `modules.json` pins `modules` v0.2.18 with the index `sha256:bea64c27…0865a`: in window 0.4 it has eight packages, and the current versions are those of v0.2.7 but `novatrail/english-essays` 0.2.1, the essays without the paragraph on names in five task statements, and `novatrail/check-board` 0.1.1, the board module under its title «Ознакомительный блок». `api`'s code does not change, and the merge makes a release of `api`, since `modules.json` is among the paths `release.yml` builds a release from.**
+- **What the release carries:** the index of v0.2.18 is that of v0.2.7 with two more entries: `novatrail/english-essays` 0.2.1, format 0.4, package `sha256:5975e7c5…de9fb5`, of v0.2.12, and `novatrail/check-board` 0.1.1, format 0.4, package `sha256:d326ca7c…af45f2`, of v0.2.18; the other releases after v0.2.7 add no package. The paragraph "Do not write your name or the real name of anyone you know." left five statements of the essays, since `app` shows that reminder above Check; the board module changed only its title, and `module-kit diff` names both a patch.
+- **What was decided:** the pinning as any release of `modules` is pinned, by the digest of its index, with its packages of the window in the image; the tests take each module's current version from the index, so none names a version and none changes; the essays come back to the catalog of `novatrail` by `infra`'s list of the deployment's modules (Д47); the change of `canvas.digit_height` waits on `tutor` and is not in it.
 
-— *Why:* the essays return to `novatrail` only as version 0.2.1, with no reminder that `app` already shows.
+— *Why:* the essays reach `novatrail` only as version 0.2.1, with no reminder that `app` already shows, and the board module reaches it under the title the author gave it.
 
-— *Rejected:* waiting to pin one release with the change of `canvas.digit_height` too — it waits on `tutor`, and the essays would wait with it; an intermediate release, v0.2.8–v0.2.11 — no package of their own.
+— *Rejected:* waiting to pin one release with the change of `canvas.digit_height` too — it waits on `tutor`, and the modules would wait with it; a release between those that add a package — none adds one of its own.
 
 — *Consequence:* `modules.json`; `internal/learning/release_test.go`; `run/DEBT.md`; `docs/architecture.md`.
 
