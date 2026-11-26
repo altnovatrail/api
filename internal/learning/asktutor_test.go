@@ -150,7 +150,7 @@ func TestAQuestionBeforeACheckChecksTheWorkFirst(t *testing.T) {
 
 	over := w.learner(t)
 	d := w.beginPage(t, over, over.adult, 1)[0]
-	w.spend(t, over.accountID, 1_995_000)
+	w.spend(t, over.accountID, 2_995_000)
 	res, err = w.ask(t, over, d, uuid.NewString(), "Where do I start?")
 	if err != nil || res.GetWords() != tutor.PaperFallback(0, "en") || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA ||
 		len(s.checks()) != 2 || w.paperCheck(t, d) != nil {

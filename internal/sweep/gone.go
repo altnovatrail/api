@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -25,10 +26,12 @@ type AfterJob struct {
 
 // After is the job after a rollout on db: it closes "unchecked" the open
 // attempts and lesson runs on the packages the image of set no longer gives —
-// withdrawn, or out of the window — and writes the evidence the closed attempts
-// owe. It needs neither the rights nor the sign-in service.
+// withdrawn, or out of the window — and on those of the modules solved on the
+// sheet, whose tasks the engine no longer begins, and writes the evidence the
+// closed attempts owe. It needs neither the rights nor the sign-in service.
 func After(db DB, set *packages.Set, m *model.Model, log *slog.Logger) *AfterJob {
-	return &AfterJob{job{db: db, model: m, gone: set.NotGiven(), log: log, moment: logging.MomentAfter}}
+	gone := slices.Compact(slices.Sorted(slices.Values(slices.Concat(set.NotGiven(), set.SheetDigests()))))
+	return &AfterJob{job{db: db, model: m, gone: gone, log: log, moment: logging.MomentAfter}}
 }
 
 // Run runs one pass of the job after a rollout at now, until ctx ends, as the

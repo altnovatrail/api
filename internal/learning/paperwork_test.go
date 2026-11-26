@@ -419,7 +419,7 @@ func TestATaskFromPaperOverTheQuota(t *testing.T) {
 	w, s, _ := scriptedWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	w.spend(t, l.accountID, 1_995_000)
+	w.spend(t, l.accountID, 2_995_000)
 	res := w.submitPaper(t, l, a, rightWork)
 	if s := slotOf(t, res); s.GetVerdict() != "unchecked" || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA {
 		t.Errorf("over the quota = %v, want unchecked with CAUSE_QUOTA", res)

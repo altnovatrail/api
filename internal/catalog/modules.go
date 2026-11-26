@@ -165,11 +165,12 @@ func (s *ModuleService) change(ctx context.Context, profileID string, fn func(pg
 
 // connected is the modules connected in the contract's words, each with the
 // digest of its current version for a learner of category: none for a module
-// the deployment's list leaves out, which stays connected.
+// the deployment's list leaves out, which stays connected; and whether it is
+// solved on the sheet of a task from paper.
 func (c *Catalog) connected(rows []store.ConnectedModule, category formatv0.AgeCategory) []*v1.ConnectedModule {
 	modules := make([]*v1.ConnectedModule, 0, len(rows))
 	for _, row := range rows {
-		m := &v1.ConnectedModule{ModuleId: row.ModuleID, ConnectedAt: timestamppb.New(row.ConnectedAt)}
+		m := &v1.ConnectedModule{ModuleId: row.ModuleID, ConnectedAt: timestamppb.New(row.ConnectedAt), OnSheet: c.set.OnSheet(formatv0.ModuleID(row.ModuleID))}
 		if pkg, ok := c.set.OfferedFor(formatv0.ModuleID(row.ModuleID), category); ok {
 			m.PackageDigest = string(pkg.Digest)
 		}

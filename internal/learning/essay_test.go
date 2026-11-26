@@ -458,7 +458,7 @@ func TestAnEssayReservesItsReadingWithItsAssessment(t *testing.T) {
 		t.Errorf("an essay on an own key counted %+v, want nothing more", profile)
 	}
 	// What is left of the account's day holds the reading but not both calls.
-	w.spend(t, l.accountID, quota.Micro(1_500_000-20_000))
+	w.spend(t, l.accountID, quota.Micro(3_000_000-20_000))
 	reads, _ := es.calls()
 	res, err := w.submitEssay(t, l, attempt, nil)
 	if err != nil || res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_UNCHECKED || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA ||

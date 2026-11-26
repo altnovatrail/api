@@ -224,7 +224,7 @@ func TestGrownUpModeWithNoActIsNoRefusal(t *testing.T) {
 	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g)), learning.WithDrawing(d.draw)})
 	over := w.learner(t)
 	a := w.beginPage(t, over, over.adult, 1)[0]
-	w.spend(t, over.accountID, 1_995_000)
+	w.spend(t, over.accountID, 2_995_000)
 	key := uuid.NewString()
 	res, err := w.grownUp(t, over, over.adult, a, key, "Draw")
 	if err != nil || res.GetOutcome().GetCause() != v1.Cause_CAUSE_QUOTA || res.GetWords() != "" || d.calls() != 0 {

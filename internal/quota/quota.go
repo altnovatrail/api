@@ -5,9 +5,8 @@
 //
 // The values are the configuration of api, and a pull request changes them:
 // they are product, not deployment, and a deployment that set its own would
-// make two platforms of one release without a word in the log. The first values
-// are those of the tariff of the closed slice, $0.50 a profile and $1.50 an
-// account.
+// make two platforms of one release without a word in the log. The tariff of
+// the closed slice is $1.00 a profile and $3.00 an account.
 package quota
 
 import (
@@ -52,7 +51,7 @@ const (
 	// task and a few checks after it, and no more.
 	Probe = "probe"
 	// DevCheck is the tariff of the account of dev-check on the dev projects,
-	// tenfold the closed slice's, so that the runs of a chain of tasks in one
+	// fivefold the closed slice's, so that the runs of a chain of tasks in one
 	// family day all find room. It is off a deployment alone: there the
 	// commands refuse it, and api reads it as a tariff with no caps.
 	DevCheck = "dev_check"
@@ -68,7 +67,7 @@ type tariff struct {
 
 // tariffs are the tariffs, in the order a command lists them.
 var tariffs = []tariff{
-	{ClosedSlice, Caps{Profile: 500_000, Account: 1_500_000}, false},
+	{ClosedSlice, Caps{Profile: 1_000_000, Account: 3_000_000}, false},
 	{Probe, Caps{Profile: 80_000, Account: 100_000}, false},
 	{DevCheck, Caps{Profile: 5_000_000, Account: 15_000_000}, true},
 }

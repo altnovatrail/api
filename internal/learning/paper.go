@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -14,9 +15,11 @@ import (
 	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
+	"github.com/altnovatrail/module-kit/modulepackage"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
+	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
@@ -237,14 +240,19 @@ var pageID = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$`)
 // ownKey, the Check, without which no verdict comes, and on platform AI only
 // with room for a typical task of handwriting left of the family day, while the
 // limit of its provider leaves platform AI open, as BeginAttempt begins a task
-// of a module.
+// of a module. With a module solved on the sheet, the page's tasks are those of
+// the package of its current version, which the answer gives open.
 func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPaperAttemptsRequest) (*v1.BeginPaperAttemptsResponse, error) {
 	s := p.s
 	category, err := s.learner(ctx, req.GetProfileId())
 	if err != nil {
 		return nil, err
 	}
-	if n := req.GetTasks(); n < 1 || n > maxPaperTasks {
+	module := formatv0.ModuleID(req.GetModuleId())
+	switch n := req.GetTasks(); {
+	case module != "" && !s.set.OnSheet(module):
+		return nil, rpc.Malformed("module_id")
+	case module != "" && n != 0, module == "" && (n < 1 || n > maxPaperTasks):
 		return nil, rpc.Malformed("tasks")
 	}
 	if !pageID.MatchString(req.GetPageId()) {
@@ -270,14 +278,50 @@ func (p *PaperService) BeginPaperAttempts(ctx context.Context, req *v1.BeginPape
 					return nil, store.KeyTarget{}, closedRefusal(ctx, closed)
 				}
 			}
-			ids, err := store.BeginPaperAttempts(ctx, tx, profileID, req.GetPageId(), int(req.GetTasks()), now)
+			answer := &v1.BeginPaperAttemptsResponse{}
+			n := int(req.GetTasks())
+			if module != "" {
+				pkg, err := s.packageOf(ctx, tx, profileID, category, begun{module: module})
+				if err != nil {
+					return nil, store.KeyTarget{}, err
+				}
+				if answer.Tasks, err = sheetTasks(pkg, category); err != nil {
+					return nil, store.KeyTarget{}, err
+				}
+				if len(answer.Tasks) == 0 {
+					return nil, store.KeyTarget{}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+				}
+				answer.PackageDigest = string(pkg.Digest)
+				n = len(answer.Tasks)
+			}
+			ids, err := store.BeginPaperAttempts(ctx, tx, profileID, req.GetPageId(), n, now)
 			if err != nil {
 				return nil, store.KeyTarget{}, err
 			}
-			return &v1.BeginPaperAttemptsResponse{AttemptIds: ids}, store.KeyTarget{ProfileID: profileID}, nil
+			answer.AttemptIds = ids
+			return answer, store.KeyTarget{ProfileID: profileID}, nil
 		})
 	if err != nil {
 		return nil, refused(ctx, err)
 	}
 	return answer, nil
+}
+
+// sheetTasks is the open view of each task of pkg, a module solved on the
+// sheet, that suits a learner of category, by their IDs, at most maxPaperTasks:
+// a template is left out, as its instance would need a seed the attempt of a
+// page does not keep.
+func sheetTasks(pkg *modulepackage.Package, category formatv0.AgeCategory) ([]*v1.OpenView, error) {
+	ids := slices.DeleteFunc(slices.Sorted(maps.Keys(pkg.View.Tasks)), func(id formatv0.TaskID) bool {
+		return len(pkg.View.Instances[id]) > 0 || !suits(pkg, pkg.View.Tasks[id], category)
+	})
+	views := make([]*v1.OpenView, 0, min(len(ids), maxPaperTasks))
+	for _, id := range ids[:min(len(ids), maxPaperTasks)] {
+		view, err := openTask(pkg, pkg.View.Tasks[id])
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
 }
