@@ -75,6 +75,7 @@ var methods = map[string]rule{
 	apiv1connect.AccountServiceGetQuotaProcedure:            toLearn,
 
 	apiv1connect.AttemptServiceSubmitWorkProcedure:            toLearn,
+	apiv1connect.AttemptServiceGetCheckProgressProcedure:      toLearn,
 	apiv1connect.AttemptServiceSubmitEssayProcedure:           toLearn,
 	apiv1connect.AttemptServiceDoneProcedure:                  toLearn,
 	apiv1connect.AttemptServiceGetRungWordsProcedure:          toLearn,

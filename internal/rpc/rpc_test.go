@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/connect/v2/connectproto"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/altnovatrail/api/internal/authn"
@@ -104,6 +105,8 @@ func (a *accounts) CreateAccount(ctx context.Context, _ *v1.CreateAccountRequest
 				OutputTokens: 40, ThinkingTokens: 300, Took: 1400 * time.Millisecond, Retries: 1, FirstToken: 900 * time.Millisecond},
 		}})
 		rpc.NoteAICall(ctx, rpc.AICall{Outcome: "not_admitted"})
+		// The note of a later model, on a database that is down, fails nothing.
+		rpc.NoteModel(rpc.WithGoing(ctx, downDB{}, "account", "key", time.Now()), 1, 3)
 	}
 	return &v1.CreateAccountResponse{}, nil
 }
@@ -122,6 +125,11 @@ func (a *accounts) DeleteAccount(ctx context.Context, _ *v1.DeleteAccountRequest
 	a.let(ctx)
 	return &v1.DeleteAccountResponse{}, nil
 }
+
+// downDB is a database whose every transaction fails to begin.
+type downDB struct{}
+
+func (downDB) Begin(context.Context) (pgx.Tx, error) { return nil, errors.New("down") }
 
 // world is a server of the contract on a database, a store of rights and a
 // fake sign-in service of the test's own.
@@ -733,6 +741,7 @@ func TestTheCallsOfAIAreLoggedBesideTheirRequest(t *testing.T) {
 		`"key_check":"unanswered"`,
 		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","provider":"anthropic","model":"claude-opus-5-5","input_tokens":1200,"cache_write_tokens":2100,"cache_read_tokens":700,"output_tokens":40,"thinking_tokens":300,"ai_outcome":"answered","duration_ms":1500,"cost_micro_usd":0,"billed":false,"model_ms":1400,"retries":1,"first_token_ms":900`,
 		`"message":"ai_usage","method":"/novatrail.api.v1.AccountService/CreateAccount","ai_outcome":"not_admitted","duration_ms":0`,
+		`"severity":"WARNING","message":"failure","moment":"check_progress","error_kind":`,
 	} {
 		if !strings.Contains(log, want) {
 			t.Errorf("the log has no %s:\n%s", want, log)

@@ -184,7 +184,7 @@ func Across[S any, Res proto.Message](ctx context.Context, db store.Beginner, k 
 		return zero, keptRefusal
 	}
 
-	state = p.Call(ctx, state)
+	state = p.Call(context.WithValue(ctx, goingKey{}, going{db: db, accountID: caller.AccountID, key: key, made: made}), state)
 
 	err = store.WriteUnderAccount(ctx, db, caller.AccountID, func(tx pgx.Tx) error {
 		if err := store.HoldAccount(ctx, tx, caller.AccountID); err != nil {
@@ -219,6 +219,41 @@ func Across[S any, Res proto.Message](ctx context.Context, db store.Beginner, k 
 		return store.DropRecord(dropCtx, tx, caller.AccountID, key, made)
 	})
 	return zero, keyRefusal(ctx, err)
+}
+
+// noteTimeout bounds the transaction that notes a later model in the record
+// going: the call waits for it.
+const noteTimeout = 2 * time.Second
+
+// going is the record going of the request whose call ctx carries, by which
+// NoteModel finds it.
+type going struct {
+	db        store.Beginner
+	accountID string
+	key       string
+	made      time.Time
+}
+
+type goingKey struct{}
+
+// NoteModel writes into the record going of the request whose call of AI ctx
+// is — the call Across makes between its transactions — the place of the model
+// that now reads, from 0, and the length of the call's list, for
+// GetCheckProgress to give. Outside such a call it does nothing. Its own
+// transaction is bounded by noteTimeout and survives the request's end; a
+// failure goes to the request's log as a warning and fails nothing.
+func NoteModel(ctx context.Context, model, models int) {
+	g, ok := ctx.Value(goingKey{}).(going)
+	if !ok {
+		return
+	}
+	noteCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), noteTimeout)
+	defer cancel()
+	if err := store.WriteUnderAccount(noteCtx, g.db, g.accountID, func(tx pgx.Tx) error {
+		return store.NoteModel(noteCtx, tx, g.accountID, g.key, g.made, model, models)
+	}); err != nil {
+		noteOf(ctx).progress = err
+	}
 }
 
 // recorded is the answer a repeat gets from the record of key, held under the

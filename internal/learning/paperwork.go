@@ -253,10 +253,12 @@ func checkBuilt(ctx context.Context, tx pgx.Tx, profileID string, row store.Atte
 // callCheck makes the Check of c until finishReserve before the request's
 // deadline, and settles its reserve; own is as sheetReader has it. A request
 // answered already, or whose reserve the quota refused, calls nothing. The
-// crops go no further than the call.
+// crops go no further than the call. Each later model the Check goes on to is
+// noted in the key's record going, for GetCheckProgress.
 func (s *Service) callCheck(ctx context.Context, c paperChecking, own string) paperChecking {
 	if c.ready == nil && c.reserve.refused == nil {
 		called, cancel := finishing(ctx)
+		called = tutor.WithNextModel(called, func(model, models int) { rpc.NoteModel(ctx, model, models) })
 		start := time.Now()
 		c.checked = s.paper.CheckPaper(called, c.check, own)
 		cancel()

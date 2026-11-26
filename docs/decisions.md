@@ -4,7 +4,7 @@
 >
 > **Rule:** do not propose again what was rejected without new facts. If a decision has to change, ask the author and rewrite its entry in its place, and every entry the change touches: an entry is its text in force — what was decided, why, what was rejected and what a change of it edits —, git keeps the old text, and the commit says why. An entry's number stands in its heading alone: an entry cites no other entry and no section, says in words what it rests on, and carries no date of who decided it and no amendment; a fact that no run of ours checks cites its one record of [sources.md](sources.md), a measurement its record of [measurements.md](measurements.md), and a library's documentation or code at a version or commit is a link beside the claim.
 >
-> The repository was set up 2026-10-19 from the template of `spec` v0.1.0. How it comes to differ from the template — tools in the devcontainer, rules in RUN.md — is recorded here as a decision. Next number — R103.
+> The repository was set up 2026-10-19 from the template of `spec` v0.1.0. How it comes to differ from the template — tools in the devcontainer, rules in RUN.md — is recorded here as a decision. Next number — R104.
 >
 > Open questions that concern several repositories — О-, П-, Т- — are in the registers of `spec`, in `spec/docs/product.md`, `spec/docs/privacy.md` and `spec/docs/repositories.md`. What is still to decide in the component itself is in [architecture.md](architecture.md).
 
@@ -2862,3 +2862,16 @@ That canvas-api went without Centrifugo in one of its epics is no argument: it k
 — *Rejected:* the right `can_learn`, which would let the learner's own session call a tutor with none of its limits; a Check before the drawing, which it does not need; keeping the outcome in the key's record, as a question's, when the contract has a repeat say `repeated` alone; a write deadline of its own for this path alone, more code for the same bound; trusting the act as `tutor` gives it, which would let an ID the request never named reach the sheet.
 
 — *Consequence:* `internal/learning/grownup.go`, `asktutor.go`, `learning.go`; `internal/rpc/methods.go`, `rpc.go`; `internal/config/config.go`; `internal/admission/admission.go`; `internal/quota/quota.go`; `internal/debug/debug.go`, `service.go`; `internal/tutorstub/tutorstub.go`; `cmd/api/serve.go`, `sweep.go`; `docs/build.md`; `docs/architecture.md`.
+
+## The progress of a Check
+
+**R103. While `SubmitWork` checks a task from paper, `GetCheckProgress` says how far the Check has got: the record "going" of its key holds the place of the model that now reads, from 0, and the length of the call's list, which `tutor` gives before it asks a later model, and the method reads them by the profile and the attempt under the caller's account, with nothing written.**
+- **The note.** `callCheck` gives the call a hook of `tutor.WithNextModel`, which calls `rpc.NoteModel`: `rpc.Across` gives its call a context that knows its record going, the account, the key and the mark it was made at, and `NoteModel` writes the two numbers into the columns `model` and `models` of the migration `0031` in a transaction of its own under the account, bounded by 2 s and cut short by neither the deadline nor the client. A failure is a warning `failure` with the moment `check_progress` in the log, beside the request's line, and fails nothing. `GetOpeningWords` and `AskTutor`, which check the work too, note the same, which nobody reads.
+- **The method.** `GetCheckProgress`, with the right `can_learn`, reads the latest record going of `SubmitWork` on the profile's attempt under the caller's account, made less than the longest a submission may run ago (`store.CheckProgress`): none is `going` false; one with no model noted is `going` with both 0. An `attempt_id` not a UUID is `invalid_argument`.
+- **The data.** Two numbers of a record that holds no content, which `app` shows as the Check going on: no model's name, since the names are the debug mode's alone.
+
+— *Why:* a Check that goes on to a later model may run for over a minute, and the learner should see that the work is being read more closely rather than one card all the while. The record going is already the request's row that every instance reads, so the next model costs one write and a question of the device one read by the primary key's account, with no change to the order of the models, their efforts or the time a Check may run.
+
+— *Rejected:* a stream of `SubmitWork`, which would change the main path of a submission — its key, its repeat, its deadline and the transport of `app`; the place in the refusal "still going" of a repeat, which `app` would have to send on purpose; the place in the memory of the process, which a question on another instance would not find; a hook of the cascade that writes itself, which would put the database in `tutor`.
+
+— *Consequence:* `internal/learning/checkprogress.go`, `paperwork.go`; `internal/rpc/keyed.go`, `rpc.go`, `methods.go`; `internal/store/keys.go`; `internal/store/migrations/0031_check_progress.sql`; `internal/logging/events.go`; `docs/architecture.md`.
