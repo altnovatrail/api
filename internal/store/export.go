@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/altnovatrail/spec/types/exportv5"
+	"github.com/altnovatrail/spec/types/exportv6"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,12 +18,12 @@ import (
 // of an attempt, it adds.
 
 // ExportFormat is the integer of export/VERSION of spec's tag.
-const ExportFormat = 5
+const ExportFormat = 6
 
 // timeOf is t in the form of the export: RFC 3339 in UTC.
-func timeOf(t time.Time) exportv5.Time { return exportv5.Time(t.UTC().Format(time.RFC3339)) }
+func timeOf(t time.Time) exportv6.Time { return exportv6.Time(t.UTC().Format(time.RFC3339)) }
 
-func timeOrNil(t *time.Time) *exportv5.Time {
+func timeOrNil(t *time.Time) *exportv6.Time {
 	if t == nil {
 		return nil
 	}
@@ -31,13 +31,13 @@ func timeOrNil(t *time.Time) *exportv5.Time {
 	return &v
 }
 
-func dayOf(t time.Time) exportv5.Day { return exportv5.Day(t.UTC().Format("2006-01-02")) }
+func dayOf(t time.Time) exportv6.Day { return exportv6.Day(t.UTC().Format("2006-01-02")) }
 
 // ExportAccount is the account's part of the export: its fields that are no
 // secret and every consent of it, in full, and the IDs of its profiles.
-func ExportAccount(ctx context.Context, tx pgx.Tx, accountID string) (exportv5.Account, error) {
-	a := exportv5.Account{Format: ExportFormat, AccountID: exportv5.ID(accountID), ProfileIds: []exportv5.FileID{},
-		Consents: []exportv5.Consent{}, QuotaCounters: []exportv5.QuotaCounter{}}
+func ExportAccount(ctx context.Context, tx pgx.Tx, accountID string) (exportv6.Account, error) {
+	a := exportv6.Account{Format: ExportFormat, AccountID: exportv6.ID(accountID), ProfileIds: []exportv6.FileID{},
+		Consents: []exportv6.Consent{}, QuotaCounters: []exportv6.QuotaCounter{}}
 	var stated, lastOn time.Time
 	var offset *int64
 	var dayEnds *time.Time
@@ -45,27 +45,27 @@ func ExportAccount(ctx context.Context, tx pgx.Tx, accountID string) (exportv5.A
 		FROM accounts WHERE id = $1`, accountID).Scan(&stated, &a.Tariff, &offset, &dayEnds, &lastOn)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return exportv5.Account{}, ErrNoAccount
+		return exportv6.Account{}, ErrNoAccount
 	case err != nil:
-		return exportv5.Account{}, fmt.Errorf("store: read the account: %w", err)
+		return exportv6.Account{}, fmt.Errorf("store: read the account: %w", err)
 	}
 	a.AdultStatedAt, a.UtcOffsetMinutes, a.DayEndsAt, a.LastRequestOn = timeOf(stated), offset, timeOrNil(dayEnds), dayOf(lastOn)
 	rows, err := tx.Query(ctx, `SELECT id FROM profiles WHERE account_id = $1 ORDER BY owner DESC, created_at, id`, accountID)
 	if err != nil {
-		return exportv5.Account{}, fmt.Errorf("store: read the profiles: %w", err)
+		return exportv6.Account{}, fmt.Errorf("store: read the profiles: %w", err)
 	}
 	ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
 	if err != nil {
-		return exportv5.Account{}, fmt.Errorf("store: read the profiles: %w", err)
+		return exportv6.Account{}, fmt.Errorf("store: read the profiles: %w", err)
 	}
 	for _, id := range ids {
-		a.ProfileIds = append(a.ProfileIds, exportv5.FileID(id))
+		a.ProfileIds = append(a.ProfileIds, exportv6.FileID(id))
 	}
 	if a.Consents, err = exportConsents(ctx, tx, `c.account_id = $1`, accountID); err != nil {
-		return exportv5.Account{}, err
+		return exportv6.Account{}, err
 	}
 	if a.QuotaCounters, err = exportCounters(ctx, tx, "account_quota", "account_id", accountID); err != nil {
-		return exportv5.Account{}, err
+		return exportv6.Account{}, err
 	}
 	return a, nil
 }
@@ -74,7 +74,7 @@ func ExportAccount(ctx context.Context, tx pgx.Tx, accountID string) (exportv5.A
 // they were asked for: the owner's with the texts the account was created on, a
 // parent's with parent-consent and the learner's with teen-consent, each by the
 // version the consent names.
-func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([]exportv5.Consent, error) {
+func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([]exportv6.Consent, error) {
 	rows, err := tx.Query(ctx, `SELECT c.id, c.giver, c.state, c.request_code, c.form_state, c.age_category, c.country,
 			c.method, c.requested_at, c.confirmed_at, c.text_version, c.account_id
 		FROM consents c WHERE `+cond+` ORDER BY c.requested_at, c.id`, args...)
@@ -82,7 +82,7 @@ func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([
 		return nil, fmt.Errorf("store: read the consents: %w", err)
 	}
 	type row struct {
-		c         exportv5.Consent
+		c         exportv6.Consent
 		version   *int32
 		accountID string
 	}
@@ -95,7 +95,7 @@ func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([
 			&out.c.Country, &out.c.Method, &requested, &confirmed, &out.version, &out.accountID)
 		out.c.RequestedAt, out.c.ConfirmedAt = timeOf(requested), timeOrNil(confirmed)
 		if form != nil {
-			f := exportv5.ConsentForm(*form)
+			f := exportv6.ConsentForm(*form)
 			out.c.Form = &f
 		}
 		return out, err
@@ -103,17 +103,17 @@ func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([
 	if err != nil {
 		return nil, fmt.Errorf("store: read the consents: %w", err)
 	}
-	consents := make([]exportv5.Consent, 0, len(list))
+	consents := make([]exportv6.Consent, 0, len(list))
 	for _, r := range list {
-		r.c.Texts = []exportv5.TextRef{}
+		r.c.Texts = []exportv6.TextRef{}
 		switch {
-		case r.c.Giver == exportv5.ConsentGiverOwner:
+		case r.c.Giver == exportv6.ConsentGiverOwner:
 			texts, err := tx.Query(ctx, `SELECT text_id, version FROM account_texts WHERE account_id = $1 ORDER BY text_id`, r.accountID)
 			if err != nil {
 				return nil, fmt.Errorf("store: read the texts accepted: %w", err)
 			}
-			refs, err := pgx.CollectRows(texts, func(t pgx.CollectableRow) (exportv5.TextRef, error) {
-				var ref exportv5.TextRef
+			refs, err := pgx.CollectRows(texts, func(t pgx.CollectableRow) (exportv6.TextRef, error) {
+				var ref exportv6.TextRef
 				err := t.Scan(&ref.ID, &ref.Version)
 				return ref, err
 			})
@@ -121,10 +121,10 @@ func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([
 				return nil, fmt.Errorf("store: read the texts accepted: %w", err)
 			}
 			r.c.Texts = append(r.c.Texts, refs...)
-		case r.version != nil && r.c.Giver == exportv5.ConsentGiverParent:
-			r.c.Texts = append(r.c.Texts, exportv5.TextRef{ID: "parent-consent", Version: int64(*r.version)})
+		case r.version != nil && r.c.Giver == exportv6.ConsentGiverParent:
+			r.c.Texts = append(r.c.Texts, exportv6.TextRef{ID: "parent-consent", Version: int64(*r.version)})
 		case r.version != nil:
-			r.c.Texts = append(r.c.Texts, exportv5.TextRef{ID: "teen-consent", Version: int64(*r.version)})
+			r.c.Texts = append(r.c.Texts, exportv6.TextRef{ID: "teen-consent", Version: int64(*r.version)})
 		}
 		consents = append(consents, r.c)
 	}
@@ -135,7 +135,7 @@ func exportConsents(ctx context.Context, tx pgx.Tx, cond string, args ...any) ([
 // package of its module turns into what it tells: its task, its instance and
 // the bytes of the answers of its submissions.
 type ExportedAttempt struct {
-	exportv5.Attempt
+	exportv6.Attempt
 	Owed Owed
 	// LeadingQuestionGiven says the task's leading question was given on
 	// request, which its package words.
@@ -147,7 +147,7 @@ type ExportedAttempt struct {
 // keeps, with the model's hidden solution and answer, never reaches the
 // device, and the export reads none of it.
 type ExportedPaperAttempt struct {
-	Attempt exportv5.PaperAttempt
+	Attempt exportv6.PaperAttempt
 	Answers [][]byte
 }
 
@@ -157,7 +157,7 @@ type ExportedPaperAttempt struct {
 // attempt and the number of the submission. The stored works it names in the
 // profile alone, without their bytes.
 type ExportedProfile struct {
-	Profile       exportv5.Profile
+	Profile       exportv6.Profile
 	Attempts      []ExportedAttempt
 	PaperAttempts []ExportedPaperAttempt
 	Evidence      [][]byte
@@ -176,17 +176,17 @@ func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) 
 	if err := tx.QueryRow(ctx, `SELECT active_on FROM profiles WHERE id = $1`, profileID).Scan(&activeOn); err != nil {
 		return ExportedProfile{}, fmt.Errorf("store: read the profile: %w", err)
 	}
-	out := exportv5.Profile{
-		Format: ExportFormat, ProfileID: exportv5.FileID(p.ID), Owner: p.Owner, Pseudonym: p.Pseudonym, Avatar: p.Avatar,
-		AgeCategory: exportv5.AgeCategory(p.AgeCategory), Country: p.Country,
-		PresentationStyle: exportv5.ProfilePresentationStyle{Voicing: exportv5.ProfilePresentationStyleVoicing{
-			Enabled: p.VoicingEnabled, Speed: exportv5.ProfilePresentationStyleVoicingSpeed(p.VoicingSpeed)}},
-		DefaultMode: exportv5.ProfileDefaultMode(p.DefaultMode), InterfaceLanguage: p.InterfaceLanguage,
-		HintMode: exportv5.ProfileHintMode(p.HintMode), AskBeforeShowing: p.AskBeforeShowing, ActiveOn: dayOf(activeOn), WorkStorage: p.WorkStorage,
-		ConnectedModules: []exportv5.ConnectedModule{}, LessonRuns: []exportv5.LessonRun{}, Attempts: []exportv5.Attempt{},
-		PaperAttempts: []exportv5.PaperAttempt{}, Choices: []exportv5.Choice{}, Evidence: []exportv5.EvidenceEntry{}, Works: []exportv5.WorkInfo{},
-		StorageConsents: []exportv5.StorageConsent{}, ProblemReports: []exportv5.ProblemReport{},
-		QuotaCounters: []exportv5.QuotaCounter{},
+	out := exportv6.Profile{
+		Format: ExportFormat, ProfileID: exportv6.FileID(p.ID), Owner: p.Owner, Pseudonym: p.Pseudonym, Avatar: p.Avatar,
+		AgeCategory: exportv6.AgeCategory(p.AgeCategory), Country: p.Country,
+		PresentationStyle: exportv6.ProfilePresentationStyle{Voicing: exportv6.ProfilePresentationStyleVoicing{
+			Enabled: p.VoicingEnabled, Speed: exportv6.ProfilePresentationStyleVoicingSpeed(p.VoicingSpeed)}},
+		DefaultMode: exportv6.ProfileDefaultMode(p.DefaultMode), InterfaceLanguage: p.InterfaceLanguage,
+		HintMode: exportv6.ProfileHintMode(p.HintMode), AskBeforeShowing: p.AskBeforeShowing, ActiveOn: dayOf(activeOn), WorkStorage: p.WorkStorage,
+		ConnectedModules: []exportv6.ConnectedModule{}, LessonRuns: []exportv6.LessonRun{}, Attempts: []exportv6.Attempt{},
+		PaperAttempts: []exportv6.PaperAttempt{}, Choices: []exportv6.Choice{}, Evidence: []exportv6.EvidenceEntry{}, Works: []exportv6.WorkInfo{},
+		StorageConsents: []exportv6.StorageConsent{}, ProblemReports: []exportv6.ProblemReport{},
+		QuotaCounters: []exportv6.QuotaCounter{},
 	}
 	if p.AgeStatedOn != nil {
 		d := dayOf(*p.AgeStatedOn)
@@ -231,16 +231,16 @@ func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) 
 	return e, nil
 }
 
-func exportModules(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile) error {
-	rows, err := tx.Query(ctx, `SELECT module_id, connected_at FROM connected_modules WHERE profile_id = $1
+func exportModules(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile) error {
+	rows, err := tx.Query(ctx, `SELECT module_id, connected_at, task_skill FROM connected_modules WHERE profile_id = $1
 		ORDER BY connected_at, module_id`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the modules: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv5.ConnectedModule, error) {
-		var m exportv5.ConnectedModule
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv6.ConnectedModule, error) {
+		var m exportv6.ConnectedModule
 		var at time.Time
-		err := r.Scan(&m.ModuleID, &at)
+		err := r.Scan(&m.ModuleID, &at, &m.TaskSkill)
 		m.ConnectedAt = timeOf(at)
 		return m, err
 	})
@@ -251,15 +251,15 @@ func exportModules(ctx context.Context, tx pgx.Tx, profileID string, out *export
 	return nil
 }
 
-func exportRuns(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile) error {
+func exportRuns(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile) error {
 	rows, err := tx.Query(ctx, `SELECT id, lesson_id, module_id, module_version, package_digest, choice_id, started_at,
 			last_action_at, end_reason, ended_at
 		FROM lesson_runs WHERE profile_id = $1 ORDER BY started_at, id`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the lesson runs: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv5.LessonRun, error) {
-		var run exportv5.LessonRun
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv6.LessonRun, error) {
+		var run exportv6.LessonRun
 		var begun, last time.Time
 		var ended *time.Time
 		err := r.Scan(&run.LessonRunID, &run.Lesson, &run.ModuleID, &run.ModuleVersion, &run.PackageDigest, &run.ChoiceID,
@@ -276,26 +276,27 @@ func exportRuns(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.
 
 // reasonCodes is the reason code of a choice, by its number in the contract,
 // as the export names it.
-var reasonCodes = map[int16]exportv5.ChoiceReasonCode{
-	1: exportv5.ChoiceReasonCodeConsolidation, 2: exportv5.ChoiceReasonCodeNewSkill, 3: exportv5.ChoiceReasonCodeQueue,
-	4: exportv5.ChoiceReasonCodeRepetition, 5: exportv5.ChoiceReasonCodeProbe, 6: exportv5.ChoiceReasonCodeSkillChosen,
-	7: exportv5.ChoiceReasonCodeAuthorOrder, 8: exportv5.ChoiceReasonCodeOpenRun, 9: exportv5.ChoiceReasonCodeRotation,
+var reasonCodes = map[int16]exportv6.ChoiceReasonCode{
+	1: exportv6.ChoiceReasonCodeConsolidation, 2: exportv6.ChoiceReasonCodeNewSkill, 3: exportv6.ChoiceReasonCodeQueue,
+	4: exportv6.ChoiceReasonCodeRepetition, 5: exportv6.ChoiceReasonCodeProbe, 6: exportv6.ChoiceReasonCodeSkillChosen,
+	7: exportv6.ChoiceReasonCodeAuthorOrder, 8: exportv6.ChoiceReasonCodeOpenRun, 9: exportv6.ChoiceReasonCodeRotation,
+	10: exportv6.ChoiceReasonCodeLessonChosen,
 }
 
 // exportChoices is the engine's choices of the profile that gave a task or a
 // lesson and have their reason code: a choice of nothing is not exported, and
 // one with no reason code has none to give.
-func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile) error {
+func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile) error {
 	rows, err := tx.Query(ctx, `SELECT id, kind, chosen_at, module_id, task_id, lesson_id, reason_code, engine_version,
 			learner_model_version, coalesce(digests, '{}'), coalesce(engine_digests, '{}'), modules_release, last_seq,
-			grade, coalesce(pool_limited, false), map_skill, age_category
+			grade, coalesce(pool_limited, false), map_skill, age_category, scope_module
 		FROM engine_choices WHERE profile_id = $1 AND kind IN ('task', 'lesson') AND reason_code IS NOT NULL
 		ORDER BY chosen_at, id`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the choices: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv5.Choice, error) {
-		var c exportv5.Choice
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv6.Choice, error) {
+		var c exportv6.Choice
 		var at time.Time
 		var module, task, lesson *string
 		var code int16
@@ -305,7 +306,7 @@ func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *export
 		var grade *int16
 		var category *string
 		err := r.Scan(&c.ChoiceID, &c.Kind, &at, &module, &task, &lesson, &code, &c.EngineVersion, &c.LearnerModelVersion,
-			&digests, &engineDigests, &release, &lastSeq, &grade, &c.PoolWithoutAi, &c.Skill, &category)
+			&digests, &engineDigests, &release, &lastSeq, &grade, &c.PoolWithoutAi, &c.Skill, &category, &c.ModuleID)
 		c.ChosenAt, c.ReasonCode = timeOf(at), reasonCodes[code]
 		if module != nil && task != nil {
 			full := *module + "/task/" + *task
@@ -315,13 +316,13 @@ func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *export
 			full := *module + "/lesson/" + *lesson
 			c.Lesson = &full
 		}
-		c.PackageDigests = []exportv5.ChoicePackageDigest{}
+		c.PackageDigests = []exportv6.ChoicePackageDigest{}
 		engine := map[string]bool{}
 		for _, d := range engineDigests {
 			engine[d] = true
 		}
 		for _, d := range digests {
-			c.PackageDigests = append(c.PackageDigests, exportv5.ChoicePackageDigest{PackageDigest: d, EngineModule: engine[d]})
+			c.PackageDigests = append(c.PackageDigests, exportv6.ChoicePackageDigest{PackageDigest: d, EngineModule: engine[d]})
 		}
 		if release != nil {
 			c.ModulesRelease = *release
@@ -334,7 +335,7 @@ func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *export
 			c.Grade = &g
 		}
 		if category != nil {
-			c.AgeCategory = exportv5.AgeCategory(*category)
+			c.AgeCategory = exportv6.AgeCategory(*category)
 		}
 		return c, err
 	})
@@ -345,21 +346,21 @@ func exportChoices(ctx context.Context, tx pgx.Tx, profileID string, out *export
 	return nil
 }
 
-func exportStorage(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile) error {
+func exportStorage(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile) error {
 	rows, err := tx.Query(ctx, `SELECT giver, text_version, on_at, off_at FROM work_storage_consents
 		WHERE profile_id = $1 ORDER BY on_at, id`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the storage of works: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv5.StorageConsent, error) {
-		var s exportv5.StorageConsent
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv6.StorageConsent, error) {
+		var s exportv6.StorageConsent
 		var version *int32
 		var on time.Time
 		var off *time.Time
 		err := r.Scan(&s.Giver, &version, &on, &off)
-		s.GivenAt, s.WithdrawnAt, s.Texts = timeOf(on), timeOrNil(off), []exportv5.TextRef{}
+		s.GivenAt, s.WithdrawnAt, s.Texts = timeOf(on), timeOrNil(off), []exportv6.TextRef{}
 		if version != nil {
-			s.Texts = append(s.Texts, exportv5.TextRef{ID: "storage-consent", Version: int64(*version)})
+			s.Texts = append(s.Texts, exportv6.TextRef{ID: "storage-consent", Version: int64(*version)})
 		}
 		return s, err
 	})
@@ -373,14 +374,14 @@ func exportStorage(ctx context.Context, tx pgx.Tx, profileID string, out *export
 // exportWorks names the profile's stored works by ListWorks, newest first and
 // without their bytes: each is a file of its own beside api.zip, which app
 // reads by GetWork. There are none while the storage is off.
-func exportWorks(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile) error {
+func exportWorks(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile) error {
 	works, err := ListWorks(ctx, tx, profileID)
 	if err != nil {
 		return err
 	}
 	for _, w := range works {
-		out.Works = append(out.Works, exportv5.WorkInfo{AttemptID: exportv5.FileID(w.AttemptID),
-			Kind: exportv5.WorkKind(w.Kind), StoredAt: timeOf(w.StoredAt), SizeBytes: w.SizeBytes})
+		out.Works = append(out.Works, exportv6.WorkInfo{AttemptID: exportv6.FileID(w.AttemptID),
+			Kind: exportv6.WorkKind(w.Kind), StoredAt: timeOf(w.StoredAt), SizeBytes: w.SizeBytes})
 	}
 	return nil
 }
@@ -388,14 +389,14 @@ func exportWorks(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5
 // ReviewWithin is the term the operator reviews a problem report in.
 const ReviewWithin = 3 * 24 * time.Hour
 
-func exportReports(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile) error {
+func exportReports(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile) error {
 	rows, err := tx.Query(ctx, `SELECT id, attempt_id, reply, rung, words, kind, text, created_at, reviewed_at
 		FROM problem_reports WHERE profile_id = $1 AND attempt_id IS NOT NULL ORDER BY created_at, id`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the reports: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv5.ProblemReport, error) {
-		var p exportv5.ProblemReport
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv6.ProblemReport, error) {
+		var p exportv6.ProblemReport
 		var rung *int16
 		var at time.Time
 		var reviewed *time.Time
@@ -446,18 +447,18 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 			a.Instance = &v
 		}
 		if run != nil && segment != nil {
-			a.Segment = &exportv5.AttemptSegment{LessonRunID: exportv5.ID(*run), Segment: int64(*segment)}
+			a.Segment = &exportv6.AttemptSegment{LessonRunID: exportv6.ID(*run), Segment: int64(*segment)}
 		}
 		if closeReason != nil {
-			reason := exportv5.AttemptCloseReason(*closeReason)
+			reason := exportv6.AttemptCloseReason(*closeReason)
 			a.CloseReason = &reason
 			// The solution shown closes the attempt.
-			if reason == exportv5.AttemptCloseReasonSolutionShown {
+			if reason == exportv6.AttemptCloseReasonSolutionShown {
 				a.SolutionShownAt = a.ClosedAt
 			}
 		}
 		a.StepTechniqueIds, a.RequestedTechniqueIds, a.Traps = []string{}, []string{}, []string{}
-		a.Rungs, a.Submissions = []exportv5.Rung{}, []exportv5.Submission{}
+		a.Rungs, a.Submissions = []exportv6.Rung{}, []exportv6.Submission{}
 		a.Owed = Owed{ID: string(a.AttemptID), PackageDigest: a.PackageDigest, ModuleID: a.ModuleID, TaskID: task,
 			Instance: instance, WrongAnswers: int(a.WrongAnswers), LastActionAt: last, StepTechniques: stepAt != nil,
 			RequestedTechniques: requestedAt != nil}
@@ -474,7 +475,7 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 	if err != nil {
 		return err
 	}
-	at := map[exportv5.ID]attemptRows{}
+	at := map[exportv6.ID]attemptRows{}
 	for i := range list {
 		a := &list[i]
 		at[a.AttemptID] = attemptRows{&a.Rungs, &a.Submissions, &a.EssaySubmissions, &a.Owed.Answers}
@@ -501,7 +502,7 @@ func exportPaperAttempts(ctx context.Context, tx pgx.Tx, profileID string) ([]Ex
 		var begun, last time.Time
 		err := r.Scan(&p.Attempt.AttemptID, &begun, &last, &p.Attempt.WrongAnswers, &p.Attempt.CorrectAnswerWordsGiven)
 		p.Attempt.BegunAt, p.Attempt.LastActionAt = timeOf(begun), timeOf(last)
-		p.Attempt.Rungs, p.Attempt.Submissions = []exportv5.Rung{}, []exportv5.Submission{}
+		p.Attempt.Rungs, p.Attempt.Submissions = []exportv6.Rung{}, []exportv6.Submission{}
 		return p, err
 	})
 	if err != nil {
@@ -513,9 +514,9 @@ func exportPaperAttempts(ctx context.Context, tx pgx.Tx, profileID string) ([]Ex
 // attemptRows is where an attempt's rungs, submissions and their answers go;
 // one of paper has no essay.
 type attemptRows struct {
-	rungs       *[]exportv5.Rung
-	submissions *[]exportv5.Submission
-	essays      *[]exportv5.RubricSubmission
+	rungs       *[]exportv6.Rung
+	submissions *[]exportv6.Submission
+	essays      *[]exportv6.RubricSubmission
 	answers     *[][]byte
 }
 
@@ -523,15 +524,15 @@ type attemptRows struct {
 // attempts, in two queries, and gives each attempt of at its own: a submission
 // of an essay among its essay_submissions, with neither an answer nor an
 // observation to tell.
-func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[exportv5.ID]attemptRows, e *ExportedProfile) error {
+func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[exportv6.ID]attemptRows, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT attempt_id, rung, source, words, explained_at IS NOT NULL, explained_source
 		FROM attempt_rungs WHERE profile_id = $1 ORDER BY attempt_id, rung`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the rungs: %w", err)
 	}
 	type rung struct {
-		attempt exportv5.ID
-		exportv5.Rung
+		attempt exportv6.ID
+		exportv6.Rung
 	}
 	rungs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (rung, error) {
 		var x rung
@@ -552,7 +553,7 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[
 		return fmt.Errorf("store: read the submissions: %w", err)
 	}
 	type submission struct {
-		attempt     exportv5.ID
+		attempt     exportv6.ID
 		number      int64
 		at          time.Time
 		answer      []byte
@@ -577,18 +578,18 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[
 		if s.essay != nil {
 			// A submission of an essay: how it ended, and beside feedback the marks by
 			// the numbers of the criteria and the source of the words.
-			e := exportv5.RubricSubmission{SubmittedAt: timeOf(s.at), End: exportv5.RubricSubmissionEnd(*s.essay)}
+			e := exportv6.RubricSubmission{SubmittedAt: timeOf(s.at), End: exportv6.RubricSubmissionEnd(*s.essay)}
 			for _, m := range s.marks {
-				e.CriterionMarks = append(e.CriterionMarks, exportv5.RubricSubmissionCriterionMarks(m))
+				e.CriterionMarks = append(e.CriterionMarks, exportv6.RubricSubmissionCriterionMarks(m))
 			}
 			if s.source != nil {
-				source := exportv5.RubricSubmissionFeedbackSource(*s.source)
+				source := exportv6.RubricSubmissionFeedbackSource(*s.source)
 				e.FeedbackSource = &source
 			}
 			*a.essays = append(*a.essays, e)
 			continue
 		}
-		*a.submissions = append(*a.submissions, exportv5.Submission{Number: s.number, SubmittedAt: timeOf(s.at)})
+		*a.submissions = append(*a.submissions, exportv6.Submission{Number: s.number, SubmittedAt: timeOf(s.at)})
 		*a.answers = append(*a.answers, s.answer)
 		if s.observation != nil {
 			if e.Observations[string(s.attempt)] == nil {
@@ -603,14 +604,14 @@ func exportAttemptRows(ctx context.Context, tx pgx.Tx, profileID string, at map[
 // exportJournal is the profile's log of evidence, in its order, and its state
 // with the mark it was computed on. An entry is of an attempt or of an adult's
 // correction of a module's level, whose evidence has level_set_by_adult.
-func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *exportv5.Profile, e *ExportedProfile) error {
+func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *exportv6.Profile, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT seq, attempt_id, correction_id, package_digest, module_id, recorded_at, evidence FROM evidence
 		WHERE profile_id = $1 ORDER BY seq`, profileID)
 	if err != nil {
 		return fmt.Errorf("store: read the evidence: %w", err)
 	}
 	type entry struct {
-		exportv5.EvidenceEntry
+		exportv6.EvidenceEntry
 		bytes []byte
 	}
 	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (entry, error) {
@@ -643,21 +644,21 @@ func exportJournal(ctx context.Context, tx pgx.Tx, profileID string, out *export
 			*s.into = *s.from
 		}
 	}
-	out.State.Modules = []exportv5.StateEntryModule{}
+	out.State.Modules = []exportv6.StateEntryModule{}
 	return nil
 }
 
 // exportCounters is every counter of the quota the table keeps of the owner of
 // column, by the beginning of its day: spent and in reserve, in whole
 // micro-dollars, as the database keeps them.
-func exportCounters(ctx context.Context, tx pgx.Tx, table, column, id string) ([]exportv5.QuotaCounter, error) {
+func exportCounters(ctx context.Context, tx pgx.Tx, table, column, id string) ([]exportv6.QuotaCounter, error) {
 	rows, err := tx.Query(ctx, `SELECT day_start, spent_micro_usd, reserved_micro_usd FROM `+table+`
 		WHERE `+column+` = $1 ORDER BY day_start`, id)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the counters of the quota: %w", err)
 	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv5.QuotaCounter, error) {
-		var c exportv5.QuotaCounter
+	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (exportv6.QuotaCounter, error) {
+		var c exportv6.QuotaCounter
 		var start time.Time
 		err := r.Scan(&start, &c.SpentMicroUsd, &c.ReservedMicroUsd)
 		c.DayStart = timeOf(start)
@@ -666,5 +667,5 @@ func exportCounters(ctx context.Context, tx pgx.Tx, table, column, id string) ([
 	if err != nil {
 		return nil, fmt.Errorf("store: read the counters of the quota: %w", err)
 	}
-	return append([]exportv5.QuotaCounter{}, list...), nil
+	return append([]exportv6.QuotaCounter{}, list...), nil
 }

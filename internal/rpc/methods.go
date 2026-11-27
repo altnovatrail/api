@@ -96,11 +96,13 @@ var methods = map[string]rule{
 	apiv1connect.LearningServiceOpenLessonProcedure:     toLearn,
 	apiv1connect.LearningServiceGetLessonRunProcedure:   toLearn,
 	apiv1connect.LearningServiceCompleteLessonProcedure: toLearn,
+	apiv1connect.LearningServiceListLessonsProcedure:    toLearn,
 
 	apiv1connect.ModuleServiceListCatalogProcedure:          toLearn,
 	apiv1connect.ModuleServiceConnectModuleProcedure:        toLearn,
 	apiv1connect.ModuleServiceDisconnectModuleProcedure:     toLearn,
 	apiv1connect.ModuleServiceListConnectedModulesProcedure: toLearn,
+	apiv1connect.ModuleServiceSetTaskSkillProcedure:         toLearn,
 
 	apiv1connect.PackageServiceGetManifestProcedure:     openView,
 	apiv1connect.PackageServiceGetSkillGraphProcedure:   openView,

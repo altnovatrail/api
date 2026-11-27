@@ -21,7 +21,8 @@ func moduleIDs(modules []store.ConnectedModule) []string {
 }
 
 // A module is connected once, in the order of the connections and then by its
-// bytes, disconnected without a trace, and goes with its profile.
+// bytes, keeps its task skill until it is given back, is disconnected without a
+// trace — its task skill too —, and goes with its profile.
 func TestTheModulesOfAProfileAreConnectedOnceAndGoWithIt(t *testing.T) {
 	t.Parallel()
 
@@ -67,8 +68,26 @@ func TestTheModulesOfAProfileAreConnectedOnceAndGoWithIt(t *testing.T) {
 	if err != nil || !slices.Equal(moduleIDs(got), want) {
 		t.Fatalf("ConnectedModules = %v, %v; want %v", moduleIDs(got), err, want)
 	}
-	if got[0].ConnectedAt.IsZero() || got[1].ConnectedAt.Before(got[0].ConnectedAt) {
+	if got[0].ConnectedAt.IsZero() || got[1].ConnectedAt.Before(got[0].ConnectedAt) || got[1].TaskSkill != "" {
 		t.Errorf("the times of the connections = %v", got)
+	}
+	if err := store.SetTaskSkill(ctx, pool, profileID, "example/a", "example/a/skill/x"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.ConnectedModules(ctx, pool, profileID); err != nil || got[1].TaskSkill != "example/a/skill/x" || got[0].TaskSkill != "" {
+		t.Errorf("after SetTaskSkill = %+v, %v", got, err)
+	}
+	if err := store.SetTaskSkill(ctx, pool, profileID, "example/b", "example/b/skill/y"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTaskSkill(ctx, pool, profileID, "example/b", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.ConnectedModules(ctx, pool, profileID); err != nil || got[0].TaskSkill != "" {
+		t.Errorf("the skill given back = %+v, %v", got, err)
+	}
+	if err := store.SetTaskSkill(ctx, pool, profileID, "example/none", "example/none/skill/x"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("SetTaskSkill of a module not connected = %v, want ErrNotFound", err)
 	}
 
 	for _, id := range []string{"example/a", "example/none"} {
@@ -78,6 +97,12 @@ func TestTheModulesOfAProfileAreConnectedOnceAndGoWithIt(t *testing.T) {
 	}
 	if got, err := store.ConnectedModules(ctx, pool, profileID); err != nil || len(got) != 3 {
 		t.Errorf("after a disconnection = %v, %v", moduleIDs(got), err)
+	}
+	if err := store.ConnectModule(ctx, pool, profileID, "example/a"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.ConnectedModules(ctx, pool, profileID); err != nil || got[len(got)-1].TaskSkill != "" {
+		t.Errorf("connected again = %+v, %v; want no task skill", got, err)
 	}
 
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error { return store.DeleteProfileRows(ctx, tx, profileID) }); err != nil {
@@ -108,6 +133,7 @@ func TestTheModulesFailWithTheirStatements(t *testing.T) {
 	for name, err := range map[string]error{
 		"connect":    store.ConnectModule(ctx, tx, profileID, "example/a"),
 		"disconnect": store.DisconnectModule(ctx, tx, profileID, "example/a"),
+		"task skill": store.SetTaskSkill(ctx, tx, profileID, "example/a", ""),
 	} {
 		if !errors.Is(err, errDown) {
 			t.Errorf("%s = %v, want the failure", name, err)

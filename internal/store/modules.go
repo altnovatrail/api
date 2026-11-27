@@ -14,10 +14,12 @@ import (
 const foreignKeyViolation = "23503"
 
 // ConnectedModule is a module connected to a profile: its ID and when it was
-// connected, with no version.
+// connected, with no version, and its task skill, empty while the tutor
+// chooses.
 type ConnectedModule struct {
 	ModuleID    string
 	ConnectedAt time.Time
+	TaskSkill   string
 }
 
 // Learner is what a learning request reads of its profile, in one query: the
@@ -79,7 +81,7 @@ func DisconnectModule(ctx context.Context, db Querier, profileID, moduleID strin
 // ConnectedModules is the modules connected to the profile, in the order they
 // were connected, and by ID among those connected at one time.
 func ConnectedModules(ctx context.Context, db Lister, profileID string) ([]ConnectedModule, error) {
-	rows, err := db.Query(ctx, `SELECT module_id, connected_at FROM connected_modules
+	rows, err := db.Query(ctx, `SELECT module_id, connected_at, coalesce(task_skill, '') FROM connected_modules
 		WHERE profile_id = $1 ORDER BY connected_at, module_id COLLATE "C"`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the connected modules: %w", err)
@@ -89,6 +91,21 @@ func ConnectedModules(ctx context.Context, db Lister, profileID string) ([]Conne
 		return nil, fmt.Errorf("store: read the connected modules: %w", err)
 	}
 	return modules, nil
+}
+
+// SetTaskSkill sets the task skill of the module connected to the profile,
+// empty to give the choice back to the tutor; a module not connected is
+// ErrNotFound.
+func SetTaskSkill(ctx context.Context, db Querier, profileID, moduleID, skill string) error {
+	tag, err := db.Exec(ctx, `UPDATE connected_modules SET task_skill = nullif($3, '') WHERE profile_id = $1 AND module_id = $2`,
+		profileID, moduleID, skill)
+	switch {
+	case err != nil:
+		return fmt.Errorf("store: set the task skill: %w", err)
+	case tag.RowsAffected() == 0:
+		return ErrNotFound
+	}
+	return nil
 }
 
 // ModuleConnected says whether the module is connected to the profile.

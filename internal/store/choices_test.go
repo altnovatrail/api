@@ -11,7 +11,8 @@ import (
 )
 
 // A choice is written with what it keeps and read back after the close or the
-// end it came after; the skill the last choice holds is its own; the summary
+// end it came after; the scope held is that of the choice an attempt began by,
+// or else of the last choice, with the module it was among; the summary
 // counts what the choices handed out and the solutions sent; the closed
 // attempts come with the code of their choice and their evidence, the last
 // first; and the runs with their ends. A choice after both a close and an end
@@ -45,7 +46,12 @@ func TestAChoiceIsWrittenAndRead(t *testing.T) {
 		lesson := store.NewChoice{Kind: "lesson", ModuleID: "example/m", LessonID: "l1", ReasonCode: 2,
 			IssuedSkills: []string{"example/m/skill/a", "example/m/skill/b"}, PackageDigest: digest, AgeCategory: "under_13",
 			Mark: c.Mark, EngineVersion: "v0.1.4", AfterLessonRunID: &run}
-		second, err = store.WriteChoice(ctx, tx, e.profileID, lesson, at.Add(time.Minute))
+		if second, err = store.WriteChoice(ctx, tx, e.profileID, lesson, at.Add(time.Minute)); err != nil {
+			return err
+		}
+		solve := store.NewChoice{Kind: "task", ModuleID: "example/m", TaskID: "t1", ReasonCode: 6, MapSkill: "example/m/skill/b",
+			ScopeModule: "example/m", PackageDigest: digest, AgeCategory: "under_13", Mark: c.Mark, EngineVersion: "v0.1.4"}
+		_, err = store.WriteChoice(ctx, tx, e.profileID, solve, at.Add(2*time.Minute))
 		return err
 	})
 	if err != nil {
@@ -60,8 +66,15 @@ func TestAChoiceIsWrittenAndRead(t *testing.T) {
 	if _, found, err := store.ChoiceAfterRun(ctx, e.pool, e.profileID, closed); err != nil || found {
 		t.Errorf("ChoiceAfterRun of none = %v, %v", found, err)
 	}
-	if held, err := store.HeldMapSkill(ctx, e.pool, e.profileID); err != nil || held != "" {
-		t.Errorf("HeldMapSkill = %q, %v; want the last choice's, none", held, err)
+	if held, err := store.HeldScope(ctx, e.pool, e.profileID, ""); err != nil || held != (store.Scope{Skill: "example/m/skill/b", Module: "example/m"}) {
+		t.Errorf("HeldScope = %+v, %v; want the last choice's", held, err)
+	}
+	begun, err := e.attempt(t, "choice_id", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held, err := store.HeldScope(ctx, e.pool, e.profileID, begun); err != nil || held != (store.Scope{Skill: "example/m/skill/a"}) {
+		t.Errorf("HeldScope of an attempt = %+v, %v; want the scope of the choice it began by", held, err)
 	}
 	issued, err := store.IssuedSkills(ctx, e.pool, e.profileID)
 	if err != nil || len(issued) != 2 || issued[0].Skill != "example/m/skill/a" || !issued[0].At.Equal(at.Add(time.Minute)) ||
@@ -116,8 +129,8 @@ func TestTheStatementsOfTheChoiceFail(t *testing.T) {
 			_, _, err := store.ChoiceAfterAttempt(ctx, tx, e.profileID, none)
 			return err
 		},
-		"SELECT map_skill": func(tx pgx.Tx) error {
-			_, err := store.HeldMapSkill(ctx, tx, e.profileID)
+		"SELECT map_skill, scope_module": func(tx pgx.Tx) error {
+			_, err := store.HeldScope(ctx, tx, e.profileID, none)
 			return err
 		},
 		"unnest(c.issued_skills)": func(tx pgx.Tx) error {
@@ -180,8 +193,8 @@ func TestNothingToGiveIsWrittenToo(t *testing.T) {
 		got.Closed != store.NothingQuota || got.NextDay == nil || !got.NextDay.Equal(next) {
 		t.Errorf("the choice of nothing = %+v, %v, %v", got, found, err)
 	}
-	if held, err := store.HeldMapSkill(ctx, e.pool, e.profileID); err != nil || held != "example/m/skill/a" {
-		t.Errorf("HeldMapSkill = %q, %v; want the skill of the choice of nothing", held, err)
+	if held, err := store.HeldScope(ctx, e.pool, e.profileID, closed); err != nil || held != (store.Scope{Skill: "example/m/skill/a"}) {
+		t.Errorf("HeldScope = %+v, %v; want the skill of the choice of nothing", held, err)
 	}
 	if _, err := e.pool.Exec(ctx, `INSERT INTO engine_choices (profile_id, kind) VALUES ($1, 'other')`, e.profileID); sqlstate(err) != "23514" {
 		t.Errorf("a choice of a kind not named = %v, want a check violation", err)

@@ -32,6 +32,9 @@ type NewChoice struct {
 	IssuedSkills  []string
 	PackageDigest string
 	MapSkill      string
+	// ScopeModule is the module the choice was among: of its tasks alone, or the
+	// module of a lesson the learner chose; empty among all the modules.
+	ScopeModule   string
 	AgeCategory   string
 	Grade         *int
 	PoolLimited   bool
@@ -52,12 +55,13 @@ func WriteChoice(ctx context.Context, tx pgx.Tx, profileID string, c NewChoice, 
 	err := tx.QueryRow(ctx, `INSERT INTO engine_choices (profile_id, kind, chosen_at, module_id, task_id, lesson_id,
 			reason_code, issued_skills, package_digest, map_skill, age_category, grade, pool_limited, engine_version,
 			learner_model_version, modules_release, format_window, last_seq, digests, engine_digests,
-			after_attempt_id, after_lesson_run_id, not_admitted, nothing_cause, next_family_day)
+			after_attempt_id, after_lesson_run_id, not_admitted, nothing_cause, next_family_day, scope_module)
 		VALUES ($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), $7, $8, nullif($9, ''), nullif($10, ''), $11, $12,
-			$13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, nullif($24, ''), $25) RETURNING id`,
+			$13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, nullif($24, ''), $25, nullif($26, '')) RETURNING id`,
 		profileID, c.Kind, at, c.ModuleID, c.TaskID, c.LessonID, c.ReasonCode, c.IssuedSkills, c.PackageDigest,
 		c.MapSkill, c.AgeCategory, c.Grade, c.PoolLimited, c.EngineVersion, c.Mark.LearnerModel, c.Mark.Release,
-		c.Mark.Window, c.LastSeq, c.Digests, c.EngineDigests, c.AfterAttemptID, c.AfterLessonRunID, c.NotAdmitted, c.Closed, c.NextDay).Scan(&id)
+		c.Mark.Window, c.LastSeq, c.Digests, c.EngineDigests, c.AfterAttemptID, c.AfterLessonRunID, c.NotAdmitted, c.Closed, c.NextDay,
+		c.ScopeModule).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("store: write the choice: %w", err)
 	}
@@ -110,17 +114,27 @@ func madeChoice(ctx context.Context, db Querier, column, profileID, id string) (
 	return c, true, nil
 }
 
-// HeldMapSkill is the skill chosen on the skill map that the profile's last
-// choice holds, empty when it holds none: a choice from the map holds until the
-// learner asks for something else.
-func HeldMapSkill(ctx context.Context, db Querier, profileID string) (string, error) {
-	var skill *string
-	err := db.QueryRow(ctx, `SELECT map_skill FROM engine_choices WHERE profile_id = $1 AND reason_code IS NOT NULL
-		ORDER BY chosen_at DESC, id DESC LIMIT 1`, profileID).Scan(&skill)
+// Scope is what a choice was made among: the skill a choice named alone, and
+// the module whose tasks alone it was among; neither when the engine led among
+// all the modules.
+type Scope struct {
+	Skill  string
+	Module string
+}
+
+// HeldScope is the scope of the choice the profile's attempt began by, or, for
+// an attempt begun by none — begun again —, of the profile's last choice: the
+// choice after the attempt is made in the same scope.
+func HeldScope(ctx context.Context, db Querier, profileID, attemptID string) (Scope, error) {
+	var skill, module *string
+	err := db.QueryRow(ctx, `SELECT map_skill, scope_module FROM engine_choices c
+		WHERE c.profile_id = $1 AND c.reason_code IS NOT NULL
+		ORDER BY c.id = (SELECT a.choice_id FROM attempts a WHERE a.profile_id = $1 AND a.id::text = $2) IS TRUE DESC,
+			c.chosen_at DESC, c.id DESC LIMIT 1`, profileID, attemptID).Scan(&skill, &module)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return "", fmt.Errorf("store: read the skill held: %w", err)
+		return Scope{}, fmt.Errorf("store: read the scope held: %w", err)
 	}
-	return deref(skill), nil
+	return Scope{Skill: deref(skill), Module: deref(module)}, nil
 }
 
 // Issued is when a skill was last handed out by a choice, by its full ID.

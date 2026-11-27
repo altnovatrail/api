@@ -17,7 +17,7 @@ import (
 )
 
 // Micro is an amount of US dollars by tutor's estimate, in whole micro-dollars,
-// as the export writes the counters (exportv5.QuotaCounter): a sum of them adds
+// as the export writes the counters (exportv6.QuotaCounter): a sum of them adds
 // up the same in every order, which a float does not.
 type Micro int64
 

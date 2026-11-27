@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
@@ -136,6 +137,52 @@ func (s *ModuleService) ListConnectedModules(ctx context.Context, req *v1.ListCo
 	return &v1.ListConnectedModulesResponse{Modules: s.c.connected(rows, category)}, nil
 }
 
+// SetTaskSkill sets the task skill of a connected module, a skill of the graph
+// of its current version for the learner, or gives the choice back to the
+// tutor with none. A module not connected, or a skill its graph does not have,
+// is "not found"; a module with no current version is refused so; a module
+// solved on the sheet, whose tasks the engine chooses none of, is malformed. A
+// repeat sets the same skill: the request repeats by the profile's state.
+func (s *ModuleService) SetTaskSkill(ctx context.Context, req *v1.SetTaskSkillRequest) (*v1.SetTaskSkillResponse, error) {
+	category, err := s.learner(ctx, req.GetProfileId())
+	if err != nil {
+		return nil, err
+	}
+	id := formatv0.ModuleID(req.GetModuleId())
+	if s.c.set.OnSheet(id) {
+		return nil, rpc.Malformed("module_id")
+	}
+	if pkg, ok := s.c.set.OfferedFor(id, category); !ok {
+		rows, err := store.ConnectedModules(ctx, s.db, req.GetProfileId())
+		if err != nil {
+			return nil, rpc.Failed(ctx, err)
+		}
+		if !slices.ContainsFunc(rows, func(m store.ConnectedModule) bool { return m.ModuleID == string(id) }) {
+			return nil, rpc.Refuse(ctx, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
+		}
+		return nil, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	} else if skill := req.GetSkill(); skill != "" && !hasSkill(pkg.View.SkillGraph, id, skill) {
+		return nil, rpc.Refuse(ctx, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
+	}
+	rows, err := s.change(ctx, req.GetProfileId(), func(tx pgx.Tx) error {
+		return store.SetTaskSkill(ctx, tx, req.GetProfileId(), string(id), req.GetSkill())
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &v1.SetTaskSkillResponse{Modules: s.c.connected(rows, category)}, nil
+}
+
+// hasSkill says whether the graph of the module has the skill, by its full ID.
+func hasSkill(graph *formatv0.SkillGraph, module formatv0.ModuleID, skill string) bool {
+	local, ok := strings.CutPrefix(skill, string(module)+"/skill/")
+	if !ok || graph == nil {
+		return false
+	}
+	_, ok = graph.Skills[formatv0.SkillID(local)]
+	return ok
+}
+
 // learner is the age category of the profile, whose consent is confirmed
 // (rpc.Learner).
 func (s *ModuleService) learner(ctx context.Context, profileID string) (formatv0.AgeCategory, error) {
@@ -166,13 +213,17 @@ func (s *ModuleService) change(ctx context.Context, profileID string, fn func(pg
 // connected is the modules connected in the contract's words, each with the
 // digest of its current version for a learner of category: none for a module
 // the deployment's list leaves out, which stays connected; and whether it is
-// solved on the sheet of a task from paper.
+// solved on the sheet of a task from paper, and its task skill while the graph
+// of that version has it.
 func (c *Catalog) connected(rows []store.ConnectedModule, category formatv0.AgeCategory) []*v1.ConnectedModule {
 	modules := make([]*v1.ConnectedModule, 0, len(rows))
 	for _, row := range rows {
 		m := &v1.ConnectedModule{ModuleId: row.ModuleID, ConnectedAt: timestamppb.New(row.ConnectedAt), OnSheet: c.set.OnSheet(formatv0.ModuleID(row.ModuleID))}
 		if pkg, ok := c.set.OfferedFor(formatv0.ModuleID(row.ModuleID), category); ok {
 			m.PackageDigest = string(pkg.Digest)
+			if hasSkill(pkg.View.SkillGraph, formatv0.ModuleID(row.ModuleID), row.TaskSkill) {
+				m.TaskSkill = row.TaskSkill
+			}
 		}
 		modules = append(modules, m)
 	}
@@ -183,6 +234,8 @@ func (c *Catalog) connected(rows []store.ConnectedModule, category formatv0.AgeC
 // or the account gone meanwhile, or a failure.
 func refused(ctx context.Context, err error) error {
 	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return rpc.Refuse(ctx, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
 	case errors.Is(err, store.ErrNoProfile):
 		return rpc.Refuse(ctx, connect.CodeNotFound, v1.Cause_CAUSE_NO_PROFILE)
 	case errors.Is(err, store.ErrAccountDeleting), errors.Is(err, store.ErrNoAccount):
