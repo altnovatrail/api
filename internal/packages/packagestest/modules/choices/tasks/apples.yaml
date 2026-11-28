@@ -10,6 +10,11 @@ items:
           kind: number
           key: "7"
           units: [apple, apples]
+          trap_values:
+            - value: "3"
+              trap: first-seen
+            - value: "34"
+              trap: digits-joined
 solution:
   - text: "3 + 4 = 7: Ann has 7 apples."
 skills:

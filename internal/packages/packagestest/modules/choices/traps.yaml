@@ -3,3 +3,7 @@ traps:
     description: Chose the first number seen, not the greater one.
     skills: [comparing]
     trap_advice: Look at both numbers before you choose.
+  digits-joined:
+    description: Wrote the two numbers side by side instead of adding them.
+    skills: [adding]
+    trap_advice: Put the two numbers together, then count them all.

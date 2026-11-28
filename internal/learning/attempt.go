@@ -43,7 +43,12 @@ const finishReserve = 3 * time.Second
 // recorded with its answer and, when AI read, the observation of what it read;
 // the key's record names it, and the crop lives in the request's memory alone.
 //
-// A task tapped alone is checked in one transaction (rpc.Once). One that AI
+// An option of the attempt's answer options tapped on the one answer slot of a
+// task not bound choice is judged by the key as the value of that slot, with no
+// work and no AI, and recorded as any submission, with no observation.
+//
+// A task tapped alone, or an option tapped, is checked in one transaction
+// (rpc.Once). One that AI
 // reads runs in three parts (rpc.Across): the checks of the attempt and the
 // work, and the key's record going, in one transaction; the reading, in none;
 // and the attempt held again with the verdict and the record done, in a second.
@@ -120,7 +125,9 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 	var answer *v1.SubmitWorkResponse
 	if paper {
 		answer, err = a.submitPaper(ctx, req, category, key)
-	} else if known && !byTap(task) {
+	} else if known && !byTap(task) && req.GetWork() != nil {
+		// AI reads only work sent: an option of the answer options tapped, or a
+		// submission refused for the work it lacks, is the transaction's alone.
 		answer, err = rpc.Across(ctx, s.db, key, req, rpc.Phases[sending, *v1.SubmitWorkResponse]{
 			Prepare: func(tx pgx.Tx, _ string) (sending, store.KeyTarget, error) {
 				h, out, err := prepare(tx)
@@ -232,6 +239,9 @@ type sending struct {
 	task      formatv0.Task
 	tapped    []observation.Tapped
 	values    map[string]string
+	// option is the answer option tapped, judged as the value of the task's one
+	// answer slot.
+	option *string
 	// ai says whether AI reads a slot of the task.
 	ai    bool
 	crop  []byte
@@ -248,13 +258,23 @@ type sending struct {
 // called: a task with a rubric goes as an essay; the work goes when AI reads a
 // slot, and only then, as the crop of a sheet in PNG — the boxes of a workbook
 // page, which no task is solved on, are refused —; and every tap must be of a
-// slot bound choice, in order and once. act is the request's action of the
+// slot bound choice, in order and once, but the one option of the answer
+// options tapped with no work, which goes alone. act is the request's action of the
 // debug mode, which the route of the reading carries.
 func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, category formatv0.AgeCategory, act *debug.Action) (sending, error) {
 	if rubric(h.task) {
 		return sending{}, rpc.Malformed("attempt_id")
 	}
 	out := sending{attemptID: h.row.ID, task: h.task, ai: !byTap(h.task), values: map[string]string{}}
+	switch option, ok, err := optionTapped(h, req); {
+	case err != nil:
+		return sending{}, err
+	case ok:
+		_, place, _ := oneSlot(h.task)
+		out.ai, out.option = false, &option
+		out.values[placeKey(place)] = option
+		return out, nil
+	}
 	if out.ai != (req.GetWork() != nil) {
 		return sending{}, rpc.Malformed("work")
 	}
@@ -342,7 +362,7 @@ func (s *Service) verdict(ctx context.Context, h held, out sending) (*v1.SubmitW
 	if out.ai {
 		joined, outcome = s.joined(h.task, out)
 	}
-	verdicts, err := observation.Verdicts(ctx, h.task.Items, joined, out.tapped)
+	verdicts, err := verdictsOf(ctx, h.task, joined, out)
 	switch {
 	case err != nil && ctx.Err() != nil:
 		return nil, nil, err

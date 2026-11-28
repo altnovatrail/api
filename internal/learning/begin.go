@@ -200,7 +200,7 @@ func (s *Service) begin(ctx context.Context, tx pgx.Tx, profileID string, catego
 		FormatVersion: string(m.ModuleFormatVersion), ModuleKit: s.moduleKit, TaskID: string(task.ID),
 		Seed: seed, Instance: picked, ChoiceID: b.choiceID, PreviousID: b.previousID,
 	}
-	start := &v1.AttemptStart{Task: view, PackageDigest: string(pkg.Digest)}
+	start := &v1.AttemptStart{Task: view, PackageDigest: string(pkg.Digest), AnswerOptions: answerOptions(got, seed)}
 	if b.run != nil {
 		a.LessonRunID, a.Segment = &b.run.row.ID, &b.segment
 		start.Segment = &v1.SegmentPlace{LessonRunId: b.run.row.ID, Segment: int32(b.segment)}
@@ -314,7 +314,8 @@ func startOf(h held) (*v1.AttemptStart, error) {
 	if err != nil {
 		return nil, err
 	}
-	start := &v1.AttemptStart{AttemptId: h.row.ID, Task: view, PackageDigest: h.row.PackageDigest}
+	start := &v1.AttemptStart{AttemptId: h.row.ID, Task: view, PackageDigest: h.row.PackageDigest,
+		AnswerOptions: answerOptions(h.task, h.row.Seed)}
 	if h.row.LessonRunID != nil {
 		start.Segment = &v1.SegmentPlace{LessonRunId: *h.row.LessonRunID, Segment: int32(*h.row.Segment)}
 	}

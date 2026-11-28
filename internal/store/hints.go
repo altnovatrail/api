@@ -152,16 +152,23 @@ func GiveRequested(ctx context.Context, tx pgx.Tx, profileID, attemptID string, 
 	return nil
 }
 
+// Answer is the answer of a submission with a verdict, and whether the
+// submission keeps an observation of what AI read.
+type Answer struct {
+	Answer   []byte
+	Observed bool
+}
+
 // Answers is the answers of the attempt's submissions with a verdict, in order:
 // the ladder finds in them the wrong answer that gave a rung, and its answer
 // slot.
-func Answers(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([][]byte, error) {
-	rows, err := db.Query(ctx, `SELECT answer FROM submissions WHERE profile_id = $1 AND attempt_id = $2 AND essay_end IS NULL
-		ORDER BY number`, profileID, attemptID)
+func Answers(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([]Answer, error) {
+	rows, err := db.Query(ctx, `SELECT answer, observation IS NOT NULL FROM submissions
+		WHERE profile_id = $1 AND attempt_id = $2 AND essay_end IS NULL ORDER BY number`, profileID, attemptID)
 	if err != nil {
 		return nil, fmt.Errorf("store: read the submissions: %w", err)
 	}
-	out, err := pgx.CollectRows(rows, pgx.RowTo[[]byte])
+	out, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Answer])
 	if err != nil {
 		return nil, fmt.Errorf("store: read the submissions: %w", err)
 	}

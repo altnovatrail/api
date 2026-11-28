@@ -182,7 +182,7 @@ func TestWhatAHintGivesIsRecordedOnce(t *testing.T) {
 			return err
 		}
 		answers, err := store.Answers(ctx, tx, e.profileID, id)
-		if err != nil || len(answers) != 1 || answers[0][0] != 1 {
+		if err != nil || len(answers) != 1 || answers[0].Answer[0] != 1 || answers[0].Observed {
 			t.Errorf("Answers = %v, %v", answers, err)
 		}
 		return nil
@@ -216,7 +216,7 @@ func TestTheLaddersStatementsFail(t *testing.T) {
 		},
 		"requested_techniques_at =":  func(tx pgx.Tx) error { return store.GiveRequested(ctx, tx, e.profileID, id, true, true, time.Now()) },
 		"correct_words_given = true": func(tx pgx.Tx) error { return store.GiveCorrectWords(ctx, tx, e.profileID, id) },
-		"SELECT answer FROM submissions": func(tx pgx.Tx) error {
+		"observation IS NOT NULL FROM submissions": func(tx pgx.Tx) error {
 			_, err := store.Answers(ctx, tx, e.profileID, id)
 			return err
 		},

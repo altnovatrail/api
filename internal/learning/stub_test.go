@@ -103,7 +103,7 @@ func TestThePathRunsOnTheStub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if words.GetWords() == "" || words.GetWords() == firstRung || words.GetOutcome() != nil {
+	if words.GetWords() == "" || words.GetWords() == trapAdvice || words.GetOutcome() != nil {
 		t.Errorf("the rung's words = %v, want the stub's question, not the fallback", words)
 	}
 	other, err := w.explain(l, l.adult, a, 1)
@@ -189,7 +189,8 @@ func TestTheStubRefusesAnOwnKeyByItsEnding(t *testing.T) {
 		t.Fatal(err)
 	}
 	limited("the rung's words on -limit-balance", words.GetOutcome(), v1.LimitCause_LIMIT_CAUSE_BALANCE)
-	if words.GetWords() != firstRung {
+	// The stub reads the slot's first trap value, whose trap's advice is the fallback.
+	if words.GetWords() != trapAdvice {
 		t.Errorf("the rung's words on -limit-balance = %q, want the fallback text", words.GetWords())
 	}
 	other, err := w.attempts.ExplainDifferently(l.ctx, &v1.ExplainDifferentlyRequest{ProfileId: l.adult, AttemptId: a,

@@ -394,9 +394,10 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
 	defer act.End()
 	route := routeOf(act, category, req.GetOwnKey())
-	// The words take the work of a sheet alone; a task a tap checks asks them
-	// with no work.
-	admitted := s.teller.Words(known && sheetRead(task), category, req.GetOwnKey().GetProvider())
+	// The words take the work of a sheet alone; a task a tap checks, and a wrong
+	// answer that was an option tapped, ask them with no work, which the checks of
+	// the request hold to.
+	admitted := s.teller.Words(known && sheetRead(task) && req.GetWork() != nil, category, req.GetOwnKey().GetProvider())
 	prepare := func(tx pgx.Tx) (telling, error) {
 		h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
 		if err != nil {
@@ -458,8 +459,17 @@ func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetR
 		return telling{h: h}, rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	}
 	t := telling{h: h, rung: rungOf(h.row.WrongAnswers), wrong: h.row.WrongAnswers}
+	ai := sheetRead(h.task)
+	if ai {
+		// The wrong answer of an option tapped had no work, and its words take none.
+		tapped, err := optionAnswered(ctx, tx, req.GetProfileId(), h.task, h.row, wrongOf(h.row.WrongAnswers))
+		if err != nil {
+			return t, err
+		}
+		ai = !tapped
+	}
 	var crop []byte
-	switch ai := sheetRead(h.task); {
+	switch {
 	case ai != (req.GetWork() != nil):
 		return t, rpc.Malformed("work")
 	case ai:
@@ -887,6 +897,14 @@ func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrect
 	}
 	p.pkg = pkg
 	ai := sheetRead(p.task)
+	if ai {
+		// The correct answer of an option tapped had no work, and its words take none.
+		tapped, err := optionAnswered(ctx, tx, profileID, p.task, row, lastOf)
+		if err != nil {
+			return p, err
+		}
+		ai = !tapped
+	}
 	var crop []byte
 	if ai {
 		crop = req.GetWork().GetSheet().GetCrop()

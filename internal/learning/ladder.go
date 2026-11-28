@@ -50,7 +50,7 @@ func spotOf(ctx context.Context, tx pgx.Tx, profileID string, h held, rung int) 
 	}
 	for _, written := range answers {
 		answer := &v1.SubmitWorkResponse{}
-		if err := proto.Unmarshal(written, answer); err != nil {
+		if err := proto.Unmarshal(written.Answer, answer); err != nil {
 			return spot{}, err
 		}
 		if answer.GetWrongAnswers() != int32(rung) {
