@@ -88,7 +88,7 @@ func (a *AttemptService) AskTutor(ctx context.Context, req *v1.AskTutorRequest) 
 			return answer, nil
 		},
 	}
-	route := act.Route(routeOf(category, req.GetOwnKey()))
+	route := routeOf(act, category, req.GetOwnKey())
 	provider := req.GetOwnKey().GetProvider()
 	admitted := s.paperAdmitted(ctx, category, provider)
 	checking := s.admits.Reads(tutor.CallChecking, category, provider) || s.debugChosen(ctx)

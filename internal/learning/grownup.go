@@ -92,7 +92,7 @@ func (a *AttemptService) AskGrownUp(ctx context.Context, req *v1.AskGrownUpReque
 			return &v1.AskGrownUpResponse{Repeated: true}, nil
 		},
 	}
-	route := act.Route(routeOf(category, req.GetOwnKey()))
+	route := routeOf(act, category, req.GetOwnKey())
 	admitted := s.admits.Reads(tutor.CallDrawing, category, req.GetOwnKey().GetProvider()) || s.debugChosen(ctx)
 	prepare := func(tx pgx.Tx) (drawing, error) { return s.drawingAsked(ctx, tx, req, route, admitted) }
 	var answer *v1.AskGrownUpResponse

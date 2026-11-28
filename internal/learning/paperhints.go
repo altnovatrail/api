@@ -327,7 +327,7 @@ func (a *AttemptService) GetOpeningWords(ctx context.Context, req *v1.GetOpening
 			return answer, err
 		},
 	}
-	route := act.Route(routeOf(category, req.GetOwnKey()))
+	route := routeOf(act, category, req.GetOwnKey())
 	admitted := s.admits.Reads(tutor.CallChecking, category, req.GetOwnKey().GetProvider()) || s.debugChosen(ctx)
 	prepare := func(tx pgx.Tx) (paperChecking, error) {
 		return s.openingAsked(ctx, tx, req, route, category, admitted)

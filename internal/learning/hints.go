@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/admission"
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -253,14 +254,17 @@ func fallbackOf(t telling) string {
 }
 
 // routeOf is the route of a learner of category to AI: the own key, when the
-// request sends one, or platform AI.
-func routeOf(category formatv0.AgeCategory, own *v1.OwnKey) tutor.Route {
+// request sends one, or platform AI; with the debug mode of act, the request's
+// action, which records every call of a model the route makes. Every route of
+// a call is made here, so that none goes past the record of an account with
+// the right of the mode; act is nil without it.
+func routeOf(act *debug.Action, category formatv0.AgeCategory, own *v1.OwnKey) tutor.Route {
 	route := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(category)}
 	if own != nil {
 		route.AI = admissionv0.AiRouteOwnKey
 		route.Own = tutor.NewOwnKey(admissionv0.Provider(own.GetProvider()), own.GetKey())
 	}
-	return route
+	return act.Route(route)
 }
 
 // notCurrent refuses a request that names a wrong answer that is not the
@@ -387,7 +391,9 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		}
 		return answer, nil
 	}
-	route := routeOf(category, req.GetOwnKey())
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
+	defer act.End()
+	route := routeOf(act, category, req.GetOwnKey())
 	// The words take the work of a sheet alone; a task a tap checks asks them
 	// with no work.
 	admitted := s.teller.Words(known && sheetRead(task), category, req.GetOwnKey().GetProvider())
@@ -595,12 +601,11 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 			return answer, err
 		},
 	}
-	route := routeOf(category, req.GetOwnKey())
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
+	defer act.End()
+	route := routeOf(act, category, req.GetOwnKey())
 	var admitted bool
 	if s.paperAttempt(ctx, profileID, attemptID) {
-		act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
-		defer act.End()
-		route = act.Route(route)
 		admitted = s.paperAdmitted(ctx, category, req.GetOwnKey().GetProvider())
 	} else {
 		admitted = s.teller.Words(false, category, req.GetOwnKey().GetProvider())
@@ -804,7 +809,9 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 			return answer, nil
 		},
 	}
-	route := routeOf(category, req.GetOwnKey())
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, req.GetAttemptId())
+	defer act.End()
+	route := routeOf(act, category, req.GetOwnKey())
 	admitted := s.praiser.CorrectWords(category, req.GetOwnKey().GetProvider()) && s.policyCovers(s.clock())
 	prepare := func(tx pgx.Tx) (praising, error) {
 		p, err := s.praiseAsked(ctx, tx, req, route, admitted)

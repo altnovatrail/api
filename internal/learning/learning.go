@@ -102,7 +102,8 @@ type Service struct {
 	model *model.Model
 	// engine is the version of engine, which every choice keeps.
 	engine string
-	// debug is the debug mode of the models of a task from paper, nil without it.
+	// debug is the debug mode, nil without it: the models of a task from paper,
+	// and the record of every call of a model of an account with its right.
 	debug *debug.Store
 }
 
@@ -133,8 +134,8 @@ func WithGrownUpRequestTimeout(d time.Duration) Option {
 func OffDeployment() Option { return func(s *Service) { s.offDeployment = true } }
 
 // WithDebug is the debug mode, whose choice of models serves the calls of a
-// task from paper of an account with its right and whose store keeps what each
-// returned.
+// task from paper of an account with its right and whose store keeps what every
+// call of a model of the account returned and cost, wherever it was made.
 func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } }
 
 // WithTutor is what reads the sheets and the essays,

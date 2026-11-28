@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
@@ -99,18 +100,24 @@ func (a *AttemptService) SubmitWork(ctx context.Context, req *v1.SubmitWorkReque
 			return answer, err
 		},
 	}
+	// An attempt this cannot tell of — none, or on a package the index does not
+	// know — goes the way of a task tapped, whose checks refuse it.
+	task, paper, known := s.attemptOf(ctx, profileID, req.GetAttemptId())
+	// A task from paper begins its action of the Check itself.
+	var act *debug.Action
+	if !paper {
+		act = s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
+		defer act.End()
+	}
 	prepare := func(tx pgx.Tx) (held, sending, error) {
 		h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), s.clock())
 		if err != nil {
 			return held{}, sending{}, err
 		}
-		out, err := s.sent(ctx, h, req, category)
+		out, err := s.sent(ctx, h, req, category, act)
 		return h, out, err
 	}
 	var answer *v1.SubmitWorkResponse
-	// An attempt this cannot tell of — none, or on a package the index does not
-	// know — goes the way of a task tapped, whose checks refuse it.
-	task, paper, known := s.attemptOf(ctx, profileID, req.GetAttemptId())
 	if paper {
 		answer, err = a.submitPaper(ctx, req, category, key)
 	} else if known && !byTap(task) {
@@ -241,8 +248,9 @@ type sending struct {
 // called: a task with a rubric goes as an essay; the work goes when AI reads a
 // slot, and only then, as the crop of a sheet in PNG — the boxes of a workbook
 // page, which no task is solved on, are refused —; and every tap must be of a
-// slot bound choice, in order and once.
-func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, category formatv0.AgeCategory) (sending, error) {
+// slot bound choice, in order and once. act is the request's action of the
+// debug mode, which the route of the reading carries.
+func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, category formatv0.AgeCategory, act *debug.Action) (sending, error) {
 	if rubric(h.task) {
 		return sending{}, rpc.Malformed("attempt_id")
 	}
@@ -261,7 +269,7 @@ func (s *Service) sent(ctx context.Context, h held, req *v1.SubmitWorkRequest, c
 			// recorded as a failure of AI under the key for good.
 			return sending{}, connect.NewError(connect.CodeDeadlineExceeded, "too little time to read the work")
 		}
-		out.route = routeOf(category, req.GetOwnKey())
+		out.route = routeOf(act, category, req.GetOwnKey())
 	}
 	for _, c := range req.GetTappedChoices() {
 		out.tapped = append(out.tapped, observation.Tapped{Place: c.GetAnswerSlot(), Value: c.GetValue()})

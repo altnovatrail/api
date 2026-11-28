@@ -103,3 +103,15 @@ func TestAReadKeepsNoAccount(t *testing.T) {
 		t.Errorf("the store holds %d accounts, want the action's and the choice's", len(s.accounts))
 	}
 }
+
+// Every kind of call of tutor has its kind of the contract, so that the record
+// names every call a model makes.
+func TestEveryCallHasItsKind(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range tutor.Calls() {
+		if k, ok := callKinds[c]; !ok || k == v1.DebugCallKind_DEBUG_CALL_KIND_UNSPECIFIED {
+			t.Errorf("the call %s has no kind of the contract", c)
+		}
+	}
+}
