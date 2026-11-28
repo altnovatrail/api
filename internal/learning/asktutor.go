@@ -8,10 +8,12 @@ import (
 	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
+	"github.com/altnovatrail/module-kit/verdict"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
 	"github.com/altnovatrail/tutor"
+	"github.com/altnovatrail/tutor/words"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
@@ -27,14 +29,16 @@ const (
 	maxTurnText = 1000
 )
 
-// asking is a question to the tutor on a task from paper between the parts of
-// its request: the Check of the work as it stands, when the attempt keeps none,
-// whose call goes first; the statements "Recognise" read, which the tasks of
-// that Check take; the tasks and the language the words are checked by; the
-// call of the words with its reserve, and its answer; and an answer with no
-// call.
+// asking is a question to the tutor on a task between the parts of its
+// request: the Check of the work as it stands, when the attempt of a task from
+// paper keeps none, whose call goes first; the statements "Recognise" read,
+// which the tasks of that Check take; the tasks and the language the words are
+// checked by; the attempt of a task of a module, whose words its own leak check
+// holds; the call of the words with its reserve, and its answer; and an answer
+// with no call.
 type asking struct {
 	attemptID  string
+	module     *held
 	checking   *paperChecking
 	statements []string
 	paper      paperTelling
@@ -45,10 +49,12 @@ type asking struct {
 	ready      *v1.AskTutorResponse
 }
 
-// AskTutor answers a question of the learner's own about a task from paper:
-// one call of the words of a task from paper, tutor.PaperQuestion, about the
-// first task not correct, with the tasks of the Check the attempt keeps, the
-// rung given, the hints given and the conversation app holds. While the attempt
+// AskTutor answers a question of the learner's own about a task from paper or
+// of a module but an essay: one call of the words of a task from paper,
+// tutor.PaperQuestion — about the first task not correct, with the tasks of the
+// Check the attempt keeps, or about the task of a module, with its statement,
+// solution and key (moduleAsked) —, the rung given, the hints given and the
+// conversation app holds. While the attempt of a task from paper
 // keeps no Check, the work as it stands is checked first and the Check kept, as
 // GetOpeningWords keeps it, but with no rung given; both calls reserve the quota
 // together. No admission, the quota, the limit and a call that gives no words
@@ -146,10 +152,11 @@ func questionTaken(q string, turns []*v1.TutorTurn) error {
 }
 
 // questionAsked checks a question before anything is called — an open attempt
-// of a task from paper, and its work while it keeps no Check — and gives its
-// calls with their reserve: the Check first when the attempt keeps none, then
-// the words. A call not admitted, or a reserve the quota or the limit does not
-// hold, gives the fallback text with the outcome and no call.
+// of a task from paper, and its work while it keeps no Check, or of a task of a
+// module but an essay — and gives its calls with their reserve: the Check first
+// when the attempt of a task from paper keeps none, then the words. A call not
+// admitted, or a reserve the quota or the limit does not hold, gives the
+// fallback text with the outcome and no call.
 func (s *Service) questionAsked(ctx context.Context, tx pgx.Tx, req *v1.AskTutorRequest, route tutor.Route, category formatv0.AgeCategory, admitted, checking bool) (asking, error) {
 	profileID := req.GetProfileId()
 	h, err := s.holdAny(ctx, tx, profileID, req.GetAttemptId(), s.clock())
@@ -158,7 +165,7 @@ func (s *Service) questionAsked(ctx context.Context, tx pgx.Tx, req *v1.AskTutor
 	case err != nil:
 		return q, err
 	case !h.row.Paper:
-		return q, rpc.Malformed("attempt_id")
+		return s.moduleAsked(ctx, tx, req, q, h, admitted)
 	}
 	if q.paper.language, _, err = paperLanguage(ctx, tx, profileID); err != nil {
 		return q, err
@@ -227,6 +234,55 @@ func (s *Service) questionAsked(ctx context.Context, tx pgx.Tx, req *v1.AskTutor
 	}
 	if refused != nil {
 		q.ready = q.fallback(refused)
+	}
+	return q, err
+}
+
+// moduleAsked is questionAsked on the attempt h of a task of a module: the
+// one task its statement, its solution and the keys of its answer slots, which
+// the model sees as it sees a Check's own answer and the learner never does,
+// with no value read, as api keeps none of the learner's answers; the rung of
+// the wrong answers so far, or 0 before the first; the hints given; and the
+// words in the module's language of explanations, as its hints are. An essay
+// has no answer to keep from the learner, and its question is refused.
+func (s *Service) moduleAsked(ctx context.Context, tx pgx.Tx, req *v1.AskTutorRequest, q asking, h held, admitted bool) (asking, error) {
+	if rubric(h.task) {
+		return q, rpc.Malformed("attempt_id")
+	}
+	q.module = &h
+	q.paper.language = string(h.pkg.View.Manifest.Languages.Explanation)
+	if !admitted {
+		q.ready = q.fallback(&v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED})
+		return q, nil
+	}
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 2*finishReserve {
+		return q, connect.NewError(connect.CodeDeadlineExceeded, "too little time to answer the question")
+	}
+	asked, err := store.ShownRungs(ctx, tx, req.GetProfileId(), h.row.ID)
+	if err != nil {
+		return q, err
+	}
+	var keys []string
+	for _, item := range h.task.Items {
+		for _, slot := range verdict.AnswerSlots(item) {
+			if slot.Check.Key != nil {
+				keys = append(keys, string(*slot.Check.Key))
+			}
+		}
+	}
+	q.paper.tasks = []tutor.PaperWordsTask{{Statement: statementOf(h.task),
+		Solution: strings.Join(solutionOf(h.task), "\n"), Answer: strings.Join(keys, "; ")}}
+	q.paper.task = 1
+	q.request = tutor.PaperWordsRequest{Route: q.route, Ask: tutor.PaperQuestion, Tasks: q.paper.tasks, Task: 1,
+		Rung: rungOf(h.row.WrongAnswers), Language: q.paper.language, Style: styles[formatv0.AgeCategory(q.route.Category)],
+		Asked: asked, Question: req.GetQuestion(), Turns: turnsOf(req.GetTurns())}
+	day, err := s.familyDay(ctx, tx, q.route, req.ClockOffsetMinutes)
+	if err != nil {
+		return q, err
+	}
+	q.reserve, err = s.reserveFor(ctx, tx, req.GetProfileId(), q.route, tutor.CallPaperHint, day)
+	if q.reserve.refused != nil {
+		q.ready = q.fallback(q.reserve.refused)
 	}
 	return q, err
 }
@@ -302,10 +358,11 @@ func (s *Service) ask(ctx context.Context, q asking, own string) asking {
 func (s *Service) questionTold(ctx context.Context, tx pgx.Tx, profileID string, q asking) (*v1.AskTutorResponse, store.KeyTarget, error) {
 	answer := q.ready
 	if answer == nil {
-		row, err := s.holdPaper(ctx, tx, profileID, q.attemptID, s.clock())
+		h, err := s.holdAny(ctx, tx, profileID, q.attemptID, s.clock())
 		if err != nil {
 			return nil, store.KeyTarget{}, err
 		}
+		row := h.row
 		answer = q.worded(ctx)
 		if c := q.checking; c != nil && c.outcome() == nil && row.PaperCheck == nil {
 			if err := keepCheck(ctx, tx, profileID, row, c.checked); err != nil {
@@ -319,7 +376,9 @@ func (s *Service) questionTold(ctx context.Context, tx pgx.Tx, profileID string,
 }
 
 // worded is the answer of the calls of q: the model's words once they passed
-// the checks of a task from paper; the fallback text with no outcome when they
+// the checks of a task from paper, or on a task of a module the leak check of
+// module-kit and the form of a hint, as its hints pass; the fallback text with
+// no outcome when they
 // failed one; else the fallback text with the outcome of the Check that gave no
 // answer, or of the call of the words.
 func (q asking) worded(ctx context.Context) *v1.AskTutorResponse {
@@ -329,7 +388,13 @@ func (q asking) worded(ctx context.Context) *v1.AskTutorResponse {
 	if q.answer.Outcome.Kind != tutor.Answered {
 		return q.fallback(outcomeOf(q.answer.Outcome, q.route.AI))
 	}
-	if check := paperTurnedDown(&q.paper, q.answer); check != "" {
+	check := ""
+	if m := q.module; m != nil {
+		check = turnedDown(m.pkg, m.task, q.answer.Question, words.Hint)
+	} else {
+		check = paperTurnedDown(&q.paper, q.answer)
+	}
+	if check != "" {
 		rpc.NoteWordsCheck(ctx, check)
 		return q.fallback(nil)
 	}

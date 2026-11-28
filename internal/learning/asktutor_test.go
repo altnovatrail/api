@@ -105,6 +105,65 @@ func TestAQuestionOnPaperIsOneCallOfTheWords(t *testing.T) {
 	}
 }
 
+// A question on a task of a module is the same call of the words of a task
+// from paper, about its one task: its statement, its solution and the key of
+// its answer slot, which the learner never sees, with no value read, no rung
+// before a wrong answer and the hints given, in the module's language of
+// explanations, with no Check. Words that give the key away are the opening
+// question's fallback text with no outcome, by the module's own leak check. An
+// essay refuses the question.
+func TestAQuestionOnATaskOfAModuleIsTheSameCall(t *testing.T) {
+	t.Parallel()
+
+	var asked []tutor.PaperWordsRequest
+	var next tutor.WordsAnswer
+	tell := func(_ context.Context, r tutor.PaperWordsRequest) tutor.WordsAnswer {
+		asked = append(asked, r)
+		return next
+	}
+	g := stubGate(t)
+	s := &scripted{Stub: tutorstub.New(g)}
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(s), learning.WithPaperWords(tell)})
+	l := w.learner(t)
+	a := w.begin(t, l, l.adult, "apples").GetAttemptId()
+	question := func(q string) (*v1.AskTutorResponse, error) {
+		return w.attempts.AskTutor(l.ctx, &v1.AskTutorRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
+			Question: q, Turns: []*v1.TutorTurn{{Learner: true, Text: "I am stuck"}}, WordsLanguage: "ru"})
+	}
+	next = tutor.WordsAnswer{Question: "What does Ben give her?", Outcome: tutor.Outcome{Kind: tutor.Answered}}
+	res, err := question("Where do I start?")
+	if err != nil || res.GetWords() != next.Question || res.GetOutcome() != nil {
+		t.Fatalf("the answer = %v, %v; want the model's words", res, err)
+	}
+	if len(asked) != 1 {
+		t.Fatalf("the calls of the words = %d, want one", len(asked))
+	}
+	r := asked[0]
+	if r.Ask != tutor.PaperQuestion || r.Question != "Where do I start?" || r.Task != 1 || r.Rung != 0 || r.Language != "en" ||
+		r.Style == "" || len(r.Asked) != 0 || len(r.Turns) != 1 || !r.Turns[0].Learner || len(r.Tasks) != 1 {
+		t.Fatalf("the call = %+v, want the question on the module's one task, no rung, in its language", r)
+	}
+	if task := r.Tasks[0]; !strings.Contains(task.Statement, "Ann has 3 apples") || task.Solution != "3 + 4 = 7: Ann has 7 apples." ||
+		task.Answer != "7" || task.Read != "" {
+		t.Errorf("the task = %+v, want its statement, solution and key, with no value read", task)
+	}
+	if len(s.checks()) != 0 {
+		t.Errorf("the Checks = %d, want none", len(s.checks()))
+	}
+	next = tutor.WordsAnswer{Question: "Are there 7 apples now?", Outcome: tutor.Outcome{Kind: tutor.Answered}}
+	if leaked, err := question("Is it seven?"); err != nil || leaked.GetWords() != tutor.PaperFallback(0, "en") || leaked.GetOutcome() != nil {
+		t.Errorf("words with the key = %v, %v; want the opening question's fallback text, no outcome", leaked, err)
+	}
+
+	other := w.learner(t)
+	story := w.begin(t, other, other.adult, "story").GetAttemptId()
+	_, err = w.attempts.AskTutor(other.ctx, &v1.AskTutorRequest{ProfileId: other.adult, AttemptId: story, IdempotencyKey: uuid.NewString(),
+		Question: "What do I write?"})
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("a question on an essay: %v, want invalid_argument", err)
+	}
+}
+
 // A question on a task from paper whose attempt keeps no Check checks the work
 // as it stands first and keeps the Check, with no rung given and no wrong
 // answer counted; the words speak of the tasks that Check gave, with no rung.
@@ -205,10 +264,6 @@ func TestAQuestionRefusesWhatTheContractRefuses(t *testing.T) {
 	}
 	if _, err := w.ask(t, l, a, uuid.NewString(), strings.Repeat("я", 500)); err != nil {
 		t.Errorf("a question of 500 code points: %v, want an answer", err)
-	}
-	m := w.begin(t, l, l.adult, "apples").GetAttemptId()
-	if _, err := w.ask(t, l, m, uuid.NewString(), "Why?"); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Errorf("a question on a task of a module: %v, want invalid_argument", err)
 	}
 	if len(s.checks()) != 1 {
 		t.Errorf("the Checks = %d, want the one of the question that was taken", len(s.checks()))
