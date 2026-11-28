@@ -596,72 +596,6 @@ func TestTheWordsAfterACorrectAnswerAreNotAdmittedAtFull(t *testing.T) {
 	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_KEY_NOT_FOR_PROFILE)
 }
 
-// The solution is shown to an adult learner from the beginning, and to a child
-// from the fourth wrong answer, by an adult's action while "ask before showing"
-// is on; the show closes the attempt "solution shown" and deletes the words of
-// its rungs. A repeat gets the solution again.
-func TestTheSolutionIsShownAfterTheLadderAndByTheAdult(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	l := w.learner(t)
-	show := func(profile, attempt string, action v1.Action) (*v1.ShowSolutionResponse, error) {
-		return w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: profile, AttemptId: attempt,
-			IdempotencyKey: uuid.NewString(), Action: action})
-	}
-	adult := w.begin(t, l, l.adult, "grown-ups").GetAttemptId()
-	req := &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: adult, IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING}
-	res, err := w.attempts.ShowSolution(l.ctx, req)
-	if err != nil || res.GetSolved() == nil || res.GetSolved().GetModuleFormatVersion() != "0.4" {
-		t.Fatalf("shown = %v (%v)", res, err)
-	}
-	if got := w.closeOf(t, adult); got != "solution_shown" {
-		t.Errorf("the attempt is closed %q, want solution_shown", got)
-	}
-	if again, err := w.attempts.ShowSolution(l.ctx, req); err != nil || again.GetSolved() == nil {
-		t.Errorf("a repeat = %v (%v), want the solution again", again, err)
-	}
-
-	child := w.begin(t, l, l.child, "pairs").GetAttemptId()
-	trapped := []*v1.TappedChoice{tap(1, 1, "12"), tap(2, 1, "30")}
-	w.wrongs(t, l, l.child, child, trapped, trapped, trapped)
-	if _, err := w.rungWords(l, l.child, child, 3); err != nil {
-		t.Fatal(err)
-	}
-	for _, action := range []v1.Action{v1.Action_ACTION_LEARNING, v1.Action_ACTION_ADULT} {
-		_, err := show(l.child, child, action)
-		refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_LADDER_NOT_PASSED)
-	}
-	w.wrongs(t, l, l.child, child, trapped)
-	_, err = show(l.child, child, v1.Action_ACTION_LEARNING)
-	refusedAs(t, err, connect.CodePermissionDenied, v1.Cause_CAUSE_ADULT_NEEDED)
-	_, err = show(l.child, child, v1.Action_ACTION_UNSPECIFIED)
-	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
-	w.denyManage.Store(true)
-	_, err = show(l.child, child, v1.Action_ACTION_ADULT)
-	refusedAs(t, err, connect.CodePermissionDenied, v1.Cause_CAUSE_UNSPECIFIED)
-	w.denyManage.Store(false)
-	if res, err := show(l.child, child, v1.Action_ACTION_ADULT); err != nil || res.GetSolved() == nil {
-		t.Errorf("shown by an adult = %v (%v)", res, err)
-	}
-	var words, sources int
-	if err := w.pool.QueryRow(t.Context(), `SELECT count(words), count(source) FROM attempt_rungs WHERE attempt_id = $1`, child).
-		Scan(&words, &sources); err != nil || words != 0 || sources != 1 {
-		t.Errorf("after the show: %d words and %d sources (%v), want the source alone", words, sources, err)
-	}
-
-	// The setting off: a learning action shows it.
-	w.exec(t, `UPDATE profiles SET ask_before_showing = false WHERE id = $1`, l.child)
-	other := w.begin(t, l, l.child, "pairs").GetAttemptId()
-	w.wrongs(t, l, l.child, other, trapped, trapped, trapped, trapped)
-	if res, err := show(l.child, other, v1.Action_ACTION_LEARNING); err != nil || res.GetSolved() == nil {
-		t.Errorf("shown by the child with the setting off = %v (%v)", res, err)
-	}
-	story := w.attempt(t, l.adult, string(w.current.Digest), "story")
-	_, err = show(l.adult, story, v1.Action_ACTION_LEARNING)
-	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
-}
-
 // Words that hold a key of the task that its texts do not show leak, and give
 // the fallback text with no outcome.
 func TestTheWordsThatLeakAKeyGiveTheFallbackText(t *testing.T) {
@@ -695,7 +629,7 @@ func TestALadderOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 
 	for _, failOn := range []string{
 		"FROM attempt_rungs WHERE", "INSERT INTO attempt_rungs (", "ON CONFLICT", "UNION ALL", "requested_techniques_at =",
-		"ORDER BY number", "SELECT ask_before_showing", "NOT EXISTS", "SET close_reason",
+		"ORDER BY number", "NOT EXISTS", "SET close_reason",
 	} {
 		t.Run(failOn, func(t *testing.T) {
 			t.Parallel()
@@ -718,8 +652,6 @@ func TestALadderOnADatabaseThatFailsIsUnavailable(t *testing.T) {
 			for range 3 {
 				note(w.submit(l, l.child, a, trapped...))
 			}
-			note(w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.child, AttemptId: a,
-				IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_ADULT}))
 			b := w.begin(t, l, l.adult, "pick").GetAttemptId()
 			note(w.submit(l, l.adult, b, tap(1, 1, "three and four")))
 			note(w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: b,

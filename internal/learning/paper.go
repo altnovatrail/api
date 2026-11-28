@@ -106,7 +106,7 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 	}
 	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_FIND_TASKS, "")
 	defer act.End()
-	route := act.Route(routeOf(category, req.GetOwnKey()))
+	route := routeOf(act, category, req.GetOwnKey())
 	// A first model of the debug mode takes the call past the list, as tutor does.
 	admitted := act.Chosen() || s.admits.Reads(tutor.CallFinding, category, req.GetOwnKey().GetProvider())
 	answer, err := rpc.Across(ctx, s.db, key, req, rpc.Phases[finding, *v1.FindTasksResponse]{
@@ -123,7 +123,7 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 				return finding{}, target, err
 			}
 			f := finding{request: tutor.TaskFinding{Route: route, Photo: req.GetPhoto(), Request: req.GetRequest(), Found: boxesOf(req.GetFound()), Drawn: boxesOf(req.GetDrawn())}}
-			if f.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallFinding, 1, day); err == nil && f.reserve.refused != nil {
+			if f.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallFinding, day); err == nil && f.reserve.refused != nil {
 				err = refusal(ctx, f.reserve.refused)
 			}
 			return f, target, err

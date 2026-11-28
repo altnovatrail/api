@@ -60,24 +60,23 @@ func ChoiceOf(ctx context.Context, db Querier, profileID, choiceID string) (Choi
 // from paper has Paper, and the fields of a module, its package, its task and
 // its seed empty.
 type Attempt struct {
-	ID             string
-	Paper          bool
-	PackageDigest  string
-	ModuleID       string
-	ModuleVersion  string
-	FormatVersion  string
-	ModuleKit      string
-	TaskID         string
-	Seed           uint64
-	Instance       *int
-	ChoiceID       *string
-	LessonRunID    *string
-	Segment        *int
-	PreviousID     *string
-	LastActionAt   time.Time
-	CloseReason    *string
-	WrongAnswers   int
-	StepTechniques bool
+	ID            string
+	Paper         bool
+	PackageDigest string
+	ModuleID      string
+	ModuleVersion string
+	FormatVersion string
+	ModuleKit     string
+	TaskID        string
+	Seed          uint64
+	Instance      *int
+	ChoiceID      *string
+	LessonRunID   *string
+	Segment       *int
+	PreviousID    *string
+	LastActionAt  time.Time
+	CloseReason   *string
+	WrongAnswers  int
 	// RequestedTechniques and LeadingQuestion say whether a hint asked for gave
 	// the task's techniques, and its leading question.
 	RequestedTechniques bool
@@ -104,8 +103,7 @@ type Attempt struct {
 const attemptColumns = `id, kind = 'paper', coalesce(package_digest, ''), coalesce(module_id, ''),
 	coalesce(module_version, ''), coalesce(module_format_version, ''), coalesce(module_kit_version, ''),
 	coalesce(task_id, ''), coalesce(seed, 0), instance, choice_id, lesson_run_id, segment, previous_attempt_id,
-	last_action_at, close_reason, wrong_answers, step_techniques_at IS NOT NULL,
-	requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given, paper_check, paper_history,
+	last_action_at, close_reason, wrong_answers, requested_techniques_at IS NOT NULL, leading_question_at IS NOT NULL, correct_words_given, paper_check, paper_history,
 	paper_reading`
 
 func scanAttempt(row pgx.Row) (Attempt, error) {
@@ -113,7 +111,7 @@ func scanAttempt(row pgx.Row) (Attempt, error) {
 	var seed int64
 	err := row.Scan(&a.ID, &a.Paper, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.FormatVersion, &a.ModuleKit,
 		&a.TaskID, &seed, &a.Instance, &a.ChoiceID, &a.LessonRunID, &a.Segment, &a.PreviousID, &a.LastActionAt,
-		&a.CloseReason, &a.WrongAnswers, &a.StepTechniques, &a.RequestedTechniques, &a.LeadingQuestion,
+		&a.CloseReason, &a.WrongAnswers, &a.RequestedTechniques, &a.LeadingQuestion,
 		&a.CorrectWordsGiven, &a.PaperCheck, &a.PaperHistory, &a.PaperReading)
 	// The seed is module-kit's uint64, kept as the bits of a bigint.
 	a.Seed = uint64(seed)
@@ -423,13 +421,14 @@ func SubmissionAnswer(ctx context.Context, db Querier, profileID, submissionID s
 	return answer, nil
 }
 
-// GiveStepTechniques records that the techniques of the attempt's task were
-// given at a step, the first time they were, and that the attempt's last action
-// is at.
-func GiveStepTechniques(ctx context.Context, tx pgx.Tx, profileID, attemptID string, at time.Time) error {
-	if _, err := tx.Exec(ctx, `UPDATE attempts SET step_techniques_at = coalesce(step_techniques_at, $3),
-		last_action_at = $3 WHERE profile_id = $1 AND id = $2`, profileID, attemptID, at); err != nil {
-		return fmt.Errorf("store: record the techniques given: %w", err)
+// MarkGrownUp records that grown-up mode acted on the profile's attempt of a
+// task of a module, the first time it did, at: such an attempt owes no
+// evidence. It is the one thing kept of the grown-up's request, and it moves
+// no last action, as the learner did not act.
+func MarkGrownUp(ctx context.Context, tx pgx.Tx, profileID, attemptID string, at time.Time) error {
+	if _, err := tx.Exec(ctx, `UPDATE attempts SET grown_up_at = coalesce(grown_up_at, $3)
+		WHERE profile_id = $1 AND id = $2 AND kind = 'module'`, profileID, attemptID, at); err != nil {
+		return fmt.Errorf("store: record grown-up mode: %w", err)
 	}
 	return nil
 }

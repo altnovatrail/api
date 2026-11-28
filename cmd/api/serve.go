@@ -350,7 +350,7 @@ func open(ctx context.Context, opens *config.Serve, cat *catalog.Catalog, attemp
 		Module:   cat.Modules(p.pool),
 		Package:  cat.Packages(),
 		Learning: attempts.Learning(p.pool),
-		Attempt:  attempts.Attempts(p.pool, p.rights),
+		Attempt:  attempts.Attempts(p.pool),
 		Progress: attempts.Progress(p.pool, p.rights),
 		Work:     attempts.Works(p.pool, p.rights),
 		Paper:    attempts.Paper(p.pool),

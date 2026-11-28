@@ -35,10 +35,9 @@ const (
 	// the tutor's words from a list of its own, and calls no provider. Admission,
 	// the prices and the quota stay tutor's own.
 	VarTutorStub = "API_TUTOR_STUB"
-	// VarReadingMode is how tutor reads the handwriting of a sheet and of a
-	// workbook page: "pair", both readers, whose observations
-	// module-kit joins, or "single", Haiku 5.5 at medium alone, whose observation
-	// is the reading. Unset or empty, it is "pair"; it holds at either stage.
+	// VarReadingMode is how tutor reads the handwriting of a sheet: "pair", both
+	// readers, whose observations module-kit joins, or "single", Haiku 5.5 at
+	// medium alone, whose observation is the reading. Unset or empty, it is "single"; it holds at either stage.
 	VarReadingMode = "API_READING_MODE"
 	// VarDebugModels, set to 1, gives every account of a local run with models the
 	// right of the debug mode, which otherwise an account has by its row: the
@@ -130,7 +129,7 @@ func AdmissionFrom(environ []string) (Admission, error) {
 	}
 	switch cfg.Reading = env[VarReadingMode]; cfg.Reading {
 	case "":
-		cfg.Reading = ReadingPair
+		cfg.Reading = ReadingSingle
 	case ReadingPair, ReadingSingle:
 	default:
 		problems = append(problems, fmt.Errorf("%w: %s must be %s, %s or unset, got %q",

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
@@ -84,6 +85,8 @@ func (a *AttemptService) SubmitEssay(ctx context.Context, req *v1.SubmitEssayReq
 	if err := ownKeySent(ctx, category, req.GetOwnKey()); err != nil {
 		return nil, err
 	}
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, req.GetAttemptId())
+	defer act.End()
 	profileID := req.GetProfileId()
 	key := rpc.Key{
 		Method:   apiv1connect.AttemptServiceSubmitEssayProcedure,
@@ -106,7 +109,7 @@ func (a *AttemptService) SubmitEssay(ctx context.Context, req *v1.SubmitEssayReq
 	}
 	answer, err := rpc.Across(ctx, s.db, key, req, rpc.Phases[essaying, *v1.SubmitEssayResponse]{
 		Prepare: func(tx pgx.Tx, _ string) (essaying, store.KeyTarget, error) {
-			e, err := s.essayed(ctx, tx, req, category)
+			e, err := s.essayed(ctx, tx, req, category, act)
 			return e, store.KeyTarget{ProfileID: profileID, AttemptID: e.attemptID}, err
 		},
 		Call: func(ctx context.Context, e essaying) essaying { return s.assess(ctx, e, req.GetOwnKey().GetKey()) },
@@ -127,8 +130,10 @@ func (a *AttemptService) SubmitEssay(ctx context.Context, req *v1.SubmitEssayReq
 // anything is called, and takes the reserve of the reading with the assessment:
 // an open attempt of the profile, of a task with a rubric that tutor reads as
 // an essay, and a crop that is a PNG tutor would read (cropTaken). An attempt
-// closed is "attempt closed", before any call of AI.
-func (s *Service) essayed(ctx context.Context, tx pgx.Tx, req *v1.SubmitEssayRequest, category formatv0.AgeCategory) (essaying, error) {
+// closed is "attempt closed", before any call of AI. act is the request's
+// action of the debug mode, which the route of the reading and the assessment
+// carries.
+func (s *Service) essayed(ctx context.Context, tx pgx.Tx, req *v1.SubmitEssayRequest, category formatv0.AgeCategory, act *debug.Action) (essaying, error) {
 	profileID := req.GetProfileId()
 	h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), s.clock())
 	if err != nil {
@@ -148,7 +153,7 @@ func (s *Service) essayed(ctx context.Context, tx pgx.Tx, req *v1.SubmitEssayReq
 		// be recorded as a failure of AI under the key for good.
 		return e, connect.NewError(connect.CodeDeadlineExceeded, "too little time to read the essay")
 	}
-	e.route = routeOf(category, req.GetOwnKey())
+	e.route = routeOf(act, category, req.GetOwnKey())
 	if e.day, err = s.familyDay(ctx, tx, e.route, req.ClockOffsetMinutes); err != nil {
 		return e, err
 	}

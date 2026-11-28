@@ -358,7 +358,7 @@ func TestEveryProfileHasItsSkillState(t *testing.T) {
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		var err error
 		made, err = store.CreateOwnerProfile(ctx, tx, accountID, store.Profile{Pseudonym: "Owl", Country: "US",
-			VoicingSpeed: "normal", DefaultMode: "self"})
+			VoicingSpeed: "normal"})
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -503,7 +503,7 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		a, found, err := store.HoldOpenAttempt(ctx, tx, e.profileID)
 		if err != nil || !found || a.ID != id || a.Seed != 1<<63 || *a.Instance != 2 || *a.ChoiceID != task ||
-			a.CloseReason != nil || !a.LastActionAt.Equal(at) || a.StepTechniques {
+			a.CloseReason != nil || !a.LastActionAt.Equal(at) {
 			t.Errorf("HoldOpenAttempt = %+v, %v, %v", a, found, err)
 		}
 		return nil
@@ -530,10 +530,10 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 		if _, err := store.Submit(ctx, tx, e.profileID, id, []byte{2}, nil, false, later); err != nil {
 			return err
 		}
-		if err := store.GiveStepTechniques(ctx, tx, e.profileID, id, at); err != nil {
+		if err := store.MarkGrownUp(ctx, tx, e.profileID, id, at); err != nil {
 			return err
 		}
-		return store.GiveStepTechniques(ctx, tx, e.profileID, id, later)
+		return store.MarkGrownUp(ctx, tx, e.profileID, id, later)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -550,7 +550,7 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 	var first string
 	var given time.Time
 	var observation []byte
-	if err := e.pool.QueryRow(ctx, `SELECT s.id, a.step_techniques_at, s.observation FROM submissions s JOIN attempts a ON a.id = s.attempt_id
+	if err := e.pool.QueryRow(ctx, `SELECT s.id, a.grown_up_at, s.observation FROM submissions s JOIN attempts a ON a.id = s.attempt_id
 		WHERE s.attempt_id = $1 AND s.number = 1`, id).Scan(&first, &given, &observation); err != nil {
 		t.Fatal(err)
 	}
@@ -558,12 +558,12 @@ func TestTheRowsOfAnAttemptAreWrittenAndRead(t *testing.T) {
 		t.Errorf("the first submission keeps the observation %v, want its own", observation)
 	}
 	if answer, err := store.SubmissionAnswer(ctx, e.pool, e.profileID, first); err != nil || answer[0] != 1 || !given.Equal(at) {
-		t.Errorf("SubmissionAnswer = %v, %v; techniques given at %v, want the first time", answer, err, given)
+		t.Errorf("SubmissionAnswer = %v, %v; grown-up mode acted at %v, want the first time", answer, err, given)
 	}
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		a, err := store.HoldAttempt(ctx, tx, e.profileID, id)
-		if err != nil || a.WrongAnswers != 1 || !a.LastActionAt.Equal(later) || !a.StepTechniques {
-			t.Errorf("HoldAttempt = %+v, %v; want one wrong answer, the last action later, techniques given", a, err)
+		if err != nil || a.WrongAnswers != 1 || !a.LastActionAt.Equal(later) {
+			t.Errorf("HoldAttempt = %+v, %v; want one wrong answer, the last action later", a, err)
 		}
 		if err := store.CloseAttempt(ctx, tx, e.profileID, id, "correct", later); err != nil {
 			return err

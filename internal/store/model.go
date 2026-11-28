@@ -71,7 +71,7 @@ func WriteSkillState(ctx context.Context, tx pgx.Tx, profileID string, s SkillSt
 
 // Owed is a closed attempt whose evidence is not in the journal yet, with what
 // its evidence is built of: what it was of, how it closed, its last action, the
-// techniques given at a step and on request, whether a hint asked for gave the
+// techniques given on request, whether a hint asked for gave the
 // task's leading question, how many times "explain differently" was asked for,
 // whether the solution of its task reached the device before it began, and the
 // answers of its submissions, in order.
@@ -84,7 +84,6 @@ type Owed struct {
 	CloseReason         string
 	WrongAnswers        int
 	LastActionAt        time.Time
-	StepTechniques      bool
 	RequestedTechniques bool
 	LeadingQuestion     bool
 	ExplainedAgain      int
@@ -95,9 +94,10 @@ type Owed struct {
 // owedWhere is the closed attempts that owe their evidence, on the packages of
 // the parameter digests: closed correct, with the solution shown or unchecked;
 // or left, abandoned or not suitable with wrong answers, since one with none
-// gives no evidence. "Done" gives none (О-17).
+// gives no evidence. "Done" gives none (О-17), nor does an attempt that
+// grown-up mode acted on, whose work may be the grown-up's.
 func owedWhere(digests string) string {
-	return `a.closed_at IS NOT NULL AND a.package_digest = ANY(` + digests + `::text[])
+	return `a.closed_at IS NOT NULL AND a.grown_up_at IS NULL AND a.package_digest = ANY(` + digests + `::text[])
 	AND (a.close_reason IN ('correct', 'solution_shown', 'unchecked')
 		OR (a.close_reason IN ('left', 'abandoned', 'not_suitable') AND a.wrong_answers > 0))
 	AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.attempt_id = a.id)`
@@ -109,7 +109,7 @@ func owedWhere(digests string) string {
 // they closed.
 func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []string) ([]Owed, error) {
 	rows, err := tx.Query(ctx, `SELECT a.id, a.package_digest, a.module_id, a.task_id, a.instance, a.close_reason,
-			a.wrong_answers, a.last_action_at, a.step_techniques_at IS NOT NULL, a.requested_techniques_at IS NOT NULL,
+			a.wrong_answers, a.last_action_at, a.requested_techniques_at IS NOT NULL,
 			a.leading_question_at IS NOT NULL,
 			(SELECT count(*) FROM attempt_rungs r WHERE r.profile_id = a.profile_id AND r.attempt_id = a.id
 				AND r.explained_at IS NOT NULL),
@@ -125,7 +125,7 @@ func OwedAttempts(ctx context.Context, tx pgx.Tx, profileID string, digests []st
 	owed, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Owed, error) {
 		var o Owed
 		err := row.Scan(&o.ID, &o.PackageDigest, &o.ModuleID, &o.TaskID, &o.Instance, &o.CloseReason, &o.WrongAnswers,
-			&o.LastActionAt, &o.StepTechniques, &o.RequestedTechniques, &o.LeadingQuestion, &o.ExplainedAgain, &o.SolutionSeenBefore,
+			&o.LastActionAt, &o.RequestedTechniques, &o.LeadingQuestion, &o.ExplainedAgain, &o.SolutionSeenBefore,
 			&o.Answers)
 		return o, err
 	})

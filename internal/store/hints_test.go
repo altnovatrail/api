@@ -147,12 +147,6 @@ func TestWhatAHintGivesIsRecordedOnce(t *testing.T) {
 		Scan(&techniques, &leading, &last); err != nil || !techniques.Equal(at) || !leading.Equal(later) || !last.Equal(later.Add(time.Minute)) {
 		t.Errorf("given at %v and %v, last action %v (%v); want each the first time, and the last action", techniques, leading, last, err)
 	}
-	if asks, err := store.AsksBeforeShowing(ctx, e.pool, e.profileID); err != nil || asks {
-		t.Errorf("AsksBeforeShowing of an adult = %v, %v", asks, err)
-	}
-	if _, err := store.AsksBeforeShowing(ctx, e.pool, "00000000-0000-0000-0000-000000000000"); !errors.Is(err, store.ErrNoProfile) {
-		t.Errorf("AsksBeforeShowing of none = %v, want ErrNoProfile", err)
-	}
 	if last, err := store.LastAttempt(ctx, e.pool, e.profileID, id); err != nil || !last {
 		t.Errorf("LastAttempt = %v, %v; want the last", last, err)
 	}
@@ -224,10 +218,6 @@ func TestTheLaddersStatementsFail(t *testing.T) {
 		"correct_words_given = true": func(tx pgx.Tx) error { return store.GiveCorrectWords(ctx, tx, e.profileID, id) },
 		"SELECT answer FROM submissions": func(tx pgx.Tx) error {
 			_, err := store.Answers(ctx, tx, e.profileID, id)
-			return err
-		},
-		"SELECT ask_before_showing": func(tx pgx.Tx) error {
-			_, err := store.AsksBeforeShowing(ctx, tx, e.profileID)
 			return err
 		},
 		"NOT EXISTS": func(tx pgx.Tx) error {

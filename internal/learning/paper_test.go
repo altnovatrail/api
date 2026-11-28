@@ -381,23 +381,16 @@ func TestAPageBeginsAsATaskOfHandwriting(t *testing.T) {
 	}
 }
 
-// An attempt of a task from paper has no solution to show, no steps, no rubric,
-// no open view, no words after a correct answer and no stored work; nor is it
-// begun again as a task of a module.
+// An attempt of a task from paper has no rubric, no open view, no words after a
+// correct answer and no stored work; nor is it begun again as a task of a
+// module.
 func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 	t.Parallel()
 
 	w, _ := newStubWorld(t)
 	l := w.learner(t)
 	a := w.beginPage(t, l, l.adult, 1)[0]
-	_, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: a, IdempotencyKey: uuid.NewString(),
-		Action: v1.Action_ACTION_LEARNING})
-	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
 	for name, call := range map[string]func() error{
-		"BeginStep": func() error {
-			_, err := w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.adult, AttemptId: a, Step: 1})
-			return err
-		},
 		"Done": func() error {
 			_, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: l.adult, AttemptId: a})
 			return err
@@ -426,7 +419,7 @@ func TestAnAttemptOfPaperTakesNoRequestOfAModule(t *testing.T) {
 		}
 	}
 	// The Check gives its own words, and nothing comes after a correct answer.
-	_, err = w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: a,
+	_, err := w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: l.adult, AttemptId: a,
 		IdempotencyKey: uuid.NewString(), Work: sheet(pngOf(t, 40, 10))})
 	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_MORE_WORDS)
 	if w.closeOf(t, a) != "" {

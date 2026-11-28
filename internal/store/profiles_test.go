@@ -53,7 +53,7 @@ func TestTheOwnersProfileIsOneWithItsConsent(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE accounts SET adult_stated_at = now() WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	p := store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"}
+	p := store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal"}
 	var created store.Profile
 	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 		var err error
@@ -122,14 +122,14 @@ func TestAProfileIsChangedOnlyByItsAccount(t *testing.T) {
 			return err
 		}
 		grade := int16(4)
-		p.Pseudonym, p.Grade, p.AskBeforeShowing = "Lynx", &grade, false
+		p.Pseudonym, p.Grade = "Lynx", &grade
 		return store.WriteProfile(ctx, tx, p)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	view, err := store.AccountView(ctx, pool, id)
-	if err != nil || view.Profiles[0].Pseudonym != "Lynx" || *view.Profiles[0].Grade != 4 || view.Profiles[0].AskBeforeShowing {
+	if err != nil || view.Profiles[0].Pseudonym != "Lynx" || *view.Profiles[0].Grade != 4 {
 		t.Errorf("the profile after the change = %+v, %v", view.Profiles, err)
 	}
 	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
@@ -206,7 +206,7 @@ func TestAChildsProfileIsMadeOfItsConsent(t *testing.T) {
 		if err != nil || c.State != store.ConsentConfirmed || c.ProfileID != "" {
 			t.Errorf("ConsentFor = %+v, %v; want it confirmed and with no profile", c, err)
 		}
-		p := store.Profile{Pseudonym: "Fox", VoicingEnabled: true, VoicingSpeed: "normal", DefaultMode: "by_steps", AskBeforeShowing: true}
+		p := store.Profile{Pseudonym: "Fox", VoicingEnabled: true, VoicingSpeed: "normal"}
 		created, err = store.CreateChildProfile(ctx, tx, id, c, p)
 		return err
 	})

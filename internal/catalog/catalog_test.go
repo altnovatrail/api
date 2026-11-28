@@ -248,7 +248,7 @@ func (w *world) get(t *testing.T, path string, header ...string) (*http.Response
 	return res, body.Bytes()
 }
 
-// The four open views go without a token, by the digest alone; a part the module
+// The three open views go without a token, by the digest alone; a part the module
 // does not have is an answer without its view.
 func TestTheOpenViewsComeByDigestWithoutAToken(t *testing.T) {
 	t.Parallel()
@@ -293,14 +293,16 @@ func TestTheOpenViewsComeByDigestWithoutAToken(t *testing.T) {
 	if err != nil || techniques.GetTechniques() != nil {
 		t.Errorf("GetTechniques of a module with none = %v, %v", techniques, err)
 	}
-	steps, err := w.packages.GetSolvingSteps(ctx, &v1.GetSolvingStepsRequest{PackageDigest: string(w.older.Digest)})
-	if err != nil || steps.GetSolvingSteps() != nil {
-		t.Errorf("GetSolvingSteps of a module with none = %v, %v", steps, err)
+	// No screen leads the solving steps: their view answers unimplemented, of a
+	// package that has them too.
+	_, err = w.packages.GetSolvingSteps(ctx, &v1.GetSolvingStepsRequest{PackageDigest: string(w.newer.Digest)})
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Errorf("GetSolvingSteps = %v, want unimplemented", err)
 	}
 }
 
 // A version the image no longer gives, a digest it does not know and one that
-// is no digest are refused, by each of the four.
+// is no digest are refused, by each of the three.
 func TestTheOpenViewsAreRefusedForWhatTheImageDoesNotGive(t *testing.T) {
 	t.Parallel()
 
@@ -317,10 +319,6 @@ func TestTheOpenViewsAreRefusedForWhatTheImageDoesNotGive(t *testing.T) {
 		},
 		"techniques": func(d string) error {
 			_, err := w.packages.GetTechniques(ctx, &v1.GetTechniquesRequest{PackageDigest: d})
-			return err
-		},
-		"solving steps": func(d string) error {
-			_, err := w.packages.GetSolvingSteps(ctx, &v1.GetSolvingStepsRequest{PackageDigest: d})
 			return err
 		},
 	}
@@ -519,6 +517,61 @@ func TestModulesAreConnectedAndDisconnected(t *testing.T) {
 	}
 }
 
+// A task skill is set on a connected module, a skill of the graph of its
+// current version, comes with the modules connected and is given back to the
+// tutor with none; a skill the graph does not have, or the graph of the current
+// version no longer has, is none. A module not connected, or a skill the graph
+// does not have, is "not found", a module with no current version for the
+// learner is refused so, and one solved on the sheet is malformed.
+func TestATaskSkillIsSetOnAConnectedModule(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	l := w.learner(t, "uid-owner")
+	skill := "example/with-solver/skill/arithmetic-tricks"
+	set := func(profileID, module, skill string) (*v1.SetTaskSkillResponse, error) {
+		return w.modules.SetTaskSkill(l.ctx, &v1.SetTaskSkillRequest{ProfileId: profileID, ModuleId: module, Skill: skill})
+	}
+	if _, err := w.modules.ConnectModule(l.ctx, &v1.ConnectModuleRequest{ProfileId: l.child, ModuleId: "example/with-solver"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := set(l.child, "example/with-solver", skill)
+	if err != nil || len(res.GetModules()) != 1 || res.GetModules()[0].GetTaskSkill() != skill {
+		t.Fatalf("SetTaskSkill = %v, %v; want the module with its skill", res, err)
+	}
+	listed, err := w.modules.ListConnectedModules(l.ctx, &v1.ListConnectedModulesRequest{ProfileId: l.child})
+	if err != nil || listed.GetModules()[0].GetTaskSkill() != skill {
+		t.Errorf("ListConnectedModules = %v, %v; want the task skill", listed, err)
+	}
+	if res, err := set(l.child, "example/with-solver", ""); err != nil || res.GetModules()[0].GetTaskSkill() != "" {
+		t.Errorf("the skill given back = %v, %v; want none", res, err)
+	}
+	// A skill the current graph no longer has is the tutor's choice again.
+	if _, err := w.pool.Exec(t.Context(), `UPDATE connected_modules SET task_skill = 'example/with-solver/skill/gone' WHERE profile_id = $1`, l.child); err != nil {
+		t.Fatal(err)
+	}
+	if listed, err := w.modules.ListConnectedModules(l.ctx, &v1.ListConnectedModulesRequest{ProfileId: l.child}); err != nil || listed.GetModules()[0].GetTaskSkill() != "" {
+		t.Errorf("a skill gone = %v, %v; want none", listed, err)
+	}
+
+	_, err = set(l.child, "example/with-solver", "example/with-solver/skill/none")
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
+	_, err = set(l.child, "example/with-solver", "example/smallest/skill/arithmetic-tricks")
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
+	_, err = set(l.child, "example/with-media-and-notice", "")
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
+	_, err = set(l.adult, "example/with-solver", "")
+	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
+	if err := store.ConnectModule(t.Context(), w.pool, l.adult, "example/with-solver"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = set(l.adult, "example/with-solver", skill)
+	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_CURRENT_VERSION)
+	w.set.Sheet("example/with-solver")
+	_, err = set(l.child, "example/with-solver", skill)
+	refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
+}
+
 // The deployment's list narrows the catalog: a module it leaves out is given to
 // nobody, is refused a connection as a module with no current version is, and
 // connected already, it stays, with no digest.
@@ -679,6 +732,28 @@ func TestADatabaseThatFailsIsUnavailable(t *testing.T) {
 					t.Errorf("request %d failed: %v", i, err)
 				}
 			}
+		})
+	}
+}
+
+// A task skill on a database that fails is unavailable: its write, and the read
+// of the modules connected that says why a module is not offered.
+func TestATaskSkillOnADatabaseThatFailsIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	for failOn, module := range map[string]string{
+		"UPDATE connected_modules": "example/with-media-and-notice",
+		"ORDER BY connected_at":    "example/with-solver",
+	} {
+		t.Run(failOn, func(t *testing.T) {
+			t.Parallel()
+			w := newWorld(t, func(pool *pgxpool.Pool) catalog.DB { return &failing{Pool: pool, failOn: failOn} })
+			l := w.learner(t, "uid-owner")
+			if err := store.ConnectModule(t.Context(), w.pool, l.adult, module); err != nil {
+				t.Fatal(err)
+			}
+			_, err := w.modules.SetTaskSkill(l.ctx, &v1.SetTaskSkillRequest{ProfileId: l.adult, ModuleId: module})
+			refusedAs(t, err, connect.CodeUnavailable, v1.Cause_CAUSE_UNSPECIFIED)
 		})
 	}
 }

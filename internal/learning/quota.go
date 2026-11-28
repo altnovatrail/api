@@ -57,17 +57,17 @@ type reserve struct {
 
 // reserveFor reserves the call on platform AI by route, for the profile, on the
 // family day, in tx: its expected price by tutor, or the value of its kind when
-// tutor has none, for each of the crops it shows. Platform AI that the limit of
+// tutor has none. Platform AI that the limit of
 // its provider closed makes no call, with the outcome "platform limit". The
 // quota of the profile or the account that does not hold it refuses it with the
 // outcome "quota" and when the next family day begins; an account whose tariff
 // has no caps, with "not admitted": platform AI is closed to it by default.
 // Either is noted in the request's log, with the cap and no ID.
-func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, crops int, day quota.Day) (reserve, error) {
+func (s *Service) reserveFor(ctx context.Context, tx pgx.Tx, profileID string, route tutor.Route, call tutor.Call, day quota.Day) (reserve, error) {
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, nil
 	}
-	return s.reserveOf(ctx, tx, profileID, quota.Reserve(call, s.price(call, route), crops), day)
+	return s.reserveOf(ctx, tx, profileID, quota.Reserve(call, s.price(call, route)), day)
 }
 
 // reserveEssay reserves the reading of an essay together with its assessment by
@@ -89,8 +89,8 @@ func (s *Service) reservePair(ctx context.Context, tx pgx.Tx, profileID string, 
 	if route.AI != admissionv0.AiRoutePlatformAi {
 		return reserve{}, reserve{}, nil
 	}
-	one := quota.Reserve(first, s.price(first, route), 1)
-	two := quota.Reserve(second, s.price(second, route), 1)
+	one := quota.Reserve(first, s.price(first, route))
+	two := quota.Reserve(second, s.price(second, route))
 	both, err := s.reserveOf(ctx, tx, profileID, one+two, day)
 	if err != nil || !both.taken {
 		return both, reserve{}, err

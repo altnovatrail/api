@@ -39,9 +39,10 @@ type begun struct {
 // same transaction: "left", or as the check of a request would have closed it.
 // The module must be connected and have a current version for the learner that
 // holds the task, and the task must suit the age category of the profile. A
-// task of handwriting begins when tutor reads its form — a handwriting sheet
-// with one answer slot bound anywhere, or a workbook — and the gate of
-// admission chooses models for its kind of call, by platform AI or the own key
+// task begins only on a handwriting sheet, which every task of a module is
+// solved on, never on a workbook. A task of handwriting begins when tutor reads
+// its form — one answer slot bound anywhere — and the gate of admission chooses
+// models for its kind of call, by platform AI or the own key
 // named; a task with a rubric, when tutor reads it as an essay and the gate
 // chooses models for its reading and its assessment both. A task segment of a
 // lesson run begins on the run's package, once the run is checked whole and
@@ -253,8 +254,8 @@ func (s *Service) leave(ctx context.Context, tx pgx.Tx, profileID string, now ti
 // another device too: its beginning, the verdicts of its last submission, how
 // many wrong answers it has, the current rung with the words the attempt keeps
 // for it or its fallback text, and whether "explain differently" was asked for
-// on it, and the techniques given at a step and on request, with the leading
-// question given on request. It reads, and so it is no action on the attempt:
+// on it, and the techniques given on request, with the leading question given
+// on request. It reads, and so it is no action on the attempt:
 // its last action stays.
 func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAttemptRequest) (*v1.GetOpenAttemptResponse, error) {
 	s := l.s
@@ -289,9 +290,6 @@ func (l *LearningService) GetOpenAttempt(ctx context.Context, req *v1.GetOpenAtt
 				return err
 			}
 			open.Items = last.GetItems()
-		}
-		if h.row.StepTechniques {
-			open.StepTechniqueIds = techniques(h.task)
 		}
 		if h.row.RequestedTechniques {
 			open.RequestedTechniqueIds = techniques(h.task)
@@ -329,27 +327,28 @@ func startOf(h held) (*v1.AttemptStart, error) {
 // rubric is, when tutor reads it as an essay and both its calls — the reading
 // of the essay and its assessment by the rubric — are admitted; one AI would
 // read in a zone or on the whole sheet is not, as tutor does not read it; nor
-// is one of handwriting whose kind of call, a sheet's or a workbook page's, the
-// table, the facts, the stage and the platform's keys of the deployment do not
-// admit models for.
+// is one on a workbook, which no task is solved on, or one of handwriting whose
+// reading of a sheet the table, the facts, the stage and the platform's keys of
+// the deployment do not admit models for.
 func (s *Service) admitted(task formatv0.Task, category formatv0.AgeCategory, ownKey string) bool {
 	switch {
+	case task.Canvas.Kind != formatv0.CanvasKindHandwritingSheet:
+		return false
 	case rubric(task):
 		return essayRead(task) && s.admits.Reads(tutor.CallEssay, category, ownKey) &&
 			s.admits.Reads(tutor.CallRubric, category, ownKey)
 	case byTap(task):
 		return true
 	}
-	call, ok := callOf(task)
-	return ok && s.admits.Reads(call, category, ownKey)
+	return sheetRead(task) && s.admits.Reads(tutor.CallSheet, category, ownKey)
 }
 
 // readsAdmitted says whether AI that reads the work is admitted for a learner
 // of category on the route of ownKey, for one kind of task at least — a sheet's
-// call, a workbook page's, or an essay's reading with its assessment, which a
-// task with a rubric needs both of: what closes the pool to the tasks a tap
+// call, or an essay's reading with its assessment, which a task with a rubric
+// needs both of: what closes the pool to the tasks a tap
 // checks when it is not.
 func (s *Service) readsAdmitted(category formatv0.AgeCategory, ownKey string) bool {
-	return s.admits.Reads(tutor.CallSheet, category, ownKey) || s.admits.Reads(tutor.CallWorkbook, category, ownKey) ||
+	return s.admits.Reads(tutor.CallSheet, category, ownKey) ||
 		s.admits.Reads(tutor.CallEssay, category, ownKey) && s.admits.Reads(tutor.CallRubric, category, ownKey)
 }

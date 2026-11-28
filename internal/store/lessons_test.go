@@ -107,6 +107,9 @@ func TestALessonRunIsWrittenAndRead(t *testing.T) {
 	if lesson, err := store.RunLesson(ctx, e.pool, e.profileID, id); err != nil || lesson != r.LessonID {
 		t.Errorf("RunLesson = %q, %v", lesson, err)
 	}
+	if module, err := store.RunModule(ctx, e.pool, e.profileID, id); err != nil || module != r.ModuleID {
+		t.Errorf("RunModule = %q, %v", module, err)
+	}
 
 	// "Not suitable" closes its open attempt with it, and an end stays.
 	err = pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
@@ -235,6 +238,10 @@ func TestTheStatementsOfTheRunsFail(t *testing.T) {
 		},
 		"SELECT lesson_id FROM lesson_runs": func(tx pgx.Tx) error {
 			_, err := store.RunLesson(ctx, tx, e.profileID, none)
+			return err
+		},
+		"SELECT module_id FROM lesson_runs": func(tx pgx.Tx) error {
+			_, err := store.RunModule(ctx, tx, e.profileID, none)
 			return err
 		},
 		"FOR UPDATE OF r": func(tx pgx.Tx) error { return store.HoldAttemptRun(ctx, tx, e.profileID, none) },

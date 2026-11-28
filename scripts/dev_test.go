@@ -1,7 +1,7 @@
 // The tests of scripts/dev.sh, the run on the dev projects: its loader of the dev file, the custom
 // token it signs, how it puts a run on the stub of tutor or on the models, and how it tells a task
-// AI reads, a workbook page and an essay, sends the boxes of the page, sums the counters of the
-// quota, gives the check's account its tariff and makes the synthetic child of `just dev-app` once.
+// AI reads and an essay, sums the counters of the quota, gives the check's account its tariff and
+// makes the synthetic child of `just dev-app` once.
 // They run the script's own functions in bash, with jq and openssl, as the devcontainer and its
 // toolchain stage, where CI runs the tests, have them.
 package scripts_test
@@ -247,41 +247,6 @@ func TestATaskAIReadsIsToldFromOneByTap(t *testing.T) {
 		if (err == nil) != tc.reads {
 			t.Errorf("%s: handwritten = %v, %s; want AI reads it %v", tc.name, err, stderr, tc.reads)
 		}
-	}
-}
-
-// The check knows a workbook page by its canvas, and sends a crop in every box of it, by the places
-// of the item and of the box among the item's boxes, from 1, past the text of the line.
-func TestAWorkbookPageIsToldAndEachOfItsBoxesSent(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	write := func(name, task string) string {
-		t.Helper()
-		start, err := json.Marshal(map[string]any{"attempt_id": "x", "task": map[string]any{"json": []byte(task)}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		path := filepath.Join(dir, name+".json")
-		if err := os.WriteFile(path, start, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		return path
-	}
-	book := write("book", `{"canvas":{"kind":"workbook"},"items":[{"line":[{"text":"3 +"},{"binding":"box"},{"text":"="},{"binding":"box"}]},`+
-		`{"line":[{"text":"no box"}]},{"line":[{"binding":"box"},{"text":"× 2"}]}]}`)
-	sheet := write("sheet", `{"canvas":{"kind":"handwriting_sheet"},"items":[{"answer_slots":[{"id":"a","binding":"anywhere"}]}]}`)
-	if _, stderr, err := bash(t, nil, `on_workbook "`+book+`"`); err != nil {
-		t.Errorf("on_workbook of a workbook page = %v, %s; want it told", err, stderr)
-	}
-	if _, _, err := bash(t, nil, `on_workbook "`+sheet+`"`); err == nil {
-		t.Error("on_workbook of a sheet told it a workbook page")
-	}
-	stdout, stderr, err := bash(t, nil, `page "`+book+`" CROP`)
-	want := `[{"answer_slot":{"item":1,"slot":1},"crop":"CROP"},{"answer_slot":{"item":1,"slot":2},"crop":"CROP"},` +
-		`{"answer_slot":{"item":3,"slot":1},"crop":"CROP"}]`
-	if err != nil || strings.TrimSpace(stdout) != want {
-		t.Errorf("page = %q, %q, %v; want %s", stdout, stderr, err, want)
 	}
 }
 

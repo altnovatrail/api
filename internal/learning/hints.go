@@ -2,7 +2,6 @@ package learning
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"connectrpc.com/connect/v2"
@@ -17,25 +16,22 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/altnovatrail/api/internal/admission"
-	"github.com/altnovatrail/api/internal/authz"
+	"github.com/altnovatrail/api/internal/debug"
 	"github.com/altnovatrail/api/internal/legal"
 	"github.com/altnovatrail/api/internal/quota"
 	"github.com/altnovatrail/api/internal/rpc"
 	"github.com/altnovatrail/api/internal/store"
 )
 
-// closeShown is the close of an attempt by the solution shown.
+// closeShown is the close of an attempt by the solution shown, which no
+// request gives any more: an attempt closed so before keeps it.
 const closeShown = "solution_shown"
-
-// ladderPassed is the wrong answers from which a child is shown the solution:
-// the fourth, past the ladder's three rungs.
-const ladderPassed = lastRung + 1
 
 // GetHint is a hint the learner asks for, with no AI and no work: before the
 // first wrong answer, and on a task with a rubric, the IDs of the task's
 // techniques and its leading question, of the instance the attempt got, when it
 // has one — which the attempt records as given, each only when the task has it,
-// and which is an action on the attempt, as a step is —; after it, the words
+// and which is an action on the attempt —; after it, the words
 // of the current rung that the attempt keeps, or its fallback text, with no
 // question. A task from paper has its own (paperHint). It repeats by the
 // attempt's state.
@@ -258,14 +254,17 @@ func fallbackOf(t telling) string {
 }
 
 // routeOf is the route of a learner of category to AI: the own key, when the
-// request sends one, or platform AI.
-func routeOf(category formatv0.AgeCategory, own *v1.OwnKey) tutor.Route {
+// request sends one, or platform AI; with the debug mode of act, the request's
+// action, which records every call of a model the route makes. Every route of
+// a call is made here, so that none goes past the record of an account with
+// the right of the mode; act is nil without it.
+func routeOf(act *debug.Action, category formatv0.AgeCategory, own *v1.OwnKey) tutor.Route {
 	route := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(category)}
 	if own != nil {
 		route.AI = admissionv0.AiRouteOwnKey
 		route.Own = tutor.NewOwnKey(admissionv0.Provider(own.GetProvider()), own.GetKey())
 	}
-	return route
+	return act.Route(route)
 }
 
 // notCurrent refuses a request that names a wrong answer that is not the
@@ -392,9 +391,11 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 		}
 		return answer, nil
 	}
-	route := routeOf(category, req.GetOwnKey())
-	// The words take the work of a sheet alone: a workbook page asks them as a
-	// task a tap checks, with no work.
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
+	defer act.End()
+	route := routeOf(act, category, req.GetOwnKey())
+	// The words take the work of a sheet alone; a task a tap checks asks them
+	// with no work.
 	admitted := s.teller.Words(known && sheetRead(task), category, req.GetOwnKey().GetProvider())
 	prepare := func(tx pgx.Tx) (telling, error) {
 		h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
@@ -406,7 +407,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted && t.ready == nil {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
 		}
 		return t, err
 	}
@@ -447,8 +448,7 @@ func (a *AttemptService) GetRungWords(ctx context.Context, req *v1.GetRungWordsR
 // rungAsked checks a request for the words of a rung on the attempt h, before
 // anything is called: the wrong answer it names, a rung that is new, and the
 // work, which goes when AI reads the task as a sheet, and only then, as its
-// crop: a workbook page asks as a task a tap checks, with no work.
-// The rung whose words the attempt keeps already is answered with them, with no
+// crop. The rung whose words the attempt keeps already is answered with them, with no
 // call.
 func (s *Service) rungAsked(ctx context.Context, tx pgx.Tx, h held, req *v1.GetRungWordsRequest, route tutor.Route, admitted bool) (telling, error) {
 	if err := named(ctx, h, req.WrongAnswers, false); err != nil {
@@ -601,12 +601,11 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 			return answer, err
 		},
 	}
-	route := routeOf(category, req.GetOwnKey())
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
+	defer act.End()
+	route := routeOf(act, category, req.GetOwnKey())
 	var admitted bool
 	if s.paperAttempt(ctx, profileID, attemptID) {
-		act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, attemptID)
-		defer act.End()
-		route = act.Route(route)
 		admitted = s.paperAdmitted(ctx, category, req.GetOwnKey().GetProvider())
 	} else {
 		admitted = s.teller.Words(false, category, req.GetOwnKey().GetProvider())
@@ -621,7 +620,7 @@ func (a *AttemptService) ExplainDifferently(ctx context.Context, req *v1.Explain
 			t.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), 1, t.day)
+			t.reserve, err = s.reserveFor(ctx, tx, profileID, route, wordsCall(t), t.day)
 		}
 		if err == nil && t.reserve.refused != nil {
 			// "Explain differently" makes no call without the reserve, and the right stays.
@@ -810,7 +809,9 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 			return answer, nil
 		},
 	}
-	route := routeOf(category, req.GetOwnKey())
+	act := s.debugged(ctx, v1.DebugActionKind_DEBUG_ACTION_KIND_WORDS, req.GetAttemptId())
+	defer act.End()
+	route := routeOf(act, category, req.GetOwnKey())
 	admitted := s.praiser.CorrectWords(category, req.GetOwnKey().GetProvider()) && s.policyCovers(s.clock())
 	prepare := func(tx pgx.Tx) (praising, error) {
 		p, err := s.praiseAsked(ctx, tx, req, route, admitted)
@@ -818,7 +819,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 			p.day, err = s.familyDay(ctx, tx, route, req.ClockOffsetMinutes)
 		}
 		if err == nil && admitted {
-			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, 1, p.day)
+			p.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallCorrect, p.day)
 		}
 		return p, err
 	}
@@ -859,8 +860,7 @@ func (a *AttemptService) GetCorrectAnswerWords(ctx context.Context, req *v1.GetC
 // attempt it names, held, before anything is called: an attempt the profile
 // has, whose words may still be given, on a package the index knows, and the
 // work, which goes when AI reads the task as a sheet, and only then, as its
-// crop: a workbook page asks as a task a tap checks, with no work. When the
-// words are admitted, it gives their call.
+// crop. When the words are admitted, it gives their call.
 func (s *Service) praiseAsked(ctx context.Context, tx pgx.Tx, req *v1.GetCorrectAnswerWordsRequest, route tutor.Route, admitted bool) (praising, error) {
 	profileID := req.GetProfileId()
 	if !store.CanonicalID(req.GetAttemptId()) {
@@ -970,98 +970,4 @@ func (s *Service) praised(ctx context.Context, tx pgx.Tx, profileID string, p pr
 	// An answer of the contract always marshals.
 	written, _ := proto.Marshal(&v1.GetCorrectAnswerWordsResponse{Outcome: answer.GetOutcome()})
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: p.row.ID, Response: written}, nil
-}
-
-// canner is what the showing of a solution asks of the rights: authz.Rights.
-type canner interface {
-	Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error)
-}
-
-// ShowSolution shows the solution and closes the attempt "solution shown",
-// under its idempotency key, by a learning action or by an action of an adult,
-// whose right can_manage the handler checks: the checks before it hold
-// can_learn alone. A task with a rubric has nothing to show this way; a child
-// is shown it from the fourth wrong answer on, by either kind of action, and,
-// while the child's setting "ask before showing" is on, by an adult's alone; a
-// learner of the category adult from the beginning. The close deletes the words
-// of the rungs. The answer, the task solved, is what the key's record holds,
-// with what comes next: in a lesson, the next segment; outside a lesson, the
-// engine's choice, on the route own_key_provider names.
-func (a *AttemptService) ShowSolution(ctx context.Context, req *v1.ShowSolutionRequest) (*v1.ShowSolutionResponse, error) {
-	s := a.s
-	category, err := s.learner(ctx, req.GetProfileId())
-	if err != nil {
-		return nil, err
-	}
-	if err := ownKeyFits(ctx, category, req.GetOwnKeyProvider() != ""); err != nil {
-		return nil, err
-	}
-	switch req.GetAction() {
-	case v1.Action_ACTION_LEARNING:
-	case v1.Action_ACTION_ADULT:
-		caller, _ := rpc.CallerFrom(ctx)
-		can, err := a.rights.Can(ctx, caller.AccountID, authz.CanManage, req.GetProfileId())
-		switch {
-		case err != nil:
-			return nil, rpc.Failed(ctx, err)
-		case !can:
-			return nil, connect.NewError(connect.CodePermissionDenied, "")
-		}
-	default:
-		return nil, rpc.Malformed("action")
-	}
-	profileID := req.GetProfileId()
-	answer, err := rpc.Once(ctx, s.db, rpc.Key{Method: apiv1connect.AttemptServiceShowSolutionProcedure}, req,
-		func(tx pgx.Tx, _ string) (*v1.ShowSolutionResponse, store.KeyTarget, error) {
-			now := s.clock()
-			h, err := s.hold(ctx, tx, profileID, req.GetAttemptId(), now)
-			if errors.Is(err, store.ErrPaper) {
-				// The solution of a task from paper is never shown.
-				err = rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
-			}
-			if err != nil {
-				return nil, store.KeyTarget{}, err
-			}
-			if err := s.showable(ctx, tx, profileID, h, category, req.GetAction()); err != nil {
-				return nil, store.KeyTarget{}, err
-			}
-			out, err := solved(h.pkg, h.task)
-			if err != nil {
-				return nil, store.KeyTarget{}, err
-			}
-			if err := s.close(ctx, tx, profileID, h.row.ID, closeShown, now); err != nil {
-				return nil, store.KeyTarget{}, err
-			}
-			next, err := s.nextAfter(ctx, tx, profileID, h.row, category, req.GetOwnKeyProvider(), now, false)
-			if err != nil {
-				return nil, store.KeyTarget{}, err
-			}
-			return &v1.ShowSolutionResponse{Solved: out, Next: next}, store.KeyTarget{ProfileID: profileID, AttemptID: h.row.ID}, nil
-		})
-	if err != nil {
-		return nil, refused(ctx, err)
-	}
-	return answer, nil
-}
-
-// showable checks that the solution of the attempt h may be shown to a learner
-// of category by action.
-func (s *Service) showable(ctx context.Context, tx pgx.Tx, profileID string, h held, category formatv0.AgeCategory, action v1.Action) error {
-	if rubric(h.task) {
-		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NO_SHOWING)
-	}
-	if category == formatv0.AgeCategoryAdult {
-		return nil
-	}
-	if h.row.WrongAnswers < ladderPassed {
-		return rpc.Refuse(ctx, connect.CodeFailedPrecondition, v1.Cause_CAUSE_LADDER_NOT_PASSED)
-	}
-	asks, err := store.AsksBeforeShowing(ctx, tx, profileID)
-	switch {
-	case err != nil:
-		return err
-	case asks && action == v1.Action_ACTION_LEARNING:
-		return rpc.Refuse(ctx, connect.CodePermissionDenied, v1.Cause_CAUSE_ADULT_NEEDED)
-	}
-	return nil
 }

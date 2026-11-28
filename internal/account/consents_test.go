@@ -173,8 +173,8 @@ func TestAChildsProfileIsMadeByItsConfirmedConsent(t *testing.T) {
 	want := &v1.Profile{
 		ProfileId: got.GetProfileId(), Pseudonym: "Fox", AgeCategory: "under_13", Country: "US",
 		PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &on, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
-		DefaultMode:       v1.Mode_MODE_BY_STEPS, AskBeforeShowing: true, HintMode: v1.HintMode_HINT_MODE_SHOW_WHERE,
-		Consent: &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_PARENT, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
+		HintMode:          v1.HintMode_HINT_MODE_SHOW_WHERE,
+		Consent:           &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_PARENT, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
 	}
 	if !proto.Equal(got, want) {
 		t.Errorf("CreateChildProfile = %v\nwant %v", got, want)
@@ -193,11 +193,12 @@ func TestAChildsProfileIsMadeByItsConfirmedConsent(t *testing.T) {
 	if err != nil || len(account.GetAccount().GetProfiles()) != 1 || len(account.GetAccount().GetChildConsents()) != 0 {
 		t.Errorf("GetAccount = %v, %v; want the profile and no consent waiting", account, err)
 	}
-	// A child's setting is the adult's to change.
+	// "Ask before showing", which no screen has, is no setting of a child's:
+	// ignored, and given off.
 	res, err := w.client.UpdateProfile(ctx, &v1.UpdateProfileRequest{ProfileId: got.GetProfileId(),
-		Settings: &v1.ProfileSettings{AskBeforeShowing: ptr(false)}})
+		Settings: &v1.ProfileSettings{AskBeforeShowing: ptr(true)}})
 	if err != nil || res.GetProfile().GetAskBeforeShowing() {
-		t.Errorf("UpdateProfile of ask before showing = %v, %v; want it off", res, err)
+		t.Errorf("UpdateProfile of ask before showing = %v, %v; want it ignored", res, err)
 	}
 }
 

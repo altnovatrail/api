@@ -149,3 +149,25 @@ func TestAnAction(t *testing.T) {
 		t.Errorf("kept %d, the first %q; want the last 100", len(kept), kept[0].GetAttemptId())
 	}
 }
+
+// A reading of a sheet of a module is recorded as the work read, each reader
+// with its place, and the essay's assessment as the essay's.
+func TestAModuleAction(t *testing.T) {
+	t.Parallel()
+
+	s := debug.New(true)
+	a := s.Begin("a", v1.DebugActionKind_DEBUG_ACTION_KIND_CHECK, "attempt", time.Now())
+	r := a.Route(tutor.Route{AI: admissionv0.AiRoutePlatformAi})
+	opus := admission.Model{Provider: "anthropic", ID: "claude-opus-5-5", Effort: "high"}
+	for reader := 1; reader <= 2; reader++ {
+		r.Debug.Record(tutor.DebugCall{Call: tutor.CallSheet, Attempt: 1, Reader: reader, Model: opus, Answer: "{}",
+			Usage: &tutor.Usage{InputTokens: 1500, OutputTokens: 200, USD: 0.01}})
+	}
+	r.Debug.Record(tutor.DebugCall{Call: tutor.CallRubric, Attempt: 1, Model: opus})
+	a.End()
+	calls := s.Take("a")[0].GetCalls()
+	if len(calls) != 3 || calls[0].GetKind() != v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING || calls[0].GetReader() != 1 ||
+		calls[1].GetReader() != 2 || calls[1].GetCostMicroUsd() != 10000 || calls[2].GetKind() != v1.DebugCallKind_DEBUG_CALL_KIND_ESSAY_ASSESSMENT || calls[2].GetReader() != 0 {
+		t.Errorf("the calls = %v", calls)
+	}
+}

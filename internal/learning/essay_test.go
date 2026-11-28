@@ -3,6 +3,9 @@ package learning_test
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"slices"
 	"strings"
 	"sync"
@@ -420,6 +423,42 @@ func TestAnEssayThatCannotGoIsRefused(t *testing.T) {
 	refusedAs(t, err, connect.CodeNotFound, v1.Cause_CAUSE_NOT_FOUND)
 	if reads, _ := es.calls(); reads != 0 {
 		t.Errorf("%d essays read of those refused, want none", reads)
+	}
+}
+
+// An essay is written on the sheet of a task from paper, and its crop is the
+// strokes drawn on the lined sheet, in colour, without the tracing paper: such
+// a PNG, as large as a crop may be, goes to the reader as it is.
+func TestAnEssayTakesTheCropOfTheSheetAsItIs(t *testing.T) {
+	t.Parallel()
+
+	es := &essays{}
+	es.give(essayText(essay), assessment(kindWords, yes, yes))
+	w := newEssayWorld(t, es)
+	l := w.learner(t)
+	story := w.begin(t, l, l.adult, "story").GetAttemptId()
+	sheet := image.NewNRGBA(image.Rect(0, 0, 4096, 1800))
+	for y := 0; y < 1800; y++ {
+		for x := 0; x < 4096; x++ {
+			switch {
+			case y%90 == 0:
+				sheet.Set(x, y, color.NRGBA{R: 200, G: 215, B: 235, A: 255})
+			case (x/7+y/5)%41 == 0 && y%90 > 30:
+				sheet.Set(x, y, color.NRGBA{R: 30, G: 60, B: 160, A: 255})
+			}
+		}
+	}
+	var crop bytes.Buffer
+	if err := png.Encode(&crop, sheet); err != nil {
+		t.Fatal(err)
+	}
+	res, err := w.attempts.SubmitEssay(l.ctx, &v1.SubmitEssayRequest{ProfileId: l.adult, AttemptId: story,
+		IdempotencyKey: uuid.NewString(), Crop: crop.Bytes()})
+	if err != nil || res.GetEnd() != v1.SubmissionEnd_SUBMISSION_END_FEEDBACK {
+		t.Fatalf("SubmitEssay of the sheet's crop = %v, %v; want feedback", res, err)
+	}
+	if reads, _ := es.calls(); reads != 1 || !bytes.Equal(es.reads[0].Crop, crop.Bytes()) {
+		t.Errorf("%d essays read, want the one crop as it was sent", reads)
 	}
 }
 

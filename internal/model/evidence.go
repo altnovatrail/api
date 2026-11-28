@@ -88,7 +88,7 @@ func evidence(ctx context.Context, pkg *modulepackage.Package, o store.Owed, gra
 	return learnermodel.Evidence{
 		Kind: learnermodel.EvidenceKind, Task: described, StartBand: start,
 		Outcome: outcomeOf(o.CloseReason, o.WrongAnswers), PracticeTime: o.LastActionAt.Unix(),
-		TechniqueOnStep: o.StepTechniques, TechniqueOnRequest: o.RequestedTechniques,
+		TechniqueOnRequest:       o.RequestedTechniques,
 		LeadingQuestionOnRequest: o.LeadingQuestion,
 		ExplainAgainCount:        int32(o.ExplainedAgain),
 		SolutionSeenBefore:       o.SolutionSeenBefore && task.Template == nil, HasSolutionSeenFact: task.Template == nil,

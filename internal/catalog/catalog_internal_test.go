@@ -66,10 +66,9 @@ func TestAPackageWhoseViewsDoNotBuildFailsTheCatalog(t *testing.T) {
 		t.Fatalf("the views of a valid manifest: %v", err)
 	}
 	for name, view := range map[string]formatv0.CanonicalView{
-		"manifest":      {},
-		"skill graph":   {Manifest: valid, SkillGraph: &formatv0.SkillGraph{}},
-		"techniques":    {Manifest: valid, Techniques: &formatv0.Techniques{}},
-		"solving steps": {Manifest: valid, SolvingSteps: &formatv0.SolvingSteps{}},
+		"manifest":    {},
+		"skill graph": {Manifest: valid, SkillGraph: &formatv0.SkillGraph{}},
+		"techniques":  {Manifest: valid, Techniques: &formatv0.Techniques{}},
 	} {
 		set := &packages.Set{Packages: map[formatv0.Digest]*modulepackage.Package{"sha256:x": {View: view}}}
 		if _, err := New(set); err == nil {

@@ -168,20 +168,6 @@ func Answers(ctx context.Context, db pgx.Tx, profileID, attemptID string) ([][]b
 	return out, nil
 }
 
-// AsksBeforeShowing says whether the profile's setting "ask before showing" is
-// on: a child's, and on by default.
-func AsksBeforeShowing(ctx context.Context, db Querier, profileID string) (bool, error) {
-	var asks bool
-	err := db.QueryRow(ctx, `SELECT ask_before_showing FROM profiles WHERE id = $1`, profileID).Scan(&asks)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		return false, ErrNoProfile
-	case err != nil:
-		return false, fmt.Errorf("store: read the setting of showing: %w", err)
-	}
-	return asks, nil
-}
-
 // PaperWordsOf is what the tutor's words of a task from paper read of the
 // profile: the language of its interface, "" when it has none, and whether its
 // hint mode is "Show where".

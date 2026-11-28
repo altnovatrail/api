@@ -155,7 +155,7 @@ func (a *AttemptService) submitPaper(ctx context.Context, req *v1.SubmitWorkRequ
 			if len(req.GetTappedChoices()) > 0 {
 				return paperChecking{}, target, rpc.Malformed("tapped_choices")
 			}
-			route := act.Route(routeOf(category, req.GetOwnKey()))
+			route := routeOf(act, category, req.GetOwnKey())
 			c, err := s.checkAsked(ctx, tx, profileID, row, req.GetWork().GetPaper(), route, category, req.ClockOffsetMinutes)
 			return c, target, err
 		},
@@ -222,7 +222,7 @@ func (s *Service) checkAsked(ctx context.Context, tx pgx.Tx, profileID string, r
 	if err != nil {
 		return c, err
 	}
-	c.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallChecking, 1, day)
+	c.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallChecking, day)
 	return c, err
 }
 

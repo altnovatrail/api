@@ -406,11 +406,11 @@ func TestTheAccountGivesItsProfilesAndConsentsInTheContractsWords(t *testing.T) 
 		Profiles: []*v1.Profile{{
 			ProfileId: owner, Owner: true, Pseudonym: "Owl", AgeCategory: "adult", Country: "CA",
 			PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &off, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
-			DefaultMode:       v1.Mode_MODE_SELF, HintMode: v1.HintMode_HINT_MODE_SHOW_WHERE,
+			HintMode:          v1.HintMode_HINT_MODE_SHOW_WHERE,
 		}, {
 			ProfileId: child, Pseudonym: "Fox", Avatar: "fox", AgeCategory: "under_13", Country: "US",
 			PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &on, Speed: v1.VoicingSpeed_VOICING_SPEED_SLOW}},
-			DefaultMode:       v1.Mode_MODE_BY_STEPS, InterfaceLanguage: &language, Grade: &grade, AskBeforeShowing: true,
+			InterfaceLanguage: &language, Grade: &grade,
 			HintMode:       v1.HintMode_HINT_MODE_SHOW_WHERE,
 			OpenAttempt:    &v1.OpenAttemptRef{AttemptId: attempt, Segment: &v1.SegmentPlace{LessonRunId: run, Segment: 2}},
 			OpenLessonRuns: []*v1.LessonRunRef{{LessonRunId: run, Lesson: "example/m/lesson/l1", PackageDigest: digest}},

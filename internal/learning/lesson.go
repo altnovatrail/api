@@ -175,16 +175,18 @@ func (s *Service) holdRun(ctx context.Context, tx pgx.Tx, profileID, runID strin
 	return s.checkRun(ctx, tx, profileID, row, category, ownKey, now, full)
 }
 
-// OpenLesson opens the lesson of an engine's choice: the open run of the
-// lesson, when the profile has one, or else a new run on the package of the
-// module's current version, which the module connected, its current version for
-// the learner with the lesson, and the lesson and each of its tasks suited to
-// the learner allow. A choice opens one run: once it has ended, the choice gets
-// "run ended". Two openings at once give the one run: the second reads the
+// OpenLesson opens the lesson of an engine's choice, or the one the learner
+// chose by its full ID: the open run of the lesson, when the profile has one,
+// or else a new run on the package of the module's current version, which the
+// module connected, its current version for the learner with the lesson, and
+// the lesson and each of its tasks suited to the learner allow; a lesson the
+// learner chose opens a new run with a choice of its own (openChosen). A
+// request names one of the two, or it is malformed. A choice opens one run:
+// once it has ended, the choice gets "run ended". Two openings at once give the one run: the second reads the
 // first's again. It carries no key and repeats by the state of the run. A
 // segment that this code cannot begin for the learner — a task whose kinds of
-// call the gate does not admit on the route, an essay's or a sheet's or a
-// workbook page's, or one in a zone or on the whole sheet — is not checked
+// call the gate does not admit on the route, an essay's or a sheet's, one on a
+// workbook, or one in a zone or on the whole sheet — is not checked
 // here: its attempt is "not admitted", and the run stays open. The segment of a
 // task with a rubric ends once its attempt is closed "done". The choice an end
 // of its run gives goes by the route own_key_provider names.
@@ -198,8 +200,19 @@ func (l *LearningService) OpenLesson(ctx context.Context, req *v1.OpenLessonRequ
 		return nil, err
 	}
 	profileID, choiceID := req.GetProfileId(), req.GetChoiceId()
+	if (choiceID == "") == (req.GetLesson() == "") {
+		return nil, rpc.Malformed("lesson")
+	}
 	var run *v1.LessonRun
 	err = s.write(ctx, func(tx pgx.Tx, now time.Time) error {
+		if req.GetLesson() != "" {
+			h, err := s.openChosen(ctx, tx, profileID, category, req.GetOwnKeyProvider(), req.GetLesson(), now)
+			if err != nil {
+				return err
+			}
+			run, err = lessonRun(ctx, tx, profileID, h)
+			return err
+		}
 		if !store.CanonicalID(choiceID) {
 			return store.ErrNotFound
 		}

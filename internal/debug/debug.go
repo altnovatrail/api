@@ -1,6 +1,10 @@
-// Package debug is the debug mode of the models of a task from paper: which
-// models serve its calls of AI, past the admission list, and what each call
-// returned and cost, for an account with the right of the mode. Its choice and
+// Package debug is the debug mode: which models serve the calls of AI of a task
+// from paper, past the admission list, and what every call of a model made for
+// the account returned and cost — of a task from paper, of a task of a module,
+// of an essay, of the tutor's words, of grown-up mode —, for an account with
+// the right of the mode. The choice serves a task from paper alone, where the
+// author compares models; the record is of every call, so that the cost of a
+// session is all it spent. Its choice and
 // its calls are each account's, in the memory of the process alone: nothing of
 // them goes to the log or to the database. api makes a Store on a run whose
 // tutor has its own adapters with the key of Anthropic, on a deployment too.
@@ -192,8 +196,8 @@ func (s *Store) Take(accountID string) []*v1.DebugAction {
 	return taken
 }
 
-// Action is one request of a task from paper while it runs: the route it gives
-// tutor, and the calls it records. A nil Action, of a run without the mode or
+// Action is one request that may call a model while it runs: the route it
+// gives tutor, and the calls it records. A nil Action, of a run without the mode or
 // an account without its right, records nothing and leaves a route as it is.
 type Action struct {
 	store   *Store
@@ -233,7 +237,7 @@ func (a *Action) Chosen() bool { return a != nil && a.first != nil }
 // record is tutor's record of a call of a model; the calls of one action may
 // come from two goroutines at once.
 func (a *Action) record(c tutor.DebugCall) {
-	call := &v1.DebugCall{Kind: callKinds[c.Call], Attempt: int32(c.Attempt), Model: c.Model.ID,
+	call := &v1.DebugCall{Kind: callKinds[c.Call], Attempt: int32(c.Attempt), Reader: int32(c.Reader), Model: c.Model.ID,
 		Effort: effortOf[c.Model.Effort], Thinking: !c.Model.NoThinking, Answer: c.Answer}
 	if u := c.Usage; u != nil {
 		var written int64
@@ -270,7 +274,18 @@ func (a *Action) cause(err error) v1.Cause {
 	return v1.Cause_CAUSE_AI_FAILURE
 }
 
+// callKinds are the kinds of the contract of every kind of call of tutor,
+// tutor.Calls: a reading of handwriting, of a sheet, a page or an essay, is the
+// work read, and the words with the work or without it, after a correct answer
+// too, are the tutor's words.
 var callKinds = map[tutor.Call]v1.DebugCallKind{
+	tutor.CallSheet:     v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
+	tutor.CallWorkbook:  v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
+	tutor.CallEssay:     v1.DebugCallKind_DEBUG_CALL_KIND_WORK_READING,
+	tutor.CallRubric:    v1.DebugCallKind_DEBUG_CALL_KIND_ESSAY_ASSESSMENT,
+	tutor.CallWords:     v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
+	tutor.CallHint:      v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
+	tutor.CallCorrect:   v1.DebugCallKind_DEBUG_CALL_KIND_TUTOR_WORDS,
 	tutor.CallFinding:   v1.DebugCallKind_DEBUG_CALL_KIND_TASK_FINDING,
 	tutor.CallStatement: v1.DebugCallKind_DEBUG_CALL_KIND_STATEMENT_READING,
 	tutor.CallChecking:  v1.DebugCallKind_DEBUG_CALL_KIND_TASK_CHECKING,

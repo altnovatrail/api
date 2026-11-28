@@ -10,7 +10,7 @@ import (
 
 	"github.com/altnovatrail/spec"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
-	"github.com/altnovatrail/spec/types/exportv5"
+	"github.com/altnovatrail/spec/types/exportv6"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/altnovatrail/api/internal/learning"
@@ -71,10 +71,10 @@ func FuzzWorkExported(f *testing.F) {
 		if learning.WorkMalformed(sent) != "" {
 			return
 		}
-		work := exportv5.Work{Format: store.ExportFormat, ProfileID: "5d0e9a43-7c1b-4f2e-8a6d-3b9f1c2e4a70",
-			AttemptID: exportv5.FileID(sent.GetAttemptId()), Kind: exportv5.WorkKindHandwriting, StoredAt: "2026-11-16T00:00:00Z",
+		work := exportv6.Work{Format: store.ExportFormat, ProfileID: "5d0e9a43-7c1b-4f2e-8a6d-3b9f1c2e4a70",
+			AttemptID: exportv6.FileID(sent.GetAttemptId()), Kind: exportv6.WorkKindHandwriting, StoredAt: "2026-11-16T00:00:00Z",
 			History:     json.RawMessage(history),
-			Submissions: []exportv5.WorkSubmission{{Context: json.RawMessage(context), HistoryLength: int64(length)}},
+			Submissions: []exportv6.WorkSubmission{{Context: json.RawMessage(context), HistoryLength: int64(length)}},
 			Picture:     base64.StdEncoding.EncodeToString(picture)}
 		written, err := json.Marshal(work)
 		if err != nil {
@@ -87,7 +87,7 @@ func FuzzWorkExported(f *testing.F) {
 		if err := schema.Validate(doc); err != nil {
 			t.Fatalf("the file of the work breaks its schema: %v\n%s", err, written)
 		}
-		var back exportv5.Work
+		var back exportv6.Work
 		if err := json.Unmarshal(written, &back); err != nil {
 			t.Fatalf("the export cannot read back %s: %v", written, err)
 		}

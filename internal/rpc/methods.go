@@ -36,12 +36,12 @@ var (
 	deleting  = rule{right: authz.CanManage, fresh: true, dropsDangling: true}
 )
 
-// methods is every method of the contract and its rule. A method the server
-// registers and this table lacks is served by no one: the checks refuse it, and
-// a test holds the table to the server's methods.
+// methods is every method of the contract that api serves, and its rule. A
+// method the server registers and this table lacks is served by no one: the
+// checks answer it unimplemented, before anything is read, as they do the
+// methods of noLongerHeld; a test holds the table to the server's methods.
 //
-// Eight methods take one of two rights, by who asks: the showing of a
-// solution, the export of a profile, the storage of works and the listing,
+// Seven methods take one of two rights, by who asks: the export of a profile, the storage of works and the listing,
 // reading and erasing of a stored work are the learner's can_learn or the
 // adult's can_manage, and the skill map and the share of the quota the
 // learner's can_learn or the adult's can_view. The owner holds every right in
@@ -86,8 +86,6 @@ var methods = map[string]rule{
 	apiv1connect.AttemptServiceAskTutorProcedure:              toLearn,
 	apiv1connect.AttemptServiceAskGrownUpProcedure:            toManage,
 	apiv1connect.AttemptServiceReadStatementProcedure:         toLearn,
-	apiv1connect.AttemptServiceBeginStepProcedure:             toLearn,
-	apiv1connect.AttemptServiceShowSolutionProcedure:          toLearn,
 	apiv1connect.AttemptServiceReportProblemProcedure:         toLearn,
 
 	apiv1connect.LearningServiceChooseNextProcedure:     toLearn,
@@ -96,17 +94,18 @@ var methods = map[string]rule{
 	apiv1connect.LearningServiceOpenLessonProcedure:     toLearn,
 	apiv1connect.LearningServiceGetLessonRunProcedure:   toLearn,
 	apiv1connect.LearningServiceCompleteLessonProcedure: toLearn,
+	apiv1connect.LearningServiceListLessonsProcedure:    toLearn,
 
 	apiv1connect.ModuleServiceListCatalogProcedure:          toLearn,
 	apiv1connect.ModuleServiceConnectModuleProcedure:        toLearn,
 	apiv1connect.ModuleServiceDisconnectModuleProcedure:     toLearn,
 	apiv1connect.ModuleServiceListConnectedModulesProcedure: toLearn,
+	apiv1connect.ModuleServiceSetTaskSkillProcedure:         toLearn,
 
-	apiv1connect.PackageServiceGetManifestProcedure:     openView,
-	apiv1connect.PackageServiceGetSkillGraphProcedure:   openView,
-	apiv1connect.PackageServiceGetTechniquesProcedure:   openView,
-	apiv1connect.PackageServiceGetSolvingStepsProcedure: openView,
-	apiv1connect.PackageServiceCheckPackagesProcedure:   ofAccount,
+	apiv1connect.PackageServiceGetManifestProcedure:   openView,
+	apiv1connect.PackageServiceGetSkillGraphProcedure: openView,
+	apiv1connect.PackageServiceGetTechniquesProcedure: openView,
+	apiv1connect.PackageServiceCheckPackagesProcedure: ofAccount,
 
 	apiv1connect.ProgressServiceGetSkillMapProcedure:    toLearn,
 	apiv1connect.ProgressServiceGetProgressProcedure:    toView,
@@ -126,4 +125,14 @@ var methods = map[string]rule{
 	apiv1connect.DebugServiceGetDebugProcedure:           ofAccount,
 	apiv1connect.DebugServiceSetDebugModelsProcedure:     ofAccount,
 	apiv1connect.DebugServiceTakeDebugCallsProcedure:     ofAccount,
+}
+
+// noLongerHeld is the methods of the contract that no screen asks any more and
+// api no longer holds: the server registers them, as it registers the whole
+// contract, and the checks answer them unimplemented, as a method the table
+// lacks.
+var noLongerHeld = []string{
+	apiv1connect.AttemptServiceBeginStepProcedure,
+	apiv1connect.AttemptServiceShowSolutionProcedure,
+	apiv1connect.PackageServiceGetSolvingStepsProcedure,
 }

@@ -150,8 +150,8 @@ func TestGrownUpModeIsOneCallOfTheDrawing(t *testing.T) {
 // A request of grown-up mode takes what the contract takes: a request as a
 // question to the tutor has it, a conversation of at most 8 turns of at most
 // 1000 code points, a work of paper with both crops, at most 3000 strokes of
-// pairs of finite coordinates, at most 128 points each, an attempt of a task
-// from paper and a well-formed words_language. No call goes for any of them.
+// pairs of finite coordinates, at most 128 points each, and a well-formed
+// words_language. No call goes for any of them.
 func TestGrownUpModeRefusesWhatTheContractRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -193,10 +193,6 @@ func TestGrownUpModeRefusesWhatTheContractRefuses(t *testing.T) {
 			t.Errorf("%s: %v, want invalid_argument", name, err)
 		}
 	}
-	m := w.begin(t, l, l.adult, "apples").GetAttemptId()
-	if _, err := w.grownUp(t, l, l.adult, m, uuid.NewString(), "Draw"); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Errorf("a request on a task of a module: %v, want invalid_argument", err)
-	}
 	if d.calls() != 0 {
 		t.Errorf("the drawings = %d, want none", d.calls())
 	}
@@ -207,6 +203,61 @@ func TestGrownUpModeRefusesWhatTheContractRefuses(t *testing.T) {
 	bounds[0].Points = make([]float32, 256)
 	if _, err := w.grownUp(t, l, l.adult, a, uuid.NewString(), strings.Repeat("я", 500), bounds...); err != nil || d.calls() != 1 {
 		t.Errorf("a request at the bounds: %v, %d calls; want an answer of one call", err, d.calls())
+	}
+}
+
+// Grown-up mode acts on a task of a module as on one from paper: the same one
+// call of the drawing, with the picture app drew of the task as its statement,
+// the attempt left open. The attempt it acted on keeps that it did, and
+// nothing else of the request: its verdict is shown, its key given once it is
+// solved, and it gives no evidence, while one solved without the mode, or one
+// whose drawing gave no act, gives its own.
+func TestGrownUpModeOnATaskOfAModuleGivesNoEvidence(t *testing.T) {
+	t.Parallel()
+
+	d := &drawings{next: drawnAct}
+	g := stubGate(t)
+	w := worldOf(t, g, []learning.Option{learning.WithTutor(tutorstub.New(g)), learning.WithDrawing(d.draw)})
+	l := w.learner(t)
+	drawn := w.begin(t, l, l.adult, "pick").GetAttemptId()
+	res, err := w.grownUp(t, l, l.adult, drawn, uuid.NewString(), "Solve it on the sheet")
+	if err != nil || res.GetWords() != drawnAct.Words || res.GetOutcome() != nil || d.calls() != 1 {
+		t.Fatalf("the answer on a task of a module = %v, %v, %d calls; want the act of one call", res, err, d.calls())
+	}
+	if r := d.asked[0]; len(r.Statement) == 0 || len(r.Work) == 0 || r.Route.Category != "adult" {
+		t.Errorf("the call = %+v, want the task's picture and the work", r)
+	}
+	var marked bool
+	if err := w.pool.QueryRow(t.Context(), `SELECT grown_up_at IS NOT NULL AND close_reason IS NULL FROM attempts WHERE id = $1`, drawn).
+		Scan(&marked); err != nil || !marked {
+		t.Errorf("the attempt is open and marked = %v, %v; want both", marked, err)
+	}
+	if _, err := w.submit(l, l.adult, drawn, tap(1, 1, "five")); err != nil {
+		t.Fatal(err)
+	}
+	solved, err := w.submit(l, l.adult, drawn, tap(1, 1, "three and four"))
+	if err != nil || solved.GetSolved() == nil || solved.GetItems()[0].GetVerdict() != "correct" {
+		t.Fatalf("the submission after the act = %v, %v; want its verdict and the task solved", solved, err)
+	}
+	if n := w.evidenceOf(t, drawn); n != 0 {
+		t.Errorf("the attempt grown-up mode acted on gives %d pieces of evidence, want none", n)
+	}
+
+	// A drawing that gives no act marks nothing.
+	d.answer(tutor.GrownUpAnswer{Outcome: tutor.Outcome{Kind: tutor.Failed}})
+	failed := w.begin(t, l, l.adult, "pick").GetAttemptId()
+	if res, err := w.grownUp(t, l, l.adult, failed, uuid.NewString(), "Solve it"); err != nil ||
+		res.GetOutcome().GetCause() != v1.Cause_CAUSE_AI_FAILURE {
+		t.Fatalf("a drawing that failed = %v, %v; want the failure of AI", res, err)
+	}
+	if _, err := w.submit(l, l.adult, failed, tap(1, 1, "three and four")); err != nil {
+		t.Fatal(err)
+	}
+	if n := w.evidenceOf(t, failed); n != 1 {
+		t.Errorf("an attempt the drawing gave no act on gives %d pieces of evidence, want 1", n)
+	}
+	if n := w.evidenceOf(t, w.solve(t, l, l.adult)); n != 1 {
+		t.Errorf("an attempt solved without the mode gives %d pieces of evidence, want 1", n)
 	}
 }
 

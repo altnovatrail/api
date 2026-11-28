@@ -5,12 +5,12 @@ go 1.27.4
 require (
 	connectrpc.com/connect/v2 v2.0.2
 	firebase.google.com/go/v4 v4.23.0
-	github.com/altnovatrail/engine v0.1.8
+	github.com/altnovatrail/engine v0.1.22
 	github.com/altnovatrail/learner-model v0.1.19
 	github.com/altnovatrail/module-kit v0.3.16
-	github.com/altnovatrail/spec v0.21.2
-	github.com/altnovatrail/spec/contracts v0.21.2
-	github.com/altnovatrail/tutor v0.1.68
+	github.com/altnovatrail/spec v0.22.0
+	github.com/altnovatrail/spec/contracts v0.22.0
+	github.com/altnovatrail/tutor v0.1.69
 	github.com/fergusstrange/embedded-postgres/v2 v2.0.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.13.0

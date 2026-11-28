@@ -226,6 +226,16 @@ func RunLesson(ctx context.Context, db Querier, profileID, runID string) (string
 	return lesson, nil
 }
 
+// RunModule is the ID of the module of the profile's lesson run.
+func RunModule(ctx context.Context, db Querier, profileID, runID string) (string, error) {
+	var module string
+	if err := db.QueryRow(ctx, `SELECT module_id FROM lesson_runs WHERE profile_id = $1 AND id = $2`,
+		profileID, runID).Scan(&module); err != nil {
+		return "", fmt.Errorf("store: read the run's module: %w", err)
+	}
+	return module, nil
+}
+
 // HoldAttemptRun holds FOR UPDATE, in tx, the lesson run of the profile's
 // attempt, when it is one of a run, or of the profile's open attempt when
 // attemptID is empty: a request on an attempt holds its run first, as the

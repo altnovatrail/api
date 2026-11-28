@@ -123,8 +123,8 @@ func TestThePoolIsWhatABeginningTakes(t *testing.T) {
 // with no facts closes, leaves the tasks a tap checks and says so, and so does
 // the own key of a provider whose models are not admitted; the adult's own key
 // of Anthropic, which the stage "author" admits, gives the handwriting of a
-// sheet, the workbook page and the lesson of an essay too, whose calls tutor
-// admits there without an eval run, and at the stage "full" none of them.
+// sheet and the lesson of an essay too, whose calls tutor admits there without
+// an eval run, and at the stage "full" none of them.
 func TestThePoolGoesByTheRoute(t *testing.T) {
 	t.Parallel()
 
@@ -146,11 +146,13 @@ func TestThePoolGoesByTheRoute(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, task := range []string{"apples", "table"} {
-			in := slices.ContainsFunc(m.Pool, func(c engine.Candidate) bool { return c.Task.ID == "example/choices/task/"+task })
-			if in != tc.read {
-				t.Errorf("the pool at %s by %q holds %s %v, want %v", tc.rung, tc.ownKey, task, in, tc.read)
-			}
+		in := slices.ContainsFunc(m.Pool, func(c engine.Candidate) bool { return c.Task.ID == "example/choices/task/apples" })
+		if in != tc.read {
+			t.Errorf("the pool at %s by %q holds apples %v, want %v", tc.rung, tc.ownKey, in, tc.read)
+		}
+		// A workbook page, which no task is solved on, is in no pool.
+		if slices.ContainsFunc(m.Pool, func(c engine.Candidate) bool { return c.Task.ID == "example/choices/task/table" }) {
+			t.Errorf("the pool at %s by %q holds the workbook page table", tc.rung, tc.ownKey)
 		}
 		if len(m.Lessons) != tc.lessons || narrowed != tc.narrowed {
 			t.Errorf("the pool at %s by %q holds %d lessons, narrowed %v; want %d, %v", tc.rung, tc.ownKey,
@@ -171,7 +173,7 @@ func noAI(t *testing.T) *admission.Gate {
 // an adult's own key of Anthropic is open.
 func gateAt(t *testing.T, rung string) *admission.Gate {
 	t.Helper()
-	cfg, err := config.AdmissionFrom([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"})
+	cfg, err := config.AdmissionFrom([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test", "API_READING_MODE=pair"})
 	if err != nil {
 		t.Fatal(err)
 	}

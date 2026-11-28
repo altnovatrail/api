@@ -24,12 +24,12 @@ const ConsentByOwnerStatement = "owner_statement"
 
 // profileColumns are the columns of a Profile, in scanProfile's order.
 const profileColumns = `id, owner, pseudonym, avatar, age_category, country, voicing_enabled,
-	voicing_speed, default_mode, interface_language, grade, ask_before_showing, hint_mode, work_storage, age_stated_on`
+	voicing_speed, interface_language, grade, hint_mode, work_storage, age_stated_on`
 
 func scanProfile(row pgx.Row) (Profile, error) {
 	var p Profile
 	err := row.Scan(&p.ID, &p.Owner, &p.Pseudonym, &p.Avatar, &p.AgeCategory, &p.Country, &p.VoicingEnabled,
-		&p.VoicingSpeed, &p.DefaultMode, &p.InterfaceLanguage, &p.Grade, &p.AskBeforeShowing, &p.HintMode, &p.WorkStorage, &p.AgeStatedOn)
+		&p.VoicingSpeed, &p.InterfaceLanguage, &p.Grade, &p.HintMode, &p.WorkStorage, &p.AgeStatedOn)
 	return p, err
 }
 
@@ -41,13 +41,13 @@ func scanProfile(row pgx.Row) (Profile, error) {
 func CreateOwnerProfile(ctx context.Context, tx pgx.Tx, accountID string, p Profile) (Profile, error) {
 	p.Owner, p.AgeCategory = true, "adult"
 	created, err := scanProfile(tx.QueryRow(ctx, `INSERT INTO profiles (account_id, owner, pseudonym, avatar,
-			age_category, country, age_stated_on, voicing_enabled, voicing_speed, default_mode, interface_language,
-			grade, ask_before_showing, hint_mode, active_on)
-		SELECT $1, true, $2, $3, 'adult', $4, (adult_stated_at AT TIME ZONE 'UTC')::date, $5, $6, $7, $8, $9, false, $10,
+			age_category, country, age_stated_on, voicing_enabled, voicing_speed, interface_language, grade, hint_mode,
+			active_on)
+		SELECT $1, true, $2, $3, 'adult', $4, (adult_stated_at AT TIME ZONE 'UTC')::date, $5, $6, $7, $8, $9,
 			(now() AT TIME ZONE 'UTC')::date
 		FROM accounts WHERE id = $1
 		RETURNING `+profileColumns,
-		accountID, p.Pseudonym, p.Avatar, p.Country, p.VoicingEnabled, p.VoicingSpeed, p.DefaultMode,
+		accountID, p.Pseudonym, p.Avatar, p.Country, p.VoicingEnabled, p.VoicingSpeed,
 		p.InterfaceLanguage, p.Grade, hintModeOr(p.HintMode)))
 	var pgErr *pgconn.PgError
 	switch {
@@ -128,10 +128,9 @@ func hintModeOr(mode string) string {
 // adult changes, and nothing the profile was created with.
 func WriteProfile(ctx context.Context, tx pgx.Tx, p Profile) error {
 	_, err := tx.Exec(ctx, `UPDATE profiles SET pseudonym = $2, avatar = $3, voicing_enabled = $4, voicing_speed = $5,
-			default_mode = $6, interface_language = $7, grade = $8, ask_before_showing = $9, hint_mode = $10
+			interface_language = $6, grade = $7, hint_mode = $8
 		WHERE id = $1`,
-		p.ID, p.Pseudonym, p.Avatar, p.VoicingEnabled, p.VoicingSpeed, p.DefaultMode, p.InterfaceLanguage, p.Grade,
-		p.AskBeforeShowing, p.HintMode)
+		p.ID, p.Pseudonym, p.Avatar, p.VoicingEnabled, p.VoicingSpeed, p.InterfaceLanguage, p.Grade, p.HintMode)
 	if err != nil {
 		return fmt.Errorf("store: write the profile: %w", err)
 	}

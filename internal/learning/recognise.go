@@ -75,7 +75,7 @@ func (a *AttemptService) ReadStatement(ctx context.Context, req *v1.ReadStatemen
 			return answer, err
 		},
 	}
-	route := act.Route(routeOf(category, req.GetOwnKey()))
+	route := routeOf(act, category, req.GetOwnKey())
 	answer, err := rpc.Across(ctx, s.db, key, req, rpc.Phases[recognising, *v1.ReadStatementResponse]{
 		Prepare: func(tx pgx.Tx, _ string) (recognising, store.KeyTarget, error) {
 			h, err := s.holdAny(ctx, tx, profileID, attemptID, s.clock())
@@ -101,7 +101,7 @@ func (a *AttemptService) ReadStatement(ctx context.Context, req *v1.ReadStatemen
 			if err != nil {
 				return recognising{}, target, err
 			}
-			if r.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallStatement, 1, day); err == nil && r.reserve.refused != nil {
+			if r.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallStatement, day); err == nil && r.reserve.refused != nil {
 				err = refusal(ctx, r.reserve.refused)
 			}
 			return r, target, err

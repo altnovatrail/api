@@ -268,8 +268,8 @@ func TestTheViewIsTheAccountItsProfilesAndItsWaitingConsents(t *testing.T) {
 	}
 	got := view.Profiles[1]
 	if got.ID != child || got.Owner || got.Pseudonym != "Fox" || got.Avatar != "fox" || got.AgeCategory != "under_13" ||
-		!got.VoicingEnabled || got.VoicingSpeed != "slow" || got.DefaultMode != "by_steps" ||
-		got.InterfaceLanguage == nil || *got.InterfaceLanguage != "en-US" || got.Grade == nil || *got.Grade != 3 || !got.AskBeforeShowing {
+		!got.VoicingEnabled || got.VoicingSpeed != "slow" ||
+		got.InterfaceLanguage == nil || *got.InterfaceLanguage != "en-US" || got.Grade == nil || *got.Grade != 3 {
 		t.Errorf("second profile = %+v; want the child's, field by field", got)
 	}
 	first, second := view.ChildConsents[0], view.ChildConsents[1]

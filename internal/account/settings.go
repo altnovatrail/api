@@ -20,24 +20,23 @@ const (
 )
 
 // newProfile is a profile of the category and country with the defaults of the
-// contract: the mode "by steps"; the voicing on at under_13 and off at the
-// others, at normal speed; on a child's profile "ask before showing" on; the
-// hint mode "Show where".
+// contract: the voicing on at under_13 and off at the others, at normal speed;
+// the hint mode "Show where".
 func newProfile(category, country string) store.Profile {
 	return store.Profile{
-		AgeCategory:      category,
-		Country:          country,
-		VoicingEnabled:   category == "under_13",
-		VoicingSpeed:     "normal",
-		DefaultMode:      "by_steps",
-		AskBeforeShowing: category != "adult",
-		HintMode:         store.HintModeShowWhere,
+		AgeCategory:    category,
+		Country:        country,
+		VoicingEnabled: category == "under_13",
+		VoicingSpeed:   "normal",
+		HintMode:       store.HintModeShowWhere,
 	}
 }
 
 // apply sets on p the fields of s that are sent, and leaves the others as they
 // are; on a profile being created, the pseudonym is needed. A field of another
 // form is invalid_argument, its message the field's name and never its value.
+// The mode and "ask before showing", which no screen has any more, are read as
+// not sent, whatever they hold.
 func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 	if s == nil {
 		s = &v1.ProfileSettings{}
@@ -72,15 +71,6 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 	default:
 		return rpc.Malformed("hint_mode")
 	}
-	switch s.GetDefaultMode() {
-	case v1.Mode_MODE_UNSPECIFIED:
-	case v1.Mode_MODE_BY_STEPS:
-		p.DefaultMode = "by_steps"
-	case v1.Mode_MODE_SELF:
-		p.DefaultMode = "self"
-	default:
-		return rpc.Malformed("default_mode")
-	}
 	if s.InterfaceLanguage != nil {
 		switch tag := s.GetInterfaceLanguage(); {
 		case tag == "":
@@ -101,13 +91,6 @@ func apply(p *store.Profile, s *v1.ProfileSettings, creating bool) error {
 			g := int16(grade)
 			p.Grade = &g
 		}
-	}
-	if s.AskBeforeShowing != nil {
-		// A profile of the category adult never asks before showing.
-		if p.AgeCategory == "adult" {
-			return rpc.Malformed("ask_before_showing")
-		}
-		p.AskBeforeShowing = s.GetAskBeforeShowing()
 	}
 	return nil
 }

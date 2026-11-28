@@ -110,7 +110,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		if err := store.AcceptTexts(ctx, tx, account, []store.TextRef{{ID: "privacy-policy", Version: 2}, {ID: "terms-of-use", Version: 1}}, time.Now()); err != nil {
 			return err
 		}
-		p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"})
+		p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal"})
 		profile = p.ID
 		return err
 	}); err != nil {
@@ -126,11 +126,11 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	exec(`INSERT INTO connected_modules (profile_id, module_id) VALUES ($1, $2)`, profile, string(choices.View.Manifest.ID))
+	exec(`INSERT INTO connected_modules (profile_id, module_id, task_skill) VALUES ($1, $2, $2 || '/skill/comparing')`, profile, string(choices.View.Manifest.ID))
 	var choice, attempt, run string
 	if err := pool.QueryRow(ctx, `INSERT INTO engine_choices (profile_id, kind, module_id, task_id, reason_code, engine_version,
-			learner_model_version, modules_release, format_window, last_seq, digests, engine_digests, age_category, pool_limited)
-		VALUES ($1, 'task', $2, 'pick', 2, 'v0.1.6', 'v0.1.4', 'v0.1.0', '0.4', 0, ARRAY[$3], ARRAY[$3], 'adult', false) RETURNING id`,
+			learner_model_version, modules_release, format_window, last_seq, digests, engine_digests, age_category, pool_limited, scope_module)
+		VALUES ($1, 'task', $2, 'pick', 2, 'v0.1.6', 'v0.1.4', 'v0.1.0', '0.4', 0, ARRAY[$3], ARRAY[$3], 'adult', false, $2) RETURNING id`,
 		profile, string(choices.View.Manifest.ID), string(choices.Digest)).Scan(&choice); err != nil {
 		t.Fatal(err)
 	}
@@ -280,8 +280,12 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 	if err := checks["profile.schema.json"].Validate(got); err != nil {
 		t.Errorf("the profile's file breaks its schema: %v\n%s", err, files["profiles/"+profile+".json"])
 	}
+	if c := got["choices"].([]any)[0].(map[string]any); c["module_id"] != string(choices.View.Manifest.ID) {
+		t.Errorf("the choice = %v, want the module it was among", c)
+	}
 	text := string(files["profiles/"+profile+".json"])
 	for _, has := range []string{`"traps":["` + string(choices.View.Manifest.ID) + `/trap/`, `"reason_code":"new_skill"`,
+		`"task_skill":"` + string(choices.View.Manifest.ID) + `/skill/comparing"`,
 		`"problem_reports":[{`, `"storage_consents":[{`, `"evidence":[{`, `"tapped_choices":[{`, `"leading_question_on_request":true`,
 		`"works":[{"attempt_id":"` + gone + `","kind":"handwriting","stored_at":"`, `"size_bytes":50},{"attempt_id":"` + attempt + `"`,
 		`"criterion_marks":["met","not_met"],"feedback_source":"model"}`, `"end":"unreadable"}]`,
@@ -412,7 +416,7 @@ func TestARecordThatIsNoMessageFailsTheExport(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-			p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"})
+			p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal"})
 			profile = p.ID
 			return err
 		}); err != nil {

@@ -202,8 +202,8 @@ func TestASkillChosenOnTheMapHolds(t *testing.T) {
 	}
 }
 
-// What comes next after a task outside a lesson closed correct or with its
-// solution shown is the engine's choice; a repeat of the submission gets the
+// What comes next after a task outside a lesson closed correct is the engine's
+// choice; a repeat of the submission gets the
 // same choice; and the progress names when the engine chose each attempt's task,
 // or its run's lesson, and why — none for one begun by a choice that keeps no
 // code.
@@ -230,11 +230,10 @@ func TestWhatComesNextOutsideALessonIsTheEnginesChoice(t *testing.T) {
 		t.Errorf("the repeat = %v (%v), want the same choice", again, err)
 	}
 
-	shown := w.begin(t, l, l.adult, "pairs").GetAttemptId()
-	res, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: shown,
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING})
+	pairs := w.begin(t, l, l.adult, "pairs").GetAttemptId()
+	res, err := w.submit(l, l.adult, pairs, tap(1, 1, "21"), tap(2, 1, "30"))
 	if err != nil || res.GetNext().GetChoice().GetChoiceId() == "" {
-		t.Errorf("the solution shown = %v (%v), want the engine's choice next", res, err)
+		t.Errorf("the correct answer to pairs = %v (%v), want the engine's choice next", res, err)
 	}
 
 	page, err := w.progress.GetProgress(l.ctx, &v1.GetProgressRequest{ProfileId: l.adult})
@@ -327,11 +326,6 @@ func TestAChildNamesNoProvider(t *testing.T) {
 		},
 		"Done": func() error {
 			_, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: l.child, AttemptId: open, OwnKeyProvider: own})
-			return err
-		},
-		"ShowSolution": func() error {
-			_, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.child, AttemptId: open,
-				IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING, OwnKeyProvider: own})
 			return err
 		},
 	} {

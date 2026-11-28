@@ -88,7 +88,7 @@ func (a *AttemptService) AskTutor(ctx context.Context, req *v1.AskTutorRequest) 
 			return answer, nil
 		},
 	}
-	route := act.Route(routeOf(category, req.GetOwnKey()))
+	route := routeOf(act, category, req.GetOwnKey())
 	provider := req.GetOwnKey().GetProvider()
 	admitted := s.paperAdmitted(ctx, category, provider)
 	checking := s.admits.Reads(tutor.CallChecking, category, provider) || s.debugChosen(ctx)
@@ -218,7 +218,7 @@ func (s *Service) questionAsked(ctx context.Context, tx pgx.Tx, req *v1.AskTutor
 	if q.checking != nil {
 		q.checking.reserve, q.reserve, err = s.reservePair(ctx, tx, profileID, route, tutor.CallChecking, tutor.CallPaperHint, day)
 	} else {
-		q.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallPaperHint, 1, day)
+		q.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallPaperHint, day)
 	}
 	refused := q.reserve.refused
 	if q.checking != nil {
