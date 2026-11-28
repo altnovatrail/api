@@ -1086,7 +1086,8 @@ func TestANewAttemptClosesALapsedOneByItsLapse(t *testing.T) {
 // and the variables more declares.
 func gate(t *testing.T, facts, rung string, more ...string) *admission.Gate {
 	t.Helper()
-	environ := append([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"}, more...)
+	// The fakes of these tests read by the pair, which a run with no mode no longer chooses.
+	environ := append([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test", "API_READING_MODE=pair"}, more...)
 	if facts != "" {
 		path := filepath.Join(t.TempDir(), "facts.yaml")
 		if err := os.WriteFile(path, []byte(facts), 0o600); err != nil {

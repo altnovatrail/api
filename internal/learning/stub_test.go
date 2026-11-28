@@ -57,7 +57,7 @@ func stubGateOf(t *testing.T, given string, more ...string) *admission.Gate {
 	if err := os.WriteFile(facts, []byte(given), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.AdmissionFrom(append([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author", "API_ADMISSION_FACTS_FILE=" + facts}, more...))
+	cfg, err := config.AdmissionFrom(append([]string{"API_TUTOR_STUB=1", "API_ADMISSION_RUNG=author", "API_ADMISSION_FACTS_FILE=" + facts, "API_READING_MODE=pair"}, more...))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -173,7 +173,7 @@ func noAI(t *testing.T) *admission.Gate {
 // an adult's own key of Anthropic is open.
 func gateAt(t *testing.T, rung string) *admission.Gate {
 	t.Helper()
-	cfg, err := config.AdmissionFrom([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test"})
+	cfg, err := config.AdmissionFrom([]string{"API_ADMISSION_RUNG=" + rung, "API_ANTHROPIC_KEY=sk-test", "API_READING_MODE=pair"})
 	if err != nil {
 		t.Fatal(err)
 	}

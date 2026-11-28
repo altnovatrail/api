@@ -149,14 +149,14 @@ func TestTheReportSaysWhatWasDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.7", FactsFile: true, Rung: "author", RungSet: true, Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.7", FactsFile: true, Rung: "author", RungSet: true, Reading: "single"}); r != want {
 		t.Errorf("Report = %+v, want %+v", r, want)
 	}
 	_, r, err = admission.Load(config.Admission{Rung: config.RungFull})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (admission.Report{TableVersion: "0.7", Rung: "full", Reading: "pair"}); r != want {
+	if want := (admission.Report{TableVersion: "0.7", Rung: "full", Reading: "single"}); r != want {
 		t.Errorf("Report of nothing declared = %+v, want %+v", r, want)
 	}
 }
@@ -933,12 +933,17 @@ func TestTheModeSingleReadsByOneReader(t *testing.T) {
 	if err != nil || r.Reading != config.ReadingSingle || g.Reading() != tutor.ReadingSingle {
 		t.Fatalf("Load in the mode single = %+v, %v; want the mode single", r, err)
 	}
-	pair := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
-	if pair.Reading() != tutor.ReadingPair {
-		t.Errorf("the mode by default = %q, want the pair", pair.Reading())
+	unset := load(t, keyed(t, file(t, adultFacts), config.RungAuthor))
+	if unset.Reading() != tutor.ReadingSingle {
+		t.Errorf("the mode by default = %q, want one reader", unset.Reading())
+	}
+	paired := keyed(t, file(t, adultFacts), config.RungAuthor)
+	paired.Reading = config.ReadingPair
+	if g, _, err := admission.Load(paired); err != nil || g.Reading() != tutor.ReadingPair {
+		t.Errorf("Load in the mode pair = %v; want the pair", err)
 	}
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategory(formatv0.AgeCategoryAdult)}
-	one, two := g.Price(tutor.CallSheet, adult), pair.Price(tutor.CallSheet, adult)
+	one, two := g.Price(tutor.CallSheet, adult), load(t, paired).Price(tutor.CallSheet, adult)
 	if !g.Reads(tutor.CallSheet, formatv0.AgeCategoryAdult, "") || !one.Expected || one.ExpectedUSD <= 0 || one.ExpectedUSD >= two.ExpectedUSD {
 		t.Errorf("a sheet by one reader costs %+v, by the pair %+v; want it admitted, for less", one, two)
 	}

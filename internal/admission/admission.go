@@ -197,7 +197,7 @@ func Load(cfg config.Admission) (*Gate, Report, error) {
 	}
 	// A configuration that names no mode of reading is the pair, as tutor takes
 	// it, and the report and the readers of the gate say so.
-	g := &Gate{reading: tutor.Reading(cmp.Or(cfg.Reading, config.ReadingPair))}
+	g := &Gate{reading: tutor.Reading(cmp.Or(cfg.Reading, config.ReadingSingle))}
 	if g.providers, err = tableProviders(); err != nil {
 		return nil, Report{}, err
 	}
