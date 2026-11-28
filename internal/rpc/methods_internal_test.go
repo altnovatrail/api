@@ -18,7 +18,8 @@ import (
 	"github.com/altnovatrail/api/internal/logging"
 )
 
-// The table has every method the server registers and no other, and a method
+// The table has every method the server registers and no other, but for those
+// api no longer holds, which it lacks; and a method
 // with a right is one whose request names a profile: a right with no profile to
 // check it on would refuse every request, and a profile with no right checked
 // would be read before its right.
@@ -30,6 +31,12 @@ func TestTheTableIsTheContracts(t *testing.T) {
 	for spec := range server.Specs() {
 		registered = append(registered, spec.Procedure)
 		r, known := methods[spec.Procedure]
+		if slices.Contains(noLongerHeld, spec.Procedure) {
+			if known {
+				t.Errorf("%s is no longer held, and has a rule", spec.Procedure)
+			}
+			continue
+		}
 		if !known {
 			t.Errorf("%s has no rule", spec.Procedure)
 			continue
@@ -44,6 +51,11 @@ func TestTheTableIsTheContracts(t *testing.T) {
 		}
 		if r.open != (spec.IdempotencyLevel == connect.IdempotencyNoSideEffects) {
 			t.Errorf("%s: open = %v, but its idempotency is %v", spec.Procedure, r.open, spec.IdempotencyLevel)
+		}
+	}
+	for _, procedure := range noLongerHeld {
+		if !slices.Contains(registered, procedure) {
+			t.Errorf("%s is no longer held and not on the server", procedure)
 		}
 	}
 	for procedure := range methods {

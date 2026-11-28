@@ -36,10 +36,8 @@ type Profile struct {
 	Country           string
 	VoicingEnabled    bool
 	VoicingSpeed      string
-	DefaultMode       string
 	InterfaceLanguage *string
 	Grade             *int16
-	AskBeforeShowing  bool
 	// HintMode is "show_where" or "questions_only".
 	HintMode string
 	// WorkStorage says the storage of the learner's works on the server is on.

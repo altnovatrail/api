@@ -120,7 +120,7 @@ func TestThePathRunsOnTheStub(t *testing.T) {
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
 	sheetPrice := quota.USD(g.Price(tutor.CallSheet, adult).ExpectedUSD)
 	wordsPrice := quota.USD(g.Price(tutor.CallWords, adult).ExpectedUSD)
-	hintReserve := quota.Reserve(tutor.CallHint, g.Price(tutor.CallHint, adult), 1)
+	hintReserve := quota.Reserve(tutor.CallHint, g.Price(tutor.CallHint, adult))
 	want := quota.Counter{Spent: 3*sheetPrice + wordsPrice + hintReserve}
 	if profile, account := w.counted(t, l.accountID, l.adult); sheetPrice == 0 || wordsPrice == 0 || profile != want || account != want {
 		t.Errorf("the counters = %+v, %+v; want %+v, the expected prices, and nothing in reserve", profile, account, want)
@@ -282,78 +282,6 @@ func TestTheGateHearsNoEndingOfAnOwnKey(t *testing.T) {
 	}
 }
 
-// A workbook page runs on the stub: the stub admits its reading where the gate
-// admits a sheet's, so the page begins for an adult and enters the pool, but
-// not for a child, whose sheet the facts of an adult do not admit; by the facts
-// of a child it begins for the child too, as dev-check declares them to its
-// server on the stub. A tall crop of the box reads a wrong value, and a wide
-// one the right value, which solves the task and gives its evidence. Each
-// reading keeps tutor's expected price of a page as spent, the price of the
-// entry admitted without an eval run, with nothing left in reserve. On an own
-// key the stub refuses the page by the key's ending.
-func TestAWorkbookPageRunsOnTheStub(t *testing.T) {
-	t.Parallel()
-
-	w, g := newStubWorld(t)
-	l := w.learner(t)
-	pool, _, err := w.service.Candidates(w.current, formatv0.AgeCategoryAdult, "")
-	if err != nil || !slices.Contains(pool, module+"/task/table") {
-		t.Errorf("the pool = %v, %v; want table in it", pool, err)
-	}
-	_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
-		Start: &v1.BeginAttemptRequest_ChoiceId{ChoiceId: w.choice(t, l.child, "table")}})
-	refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_NOT_ADMITTED)
-	young := stubGateOf(t, childFacts)
-	children := worldOf(t, young, []learning.Option{learning.WithTutor(tutorstub.New(young))})
-	kid := children.learner(t)
-	if pool, _, err := children.service.Candidates(children.current, formatv0.AgeCategoryUnder13, ""); err != nil ||
-		!slices.Contains(pool, module+"/task/table") {
-		t.Errorf("the pool of a child by the facts of a child = %v, %v; want table in it", pool, err)
-	}
-	children.begin(t, kid, kid.child, "table")
-
-	a := w.begin(t, l, l.adult, "table").GetAttemptId()
-	submit := func(width, height int, own *v1.OwnKey) *v1.SubmitWorkResponse {
-		t.Helper()
-		res, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: a,
-			IdempotencyKey: uuid.NewString(), Work: page(boxCrop(1, 1, pngOf(t, width, height))), OwnKey: own})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return res
-	}
-	res := submit(40, 10, &v1.OwnKey{Provider: "anthropic", Key: "sk-ant-synthetic" + tutorstub.KeyLimitTier})
-	if o := res.GetOutcome(); o.GetCause() != v1.Cause_CAUSE_LIMIT_REACHED || o.GetOwnKeyLimit().GetCause() != v1.LimitCause_LIMIT_CAUSE_TIER ||
-		res.GetSolved() != nil {
-		t.Errorf("a page on -limit-tier = %v, solved %v; want the limit of the tier and nothing checked", o, res.GetSolved())
-	}
-	if res := submit(10, 10, nil); verdicts(res) != "unreadable[unreadable illegible]" {
-		t.Errorf("a square box = %s, want illegible", verdicts(res))
-	}
-	if res := submit(10, 40, nil); !strings.HasPrefix(verdicts(res), "not_yet") || res.GetWrongAnswers() != 1 {
-		t.Errorf("a tall box = %s, %d wrong; want not yet, one wrong", verdicts(res), res.GetWrongAnswers())
-	}
-	if res := submit(40, 10, nil); verdicts(res) != "correct[correct 4]" || res.GetSolved() == nil {
-		t.Fatalf("a wide box = %s, solved %v; want correct and solved", verdicts(res), res.GetSolved())
-	}
-	if n := w.evidenceOf(t, a); n != 1 {
-		t.Errorf("the journal holds %d pieces of evidence of the page, want 1", n)
-	}
-
-	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
-	price := g.Price(tutor.CallWorkbook, adult)
-	pageReserve := quota.Reserve(tutor.CallWorkbook, price, 1)
-	want := quota.Counter{Spent: 3 * pageReserve}
-	if profile, account := w.counted(t, l.accountID, l.adult); !price.Expected || pageReserve != quota.USD(price.ExpectedUSD) ||
-		profile != want || account != want {
-		t.Errorf("the counters = %+v, %+v by %d a page; want tutor's expected price of a page and three readings on platform AI kept as spent, %+v",
-			profile, account, pageReserve, want)
-	}
-	if log := w.log.String(); !strings.Contains(log, `"model":"stub"`) || strings.Contains(log, "sk-ant-synthetic") {
-		t.Errorf("the log = %s, want the stub's usage and no own key", log)
-	}
-}
-
 // An essay runs on the stub: the stub admits its reading and its assessment
 // where the gate admits a sheet's, so story begins for an adult and enters the
 // pool, but not for a child, whose sheet the facts of an adult do not admit. On
@@ -417,7 +345,7 @@ func TestAnEssayRunsOnTheStub(t *testing.T) {
 
 	adult := tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}
 	readPrice, assessPrice := g.Price(tutor.CallEssay, adult), g.Price(tutor.CallRubric, adult)
-	reading, assessing := quota.Reserve(tutor.CallEssay, readPrice, 1), quota.Reserve(tutor.CallRubric, assessPrice, 1)
+	reading, assessing := quota.Reserve(tutor.CallEssay, readPrice), quota.Reserve(tutor.CallRubric, assessPrice)
 	want := quota.Counter{Spent: 3*reading + assessing}
 	if profile, account := w.counted(t, l.accountID, l.adult); !readPrice.Expected || !assessPrice.Expected ||
 		reading != quota.USD(readPrice.ExpectedUSD) || assessing != quota.USD(assessPrice.ExpectedUSD) || profile != want || account != want {
@@ -430,9 +358,10 @@ func TestAnEssayRunsOnTheStub(t *testing.T) {
 	}
 }
 
-// At the stage full the stub admits neither a workbook page nor an essay, as
-// tutor admits there none of the entries admitted without an eval run: neither
-// table nor story begins, nor enters the pool.
+// At the stage full the stub admits no essay, as tutor admits there none of the
+// entries admitted without an eval run, and a workbook page, which no task is
+// solved on, begins at no stage: neither table nor story begins, nor enters the
+// pool.
 func TestTheStubAtTheStageFullReadsNoWorkbookAndNoEssay(t *testing.T) {
 	t.Parallel()
 

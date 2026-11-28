@@ -248,7 +248,7 @@ func (w *world) get(t *testing.T, path string, header ...string) (*http.Response
 	return res, body.Bytes()
 }
 
-// The four open views go without a token, by the digest alone; a part the module
+// The three open views go without a token, by the digest alone; a part the module
 // does not have is an answer without its view.
 func TestTheOpenViewsComeByDigestWithoutAToken(t *testing.T) {
 	t.Parallel()
@@ -293,14 +293,16 @@ func TestTheOpenViewsComeByDigestWithoutAToken(t *testing.T) {
 	if err != nil || techniques.GetTechniques() != nil {
 		t.Errorf("GetTechniques of a module with none = %v, %v", techniques, err)
 	}
-	steps, err := w.packages.GetSolvingSteps(ctx, &v1.GetSolvingStepsRequest{PackageDigest: string(w.older.Digest)})
-	if err != nil || steps.GetSolvingSteps() != nil {
-		t.Errorf("GetSolvingSteps of a module with none = %v, %v", steps, err)
+	// No screen leads the solving steps: their view answers unimplemented, of a
+	// package that has them too.
+	_, err = w.packages.GetSolvingSteps(ctx, &v1.GetSolvingStepsRequest{PackageDigest: string(w.newer.Digest)})
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Errorf("GetSolvingSteps = %v, want unimplemented", err)
 	}
 }
 
 // A version the image no longer gives, a digest it does not know and one that
-// is no digest are refused, by each of the four.
+// is no digest are refused, by each of the three.
 func TestTheOpenViewsAreRefusedForWhatTheImageDoesNotGive(t *testing.T) {
 	t.Parallel()
 
@@ -317,10 +319,6 @@ func TestTheOpenViewsAreRefusedForWhatTheImageDoesNotGive(t *testing.T) {
 		},
 		"techniques": func(d string) error {
 			_, err := w.packages.GetTechniques(ctx, &v1.GetTechniquesRequest{PackageDigest: d})
-			return err
-		},
-		"solving steps": func(d string) error {
-			_, err := w.packages.GetSolvingSteps(ctx, &v1.GetSolvingStepsRequest{PackageDigest: d})
 			return err
 		},
 	}

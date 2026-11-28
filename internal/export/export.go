@@ -204,9 +204,6 @@ func (x *Exporter) attempt(ctx context.Context, a store.ExportedAttempt, observa
 		return exportv6.Attempt{}, err
 	}
 	out.Traps = told.Traps
-	if a.Owed.StepTechniques {
-		out.StepTechniqueIds = told.Techniques
-	}
 	if a.Owed.RequestedTechniques {
 		out.RequestedTechniqueIds = told.Techniques
 	}

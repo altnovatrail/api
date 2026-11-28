@@ -84,7 +84,7 @@ func TestTheTariffOfDevCheckIsTheDevProjectsAlone(t *testing.T) {
 }
 
 // A call reserves tutor's expected price, rounded up, when tutor has one; else
-// the value of its kind, and a page of a workbook by its crops.
+// the value of its kind.
 func TestACallReservesTheExpectedPriceOrItsKindsValue(t *testing.T) {
 	t.Parallel()
 
@@ -93,24 +93,22 @@ func TestACallReservesTheExpectedPriceOrItsKindsValue(t *testing.T) {
 		name  string
 		call  tutor.Call
 		price tutor.CallPrice
-		crops int
 		want  quota.Micro
 	}{
-		{"a sheet tutor prices", tutor.CallSheet, expected, 1, 9343},
-		{"a sheet tutor does not price", tutor.CallSheet, tutor.CallPrice{}, 1, 14_000},
-		{"words tutor does not price", tutor.CallWords, tutor.CallPrice{Expected: true}, 0, 18_200},
-		{"a hint without the work, worst alone", tutor.CallHint, tutor.CallPrice{WorstUSD: 0.512, Worst: true}, 1, 18_200},
+		{"a sheet tutor prices", tutor.CallSheet, expected, 9343},
+		{"a sheet tutor does not price", tutor.CallSheet, tutor.CallPrice{}, 14_000},
+		{"words tutor does not price", tutor.CallWords, tutor.CallPrice{Expected: true}, 18_200},
+		{"a hint without the work, worst alone", tutor.CallHint, tutor.CallPrice{WorstUSD: 0.512, Worst: true}, 18_200},
 		{"the words after a correct answer tutor prices", tutor.CallCorrect,
-			tutor.CallPrice{ExpectedUSD: 0.013524, Expected: true, WorstUSD: 0.684872, Worst: true}, 1, 13_524},
-		{"an essay", tutor.CallEssay, tutor.CallPrice{}, 1, 15_000},
-		{"a rubric", tutor.CallRubric, tutor.CallPrice{}, 1, 15_000},
-		{"a page of three crops", tutor.CallWorkbook, tutor.CallPrice{}, 3, 42_000},
+			tutor.CallPrice{ExpectedUSD: 0.013524, Expected: true, WorstUSD: 0.684872, Worst: true}, 13_524},
+		{"an essay", tutor.CallEssay, tutor.CallPrice{}, 15_000},
+		{"a rubric", tutor.CallRubric, tutor.CallPrice{}, 15_000},
 	} {
-		if got := quota.Reserve(tc.call, tc.price, tc.crops); got != tc.want {
+		if got := quota.Reserve(tc.call, tc.price); got != tc.want {
 			t.Errorf("%s: Reserve = %d, want %d", tc.name, got, tc.want)
 		}
 	}
-	if quota.TypicalHandwriting <= 2*quota.Reserve(tutor.CallSheet, expected, 1) || quota.TypicalRubric <= 0 {
+	if quota.TypicalHandwriting <= 2*quota.Reserve(tutor.CallSheet, expected) || quota.TypicalRubric <= 0 {
 		t.Errorf("a typical task (%d, %d) holds less than its checks", quota.TypicalHandwriting, quota.TypicalRubric)
 	}
 }

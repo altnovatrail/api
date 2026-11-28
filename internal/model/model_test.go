@@ -137,8 +137,8 @@ type closed struct {
 	at       time.Time
 	answers  [][]byte
 	// what is set when not zero.
-	stepTechniques, requestedTechniques, leadingQuestion bool
-	explained                                            int
+	requestedTechniques, leadingQuestion bool
+	explained                            int
 }
 
 // attempt makes the closed attempt c of the learner, begun a minute before it
@@ -155,10 +155,7 @@ func (l learner) attempt(t *testing.T, c closed) string {
 		VALUES ($1, 'task', 'example/choices', $2) RETURNING id`, l.profile, c.task).Scan(&choice); err != nil {
 		t.Fatal(err)
 	}
-	var step, requested *time.Time
-	if c.stepTechniques {
-		step = &c.at
-	}
+	var requested *time.Time
 	if c.requestedTechniques {
 		requested = &c.at
 	}
@@ -168,10 +165,10 @@ func (l learner) attempt(t *testing.T, c closed) string {
 	}
 	if err := l.pool.QueryRow(ctx, `INSERT INTO attempts (profile_id, package_digest, module_id, module_version,
 			module_format_version, module_kit_version, task_id, seed, instance, choice_id, started_at, last_action_at,
-			close_reason, closed_at, wrong_answers, step_techniques_at, requested_techniques_at, leading_question_at)
+			close_reason, closed_at, wrong_answers, requested_techniques_at, leading_question_at)
 		VALUES ($1, $2, 'example/choices', $3, '0.4', 'v0.3.0', $4, 1, $5, $6, $7::timestamptz - interval '1 minute', $7,
-			$8, $7, $9, $10, $11, $12) RETURNING id`,
-		l.profile, digest, version, c.task, c.instance, choice, c.at, c.reason, c.wrong, step, requested, question).Scan(&id); err != nil {
+			$8, $7, $9, $10, $11) RETURNING id`,
+		l.profile, digest, version, c.task, c.instance, choice, c.at, c.reason, c.wrong, requested, question).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	for i, a := range c.answers {
@@ -324,7 +321,7 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 		answer(0, []slot{{"unreadable", "blank", ""}}, []slot{{"unreadable", "blank", ""}}),
 		answer(1, []slot{{"not_yet", "", "12"}}, []slot{{"correct", "", "30"}}),
 		answer(1, []slot{{"correct", "", "21"}}, []slot{{"correct", "", "30"}}),
-	}, stepTechniques: true, requestedTechniques: true, leadingQuestion: true, explained: 2})
+	}, requestedTechniques: true, leadingQuestion: true, explained: 2})
 	again := l.attempt(t, closed{pkg: current, task: "pairs", reason: "solution_shown", wrong: 3, at: at.Add(time.Minute)})
 	template := l.attempt(t, closed{pkg: current, task: "greater", instance: 0, reason: "correct", at: at.Add(2 * time.Minute)})
 	l.settle(t, m)
@@ -341,7 +338,7 @@ func TestTheEvidenceHoldsTheAttemptsFacts(t *testing.T) {
 	}
 	if e.StartBand != (learnermodel.BandRef{Place: 1, ID: "grades-1-2"}) || e.PracticeTime != at.Unix() ||
 		e.Kind != learnermodel.EvidenceKind || !e.LeadingQuestionOnRequest || e.LevelSetByAdult ||
-		!e.TechniqueOnStep || !e.TechniqueOnRequest || e.ExplainAgainCount != 2 || !e.HasSolutionSeenFact || e.SolutionSeenBefore {
+		e.TechniqueOnStep || !e.TechniqueOnRequest || e.ExplainAgainCount != 2 || !e.HasSolutionSeenFact || e.SolutionSeenBefore {
 		t.Errorf("the evidence = %+v", e)
 	}
 	a, b := e.Items[0], e.Items[1]

@@ -165,8 +165,13 @@ type ExportedProfile struct {
 	Observations  map[string]map[int64][]byte
 }
 
+// noMode is the mode the version of the export asks of every profile, which no
+// screen has any more and api keeps none of: the one a new profile had.
+const noMode = exportv6.ProfileDefaultModeBySteps
+
 // ExportProfile is the profile's part of the export, of the account's profile,
-// or ErrNoProfile.
+// or ErrNoProfile. Its mode is noMode, its "ask before showing" off, and its
+// attempts name no technique given at a step: none of them is kept any more.
 func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) (ExportedProfile, error) {
 	p, err := ProfileWithConsent(ctx, tx, accountID, profileID)
 	if err != nil {
@@ -181,8 +186,8 @@ func ExportProfile(ctx context.Context, tx pgx.Tx, accountID, profileID string) 
 		AgeCategory: exportv6.AgeCategory(p.AgeCategory), Country: p.Country,
 		PresentationStyle: exportv6.ProfilePresentationStyle{Voicing: exportv6.ProfilePresentationStyleVoicing{
 			Enabled: p.VoicingEnabled, Speed: exportv6.ProfilePresentationStyleVoicingSpeed(p.VoicingSpeed)}},
-		DefaultMode: exportv6.ProfileDefaultMode(p.DefaultMode), InterfaceLanguage: p.InterfaceLanguage,
-		HintMode: exportv6.ProfileHintMode(p.HintMode), AskBeforeShowing: p.AskBeforeShowing, ActiveOn: dayOf(activeOn), WorkStorage: p.WorkStorage,
+		DefaultMode: noMode, InterfaceLanguage: p.InterfaceLanguage,
+		HintMode: exportv6.ProfileHintMode(p.HintMode), ActiveOn: dayOf(activeOn), WorkStorage: p.WorkStorage,
 		ConnectedModules: []exportv6.ConnectedModule{}, LessonRuns: []exportv6.LessonRun{}, Attempts: []exportv6.Attempt{},
 		PaperAttempts: []exportv6.PaperAttempt{}, Choices: []exportv6.Choice{}, Evidence: []exportv6.EvidenceEntry{}, Works: []exportv6.WorkInfo{},
 		StorageConsents: []exportv6.StorageConsent{}, ProblemReports: []exportv6.ProblemReport{},
@@ -422,7 +427,7 @@ func exportReports(ctx context.Context, tx pgx.Tx, profileID string, out *export
 func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *ExportedProfile) error {
 	rows, err := tx.Query(ctx, `SELECT id, package_digest, module_id, module_version, module_format_version,
 			module_kit_version, task_id, instance, choice_id, lesson_run_id, segment, previous_attempt_id, started_at,
-			last_action_at, close_reason, closed_at, wrong_answers, step_techniques_at, requested_techniques_at,
+			last_action_at, close_reason, closed_at, wrong_answers, requested_techniques_at,
 			leading_question_at, correct_words_given
 		FROM attempts WHERE profile_id = $1 AND kind = 'module' ORDER BY started_at, id`, profileID)
 	if err != nil {
@@ -433,15 +438,14 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 		var instance, segment *int
 		var run *string
 		var begun, last time.Time
-		var closed, stepAt, requestedAt, questionAt *time.Time
+		var closed, requestedAt, questionAt *time.Time
 		var closeReason *string
 		var task string
 		err := r.Scan(&a.AttemptID, &a.PackageDigest, &a.ModuleID, &a.ModuleVersion, &a.ModuleFormatVersion,
 			&a.ModuleKitVersion, &task, &instance, &a.ChoiceID, &run, &segment, &a.PreviousAttemptID, &begun, &last,
-			&closeReason, &closed, &a.WrongAnswers, &stepAt, &requestedAt, &questionAt, &a.CorrectAnswerWordsGiven)
+			&closeReason, &closed, &a.WrongAnswers, &requestedAt, &questionAt, &a.CorrectAnswerWordsGiven)
 		a.Task = a.ModuleID + "/task/" + task
 		a.BegunAt, a.LastActionAt, a.ClosedAt = timeOf(begun), timeOf(last), timeOrNil(closed)
-		a.StepTechniquesAt = timeOrNil(stepAt)
 		if instance != nil {
 			v := int64(*instance)
 			a.Instance = &v
@@ -460,7 +464,7 @@ func exportAttempts(ctx context.Context, tx pgx.Tx, profileID string, e *Exporte
 		a.StepTechniqueIds, a.RequestedTechniqueIds, a.Traps = []string{}, []string{}, []string{}
 		a.Rungs, a.Submissions = []exportv6.Rung{}, []exportv6.Submission{}
 		a.Owed = Owed{ID: string(a.AttemptID), PackageDigest: a.PackageDigest, ModuleID: a.ModuleID, TaskID: task,
-			Instance: instance, WrongAnswers: int(a.WrongAnswers), LastActionAt: last, StepTechniques: stepAt != nil,
+			Instance: instance, WrongAnswers: int(a.WrongAnswers), LastActionAt: last,
 			RequestedTechniques: requestedAt != nil}
 		if closeReason != nil {
 			a.Owed.CloseReason = *closeReason

@@ -1,6 +1,9 @@
 package learning_test
 
 import (
+	"encoding/json"
+	"slices"
+	"strconv"
 	"testing"
 
 	"connectrpc.com/connect/v2"
@@ -29,13 +32,50 @@ func (w *world) scopeOf(t *testing.T, choice string) string {
 	return *scope
 }
 
-// shown closes the attempt with its solution shown and gives what comes next.
-func (w *world) shown(t *testing.T, l learner, profile, attempt string) *v1.Next {
+// wordKeys are the right options of the module's tasks of a tap that are no
+// number; of the others, the greater number is right.
+var wordKeys = map[string]bool{"three and four": true, "a dozen": true}
+
+// solved closes the attempt, on a task of a tap of the module, by its right
+// options, read from its open view, and gives what comes next.
+func (w *world) solved(t *testing.T, l learner, profile, attempt string) *v1.Next {
 	t.Helper()
-	res, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: profile, AttemptId: attempt,
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING})
+	open, err := w.learning.GetOpenAttempt(l.ctx, &v1.GetOpenAttemptRequest{ProfileId: profile, AttemptId: attempt})
 	if err != nil {
 		t.Fatal(err)
+	}
+	var task struct {
+		Items []struct {
+			AnswerSlots []struct {
+				Options []string `json:"options"`
+			} `json:"answer_slots"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(open.GetAttempt().GetStart().GetTask().GetJson(), &task); err != nil {
+		t.Fatal(err)
+	}
+	var taps []*v1.TappedChoice
+	for i, item := range task.Items {
+		for j, slot := range item.AnswerSlots {
+			if len(slot.Options) == 0 {
+				t.Fatalf("the task of the attempt is not one of a tap: %s", open.GetAttempt().GetStart().GetTask().GetJson())
+			}
+			right := slices.MaxFunc(slot.Options, func(a, b string) int {
+				x, _ := strconv.Atoi(a)
+				y, _ := strconv.Atoi(b)
+				return x - y
+			})
+			for _, option := range slot.Options {
+				if wordKeys[option] {
+					right = option
+				}
+			}
+			taps = append(taps, tap(int32(i+1), int32(j+1), right))
+		}
+	}
+	res, err := w.submit(l, profile, attempt, taps...)
+	if err != nil || res.GetSolved() == nil {
+		t.Fatalf("the right options = %v (%v), want the task solved", res, err)
 	}
 	return res.GetNext()
 }
@@ -72,7 +112,7 @@ func TestSolveGivesTheTasksOfTheModuleAlone(t *testing.T) {
 	}
 	attempt := w.started(t, l, l.adult, c)
 	w.exec(t, `UPDATE connected_modules SET task_skill = $2 WHERE profile_id = $1`, l.adult, adding)
-	next := w.shown(t, l, l.adult, attempt).GetChoice()
+	next := w.solved(t, l, l.adult, attempt).GetChoice()
 	if row := w.choiceRow(t, next.GetChoiceId()); next.GetKind() != v1.ChoiceKind_CHOICE_KIND_TASK || row.mapSkill == nil ||
 		*row.mapSkill != adding || row.afterAttempt == nil || *row.afterAttempt != attempt || w.scopeOf(t, next.GetChoiceId()) != module {
 		t.Errorf("what came next = %v %+v, want a task of the module on its skill now, after the attempt", next, row)
@@ -87,7 +127,7 @@ func TestSolveGivesTheTasksOfTheModuleAlone(t *testing.T) {
 		t.Errorf("Solve on a skill gone = %+v, want the tutor's choice", row)
 	}
 	again := w.started(t, l, l.adult, c)
-	if row := w.choiceRow(t, w.shown(t, l, l.adult, again).GetChoice().GetChoiceId()); row.mapSkill != nil {
+	if row := w.choiceRow(t, w.solved(t, l, l.adult, again).GetChoice().GetChoiceId()); row.mapSkill != nil {
 		t.Errorf("what came next on a skill gone = %+v, want the tutor's choice", row)
 	}
 }
@@ -115,7 +155,7 @@ func TestSolveRefusesAModuleItCannotChooseIn(t *testing.T) {
 	}
 
 	w.exec(t, `DELETE FROM connected_modules WHERE profile_id = $1`, l.adult)
-	if next := w.shown(t, l, l.adult, attempt).GetChoice(); next.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || next.GetOutcome() != nil {
+	if next := w.solved(t, l, l.adult, attempt).GetChoice(); next.GetKind() != v1.ChoiceKind_CHOICE_KIND_NOTHING || next.GetOutcome() != nil {
 		t.Errorf("what came next once the module is gone = %v, want nothing, with no outcome", next)
 	}
 

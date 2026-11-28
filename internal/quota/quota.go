@@ -140,10 +140,9 @@ const wordsReserve Micro = 18_200
 // words by tutor's expected price, the hint without the work as the words — the
 // same prompt and model with no picture, so no dearer, and tutor expects no
 // tokens of it —, the essay's reading and assessment half each of $0.030,
-// tutor's price of an essay, and a page of a workbook by each of its crops, as
-// a sheet. The three calls of a task from paper keep their values of one model
-// each, should tutor give no expected price: it expects the tokens of each of
-// their three attempts, and their reserve is that. The Check's value is that of
+// tutor's price of an essay. The three calls of a task from paper keep their
+// values of one model each, should tutor give no expected price: it expects the
+// tokens of each of their three attempts, and their reserve is that. The Check's value is that of
 // one model with its three pictures and an answer of a solution, verdicts and
 // hints; the words put another way of a task from paper take the words' value,
 // about a call of the last model of their cascade. The drawing of grown-up mode
@@ -156,7 +155,6 @@ var reserves = map[tutor.Call]Micro{
 	tutor.CallHint:      wordsReserve,
 	tutor.CallEssay:     15_000,
 	tutor.CallRubric:    15_000,
-	tutor.CallWorkbook:  14_000,
 	tutor.CallFinding:   52_000,
 	tutor.CallStatement: 2_600,
 	tutor.CallChecking:  17_200,
@@ -165,13 +163,12 @@ var reserves = map[tutor.Call]Micro{
 }
 
 // Reserve is what a call of the kind reserves before it goes: tutor's expected
-// price, when it has one, or the value of the kind here. A page of a workbook
-// reserves by its crops, crops of them; any other call, crops = 1.
-func Reserve(call tutor.Call, price tutor.CallPrice, crops int) Micro {
+// price, when it has one, or the value of the kind here.
+func Reserve(call tutor.Call, price tutor.CallPrice) Micro {
 	if price.Expected && price.ExpectedUSD > 0 {
 		return USD(price.ExpectedUSD)
 	}
-	return reserves[call] * Micro(max(crops, 1))
+	return reserves[call]
 }
 
 // Spent is why a reserve does not fit, in the words of the log's line of an

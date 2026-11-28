@@ -218,7 +218,7 @@ func (s *Service) questionAsked(ctx context.Context, tx pgx.Tx, req *v1.AskTutor
 	if q.checking != nil {
 		q.checking.reserve, q.reserve, err = s.reservePair(ctx, tx, profileID, route, tutor.CallChecking, tutor.CallPaperHint, day)
 	} else {
-		q.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallPaperHint, 1, day)
+		q.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallPaperHint, day)
 	}
 	refused := q.reserve.refused
 	if q.checking != nil {

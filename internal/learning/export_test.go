@@ -37,19 +37,6 @@ type admitsFunc func(call tutor.Call) bool
 
 func (f admitsFunc) Reads(call tutor.Call, _ formatv0.AgeCategory, _ string) bool { return f(call) }
 
-// WithWorkbookReader is what reads the work of a workbook page, in place of
-// tutor: a test's own readers, for want of a provider and of an entry that
-// admits the reading.
-func WithWorkbookReader(read func(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead) Option {
-	return func(s *Service) { s.workbook = workbookFunc(read) }
-}
-
-type workbookFunc func(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead
-
-func (f workbookFunc) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ formatv0.Task, _ string) tutor.WorkbookRead {
-	return f(ctx, r)
-}
-
 // WithWords is what words the tutor's words, in place of tutor: a test's own,
 // admitted for every learner and route, so that no test calls a provider. The
 // real gate admits the words at the author's stage, so a test on it must not
@@ -123,7 +110,6 @@ func GateTutor(g *admission.Gate) interface {
 	wordsTeller
 	correctTeller
 	admitter
-	workbookReader
 	essayReader
 	rubricAssessor
 } {

@@ -15,7 +15,6 @@ import (
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
 	observationv1 "github.com/altnovatrail/spec/contracts/novatrail/observation/v1"
 	"github.com/altnovatrail/spec/types/formatv0"
-	"github.com/altnovatrail/tutor"
 )
 
 // newSeed is the seed of an attempt, from a cryptographically strong source: it
@@ -114,7 +113,7 @@ func byTap(task formatv0.Task) bool {
 }
 
 // techniques is the IDs of the task's techniques, local IDs of the module's
-// catalog, as a step or a hint gives them.
+// catalog, as a hint gives them.
 func techniques(task formatv0.Task) []string {
 	ids := make([]string, len(task.Techniques))
 	for i, id := range task.Techniques {
@@ -191,41 +190,6 @@ func itemVerdicts(verdicts []verdict.ItemVerdict, tapped map[string]string, join
 // placeKey is a place of an answer slot as a key of a map.
 func placeKey(p *observationv1.AnswerSlotPlace) string {
 	return fmt.Sprintf("%d.%d", p.GetItem(), p.GetSlot())
-}
-
-// callOf is tutor's kind of call that reads the work of the task, by its
-// canvas: the reading of a sheet, CallSheet, for a handwriting sheet tutor
-// reads (sheetRead), and of a workbook page, CallWorkbook, for a workbook
-// (bookRead). A task of neither has none: one a tap checks, and one with a zone
-// or the whole sheet, which tutor does not read.
-func callOf(task formatv0.Task) (tutor.Call, bool) {
-	switch {
-	case sheetRead(task):
-		return tutor.CallSheet, true
-	case bookRead(task):
-		return tutor.CallWorkbook, true
-	}
-	return "", false
-}
-
-// bookRead says whether tutor reads the task as a workbook page: a workbook
-// with a box at least, every answer slot of which is a box, as the format has
-// it (tutor's ReadWorkbook). The place of an answer slot is then the place of
-// its box among its item's.
-func bookRead(task formatv0.Task) bool {
-	if task.Canvas.Kind != formatv0.CanvasKindWorkbook {
-		return false
-	}
-	boxes := 0
-	for _, item := range task.Items {
-		for _, slot := range verdict.AnswerSlots(item) {
-			if slot.Binding != string(formatv0.LinePartBindingBox) {
-				return false
-			}
-			boxes++
-		}
-	}
-	return boxes > 0
 }
 
 // sheetRead says whether tutor reads the task as a sheet: a handwriting sheet

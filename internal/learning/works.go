@@ -41,6 +41,12 @@ var workKinds = map[string]v1.WorkKind{
 // tell its kind.
 var errNoKind = errors.New("learning: the image no longer holds the package of the attempt")
 
+// canner is what a request that takes the right of either kind of action asks
+// of the rights for an adult's: authz.Rights.
+type canner interface {
+	Can(ctx context.Context, accountID string, right authz.Right, profileID string) (bool, error)
+}
+
 // WorkService is the stored works of the profiles: each work of a profile as
 // the device holds it, which api keeps while the storage of the profile's works
 // is on, reads no more of than its form, and gives to no AI provider. Each

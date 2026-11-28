@@ -7,11 +7,11 @@
 # owner's profile, its progress and "something else", the own key's providers and its check, a
 # reading of handwriting with its reserve and settlement of the quota, a stored work by the storage
 # switched on and off, a parent's consent by its form, on the stub of tutor an own key refused by
-# its ending, the words after a correct answer, a child's workbook page and an essay with its
+# its ending, the words after a correct answer, a child's sheet and an essay with its
 # feedback and "Done", then the job after a rollout — and checks the answers and the logs. The
 # server's key of platform AI is one Anthropic refuses, so that no call of the check reaches a
 # model. `just dev-app` keeps the server up on the stub for the local build of app, with a synthetic
-# child of 9 whose workbook pages it admits, and app signs in by a custom token this script lays in
+# child of 9 whose sheets it admits, and app signs in by a custom token this script lays in
 # a volume the two devcontainers share.
 #
 # The configuration is KEY=VALUE lines in a file outside any git working tree, by default in the
@@ -22,7 +22,7 @@
 # through the environment, files and pipes.
 #
 # scripts/dev_test.go tests the loader, the custom token and how it is laid for app, the task AI
-# reads, the workbook page and its boxes, an essay, the counters, the tariff of the check's account
+# reads, an essay, the counters, the tariff of the check's account
 # and the synthetic child of `just dev-app` in CI.
 set -euo pipefail
 shopt -s inherit_errexit
@@ -58,8 +58,8 @@ pixel=iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAD0lEQVR4nAACAP3/Av8DAAEFAQ
 # tall, which the stub reads as the right value.
 wide=iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAAAAADRSSBWAAAAEElEQVR4nAADAPz/BP8AAwACDQEEd5QFkQAAAABJRU5ErkJggg==
 # The facts the check's server on the stub of tutor and the server of `just dev-app` declare instead
-# of the dev file's: Anthropic's for an adult and for a child under 13 too, so that the stub admits a
-# child's workbook page. On the stub nothing reaches a provider, and these facts govern
+# of the dev file's: Anthropic's for an adult and for a child under 13 too, so that the stub admits the
+# reading of a child's sheet. On the stub nothing reaches a provider, and these facts govern
 # its admission alone; the dev file, `api check` and the check's first server keep the facts the
 # author declared.
 child_facts='anthropic:
@@ -258,24 +258,10 @@ exported() {
     unzip -q -o "$1.zip" -d "$1" || die "ExportAccount gave a part that is not a zip"
 }
 
-# on_workbook says whether the attempt $1, an AttemptStart as JSON, is on a workbook page.
-on_workbook() {
-    jq -e '.task.json | @base64d | fromjson | .canvas.kind == "workbook"' "$1" > /dev/null
-}
-
 # on_essay says whether the attempt $1, an AttemptStart as JSON, is on an essay: a task with an
 # answer slot bound to the whole sheet.
 on_essay() {
     jq -e '.task.json | @base64d | fromjson | any(.. | objects; .binding? == "sheet")' "$1" > /dev/null
-}
-
-# page prints the boxes of the workbook page of the attempt $1, an AttemptStart as JSON, as
-# WorkbookWork's boxes, each with the crop $2: every box of each item's line, by the places of the
-# item and of the box among its boxes, from 1.
-page() {
-    CROP=$2 jq -c '[.task.json | @base64d | fromjson | .items | to_entries[] | .key as $item |
-        [.value.line[]? | select(.binding? == "box")] | to_entries[] |
-        {answer_slot: {item: ($item + 1), slot: (.key + 1)}, crop: env.CROP}]' "$1"
 }
 
 # handwriting begins an attempt of the profile $1 on a task that AI reads and leaves its
@@ -500,8 +486,7 @@ taken_back() {
 }
 
 # app_child makes sure the account of the token has a synthetic child under 13 of the pseudonym
-# child_name who learns, with no consent waiting, whom the workbook pages of the pinned release are
-# for: the first one GetAccount gives, or, when there is none, one child_profile makes, after
+# child_name who learns, with no consent waiting, whose sheets the stub reads: the first one GetAccount gives, or, when there is none, one child_profile makes, after
 # the consents with no profile are taken back, so that a repeat makes none. A child of the pseudonym
 # who has since turned 13, or waits for a consent again, is not taken. It prints the child's profile
 # ID either way and leaves it in $child.
@@ -745,20 +730,20 @@ check() {
     [[ $praise == *"?" ]] || die "GetCorrectAnswerWords on the stub gave the outcome $(jq -c .outcome "$work/answer.json"), want words with the question last"
     echo "$who: the stub words the praise after a correct answer"
 
-    # A workbook page on the stub, which tutor admits as it admits a sheet. The
-    # workbook pages of the pinned release, novatrail/grade-3-math, are for a child under 13 alone,
-    # so a synthetic child of 9 gets a parent's consent by its form, which the operator's command
-    # confirms, and a profile, by a fresh sign-in; a profile of its pseudonym an
+    # A child's sheet on the stub: a child's reading is admitted only by the facts of a child, which
+    # this server's are, so a synthetic child of 9 gets a parent's consent by its form, which the
+    # operator's command confirms, and a profile, by a fresh sign-in; a profile of its pseudonym an
     # earlier run left is deleted first, and a consent with no profile one left is taken back — the
-    # consent step above takes its own back, so any here is an earlier run's. A wide crop in every
-    # box of the page reads its right value, which solves the task and gives its evidence. Then the
+    # consent step above takes its own back, so any here is an earlier run's. The child connects
+    # novatrail/olympiad-math, the module of the first app, and the wide crop of the sheet of a task AI
+    # reads reads its right value, which solves the task and gives its evidence. Then the
     # child's profile is deleted, which withdraws the consent and leaves its minimal record alone.
     local signed=$token
     token=$(id_token "${API_DEV_UID:-$uid_default}")
     call GetAccount <<< '{}'
     expect GetAccount
     cp "$work/answer.json" "$work/account.json"
-    local left child boxes
+    local left child
     for left in $(NAME=$child_name jq -r '.account.profiles[]? | select(.owner | not) | select(.pseudonym == env.NAME) | .profile_id' \
         "$work/account.json"); do
         call DeleteProfile < <(PROFILE=$left jq -cn '{profile_id: env.PROFILE}')
@@ -767,32 +752,31 @@ check() {
     done
     taken_back "$work/account.json"
     child_profile
-    call ModuleService/ConnectModule < <(PROFILE=$child jq -cn '{profile_id: env.PROFILE, module_id: "novatrail/grade-3-math"}')
+    call ModuleService/ConnectModule < <(PROFILE=$child jq -cn '{profile_id: env.PROFILE, module_id: "novatrail/olympiad-math"}')
     expect ConnectModule
-    handwriting "$child" on_workbook
+    handwriting "$child"
     attempt=$(jq -r .attempt_id "$work/attempt.json")
-    boxes=$(page "$work/attempt.json" "$wide")
-    call AttemptService/SubmitWork < <(PROFILE=$child ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) BOXES=$boxes \
-        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY,
-            work: {workbook: {boxes: (env.BOXES | fromjson)}}, clock_offset_minutes: 0}')
+    call AttemptService/SubmitWork < <(PROFILE=$child ATTEMPT=$attempt KEY=$(cat /proc/sys/kernel/random/uuid) PIXEL=$wide \
+        jq -cn '{profile_id: env.PROFILE, attempt_id: env.ATTEMPT, idempotency_key: env.KEY, work: {sheet: {crop: env.PIXEL}},
+            clock_offset_minutes: 0}')
     expect SubmitWork
-    # A page keeps tutor's expected price of a page of the account's family day as spent,
-    # about 30,000 micro-dollars by the pair, and the child's deletion gives none of it back:
-    # the account's quota is named apart, not taken for a fault of the stub.
+    # A sheet keeps tutor's expected price of its reading of the account's family day as spent, and
+    # the child's deletion gives none of it back: the account's quota is named apart, not taken for a
+    # fault of the stub.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
-        die "the quota of platform AI of the account's family day has no room left for a page of $(jq length <<< "$boxes") boxes: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
-    jq -e '.solved != null and all(.items[]; .verdict == "correct")' "$work/answer.json" > /dev/null ||
-        die "SubmitWork of a page of $(jq length <<< "$boxes") wide boxes on the stub gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the task solved"
+        die "the quota of platform AI of the account's family day has no room left for a child's sheet: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
+    jq -e '.solved != null' "$work/answer.json" > /dev/null ||
+        die "SubmitWork of the child's wide crop on the stub gave $(jq -c '{wrong_answers, outcome}' "$work/answer.json"), want the task solved"
     exported "$work/child"
     ATTEMPT=$attempt jq -e 'any(.evidence[]?; .attempt_id == env.ATTEMPT)' "$work/child/profiles/$child.json" > /dev/null ||
-        die "the export holds no evidence of the child's workbook page"
+        die "the export holds no evidence of the child's sheet"
     call DeleteProfile < <(PROFILE=$child jq -cn '{profile_id: env.PROFILE}')
     expect DeleteProfile
     call GetAccount <<< '{}'
     expect GetAccount
     CHILD=$child jq -e 'all(.account.profiles[]?; .profile_id != env.CHILD)' "$work/answer.json" > /dev/null ||
         die "GetAccount still holds the child's profile after DeleteProfile"
-    echo "$who: a child's workbook page of $(jq length <<< "$boxes") boxes is read and solved on the stub, with its evidence, and the child is deleted"
+    echo "$who: a child's sheet of olympiad-math is read and solved on the stub, with its evidence, and the child is deleted"
 
     # An essay on the stub, which tutor admits as it admits a sheet: the
     # owner connects novatrail/english-essays, whose essays are for every age, and the engine's choice
@@ -810,7 +794,7 @@ check() {
     expect SubmitEssay
     # An essay keeps tutor's expected prices of the account's family day as spent, the reading's and
     # the assessment's, under 1,000 micro-dollars: the account's quota is named apart, as
-    # for the page above.
+    # for the child's sheet above.
     ! jq -e '.outcome.cause == "CAUSE_QUOTA"' "$work/answer.json" > /dev/null ||
         die "the quota of platform AI of the account's family day has no room left for an essay: run the check again after $(jq -r .outcome.next_family_day "$work/answer.json")"
     jq -e '.end == "SUBMISSION_END_FEEDBACK" and (.text // "") != "" and (.feedback // "") != ""' "$work/answer.json" > /dev/null ||
@@ -915,7 +899,7 @@ app() {
 
     # The server's log goes to the terminal as well, as `just dev serve` shows it. On the stub its facts
     # are the check's own for its server on the stub, which admit a child's reading too, so that app
-    # walks a workbook page of the synthetic child: nothing reaches a provider on the stub. On
+    # walks the sheets of the synthetic child: nothing reaches a provider on the stub. On
     # the models they are the dev file's (app_mode). The scans of
     # parents' forms go to a folder of this run, as the check's do, and none stays behind it.
     echo "dev-app: serve, $app_on"

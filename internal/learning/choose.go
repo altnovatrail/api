@@ -246,14 +246,13 @@ func (s *Service) begins(pkg *modulepackage.Package, task formatv0.Task, categor
 }
 
 // forAI says whether a task that does not begin is left out only for AI that is
-// not admitted or closed to read it: one that suits the learner, on a sheet, a
-// workbook page or an essay tutor reads.
+// not admitted or closed to read it: one that suits the learner, on a sheet or
+// an essay tutor reads.
 func forAI(pkg *modulepackage.Package, task formatv0.Task, category formatv0.AgeCategory) bool {
 	if rubric(task) {
 		return suits(pkg, task, category) && essayRead(task)
 	}
-	_, read := callOf(task)
-	return suits(pkg, task, category) && read
+	return suits(pkg, task, category) && sheetRead(task)
 }
 
 // nextTask is the task of the first task segment of the lesson that has not

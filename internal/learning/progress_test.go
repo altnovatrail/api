@@ -69,7 +69,7 @@ func (w *world) compare(t *testing.T, l learner, profile string) {
 }
 
 // Every way a request closes an attempt writes its evidence in its transaction,
-// once: a correct answer, the solution shown, another attempt begun, a check
+// once: a correct answer, another attempt begun, a check
 // that closes it, and a lesson run that ends "not suitable"; an attempt left
 // with no wrong answer gives none.
 func TestEachCloseOwesItsEvidence(t *testing.T) {
@@ -78,12 +78,6 @@ func TestEachCloseOwesItsEvidence(t *testing.T) {
 	w := newWorld(t)
 	l := w.learner(t)
 	solved := w.solve(t, l, l.adult, "five")
-
-	shown := w.begin(t, l, l.adult, "pairs").GetAttemptId()
-	if _, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: shown,
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING}); err != nil {
-		t.Fatal(err)
-	}
 
 	untouched := w.begin(t, l, l.adult, "pairs").GetAttemptId()
 	left := w.begin(t, l, l.adult, "pick").GetAttemptId()
@@ -109,7 +103,7 @@ func TestEachCloseOwesItsEvidence(t *testing.T) {
 	endedAs(t, err, v1.RunEndReason_RUN_END_REASON_NOT_SUITABLE)
 
 	for attempt, want := range map[string]int{
-		solved: 1, shown: 1, untouched: 0, left: 1, withdrawn: 1, segment.GetAttemptId(): 1,
+		solved: 1, untouched: 0, left: 1, withdrawn: 1, segment.GetAttemptId(): 1,
 	} {
 		if got := w.evidenceOf(t, attempt); got != want {
 			t.Errorf("the attempt closed %s has %d pieces of evidence, want %d", w.closeOf(t, attempt), got, want)
@@ -117,8 +111,8 @@ func TestEachCloseOwesItsEvidence(t *testing.T) {
 	}
 	var seqs, last int64
 	if err := w.pool.QueryRow(t.Context(), `SELECT count(*), max(seq) FROM evidence WHERE profile_id = $1`, l.adult).Scan(&seqs, &last); err != nil ||
-		seqs != 5 || last != 5 {
-		t.Errorf("the journal = %d pieces up to %d (%v), want 5 numbered one after another", seqs, last, err)
+		seqs != 4 || last != 4 {
+		t.Errorf("the journal = %d pieces up to %d (%v), want 4 numbered one after another", seqs, last, err)
 	}
 }
 

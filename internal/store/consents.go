@@ -50,14 +50,14 @@ func ConsentFor(ctx context.Context, tx pgx.Tx, accountID, consentID string) (Co
 // asked for, by UTC.
 func CreateChildProfile(ctx context.Context, tx pgx.Tx, accountID string, c Consent, p Profile) (Profile, error) {
 	created, err := scanProfile(tx.QueryRow(ctx, `INSERT INTO profiles (account_id, owner, pseudonym, avatar,
-			age_category, country, age_stated_on, voicing_enabled, voicing_speed, default_mode, interface_language,
-			grade, ask_before_showing, hint_mode, active_on)
-		SELECT $1, false, $2, $3, age_category, country, (requested_at AT TIME ZONE 'UTC')::date, $4, $5, $6, $7, $8, $9,
-			$11, (now() AT TIME ZONE 'UTC')::date
-		FROM consents WHERE id = $10
+			age_category, country, age_stated_on, voicing_enabled, voicing_speed, interface_language, grade, hint_mode,
+			active_on)
+		SELECT $1, false, $2, $3, age_category, country, (requested_at AT TIME ZONE 'UTC')::date, $4, $5, $6, $7, $9,
+			(now() AT TIME ZONE 'UTC')::date
+		FROM consents WHERE id = $8
 		RETURNING `+profileColumns,
-		accountID, p.Pseudonym, p.Avatar, p.VoicingEnabled, p.VoicingSpeed, p.DefaultMode, p.InterfaceLanguage,
-		p.Grade, p.AskBeforeShowing, c.ID, hintModeOr(p.HintMode)))
+		accountID, p.Pseudonym, p.Avatar, p.VoicingEnabled, p.VoicingSpeed, p.InterfaceLanguage,
+		p.Grade, c.ID, hintModeOr(p.HintMode)))
 	if err != nil {
 		return Profile{}, fmt.Errorf("store: create the child's profile: %w", err)
 	}

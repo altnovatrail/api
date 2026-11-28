@@ -110,7 +110,7 @@ func TestTheExportPassesItsSchemas(t *testing.T) {
 		if err := store.AcceptTexts(ctx, tx, account, []store.TextRef{{ID: "privacy-policy", Version: 2}, {ID: "terms-of-use", Version: 1}}, time.Now()); err != nil {
 			return err
 		}
-		p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"})
+		p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal"})
 		profile = p.ID
 		return err
 	}); err != nil {
@@ -416,7 +416,7 @@ func TestARecordThatIsNoMessageFailsTheExport(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-			p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"})
+			p, err := store.CreateOwnerProfile(ctx, tx, account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal"})
 			profile = p.ID
 			return err
 		}); err != nil {

@@ -123,7 +123,7 @@ func (p *PaperService) FindTasks(ctx context.Context, req *v1.FindTasksRequest) 
 				return finding{}, target, err
 			}
 			f := finding{request: tutor.TaskFinding{Route: route, Photo: req.GetPhoto(), Request: req.GetRequest(), Found: boxesOf(req.GetFound()), Drawn: boxesOf(req.GetDrawn())}}
-			if f.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallFinding, 1, day); err == nil && f.reserve.refused != nil {
+			if f.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallFinding, day); err == nil && f.reserve.refused != nil {
 				err = refusal(ctx, f.reserve.refused)
 			}
 			return f, target, err

@@ -260,16 +260,14 @@ func TestTheSegmentsOfALessonGoInOrder(t *testing.T) {
 		t.Errorf("a new choice = %v, want a new run", next)
 	}
 
-	// A last segment that is a task: no segment is left after it, and the solution shown ends it too.
+	// A last segment that is a task: no segment is left after it.
 	grown := w.open(t, l, l.adult, "grown").GetLessonRunId()
 	a, err := w.segment(l, l.adult, grown, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	shown, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: a.GetAttemptId(),
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING})
-	if err != nil || !shown.GetNext().GetSegmentsEnded() {
-		t.Errorf("the solution shown = %v (%v), want no segment left", shown, err)
+	if next := w.solved(t, l, l.adult, a.GetAttemptId()); !next.GetSegmentsEnded() {
+		t.Errorf("the correct answer = %v, want no segment left", next)
 	}
 	if done, err := w.complete(l, l.adult, grown); err != nil || done.GetEnd().GetReason() != v1.RunEndReason_RUN_END_REASON_PASSED {
 		t.Errorf("lesson done = %v (%v)", done, err)

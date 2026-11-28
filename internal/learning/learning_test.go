@@ -192,7 +192,7 @@ func worldOn(t *testing.T, set *packages.Set, g *admission.Gate, opts []learning
 	log := logging.New(w.log, slog.LevelInfo)
 	srv := rpc.NewServer(rpc.Deps{Signin: w.signin, DB: w.pool, Rights: rights, Log: log, RequestTimeout: 10 * time.Second},
 		rpc.Handlers{Account: account.New(w.pool, rights, w.signin), Module: cat.Modules(w.pool), Learning: s.Learning(db),
-			Attempt: s.Attempts(db, adultRights{w}), Progress: s.Progress(db, adultRights{w}), Work: s.Works(db, adultRights{w}),
+			Attempt: s.Attempts(db), Progress: s.Progress(db, adultRights{w}), Work: s.Works(db, adultRights{w}),
 			Paper: s.Paper(db)})
 	httpServer := httptest.NewServer(server.Routes(log, "", func(mux *http.ServeMux) { rpc.Mount(mux, srv) }))
 	t.Cleanup(httpServer.Close)
@@ -789,7 +789,7 @@ func TestTheCheckOfARequestClosesWhatCannotGoOn(t *testing.T) {
 		t.Errorf("an attempt just short of its term: %v", err)
 	}
 	w.clock.move(time.Minute)
-	_, err = w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.child, AttemptId: a, Step: 2})
+	_, err = w.submit(l, l.child, a, tap(1, 1, "five"))
 	if r := refusedAs(t, err, connect.CodeFailedPrecondition, v1.Cause_CAUSE_ATTEMPT_CLOSED); r.GetCloseReason() != v1.CloseReason_CLOSE_REASON_ABANDONED {
 		t.Errorf("the refusal = %v, want abandoned", r)
 	}
@@ -798,43 +798,33 @@ func TestTheCheckOfARequestClosesWhatCannotGoOn(t *testing.T) {
 	}
 }
 
-// A step whose gives gives techniques gives the task's, and the attempt records
-// it once; the open attempt then holds them, and reading it is no action.
-func TestAStepGivesTheTechniquesOfTheTask(t *testing.T) {
+// The open attempt holds what the learner did, and reading it is no action. No
+// solving step is begun and no solution shown any more: both answer
+// unimplemented and leave the attempt as it was.
+func TestReadingTheOpenAttemptIsNoAction(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
 	l := w.learner(t)
 	a := w.begin(t, l, l.child, "pick").GetAttemptId()
-	for _, step := range []int32{0, 1, 3, 4} {
-		_, err := w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.child, AttemptId: a, Step: step})
-		refusedAs(t, err, connect.CodeInvalidArgument, v1.Cause_CAUSE_UNSPECIFIED)
-	}
-	var firstAt time.Time
-	for range 2 {
-		res, err := w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.child, AttemptId: a, Step: 2})
-		if err != nil || strings.Join(res.GetTechniques().GetTechniqueIds(), ",") != "count-on" {
-			t.Fatalf("BeginStep = %v, %v; want count-on", res, err)
-		}
-		var at time.Time
-		if err := w.pool.QueryRow(t.Context(), `SELECT step_techniques_at FROM attempts WHERE id = $1`, a).Scan(&at); err != nil {
-			t.Fatal(err)
-		}
-		if !firstAt.IsZero() && !at.Equal(firstAt) {
-			t.Errorf("the techniques were given at %v, then %v; want the first time kept", firstAt, at)
-		}
-		firstAt = at
-	}
 	var lastAction time.Time
 	if err := w.pool.QueryRow(t.Context(), `SELECT last_action_at FROM attempts WHERE id = $1`, a).Scan(&lastAction); err != nil {
 		t.Fatal(err)
+	}
+	_, err := w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.child, AttemptId: a, Step: 2})
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Errorf("BeginStep = %v, want unimplemented", err)
+	}
+	_, err = w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.child, AttemptId: a, IdempotencyKey: uuid.NewString()})
+	if connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Errorf("ShowSolution = %v, want unimplemented", err)
 	}
 	open, err := w.learning.GetOpenAttempt(l.ctx, &v1.GetOpenAttemptRequest{ProfileId: l.child, AttemptId: a})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := open.GetAttempt()
-	if strings.Join(got.GetStepTechniqueIds(), ",") != "count-on" || got.GetStart().GetAttemptId() != a || len(got.GetItems()) != 0 ||
+	if len(got.GetStepTechniqueIds()) != 0 || got.GetStart().GetAttemptId() != a || len(got.GetItems()) != 0 ||
 		got.GetWrongAnswers() != 0 || got.GetRequestedLeadingQuestion() != "" {
 		t.Errorf("the open attempt = %v", got)
 	}
@@ -842,11 +832,8 @@ func TestAStepGivesTheTechniquesOfTheTask(t *testing.T) {
 	if err := w.pool.QueryRow(t.Context(), `SELECT last_action_at FROM attempts WHERE id = $1`, a).Scan(&after); err != nil || !after.Equal(lastAction) {
 		t.Errorf("reading the attempt moved its last action from %v to %v (%v)", lastAction, after, err)
 	}
-	// A task with no techniques gives none.
-	pairs := w.begin(t, l, l.child, "greater").GetAttemptId()
-	res, err := w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.child, AttemptId: pairs, Step: 2})
-	if err != nil || len(res.GetTechniques().GetTechniqueIds()) != 0 {
-		t.Errorf("BeginStep of a task with no techniques = %v, %v", res, err)
+	if got := w.closeOf(t, a); got != "" {
+		t.Errorf("the attempt is closed %q, want open", got)
 	}
 }
 
@@ -886,10 +873,6 @@ func TestAProfileWithNoConsentIsRefused(t *testing.T) {
 			_, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
 			return err
 		},
-		"BeginStep": func() error {
-			_, err := w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: waiting, AttemptId: id, Step: 2})
-			return err
-		},
 		"Done": func() error {
 			_, err := w.attempts.Done(l.ctx, &v1.DoneRequest{ProfileId: waiting, AttemptId: id})
 			return err
@@ -908,10 +891,6 @@ func TestAProfileWithNoConsentIsRefused(t *testing.T) {
 		},
 		"GetCorrectAnswerWords": func() error {
 			_, err := w.attempts.GetCorrectAnswerWords(l.ctx, &v1.GetCorrectAnswerWordsRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
-			return err
-		},
-		"ShowSolution": func() error {
-			_, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: waiting, AttemptId: id, IdempotencyKey: id})
 			return err
 		},
 	} {
@@ -992,7 +971,7 @@ func TestADatabaseThatFailsIsUnavailable(t *testing.T) {
 		"FROM profiles p", "FOR NO KEY UPDATE", "FROM idempotency_keys", "INSERT INTO idempotency_keys",
 		"FROM engine_choices", "choice_id = $2", "FROM connected_modules", "INSERT INTO attempts",
 		"FROM attempts\n", "SET close_reason", "INSERT INTO submissions", "SET wrong_answers", "SELECT answer",
-		"SET step_techniques_at", "FROM lesson_runs", "kind = 'module' FOR UPDATE",
+		"FROM lesson_runs", "kind = 'module' FOR UPDATE",
 	} {
 		t.Run(failOn, func(t *testing.T) {
 			t.Parallel()
@@ -1009,8 +988,6 @@ func TestADatabaseThatFailsIsUnavailable(t *testing.T) {
 			}
 			_, err = w.learning.BeginAttempt(l.ctx, &v1.BeginAttemptRequest{ProfileId: l.child, IdempotencyKey: uuid.NewString(),
 				Start: &v1.BeginAttemptRequest_Segment{Segment: &v1.SegmentPlace{LessonRunId: uuid.NewString(), Segment: 1}}})
-			errs = append(errs, err)
-			_, err = w.attempts.BeginStep(l.ctx, &v1.BeginStepRequest{ProfileId: l.child, AttemptId: a, Step: 2})
 			errs = append(errs, err)
 			_, err = w.submit(l, l.child, a, tap(1, 1, "five"))
 			errs = append(errs, err)
@@ -1139,8 +1116,9 @@ const adultFacts = `anthropic:
 // facts of the deployment, its stage and the learner's age category, or by the
 // own key of a provider whose models are admitted, and only in a form tutor
 // reads by a kind of call the gate admits: one answer slot bound anywhere on a
-// handwriting sheet, a workbook page, or a sheet with a rubric, whose reading
-// and assessment tutor admits without an eval run at the stage author alone.
+// handwriting sheet, or a sheet with a rubric, whose reading and assessment
+// tutor admits without an eval run at the stage author alone. A workbook page,
+// which no task is solved on, never begins.
 func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 	t.Parallel()
 
@@ -1171,7 +1149,7 @@ func TestATaskOfHandwritingAsksTheGate(t *testing.T) {
 			"a child":    {true, "apples", "", refused},
 			"a rubric":   {false, "story", "", admitted}, // tutor admits it at the stage author alone
 			"a zone":     {false, "parity", "", refused},
-			"a workbook": {false, "table", "", admitted}, // tutor admits it at the stage author alone
+			"a workbook": {false, "table", "", refused},
 		}},
 		"facts for an adult, the stage full": {adultFacts, config.RungFull, map[string]beginning{
 			"an adult":   {false, "apples", "", refused},

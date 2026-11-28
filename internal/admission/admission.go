@@ -72,10 +72,9 @@ type Provider struct {
 // ownKeyCalls are the kinds of call of tutor that api makes: the reading of a
 // sheet, the hint without the work and the words with it — the hint before
 // the words, whose choice asks the hint's too —, and the words after a correct
-// answer, the reading of a workbook page, and the reading of an essay and its
-// assessment by the rubric. An own key is open when tutor admits it for one of
-// them at least.
-var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect, tutor.CallWorkbook,
+// answer, and the reading of an essay and its assessment by the rubric. An own
+// key is open when tutor admits it for one of them at least.
+var ownKeyCalls = []tutor.Call{tutor.CallSheet, tutor.CallHint, tutor.CallWords, tutor.CallCorrect,
 	tutor.CallEssay, tutor.CallRubric}
 
 // Report is what a start says of admission to the operator: the version of the
@@ -326,13 +325,11 @@ func (g *Gate) OwnKeyProviders(category formatv0.AgeCategory) []Provider {
 	return out
 }
 
-// Reads says whether the reading of handwriting by the call of the kind — of a
-// sheet, CallSheet, or of a workbook page, CallWorkbook — or the reading of an
-// essay, CallEssay, or its assessment, CallRubric, or the finding of the tasks
-// on the photo of a page, CallFinding, or the Check of a task from paper,
-// CallChecking, or the drawing of grown-up mode on one, CallDrawing, is
-// admitted for a learner of category:
-// by platform AI, or, when ownKeyProvider names one, by the own key of that
+// Reads says whether the reading of handwriting of a sheet, CallSheet, or the
+// reading of an essay, CallEssay, or its assessment, CallRubric, or the
+// finding of the tasks on the photo of a page, CallFinding, or the Check of a
+// task from paper, CallChecking, or the drawing of grown-up mode, CallDrawing,
+// is admitted for a learner of category: by platform AI, or, when ownKeyProvider names one, by the own key of that
 // provider alone. It is admitted when tutor chooses, for the call, an entry
 // all of whose models the table admits at the deployment's stage or above. On
 // platform AI only the providers the platform holds a key of serve, and on
@@ -393,13 +390,6 @@ func (g *Gate) route(category formatv0.AgeCategory, ownKeyProvider string) tutor
 // outcome of a call that gave none.
 func (g *Gate) ReadSheet(ctx context.Context, r tutor.SheetReading) tutor.SheetRead {
 	return g.tutor.ReadSheet(ctx, r)
-}
-
-// ReadWorkbook reads the filled boxes of a workbook page by tutor's readers,
-// the pair or one by the mode of reading: the observation of each over every
-// box of the page, or the outcome of a call that gave none.
-func (g *Gate) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading) tutor.WorkbookRead {
-	return g.tutor.ReadWorkbook(ctx, r)
 }
 
 // ReadEssay reads the essay of a task with a rubric by tutor's one reader: the
@@ -496,7 +486,7 @@ func (g *Gate) Admitted(call tutor.Call) []table.Model {
 	return entry.Models
 }
 
-// Reading is the mode tutor reads the handwriting of a sheet and of a workbook
-// page by, and so how many observations its reading gives: two of the pair, or
-// one of the one reader.
+// Reading is the mode tutor reads the handwriting of a sheet by, and so how
+// many observations its reading gives: two of the pair, or one of the one
+// reader.
 func (g *Gate) Reading() tutor.Reading { return g.reading }

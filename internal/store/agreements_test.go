@@ -39,7 +39,7 @@ func newRich(t *testing.T) rich {
 		}
 		grade := int16(4)
 		p, err := store.CreateOwnerProfile(ctx, tx, r.account, store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal",
-			DefaultMode: "by_steps", Grade: &grade})
+			Grade: &grade})
 		r.profile = p.ID
 		return err
 	})
@@ -151,9 +151,11 @@ func TestTheExportReadsAProfileAndItsAccount(t *testing.T) {
 		t.Fatalf("attempts = %+v", e.Attempts)
 	}
 	at := e.Attempts[0]
-	if at.Task != "example/m/task/t1" || at.Instance == nil || at.SolutionShownAt == nil || at.StepTechniquesAt == nil ||
+	// A technique given at a step, which no screen gives any more, is not
+	// exported: the attempt names none.
+	if at.Task != "example/m/task/t1" || at.Instance == nil || at.SolutionShownAt == nil || at.StepTechniquesAt != nil ||
 		!at.LeadingQuestionGiven || len(at.Rungs) != 1 || !at.Rungs[0].ExplainedDifferently || len(at.Submissions) != 2 ||
-		len(at.Owed.Answers) != 2 || !at.Owed.StepTechniques || !at.Owed.RequestedTechniques || at.Owed.CloseReason != "solution_shown" {
+		len(at.Owed.Answers) != 2 || !at.Owed.RequestedTechniques || at.Owed.CloseReason != "solution_shown" {
 		t.Errorf("the attempt = %+v", at)
 	}
 	if len(e.PaperAttempts) != 1 {
@@ -267,8 +269,7 @@ func TestTheAgreementsInTheStore(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if _, err := store.CreateChildProfile(ctx, tx, r.account, held, store.Profile{Pseudonym: "Fox", VoicingSpeed: "normal",
-			DefaultMode: "by_steps", AskBeforeShowing: true}); err != nil {
+		if _, err := store.CreateChildProfile(ctx, tx, r.account, held, store.Profile{Pseudonym: "Fox", VoicingSpeed: "normal"}); err != nil {
 			return err
 		}
 		learner, err = store.ConsentFor(ctx, tx, r.account, teen.ID)

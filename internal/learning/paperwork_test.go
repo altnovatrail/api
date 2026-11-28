@@ -66,7 +66,7 @@ func (w *world) submitPaperOn(t *testing.T, l learner, attempt string, statement
 // adult: the expected price of every attempt of its cascade, by tutor through
 // the gate.
 func reserveOf(g *admission.Gate, c tutor.Call) quota.Micro {
-	return quota.Reserve(c, g.Price(c, tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}), 1)
+	return quota.Reserve(c, g.Price(c, tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult}))
 }
 
 // paperCheck is the Check the attempt keeps, or nil when it keeps none.

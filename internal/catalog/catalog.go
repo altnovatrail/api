@@ -35,10 +35,11 @@ type Catalog struct {
 }
 
 // views is what PackageService gives of a package: the open view of each part
-// it has, nil for a part it has not, and the tiers of its skills.
+// it has, nil for a part it has not, and the tiers of its skills. The solving
+// steps of a package are no view of it: no screen leads them.
 type views struct {
-	manifest, skillGraph, techniques, solvingSteps *v1.OpenView
-	tiers                                          map[string]int32
+	manifest, skillGraph, techniques *v1.OpenView
+	tiers                            map[string]int32
 }
 
 // New is the catalog of set, with the open views of each of its packages built
@@ -66,9 +67,6 @@ func viewsOf(view formatv0.CanonicalView) (views, error) {
 		return views{}, err
 	}
 	if v.techniques, err = openOf(view.Techniques, openview.Techniques, version); err != nil {
-		return views{}, err
-	}
-	if v.solvingSteps, err = openOf(view.SolvingSteps, openview.SolvingSteps, version); err != nil {
 		return views{}, err
 	}
 	if len(view.SkillTiers) > 0 {

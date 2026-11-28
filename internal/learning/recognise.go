@@ -101,7 +101,7 @@ func (a *AttemptService) ReadStatement(ctx context.Context, req *v1.ReadStatemen
 			if err != nil {
 				return recognising{}, target, err
 			}
-			if r.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallStatement, 1, day); err == nil && r.reserve.refused != nil {
+			if r.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallStatement, day); err == nil && r.reserve.refused != nil {
 				err = refusal(ctx, r.reserve.refused)
 			}
 			return r, target, err

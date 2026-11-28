@@ -193,9 +193,7 @@ func (s *Service) profile(p store.Profile) *v1.Profile {
 			Enabled: &p.VoicingEnabled,
 			Speed:   voicingSpeeds[p.VoicingSpeed],
 		}},
-		DefaultMode:       modes[p.DefaultMode],
 		InterfaceLanguage: p.InterfaceLanguage,
-		AskBeforeShowing:  p.AskBeforeShowing,
 		WorkStorage:       p.WorkStorage,
 		HintMode:          hintModes[p.HintMode],
 	}
@@ -236,10 +234,6 @@ var (
 	hintModes = map[string]v1.HintMode{
 		"questions_only": v1.HintMode_HINT_MODE_QUESTIONS_ONLY,
 		"show_where":     v1.HintMode_HINT_MODE_SHOW_WHERE,
-	}
-	modes = map[string]v1.Mode{
-		"by_steps": v1.Mode_MODE_BY_STEPS,
-		"self":     v1.Mode_MODE_SELF,
 	}
 	consentStates = map[string]v1.ConsentState{
 		"waiting":   v1.ConsentState_CONSENT_STATE_WAITING,

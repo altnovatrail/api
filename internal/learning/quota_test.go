@@ -590,10 +590,7 @@ func TestARunWhoseNextSegmentDoesNotBeginWaits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: apples.GetAttemptId(),
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING}); err != nil {
-		t.Fatal(err)
-	}
+	w.exec(t, `UPDATE attempts SET close_reason = 'correct', closed_at = now() WHERE id = $1`, apples.GetAttemptId())
 	w.exec(t, `UPDATE platform_ai SET closed_at = now()`)
 	gives(l.adult, run)
 	if _, err := w.complete(l, l.adult, run); err != nil {
@@ -718,10 +715,7 @@ func TestAnOwnKeyChoosesByItsRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the segment of handwriting by the own key: %v", err)
 	}
-	if _, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: apples.GetAttempt().GetAttemptId(),
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING, OwnKeyProvider: own}); err != nil {
-		t.Fatal(err)
-	}
+	w.exec(t, `UPDATE attempts SET close_reason = 'correct', closed_at = now() WHERE id = $1`, apples.GetAttempt().GetAttemptId())
 	done, err := w.learning.CompleteLesson(l.ctx, &v1.CompleteLessonRequest{ProfileId: l.adult, LessonRunId: run, OwnKeyProvider: own})
 	if err != nil {
 		t.Fatal(err)
@@ -729,7 +723,7 @@ func TestAnOwnKeyChoosesByItsRoute(t *testing.T) {
 	byOwnKey(done.GetEnd().GetChoice())
 
 	// What comes next outside a lesson goes by the route too: a submission that AI
-	// does not read names it without the key, and the solution shown by its own.
+	// does not read names it without the key.
 	w.exec(t, `UPDATE platform_ai SET closed_at = now()`)
 	solved, err := w.attempts.SubmitWork(l.ctx, &v1.SubmitWorkRequest{ProfileId: l.adult, AttemptId: w.begin(t, l, l.adult, "pick").GetAttemptId(),
 		IdempotencyKey: uuid.NewString(), TappedChoices: []*v1.TappedChoice{tap(1, 1, "three and four")}, OwnKeyProvider: own})
@@ -737,12 +731,6 @@ func TestAnOwnKeyChoosesByItsRoute(t *testing.T) {
 		t.Fatalf("a task of a tap = %v (%v), want it solved", solved, err)
 	}
 	byOwnKey(solved.GetNext().GetChoice())
-	shown, err := w.attempts.ShowSolution(l.ctx, &v1.ShowSolutionRequest{ProfileId: l.adult, AttemptId: w.begin(t, l, l.adult, "pick").GetAttemptId(),
-		IdempotencyKey: uuid.NewString(), Action: v1.Action_ACTION_LEARNING, OwnKeyProvider: own})
-	if err != nil {
-		t.Fatal(err)
-	}
-	byOwnKey(shown.GetNext().GetChoice())
 	onPlatformAI, err := w.submit(l, l.adult, w.begin(t, l, l.adult, "pick").GetAttemptId(), tap(1, 1, "three and four"))
 	if err != nil {
 		t.Fatal(err)

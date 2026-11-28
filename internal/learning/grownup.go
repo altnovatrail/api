@@ -26,8 +26,8 @@ const (
 	maxPixelsPerMM = 100
 )
 
-// sheetDrawer is the drawing of grown-up mode on a task from paper, as the gate of
-// admission does it through tutor; own is as wordsTeller has it. Whether it is
+// sheetDrawer is the drawing of grown-up mode, as the gate of admission does it
+// through tutor; own is as wordsTeller has it. Whether it is
 // admitted the admitter says, by CallDrawing.
 type sheetDrawer interface {
 	GrownUp(ctx context.Context, g tutor.GrownUpRequest, own string) tutor.GrownUpAnswer
@@ -38,11 +38,13 @@ func (g gateTutor) GrownUp(ctx context.Context, r tutor.GrownUpRequest, _ string
 }
 
 // drawing is a request of grown-up mode between the parts of its request: the
-// attempt, the call with its reserve and its route, the IDs of the strokes the
-// request named, which alone an act may take off, the answer of the call, and
-// an answer with no call.
+// attempt, and whether it is of a task from paper or of a module, the call with
+// its reserve and its route, the IDs of the strokes the request named, which
+// alone an act may take off, the answer of the call, and an answer with no
+// call.
 type drawing struct {
 	attemptID string
+	paper     bool
 	request   tutor.GrownUpRequest
 	route     tutor.Route
 	named     []int32
@@ -52,14 +54,18 @@ type drawing struct {
 }
 
 // AskGrownUp answers a grown-up's request in grown-up mode on a task from
-// paper: one call of the drawing, CallDrawing, which reads the work's crop,
-// the task's crop, the strokes the work shows, the conversation and the
-// request, and gives the tutor's words with its act on the sheet. It needs no
-// Check, and none is asked. The right is an adult's, can_manage, which the
-// table of methods checks. No admission, the quota, the limit and a call that
-// gives no act answer the outcome alone. Nothing of the request or the answer
-// is kept: the record of the key holds nothing, so a repeat gets repeated
-// alone, and the key's fingerprint is argon2id's, as of a learner's question.
+// paper or of a module: one call of the drawing, CallDrawing, which reads the
+// work's crop, the task's picture — the crop of a task from paper, or the
+// picture app drew of a module's text —, the strokes the work shows, the
+// conversation and the request, and gives the tutor's words with its act on
+// the sheet. It needs no Check, and none is asked. The right is an adult's,
+// can_manage, which the table of methods checks. No admission, the quota, the
+// limit and a call that gives no act answer the outcome alone. Nothing of the
+// request or the answer is kept: the record of the key holds nothing, so a
+// repeat gets repeated alone, and the key's fingerprint is argon2id's, as of a
+// learner's question. An attempt of a module that the act reached keeps that
+// it did, and owes no evidence then: its work may be the grown-up's, so its
+// verdicts are shown and move no progress.
 func (a *AttemptService) AskGrownUp(ctx context.Context, req *v1.AskGrownUpRequest) (*v1.AskGrownUpResponse, error) {
 	s := a.s
 	category, err := s.learner(ctx, req.GetProfileId())
@@ -154,18 +160,16 @@ func notFinite(v float32) bool {
 }
 
 // drawingAsked checks a request of grown-up mode before anything is called — an
-// open attempt of a task from paper — and gives its call with its reserve, in
-// the language of the words. A call not admitted, or a reserve the quota or
+// open attempt, of a task from paper or of a module — and gives its call with
+// its reserve, in the language of the words. A call not admitted, or a reserve the quota or
 // the limit does not hold, gives the outcome and no call.
 func (s *Service) drawingAsked(ctx context.Context, tx pgx.Tx, req *v1.AskGrownUpRequest, route tutor.Route, admitted bool) (drawing, error) {
 	profileID := req.GetProfileId()
 	h, err := s.holdAny(ctx, tx, profileID, req.GetAttemptId(), s.clock())
-	d := drawing{attemptID: h.row.ID, route: route}
+	d := drawing{attemptID: h.row.ID, paper: h.row.Paper, route: route}
 	switch {
 	case err != nil:
 		return d, err
-	case !h.row.Paper:
-		return d, rpc.Malformed("attempt_id")
 	case !admitted:
 		d.ready = &v1.AskGrownUpResponse{Outcome: &v1.Outcome{Cause: v1.Cause_CAUSE_NOT_ADMITTED}}
 		return d, nil
@@ -188,7 +192,7 @@ func (s *Service) drawingAsked(ctx context.Context, tx pgx.Tx, req *v1.AskGrownU
 	if err != nil {
 		return d, err
 	}
-	d.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallDrawing, 1, day)
+	d.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallDrawing, day)
 	if d.reserve.refused != nil {
 		d.ready = &v1.AskGrownUpResponse{Outcome: d.reserve.refused}
 	}
@@ -212,15 +216,28 @@ func (s *Service) draw(ctx context.Context, d drawing, own string) drawing {
 }
 
 // drawingTold answers d, on the attempt held again after its call, which is
-// still to be open: the act, or the outcome. The record of the key holds
-// nothing of either.
+// still to be open: the act, or the outcome. An act on an attempt of a module
+// marks it as one that owes no evidence. The record of the key holds nothing
+// of either.
 func (s *Service) drawingTold(ctx context.Context, tx pgx.Tx, profileID string, d drawing) (*v1.AskGrownUpResponse, store.KeyTarget, error) {
 	answer := d.ready
 	if answer == nil {
-		if _, err := s.holdPaper(ctx, tx, profileID, d.attemptID, s.clock()); err != nil {
+		now := s.clock()
+		var err error
+		if d.paper {
+			_, err = s.holdPaper(ctx, tx, profileID, d.attemptID, now)
+		} else {
+			_, err = s.hold(ctx, tx, profileID, d.attemptID, now)
+		}
+		if err != nil {
 			return nil, store.KeyTarget{}, err
 		}
 		answer = d.drawn()
+		if !d.paper && answer.GetOutcome() == nil {
+			if err := store.MarkGrownUp(ctx, tx, profileID, d.attemptID, now); err != nil {
+				return nil, store.KeyTarget{}, err
+			}
+		}
 	}
 	return answer, store.KeyTarget{ProfileID: profileID, AttemptID: d.attemptID, Response: []byte{}}, nil
 }

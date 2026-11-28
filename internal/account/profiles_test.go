@@ -46,7 +46,6 @@ func TestTheOwnersProfileIsAnAdultsWithItsConsentAndTuple(t *testing.T) {
 	want := &v1.Profile{
 		ProfileId: got.GetProfileId(), Owner: true, Pseudonym: "Owl", AgeCategory: "adult", Country: "US",
 		PresentationStyle: &v1.PresentationStyle{Voicing: &v1.Voicing{Enabled: &off, Speed: v1.VoicingSpeed_VOICING_SPEED_NORMAL}},
-		DefaultMode:       v1.Mode_MODE_BY_STEPS,
 		HintMode:          v1.HintMode_HINT_MODE_SHOW_WHERE,
 		Consent:           &v1.ProfileConsent{Giver: v1.ConsentGiver_CONSENT_GIVER_OWNER, Need: v1.ConsentNeed_CONSENT_NEED_NONE},
 	}
@@ -136,24 +135,31 @@ func TestTheSettingsOfAProfileAreCheckedAndPartial(t *testing.T) {
 	}
 	got, err := update(&v1.ProfileSettings{
 		Pseudonym: ptr("  Snowy Owl  "), Avatar: ptr("owl-2"), InterfaceLanguage: ptr("sr-Latn-RS"), Grade: ptr[int32](7),
-		DefaultMode: v1.Mode_MODE_SELF, Voicing: &v1.Voicing{Enabled: ptr(true), Speed: v1.VoicingSpeed_VOICING_SPEED_SLOW},
+		Voicing: &v1.Voicing{Enabled: ptr(true), Speed: v1.VoicingSpeed_VOICING_SPEED_SLOW},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.GetPseudonym() != "Snowy Owl" || got.GetAvatar() != "owl-2" || got.GetInterfaceLanguage() != "sr-Latn-RS" ||
-		got.GetGrade() != 7 || got.GetDefaultMode() != v1.Mode_MODE_SELF ||
+		got.GetGrade() != 7 ||
 		!got.GetPresentationStyle().GetVoicing().GetEnabled() || got.GetPresentationStyle().GetVoicing().GetSpeed() != v1.VoicingSpeed_VOICING_SPEED_SLOW {
 		t.Fatalf("UpdateProfile = %v, want every field set", got)
 	}
 	// What is not sent stays; empty and 0 clear.
 	got, err = update(&v1.ProfileSettings{Avatar: ptr(""), InterfaceLanguage: ptr(""), Grade: ptr[int32](0)})
 	if err != nil || got.GetPseudonym() != "Snowy Owl" || got.GetAvatar() != "" || got.InterfaceLanguage != nil ||
-		got.Grade != nil || got.GetDefaultMode() != v1.Mode_MODE_SELF {
+		got.Grade != nil {
 		t.Errorf("UpdateProfile clearing = %v, %v; want the three cleared and the rest kept", got, err)
 	}
 	if got, err := update(nil); err != nil || got.GetPseudonym() != "Snowy Owl" {
 		t.Errorf("UpdateProfile of nothing = %v, %v; want the profile as it is", got, err)
+	}
+	// The mode and "ask before showing", which no screen has, are ignored, of
+	// any value, and the profile gives neither.
+	for _, s := range []*v1.ProfileSettings{{DefaultMode: v1.Mode_MODE_SELF}, {DefaultMode: v1.Mode(9)}, {AskBeforeShowing: ptr(true)}} {
+		if got, err := update(s); err != nil || got.GetDefaultMode() != v1.Mode_MODE_UNSPECIFIED || got.GetAskBeforeShowing() {
+			t.Errorf("UpdateProfile of %v = %v, %v; want it ignored", s, got, err)
+		}
 	}
 	// A language the library does not know is still a well-formed tag.
 	if got, err := update(&v1.ProfileSettings{InterfaceLanguage: ptr("qaa-x-private")}); err != nil || got.GetInterfaceLanguage() != "qaa-x-private" {
@@ -171,9 +177,7 @@ func TestTheSettingsOfAProfileAreCheckedAndPartial(t *testing.T) {
 		"a line in a pseudonym": {Pseudonym: ptr("Snowy\nOwl")},
 		"grade 13":              {Grade: ptr[int32](13)},
 		"grade -1":              {Grade: ptr[int32](-1)},
-		"a mode unknown":        {DefaultMode: v1.Mode(9)},
 		"a speed unknown":       {Voicing: &v1.Voicing{Speed: v1.VoicingSpeed(9)}},
-		"ask before an adult's": {AskBeforeShowing: ptr(true)},
 	} {
 		_, err := update(s)
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {

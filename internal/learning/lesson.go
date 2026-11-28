@@ -185,8 +185,8 @@ func (s *Service) holdRun(ctx context.Context, tx pgx.Tx, profileID, runID strin
 // once it has ended, the choice gets "run ended". Two openings at once give the one run: the second reads the
 // first's again. It carries no key and repeats by the state of the run. A
 // segment that this code cannot begin for the learner — a task whose kinds of
-// call the gate does not admit on the route, an essay's or a sheet's or a
-// workbook page's, or one in a zone or on the whole sheet — is not checked
+// call the gate does not admit on the route, an essay's or a sheet's, one on a
+// workbook, or one in a zone or on the whole sheet — is not checked
 // here: its attempt is "not admitted", and the run stays open. The segment of a
 // task with a rubric ends once its attempt is closed "done". The choice an end
 // of its run gives goes by the route own_key_provider names.

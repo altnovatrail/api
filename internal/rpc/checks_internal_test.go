@@ -33,6 +33,13 @@ func TestAMethodWithNoRuleIsUnimplemented(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeUnimplemented {
 		t.Errorf("a method with no rule = %v, want unimplemented", err)
 	}
+	// A method api no longer holds too, with no token, before anything is read.
+	for _, procedure := range noLongerHeld {
+		err := c.intercept(nil)(t.Context(), connect.Spec{Procedure: procedure}, &stream{})
+		if connect.CodeOf(err) != connect.CodeUnimplemented {
+			t.Errorf("%s = %v, want unimplemented", procedure, err)
+		}
+	}
 }
 
 // A message that cannot be received is that error, and one that names no

@@ -5,16 +5,20 @@ import (
 
 	"connectrpc.com/connect/v2"
 	v1 "github.com/altnovatrail/spec/contracts/novatrail/api/v1"
+	"github.com/altnovatrail/spec/contracts/novatrail/api/v1/apiv1connect"
 	"github.com/altnovatrail/spec/types/formatv0"
 
 	"github.com/altnovatrail/api/internal/packages"
 	"github.com/altnovatrail/api/internal/rpc"
 )
 
-// PackageService gives what a package gives by its digest: the four open views,
-// which go without a token by Connect GET and are cached for a day, and which
-// digests the image still gives.
+// PackageService gives what a package gives by its digest: the open views of its
+// manifest, skill graph and technique catalog, which go without a token by
+// Connect GET and are cached for a day, and which digests the image still
+// gives. GetSolvingSteps, which no screen asks any more, answers unimplemented:
+// the checks before the handler know it not.
 type PackageService struct {
+	apiv1connect.UnimplementedPackageServiceHandler
 	c *Catalog
 }
 
@@ -47,15 +51,6 @@ func (s *PackageService) GetTechniques(ctx context.Context, req *v1.GetTechnique
 		return nil, err
 	}
 	return &v1.GetTechniquesResponse{Techniques: v.techniques}, nil
-}
-
-// GetSolvingSteps gives the open view of the package's solving steps.
-func (s *PackageService) GetSolvingSteps(ctx context.Context, req *v1.GetSolvingStepsRequest) (*v1.GetSolvingStepsResponse, error) {
-	v, err := s.c.given(ctx, req.GetPackageDigest())
-	if err != nil {
-		return nil, err
-	}
-	return &v1.GetSolvingStepsResponse{SolvingSteps: v.solvingSteps}, nil
 }
 
 // CheckPackages gives each digest of the request, in its order, with whether the

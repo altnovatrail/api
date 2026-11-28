@@ -222,7 +222,7 @@ func (s *Service) checkAsked(ctx context.Context, tx pgx.Tx, profileID string, r
 	if err != nil {
 		return c, err
 	}
-	c.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallChecking, 1, day)
+	c.reserve, err = s.reserveFor(ctx, tx, profileID, route, tutor.CallChecking, day)
 	return c, err
 }
 

@@ -204,7 +204,7 @@ func TestTheEndOfALessonGivesTheTasksOfItsModule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.shown(t, l, l.adult, a.GetAttemptId())
+	w.solved(t, l, l.adult, a.GetAttemptId())
 	done, err := w.complete(l, l.adult, run.GetLessonRunId())
 	if err != nil {
 		t.Fatal(err)

@@ -109,9 +109,9 @@ func TestTheGateAdmitsByTheFactsAndTheStage(t *testing.T) {
 			if got := g.Reads(tutor.CallSheet, tc.category, tc.provider); got != tc.want {
 				t.Errorf("Reads(sheet, %s, %q) = %v, want %v", tc.category, tc.provider, got, tc.want)
 			}
-			// The workbook, the essay and the rubric are admitted by the author's word
-			// at the rung author alone, where the sheet is.
-			for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
+			// The essay and the rubric are admitted by the author's word at the
+			// rung author alone, where the sheet is.
+			for _, call := range []tutor.Call{tutor.CallEssay, tutor.CallRubric} {
 				if got := g.Reads(call, tc.category, tc.provider); got != tc.want {
 					t.Errorf("Reads(%s, %s, %q) = %v, want %v", call, tc.category, tc.provider, got, tc.want)
 				}
@@ -216,7 +216,7 @@ func TestTheReportCountsThePlatformsKeys(t *testing.T) {
 	}
 }
 
-// The gate reads a sheet, a workbook page and an essay, and assesses an essay,
+// The gate reads a sheet and an essay, and assesses an essay,
 // by tutor, which calls no model for a reading with no task or an assessment
 // with no text.
 func TestTheGateReadsByTutor(t *testing.T) {
@@ -227,12 +227,6 @@ func TestTheGateReadsByTutor(t *testing.T) {
 	})
 	if read.Outcome.Kind != tutor.Failed || len(read.Observations) != 0 || len(read.Outcome.Usage) != 0 {
 		t.Errorf("ReadSheet with no task = %v, want a failure with no call", read.Outcome.Kind)
-	}
-	page := load(t, keyed(t, "", config.RungAuthor)).ReadWorkbook(t.Context(), tutor.WorkbookReading{
-		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
-	})
-	if page.Outcome.Kind != tutor.Failed || len(page.Observations) != 0 || len(page.Outcome.Usage) != 0 {
-		t.Errorf("ReadWorkbook with no task = %v, want a failure with no call", page.Outcome.Kind)
 	}
 	essay := load(t, keyed(t, "", config.RungAuthor)).ReadEssay(t.Context(), tutor.EssayReading{
 		Route: tutor.Route{AI: admissionv0.AiRoutePlatformAi, Category: admissionv0.AgeCategoryAdult},
@@ -447,7 +441,7 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 		if !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
 			t.Errorf("the price of %s for an adult = %+v, want an expected price of cents", call, p)
 		}
-		if got := quota.Reserve(call, p, 1); got != quota.USD(p.ExpectedUSD) {
+		if got := quota.Reserve(call, p); got != quota.USD(p.ExpectedUSD) {
 			t.Errorf("%s reserves %d, want its expected price, %d", call, got, quota.USD(p.ExpectedUSD))
 		}
 	}
@@ -460,11 +454,11 @@ func TestTheGatePricesWhatItAdmits(t *testing.T) {
 	if p := g.Price(tutor.CallSheet, child); p.Expected || p.ExpectedUSD != 0 {
 		t.Errorf("the price of a route not admitted = %+v, want none", p)
 	}
-	// The workbook, the essay and the rubric have the expected price of the
-	// entries the author's word admits at the rung author, and none at the rung
-	// full, which admits none of them.
+	// The essay and the rubric have the expected price of the entries the
+	// author's word admits at the rung author, and none at the rung full, which
+	// admits neither.
 	full := load(t, keyed(t, file(t, adultFacts), config.RungFull))
-	for _, call := range []tutor.Call{tutor.CallWorkbook, tutor.CallEssay, tutor.CallRubric} {
+	for _, call := range []tutor.Call{tutor.CallEssay, tutor.CallRubric} {
 		if p := g.Price(call, adult); !p.Expected || p.ExpectedUSD <= 0 || p.ExpectedUSD > 0.05 {
 			t.Errorf("the price of %s for an adult = %+v, want an expected price of cents", call, p)
 		}
@@ -525,7 +519,7 @@ func TestTheStubAdmitsAndPricesAndCallsNothing(t *testing.T) {
 // apiCalls are the kinds of call api makes, and before are the first three of
 // them: the reading of a sheet, the words and the hint.
 var (
-	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect, tutor.CallWorkbook,
+	apiCalls = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint, tutor.CallCorrect,
 		tutor.CallEssay, tutor.CallRubric}
 	before = []tutor.Call{tutor.CallSheet, tutor.CallWords, tutor.CallHint}
 )

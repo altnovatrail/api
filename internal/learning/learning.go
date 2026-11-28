@@ -1,10 +1,9 @@
 // Package learning runs attempts of tasks: their beginning, the open attempt,
 // the submission of the work and its verdict by module-kit, on the options
 // tapped and on what tutor read, the submission of an essay and its feedback by
-// the rubric, the techniques a solving step gives, "Done", the hint ladder with
-// the tutor's words and their fallback texts, the showing of the solution,
-// lesson runs with their segments, and the tasks from the learner's paper,
-// found on the photo of a page. It answers the methods of LearningService,
+// the rubric, "Done", the hint ladder with the tutor's words and their fallback
+// texts, grown-up mode, lesson runs with their segments, and the tasks from the
+// learner's paper, found on the photo of a page. It answers the methods of LearningService,
 // AttemptService and PaperService, and keeps the stored works of WorkService
 // too, whose kind is the attempt's task's.
 //
@@ -54,10 +53,9 @@ type Service struct {
 	reader  sheetReader
 	teller  wordsTeller
 	praiser correctTeller
-	// admits says whether a kind of call that reads the work is admitted, and
-	// workbook reads the work of a workbook page: the gate's tutor.
-	admits   admitter
-	workbook workbookReader
+	// admits says whether a kind of call that reads the work is admitted: the
+	// gate's tutor.
+	admits admitter
 	// essay reads the essay of a task with a rubric, and assessor assesses its
 	// text by the criteria: the gate's tutor.
 	essay    essayReader
@@ -69,8 +67,8 @@ type Service struct {
 	paper paperChecker
 	// paperWords words the tutor's words of a task from paper: the gate's tutor.
 	paperWords paperTeller
-	// drawer draws the tutor's act of grown-up mode on a task from paper: the
-	// gate's tutor.
+	// drawer draws the tutor's act of grown-up mode, on a task from paper or of a
+	// module: the gate's tutor.
 	drawer sheetDrawer
 	// reading is the mode tutor reads handwriting by, the gate's, which says how
 	// many observations a reading gives.
@@ -139,19 +137,18 @@ func OffDeployment() Option { return func(s *Service) { s.offDeployment = true }
 // returned.
 func WithDebug(d *debug.Store) Option { return func(s *Service) { s.debug = d } }
 
-// WithTutor is what reads the sheets, the workbook pages and the essays,
+// WithTutor is what reads the sheets and the essays,
 // assesses the essays by their rubrics, words the tutor's words, those after a
 // correct answer too, finds the tasks on the photo of a page, checks a task
 // from paper, words its tutor's words and draws its act of grown-up mode, and
 // says which kinds of reading are admitted, in place of the gate's tutor: the
-// dev mode's stub, which calls no provider and admits a workbook page, an
-// essay and its assessment itself.
+// dev mode's stub, which calls no provider and admits an essay and its
+// assessment itself.
 func WithTutor(t interface {
 	sheetReader
 	wordsTeller
 	correctTeller
 	admitter
-	workbookReader
 	essayReader
 	rubricAssessor
 	taskFinder
@@ -160,8 +157,8 @@ func WithTutor(t interface {
 	sheetDrawer
 }) Option {
 	return func(s *Service) {
-		s.reader, s.teller, s.praiser, s.admits, s.workbook, s.essay, s.assessor, s.finder, s.paper, s.paperWords, s.drawer, s.stubbed =
-			t, t, t, t, t, t, t, t, t, t, t, true
+		s.reader, s.teller, s.praiser, s.admits, s.essay, s.assessor, s.finder, s.paper, s.paperWords, s.drawer, s.stubbed =
+			t, t, t, t, t, t, t, t, t, t, true
 	}
 }
 
@@ -179,18 +176,12 @@ type sheetReader interface {
 	ReadSheet(ctx context.Context, r tutor.SheetReading, task formatv0.Task, own string) tutor.SheetRead
 }
 
-// admitter says whether tutor's call of the kind that reads the work, of a
-// sheet or of a workbook page, is admitted for a learner of category, by the
+// admitter says whether tutor's call of the kind that reads the work is
+// admitted for a learner of category, by the
 // own key of ownKeyProvider when it names one, as the gate says through tutor's
 // choice.
 type admitter interface {
 	Reads(call tutor.Call, category formatv0.AgeCategory, ownKeyProvider string) bool
-}
-
-// workbookReader reads the filled boxes of a workbook page, as tutor does; task
-// and own are as sheetReader has them.
-type workbookReader interface {
-	ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, task formatv0.Task, own string) tutor.WorkbookRead
 }
 
 // gateTutor admits, reads and words by the gate's tutor, which never sees the
@@ -199,10 +190,6 @@ type gateTutor struct{ *admission.Gate }
 
 func (g gateTutor) ReadSheet(ctx context.Context, r tutor.SheetReading, _ formatv0.Task, _ string) tutor.SheetRead {
 	return g.Gate.ReadSheet(ctx, r)
-}
-
-func (g gateTutor) ReadWorkbook(ctx context.Context, r tutor.WorkbookReading, _ formatv0.Task, _ string) tutor.WorkbookRead {
-	return g.Gate.ReadWorkbook(ctx, r)
 }
 
 func (g gateTutor) FindTasks(ctx context.Context, f tutor.TaskFinding, _ string) tutor.TasksFound {
@@ -225,7 +212,7 @@ func (g gateTutor) TellCorrectWords(ctx context.Context, c tutor.CorrectRequest,
 // engine, which every choice keeps.
 func New(set *packages.Set, gate *admission.Gate, opts ...Option) (*Service, error) {
 	s := &Service{set: set, reader: gateTutor{gate}, teller: gateTutor{gate}, praiser: gateTutor{gate},
-		admits: gateTutor{gate}, workbook: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
+		admits: gateTutor{gate}, essay: gateTutor{gate}, assessor: gateTutor{gate},
 		finder: gateTutor{gate}, paper: gateTutor{gate}, paperWords: gateTutor{gate}, drawer: gateTutor{gate}, texts: legal.Spec(), now: time.Now, moduleKit: version.ModuleKit(),
 		engine: version.Engine(), goingFor: config.DefaultRequestTimeout,
 		paperGoingFor: config.DefaultPaperRequestTimeout, grownUpGoingFor: config.DefaultGrownUpRequestTimeout}
@@ -264,19 +251,16 @@ type LearningService struct {
 func (s *Service) Learning(db rpc.DB) *LearningService { return &LearningService{s: s.on(db)} }
 
 // AttemptService is the requests on an attempt: the submission of the work,
-// the beginning of a step and "Done", the hint ladder and the showing of the
-// solution.
+// "Done", the hint ladder and grown-up mode. BeginStep and ShowSolution, which
+// no screen asks any more, answer unimplemented: the checks before the handler
+// know neither.
 type AttemptService struct {
 	apiv1connect.UnimplementedAttemptServiceHandler
-	s      *Service
-	rights canner
+	s *Service
 }
 
-// Attempts is the AttemptService of s, on db, which asks rights of an adult's
-// action.
-func (s *Service) Attempts(db rpc.DB, rights canner) *AttemptService {
-	return &AttemptService{s: s.on(db), rights: rights}
-}
+// Attempts is the AttemptService of s, on db.
+func (s *Service) Attempts(db rpc.DB) *AttemptService { return &AttemptService{s: s.on(db)} }
 
 func (s *Service) on(db rpc.DB) *Service {
 	c := *s
@@ -471,7 +455,7 @@ func refused(ctx context.Context, err error) error {
 	case errors.Is(err, errPackageUnknown):
 		return rpc.Refuse(ctx, connect.CodeUnavailable, v1.Cause_CAUSE_PACKAGE_UNKNOWN)
 	case errors.Is(err, store.ErrPaper):
-		// A task from paper has no steps, no rubric, no open view and no stored work.
+		// A task from paper has no rubric, no open view and no stored work.
 		return connect.NewError(connect.CodeInvalidArgument, "an attempt of a task from paper")
 	case errors.Is(err, store.ErrChoiceBegun):
 		return rpc.Refuse(ctx, connect.CodeAlreadyExists, v1.Cause_CAUSE_ALREADY_EXISTS)

@@ -157,7 +157,7 @@ func TestAFailedStatementOfAProfileIsAFailure(t *testing.T) {
 
 	pool := storetest.DB(t)
 	id := account(t, pool)
-	p := store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal", DefaultMode: "by_steps"}
+	p := store.Profile{Pseudonym: "Owl", Country: "US", VoicingSpeed: "normal"}
 	for _, tc := range []struct {
 		failOn string
 		run    func(tx pgx.Tx) error
@@ -331,8 +331,8 @@ func TestAFailedStatementOfAnAttemptIsAFailure(t *testing.T) {
 			_, _, err := store.AttemptTask(t.Context(), tx, profile, none)
 			return err
 		}},
-		{"SET step_techniques_at", func(tx pgx.Tx) error {
-			return store.GiveStepTechniques(t.Context(), tx, profile, none, time.Now())
+		{"SET grown_up_at", func(tx pgx.Tx) error {
+			return store.MarkGrownUp(t.Context(), tx, profile, none, time.Now())
 		}},
 		{"FROM connected_modules", func(tx pgx.Tx) error {
 			_, err := store.ModuleConnected(t.Context(), tx, profile, "example/m")
